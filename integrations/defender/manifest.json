@@ -1,0 +1,18 @@
+{
+  "id": "defender",
+  "name": "Microsoft Defender",
+  "vendor": "Microsoft",
+  "description": "Connect Microsoft Defender for Endpoint vulnerabilities.",
+  "category": "EDR / XDR",
+  "icon_color": "#00A4EF",
+  "capabilities": ["sync", "validate", "dashboard", "endpoints", "vulnerabilities", "history", "schedule"],
+  "settings": [
+    { "key": "DefenderTenantId", "label": "Tenant ID", "type": "text", "group": "Microsoft Defender Configuration", "required": true },
+    { "key": "DefenderClientId", "label": "Client ID (App ID)", "type": "text", "group": "Microsoft Defender Configuration", "required": true },
+    { "key": "DefenderClientSecret", "label": "Client Secret", "type": "secret", "group": "Microsoft Defender Configuration", "required": true },
+    { "key": "DefenderBaseUrl", "label": "Defender API Base URL", "type": "url", "group": "Microsoft Defender Configuration", "defaultValue": "https://api.security.microsoft.com" },
+    { "key": "Action1APIKey", "label": "API Key (Client ID)", "type": "text", "group": "Action1 Configuration", "required": true },
+    { "key": "Action1APISecret", "label": "API Secret (Client Secret)", "type": "secret", "group": "Action1 Configuration", "required": true },
+    { "key": "Action1OrgID", "label": "Organization ID", "type": "text", "group": "Action1 Configuration", "required": true }
+  ]
+}

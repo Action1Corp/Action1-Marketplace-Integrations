@@ -1,0 +1,32 @@
+{
+  "id": "rapid7",
+  "name": "Rapid7 InsightVM",
+  "vendor": "Rapid7",
+  "description": "Import Rapid7 asset risk scores into Action1.",
+  "category": "Vulnerability Management",
+  "icon_color": "#FF6B00",
+  "capabilities": ["sync", "validate", "dashboard", "endpoints", "vulnerabilities", "history", "schedule"],
+  "settings": [
+    { "key": "Rapid7ApiKey", "label": "Insight API Key", "type": "secret", "group": "Rapid7 InsightVM Configuration", "required": true },
+    {
+      "key": "Rapid7Region",
+      "label": "Insight Region",
+      "type": "select",
+      "group": "Rapid7 InsightVM Configuration",
+      "required": true,
+      "defaultValue": "us",
+      "options": [
+        { "value": "us", "label": "United States (us)" },
+        { "value": "us2", "label": "United States (us2)" },
+        { "value": "us3", "label": "United States (us3)" },
+        { "value": "eu", "label": "Europe (eu)" },
+        { "value": "ca", "label": "Canada (ca)" },
+        { "value": "au", "label": "Australia (au)" },
+        { "value": "ap", "label": "Japan (ap)" }
+      ]
+    },
+    { "key": "Action1APIKey", "label": "API Key (Client ID)", "type": "text", "group": "Action1 Configuration", "required": true },
+    { "key": "Action1APISecret", "label": "API Secret (Client Secret)", "type": "secret", "group": "Action1 Configuration", "required": true },
+    { "key": "Action1OrgID", "label": "Organization ID", "type": "text", "group": "Action1 Configuration", "required": true }
+  ]
+}
