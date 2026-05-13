@@ -1,4 +1,9 @@
 module.exports = {
+  async sync(context) {
+    context.logger.info('Starting Tenable sync through Marketplace runtime context.');
+    return context.legacy.runSync();
+  },
+
   async validate({ settings }) {
     const accessKey = settings.TenableAccessKey;
     const secretKey = settings.TenableSecretKey;

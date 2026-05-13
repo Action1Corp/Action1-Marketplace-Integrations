@@ -15,3 +15,5 @@ integrations/
 ```
 
 See `INTEGRATION_REPO_STRATEGY.md` for the proposed contract, migration plan, and packaging approach.
+
+See `DEVELOPER_CONTRACT.md` for the current handler API and optional capability model.
