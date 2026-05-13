@@ -40,6 +40,14 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
     failures += 1;
   }
 
+  const hasHandler = fs.existsSync(path.join(root, entry.name, manifest.entry || 'index.js'));
+  if (manifest.capabilities?.includes('sync') && !hasHandler) {
+    console.warn(`${entry.name}: declares sync but has no handler yet; Marketplace legacy fallback must provide sync until this is migrated.`);
+  }
+  if (manifest.capabilities?.includes('validate') && !hasHandler) {
+    console.warn(`${entry.name}: declares validate but has no handler yet; Marketplace legacy validation must provide validation until this is migrated.`);
+  }
+
   if (!Array.isArray(manifest.settings)) {
     console.error(`${entry.name}: settings must be an array`);
     failures += 1;

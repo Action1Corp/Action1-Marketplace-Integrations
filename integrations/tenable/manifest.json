@@ -5,6 +5,7 @@
   "description": "Synchronize vulnerabilities from Tenable.io into Action1.",
   "category": "Vulnerability Management",
   "icon_color": "#2E8CEB",
+  "entry": "index.js",
   "capabilities": ["sync", "validate", "dashboard", "endpoints", "vulnerabilities", "history", "schedule"],
   "settings": [
     { "key": "TenableAccessKey", "label": "Access Key", "type": "secret", "group": "Tenable Configuration", "required": true },
