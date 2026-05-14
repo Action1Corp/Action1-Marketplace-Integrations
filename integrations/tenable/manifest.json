@@ -2,16 +2,57 @@
   "id": "tenable",
   "name": "Tenable VM",
   "vendor": "Tenable",
+  "version": "1.0.0",
+  "marketplaceApiVersion": "1.0",
+  "minimumMarketplaceVersion": "1.0.0",
   "description": "Synchronize vulnerabilities from Tenable.io into Action1.",
   "category": "Vulnerability Management",
   "icon_color": "#2E8CEB",
   "entry": "index.js",
-  "capabilities": ["sync", "validate", "dashboard", "endpoints", "vulnerabilities", "history", "schedule"],
+  "capabilities": [
+    "sync",
+    "validate",
+    "dashboard",
+    "endpoints",
+    "vulnerabilities",
+    "history",
+    "schedule"
+  ],
   "settings": [
-    { "key": "TenableAccessKey", "label": "Access Key", "type": "secret", "group": "Tenable Configuration", "required": true },
-    { "key": "TenableSecretKey", "label": "Secret Key", "type": "secret", "group": "Tenable Configuration", "required": true },
-    { "key": "Action1APIKey", "label": "API Key (Client ID)", "type": "text", "group": "Action1 Configuration", "required": true },
-    { "key": "Action1APISecret", "label": "API Secret (Client Secret)", "type": "secret", "group": "Action1 Configuration", "required": true },
-    { "key": "Action1OrgID", "label": "Organization ID", "type": "text", "group": "Action1 Configuration", "required": true }
+    {
+      "key": "TenableAccessKey",
+      "label": "Access Key",
+      "type": "secret",
+      "group": "Tenable Configuration",
+      "required": true
+    },
+    {
+      "key": "TenableSecretKey",
+      "label": "Secret Key",
+      "type": "secret",
+      "group": "Tenable Configuration",
+      "required": true
+    },
+    {
+      "key": "Action1APIKey",
+      "label": "API Key (Client ID)",
+      "type": "text",
+      "group": "Action1 Configuration",
+      "required": true
+    },
+    {
+      "key": "Action1APISecret",
+      "label": "API Secret (Client Secret)",
+      "type": "secret",
+      "group": "Action1 Configuration",
+      "required": true
+    },
+    {
+      "key": "Action1OrgID",
+      "label": "Organization ID",
+      "type": "text",
+      "group": "Action1 Configuration",
+      "required": true
+    }
   ]
 }

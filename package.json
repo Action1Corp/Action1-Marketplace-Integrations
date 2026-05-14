@@ -1,0 +1,10 @@
+{
+  "name": "action1-marketplace-integrations-dev",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node scripts/validate-manifests.js && node tests/validate-contract.js",
+    "test:manifests": "node scripts/validate-manifests.js",
+    "test:contract": "node tests/validate-contract.js"
+  }
+}

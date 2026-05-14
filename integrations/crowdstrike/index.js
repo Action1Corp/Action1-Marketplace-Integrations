@@ -1,12 +1,22 @@
-const axios = require('axios');
-const { db, getSetting, initDb, computeAndSaveRunMetrics } = require('../database');
-const nvdService = require('./nvdService');
+const { validateAction1, validateCrowdStrike } = require('../_shared/validation');
+
+let axios;
+let db;
+let getSetting;
+let computeAndSaveRunMetrics;
+let nvdService;
+
+async function validate({ settings }) {
+  return {
+    crowdstrike: await validateCrowdStrike(settings),
+    action1: await validateAction1(settings)
+  };
+}
 
 // Wait utility
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
 async function runSync() {
-    initDb();
     console.log("Starting CrowdStrike Sync Engine...");
     
     // Create new Run ID
@@ -387,4 +397,16 @@ async function runSync() {
     }
 }
 
-module.exports = { runSync };
+async function sync(context) {
+  axios = context.http;
+  db = context.db.raw;
+  getSetting = context.settings.get;
+  computeAndSaveRunMetrics = context.services.computeAndSaveRunMetrics;
+  nvdService = context.services.nvd;
+  return runSync();
+}
+
+module.exports = {
+  validate,
+  sync
+};

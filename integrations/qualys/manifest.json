@@ -2,16 +2,63 @@
   "id": "qualys",
   "name": "Qualys VMDR",
   "vendor": "Qualys",
+  "version": "1.0.0",
+  "marketplaceApiVersion": "1.0",
+  "minimumMarketplaceVersion": "1.0.0",
   "description": "Ingest Qualys scan findings into Action1.",
   "category": "Vulnerability Management",
   "icon_color": "#E84B4B",
-  "capabilities": ["sync", "validate", "dashboard", "endpoints", "vulnerabilities", "history", "schedule"],
+  "capabilities": [
+    "sync",
+    "validate",
+    "dashboard",
+    "endpoints",
+    "vulnerabilities",
+    "history",
+    "schedule"
+  ],
   "settings": [
-    { "key": "QualysUsername", "label": "Qualys Username", "type": "text", "group": "Qualys VMDR Configuration", "required": true },
-    { "key": "QualysPassword", "label": "Qualys Password", "type": "secret", "group": "Qualys VMDR Configuration", "required": true },
-    { "key": "QualysBaseUrl", "label": "Qualys API Base URL", "type": "url", "group": "Qualys VMDR Configuration", "defaultValue": "https://qualysapi.qg3.apps.qualys.com" },
-    { "key": "Action1APIKey", "label": "API Key (Client ID)", "type": "text", "group": "Action1 Configuration", "required": true },
-    { "key": "Action1APISecret", "label": "API Secret (Client Secret)", "type": "secret", "group": "Action1 Configuration", "required": true },
-    { "key": "Action1OrgID", "label": "Organization ID", "type": "text", "group": "Action1 Configuration", "required": true }
+    {
+      "key": "QualysUsername",
+      "label": "Qualys Username",
+      "type": "text",
+      "group": "Qualys VMDR Configuration",
+      "required": true
+    },
+    {
+      "key": "QualysPassword",
+      "label": "Qualys Password",
+      "type": "secret",
+      "group": "Qualys VMDR Configuration",
+      "required": true
+    },
+    {
+      "key": "QualysBaseUrl",
+      "label": "Qualys API Base URL",
+      "type": "url",
+      "group": "Qualys VMDR Configuration",
+      "defaultValue": "https://qualysapi.qg3.apps.qualys.com"
+    },
+    {
+      "key": "Action1APIKey",
+      "label": "API Key (Client ID)",
+      "type": "text",
+      "group": "Action1 Configuration",
+      "required": true
+    },
+    {
+      "key": "Action1APISecret",
+      "label": "API Secret (Client Secret)",
+      "type": "secret",
+      "group": "Action1 Configuration",
+      "required": true
+    },
+    {
+      "key": "Action1OrgID",
+      "label": "Organization ID",
+      "type": "text",
+      "group": "Action1 Configuration",
+      "required": true
+    }
   ]
 }

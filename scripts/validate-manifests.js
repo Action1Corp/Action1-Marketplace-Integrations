@@ -2,7 +2,19 @@ const fs = require('fs');
 const path = require('path');
 
 const root = path.join(__dirname, '..', 'integrations');
-const requiredTopLevel = ['id', 'name', 'vendor', 'description', 'category', 'capabilities', 'settings'];
+const requiredTopLevel = [
+  'id',
+  'name',
+  'vendor',
+  'version',
+  'marketplaceApiVersion',
+  'minimumMarketplaceVersion',
+  'description',
+  'category',
+  'capabilities',
+  'settings'
+];
+const supportedMarketplaceApiVersions = new Set(['1.0']);
 let failures = 0;
 
 for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
@@ -35,6 +47,11 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
     failures += 1;
   }
 
+  if (!supportedMarketplaceApiVersions.has(manifest.marketplaceApiVersion)) {
+    console.error(`${entry.name}: unsupported marketplaceApiVersion ${manifest.marketplaceApiVersion}`);
+    failures += 1;
+  }
+
   if (!Array.isArray(manifest.capabilities)) {
     console.error(`${entry.name}: capabilities must be an array`);
     failures += 1;
@@ -42,10 +59,12 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
 
   const hasHandler = fs.existsSync(path.join(root, entry.name, manifest.entry || 'index.js'));
   if (manifest.capabilities?.includes('sync') && !hasHandler) {
-    console.warn(`${entry.name}: declares sync but has no handler yet; Marketplace legacy fallback must provide sync until this is migrated.`);
+    console.error(`${entry.name}: declares sync but has no handler`);
+    failures += 1;
   }
   if (manifest.capabilities?.includes('validate') && !hasHandler) {
-    console.warn(`${entry.name}: declares validate but has no handler yet; Marketplace legacy validation must provide validation until this is migrated.`);
+    console.error(`${entry.name}: declares validate but has no handler`);
+    failures += 1;
   }
 
   if (!Array.isArray(manifest.settings)) {

@@ -1,0 +1,39 @@
+async function createSyncRun(context, details = 'Started sync') {
+  const result = await context.db.run(
+    'INSERT INTO sync_history (integration_id, status, details) VALUES (?, ?, ?)',
+    [context.integrationId, 'Running', details]
+  );
+  return result.lastID;
+}
+
+async function appendSyncLog(context, runId, currentDetails, message) {
+  const nextDetails = `${currentDetails || ''}${new Date().toISOString().substring(11, 19)} - ${message}\n`;
+  context.logger.info(message);
+  await context.db.run('UPDATE sync_history SET details = ? WHERE id = ?', [nextDetails, runId]);
+  return nextDetails;
+}
+
+async function completeSyncRun(context, runId, details, assetsProcessed = 0) {
+  await context.services.computeAndSaveRunMetrics(runId, context.integrationId);
+  await context.db.run(
+    'UPDATE sync_history SET status = ?, details = ?, assets_processed = ? WHERE id = ?',
+    ['Success', details, assetsProcessed, runId]
+  );
+}
+
+async function failSyncRun(context, runId, details, error) {
+  const message = error?.message || String(error);
+  const nextDetails = `${details || ''}${new Date().toISOString().substring(11, 19)} - Error: ${message}\n`;
+  await context.db.run(
+    'UPDATE sync_history SET status = ?, details = ? WHERE id = ?',
+    ['Failed', nextDetails, runId]
+  );
+  return nextDetails;
+}
+
+module.exports = {
+  createSyncRun,
+  appendSyncLog,
+  completeSyncRun,
+  failSyncRun
+};

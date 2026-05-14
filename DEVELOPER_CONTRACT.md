@@ -1,5 +1,7 @@
 # Integration Developer Contract
 
+For the versioned API reference, see `MARKETPLACE_INTEGRATION_API.md`.
+
 Marketplace integrations are folder-based packages loaded by manifest.
 
 ```text
@@ -71,14 +73,9 @@ await context.db.run(sql, params)
 await context.db.get(sql, params)
 await context.db.all(sql, params)
 
+context.http
 context.services.nvd
 context.services.computeAndSaveRunMetrics(runId, integrationId)
 ```
 
-Temporary migration bridge:
-
-```js
-await context.legacy.runSync()
-```
-
-Use `context.legacy.runSync()` only while moving existing integrations from Marketplace-owned sync engines into integration-owned handlers.
+Integrations must not import Marketplace backend files directly. The runtime context is the compatibility boundary between the Marketplace and integration packages.

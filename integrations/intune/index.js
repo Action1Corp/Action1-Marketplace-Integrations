@@ -1,6 +1,19 @@
-const axios = require('axios');
+const { validateIntune } = require('../_shared/validation');
+
+let axios;
+let db;
+let getSetting;
+let computeAndSaveRunMetrics;
+let nvdService;
+
+async function validate({ settings }) {
+  return {
+    intune: await validateIntune(settings)
+  };
+}
+
 const crypto = require('crypto');
-const { db, getSetting } = require('../database');
+
 
 function updateProgress(details, status = 'Running') {
     console.log(`[Intune] ${details}`);
@@ -385,4 +398,16 @@ async function runSync() {
     }
 }
 
-module.exports = { runSync };
+async function sync(context) {
+  axios = context.http;
+  db = context.db.raw;
+  getSetting = context.settings.get;
+  computeAndSaveRunMetrics = context.services.computeAndSaveRunMetrics;
+  nvdService = context.services.nvd;
+  return runSync();
+}
+
+module.exports = {
+  validate,
+  sync
+};
