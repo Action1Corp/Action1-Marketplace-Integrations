@@ -37,9 +37,17 @@ An integration that only stores configuration can declare:
 
 The Marketplace hides unsupported buttons and navigation automatically.
 
-## Optional Handlers
+## Optional Marketplace Handlers
 
-`index.js` may export any of these handlers:
+Handlers are only required for capabilities that the Marketplace knows how to run.
+
+For the current Marketplace API:
+
+- Declare `validate` only if the Marketplace should show and run a credential validation action.
+- Declare `sync` only if the Marketplace should show and run a sync action.
+- Omit both for integrations that only provide settings, static metadata, standard views populated another way, or future/custom behavior.
+
+`index.js` can export the Marketplace handlers it supports:
 
 ```js
 module.exports = {
@@ -52,6 +60,8 @@ module.exports = {
   }
 };
 ```
+
+The integration can contain any internal functions it needs. The Marketplace will not call arbitrary function names unless a future API version defines them as supported handlers.
 
 Do not import Marketplace backend files from an integration. Use the provided `context` object.
 

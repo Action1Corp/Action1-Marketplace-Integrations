@@ -35,18 +35,34 @@ Every integration must provide `manifest.json`.
 
 Declare only the capabilities the integration actually supports. The Marketplace hides unsupported navigation and actions automatically.
 
-## Handlers
+## Capabilities And Handlers
 
-`index.js` may export these async handlers:
+Capabilities describe which Marketplace-provided UI surfaces and actions should be enabled for an integration.
+
+Current built-in capabilities:
+
+- `settings`: render settings from `manifest.json`
+- `validate`: show the Marketplace credential validation action
+- `sync`: show the Marketplace sync action
+- `dashboard`: show the standard dashboard view backed by Marketplace data tables
+- `endpoints`: show the standard endpoints view backed by Marketplace data tables
+- `vulnerabilities`: show the standard vulnerabilities view backed by Marketplace data tables
+- `history`: show the standard run history view backed by Marketplace data tables
+- `schedule`: show the standard schedule controls
+
+Declare only what the integration actually uses. An integration can be settings-only, dashboard-only, or use none of the current action handlers.
+
+When an integration declares a built-in action capability, the Marketplace invokes the matching optional handler:
 
 ```js
-async function validate(context) {}
-async function sync(context) {}
-
 module.exports = { validate, sync };
 ```
 
-The Marketplace runs the handlers. The integration owns vendor-specific behavior.
+`validate(context)` is required only when the integration declares `validate`.
+
+`sync(context)` is required only when the integration declares `sync`.
+
+Integrations may define any internal functions they need. The Marketplace only calls handlers that are part of the supported integration API. Future Marketplace versions can add more built-in handlers without changing integrations that do not use them.
 
 ## Runtime Context
 
@@ -77,7 +93,7 @@ Integrations must not import Marketplace backend files directly. The context obj
 
 ## Data Output
 
-Sync-capable vulnerability integrations should write to:
+Integrations that use the standard Marketplace dashboard, endpoint, vulnerability, history, or export views should write to the shared Marketplace data tables those views read from:
 
 - `sync_history`
 - `endpoints`
@@ -85,17 +101,17 @@ Sync-capable vulnerability integrations should write to:
 - `cve_details`
 - `cve_cache` when NVD data is known
 
-Then call:
+For sync-style integrations, call this after writing run data:
 
 ```js
 await context.services.computeAndSaveRunMetrics(runId, context.integrationId);
 ```
 
-The Marketplace dashboards, endpoint lists, vulnerability lists, history pages, and exports read from those shared tables.
+Integrations that do not use those standard views do not need to write to those tables.
 
 ## Validation Results
 
-Validation handlers should return keyed results:
+If an integration declares `validate`, its validation handler should return keyed results:
 
 ```js
 return {
