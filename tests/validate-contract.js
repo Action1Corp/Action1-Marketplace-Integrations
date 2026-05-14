@@ -10,6 +10,7 @@ async function run() {
 
     const integrationDir = path.join(root, entry.name);
     const manifest = JSON.parse(fs.readFileSync(path.join(integrationDir, 'manifest.json'), 'utf8'));
+    const displayPath = path.join(integrationDir, 'display.json');
     const handlerPath = path.join(integrationDir, manifest.entry || 'index.js');
     assert(fs.existsSync(handlerPath), `${manifest.id}: handler file should exist`);
     assert(fs.existsSync(path.join(integrationDir, 'README.md')), `${manifest.id}: README.md should exist`);
@@ -31,6 +32,13 @@ async function run() {
     if (manifest.capabilities.includes('sync')) {
       assert(fs.existsSync(path.join(integrationDir, 'sync.js')), `${manifest.id}: sync capability requires sync.js`);
       assert.strictEqual(typeof handler.sync, 'function', `${manifest.id}: sync capability requires sync()`);
+    }
+
+    if (manifest.capabilities.includes('dashboard')) {
+      assert(fs.existsSync(displayPath), `${manifest.id}: dashboard capability requires display.json`);
+      const display = JSON.parse(fs.readFileSync(displayPath, 'utf8'));
+      assert(display.dashboard && typeof display.dashboard === 'object', `${manifest.id}: display.json should define dashboard`);
+      assert(display.dashboard.component, `${manifest.id}: dashboard definition should declare component`);
     }
   }
 

@@ -73,6 +73,25 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
     continue;
   }
 
+  const displayPath = path.join(root, entry.name, 'display.json');
+  if (manifest.capabilities?.includes('dashboard')) {
+    if (!fs.existsSync(displayPath)) {
+      console.error(`${entry.name}: dashboard capability requires display.json`);
+      failures += 1;
+    } else {
+      try {
+        const display = JSON.parse(fs.readFileSync(displayPath, 'utf8'));
+        if (!display.dashboard || typeof display.dashboard !== 'object') {
+          console.error(`${entry.name}: display.json must include a dashboard object`);
+          failures += 1;
+        }
+      } catch (error) {
+        console.error(`${entry.name}: invalid display.json - ${error.message}`);
+        failures += 1;
+      }
+    }
+  }
+
   const seenSettings = new Set();
   for (const setting of manifest.settings) {
     if (!setting.key || !setting.label || !setting.type) {

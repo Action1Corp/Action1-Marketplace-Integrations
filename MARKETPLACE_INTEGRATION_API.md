@@ -8,6 +8,7 @@ Integrations are folder-based packages loaded by the Marketplace at startup.
 integrations/
   vendor-id/
     manifest.json
+    display.json
     index.js
     README.md
 ```
@@ -108,6 +109,34 @@ await context.services.computeAndSaveRunMetrics(runId, context.integrationId);
 ```
 
 Integrations that do not use those standard views do not need to write to those tables.
+
+## Display Definitions
+
+Integration-specific displays live with the integration in `display.json`.
+
+```json
+{
+  "dashboard": {
+    "component": "metric-dashboard",
+    "title": "{integrationName} Vulnerability Summary",
+    "description": "Comprehensive analysis across {integrationName} and Action1.",
+    "kpis": [],
+    "sections": []
+  }
+}
+```
+
+The Marketplace provides renderer components such as `metric-dashboard`. The integration owns the layout definition, labels, metric bindings, filters, and navigation targets.
+
+For custom Marketplace-provided dashboard components, set the component name:
+
+```json
+{
+  "dashboard": {
+    "component": "intune-agent-status"
+  }
+}
+```
 
 ## Validation Results
 
