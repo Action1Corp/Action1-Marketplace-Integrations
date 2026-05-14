@@ -12,6 +12,7 @@ async function run() {
     const manifest = JSON.parse(fs.readFileSync(path.join(integrationDir, 'manifest.json'), 'utf8'));
     const handlerPath = path.join(integrationDir, manifest.entry || 'index.js');
     assert(fs.existsSync(handlerPath), `${manifest.id}: handler file should exist`);
+    assert(fs.existsSync(path.join(integrationDir, 'README.md')), `${manifest.id}: README.md should exist`);
 
     const handlerSource = fs.readFileSync(handlerPath, 'utf8');
     assert(!handlerSource.includes("require('../database')"), `${manifest.id}: must not import Marketplace database`);
@@ -20,6 +21,7 @@ async function run() {
 
     const handler = require(handlerPath);
     if (manifest.capabilities.includes('validate')) {
+      assert(fs.existsSync(path.join(integrationDir, 'validate.js')), `${manifest.id}: validate capability requires validate.js`);
       assert.strictEqual(typeof handler.validate, 'function', `${manifest.id}: validate capability requires validate()`);
       const result = await handler.validate({ settings: {}, logger: console });
       assert(result && typeof result === 'object', `${manifest.id}: validate() should return an object`);
@@ -27,6 +29,7 @@ async function run() {
     }
 
     if (manifest.capabilities.includes('sync')) {
+      assert(fs.existsSync(path.join(integrationDir, 'sync.js')), `${manifest.id}: sync capability requires sync.js`);
       assert.strictEqual(typeof handler.sync, 'function', `${manifest.id}: sync capability requires sync()`);
     }
   }
