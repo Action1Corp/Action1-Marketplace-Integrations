@@ -131,5 +131,190 @@
         ]
       }
     ]
+  },
+  "navigation": [
+    {
+      "id": "dashboard",
+      "label": "Dashboard",
+      "path": "dashboard",
+      "icon": "Activity",
+      "capability": "dashboard"
+    },
+    {
+      "id": "endpoints",
+      "label": "Endpoints",
+      "path": "endpoints",
+      "icon": "Server",
+      "capability": "endpoints"
+    },
+    {
+      "id": "vulnerabilities",
+      "label": "Vulnerabilities",
+      "path": "vulnerabilities",
+      "icon": "ShieldAlert",
+      "capability": "vulnerabilities"
+    },
+    {
+      "id": "history",
+      "label": "History",
+      "path": "history",
+      "icon": "History",
+      "capability": "history"
+    },
+    {
+      "id": "settings",
+      "label": "Settings",
+      "path": "settings",
+      "icon": "Settings",
+      "capability": "settings",
+      "requiresWrite": true
+    }
+  ],
+  "endpoints": {
+    "title": "Endpoints",
+    "searchPlaceholder": "Global search across endpoint columns...",
+    "emptyText": "No endpoints match the current filters.",
+    "defaultSort": {
+      "key": "endpoint_name",
+      "direction": "asc"
+    },
+    "columns": [
+      {
+        "key": "endpoint_name",
+        "label": "Name",
+        "type": "strong"
+      },
+      {
+        "key": "ipv4",
+        "label": "IP Address",
+        "type": "monospace"
+      },
+      {
+        "key": "os",
+        "label": "OS"
+      },
+      {
+        "key": "integration_total_vulns",
+        "label": "{integrationName} Total",
+        "type": "number"
+      },
+      {
+        "key": "action1_total_vulns",
+        "label": "Action1 Total",
+        "type": "number"
+      },
+      {
+        "key": "critical_vulns",
+        "label": "Critical",
+        "type": "severityBadge",
+        "severity": "critical"
+      },
+      {
+        "key": "high_vulns",
+        "label": "High",
+        "type": "severityBadge",
+        "severity": "high"
+      },
+      {
+        "key": "medium_vulns",
+        "label": "Medium",
+        "type": "severityBadge",
+        "severity": "medium"
+      },
+      {
+        "key": "low_vulns",
+        "label": "Low",
+        "type": "severityBadge",
+        "severity": "low"
+      },
+      {
+        "key": "status",
+        "label": "Status",
+        "type": "syncStatus"
+      }
+    ]
+  },
+  "vulnerabilities": {
+    "title": "Vulnerabilities",
+    "searchPlaceholder": "Global search across vulnerability columns...",
+    "emptyText": "No vulnerabilities match the current filters.",
+    "defaultSort": {
+      "key": "severity",
+      "direction": "asc"
+    },
+    "columns": [
+      {
+        "key": "cve",
+        "label": "CVE",
+        "type": "nistLink",
+        "filterParam": "cve"
+      },
+      {
+        "key": "severity",
+        "label": "Severity",
+        "type": "severityBadgeDynamic",
+        "filterParam": "severityColumn"
+      },
+      {
+        "key": "endpoint_name",
+        "label": "Endpoint",
+        "filterParam": "endpoint_name"
+      },
+      {
+        "key": "plugin_name",
+        "label": "Plugin Name",
+        "type": "muted",
+        "filterParam": "plugin_name"
+      },
+      {
+        "key": "status",
+        "label": "Status",
+        "type": "patchStatus",
+        "filterParam": "statusColumn"
+      }
+    ]
+  },
+  "history": {
+    "title": "Run History",
+    "searchPlaceholder": "Search history...",
+    "emptyText": "No sync history found matching criteria.",
+    "defaultSort": {
+      "key": "id",
+      "direction": "desc"
+    },
+    "columns": [
+      {
+        "key": "id",
+        "label": "Run ID",
+        "type": "runId"
+      },
+      {
+        "key": "timestamp",
+        "label": "Timestamp",
+        "type": "datetime"
+      },
+      {
+        "key": "status",
+        "label": "Status",
+        "type": "runStatus"
+      },
+      {
+        "key": "assets_processed",
+        "label": "Endpoints Processed",
+        "type": "number"
+      },
+      {
+        "key": "actions",
+        "label": "Actions",
+        "type": "historyActions",
+        "sortable": false
+      }
+    ]
+  },
+  "settings": {
+    "title": "Configuration",
+    "validateButtonLabel": "Validate Credentials",
+    "saveButtonLabel": "Save Settings",
+    "scheduleTitle": "Schedule"
   }
 }

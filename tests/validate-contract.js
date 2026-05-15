@@ -34,11 +34,23 @@ async function run() {
       assert.strictEqual(typeof handler.sync, 'function', `${manifest.id}: sync capability requires sync()`);
     }
 
-    if (manifest.capabilities.includes('dashboard')) {
+    if (manifest.capabilities.includes('dashboard') || manifest.capabilities.includes('endpoints') || manifest.capabilities.includes('vulnerabilities') || manifest.capabilities.includes('history')) {
       assert(fs.existsSync(displayPath), `${manifest.id}: dashboard capability requires display.json`);
       const display = JSON.parse(fs.readFileSync(displayPath, 'utf8'));
-      assert(display.dashboard && typeof display.dashboard === 'object', `${manifest.id}: display.json should define dashboard`);
-      assert(display.dashboard.component, `${manifest.id}: dashboard definition should declare component`);
+      assert(Array.isArray(display.navigation) && display.navigation.length > 0, `${manifest.id}: display.json should define navigation`);
+      if (manifest.capabilities.includes('dashboard')) {
+        assert(display.dashboard && typeof display.dashboard === 'object', `${manifest.id}: display.json should define dashboard`);
+        assert(display.dashboard.component, `${manifest.id}: dashboard definition should declare component`);
+      }
+      if (manifest.capabilities.includes('endpoints')) {
+        assert(display.endpoints && Array.isArray(display.endpoints.columns) && display.endpoints.columns.length > 0, `${manifest.id}: display.json should define endpoint columns`);
+      }
+      if (manifest.capabilities.includes('vulnerabilities')) {
+        assert(display.vulnerabilities && Array.isArray(display.vulnerabilities.columns) && display.vulnerabilities.columns.length > 0, `${manifest.id}: display.json should define vulnerability columns`);
+      }
+      if (manifest.capabilities.includes('history')) {
+        assert(display.history && Array.isArray(display.history.columns) && display.history.columns.length > 0, `${manifest.id}: display.json should define history columns`);
+      }
     }
   }
 

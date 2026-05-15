@@ -1,5 +1,72 @@
 {
   "dashboard": {
     "component": "intune-agent-status"
+  },
+  "navigation": [
+    {
+      "id": "dashboard",
+      "label": "Dashboard",
+      "path": "dashboard",
+      "icon": "Activity",
+      "capability": "dashboard"
+    },
+    {
+      "id": "history",
+      "label": "History",
+      "path": "history",
+      "icon": "History",
+      "capability": "history"
+    },
+    {
+      "id": "settings",
+      "label": "Settings",
+      "path": "settings",
+      "icon": "Settings",
+      "capability": "settings",
+      "requiresWrite": true
+    }
+  ],
+  "history": {
+    "title": "Run History",
+    "searchPlaceholder": "Search history...",
+    "emptyText": "No sync history found matching criteria.",
+    "defaultSort": {
+      "key": "id",
+      "direction": "desc"
+    },
+    "columns": [
+      {
+        "key": "id",
+        "label": "Run ID",
+        "type": "runId"
+      },
+      {
+        "key": "timestamp",
+        "label": "Timestamp",
+        "type": "datetime"
+      },
+      {
+        "key": "status",
+        "label": "Status",
+        "type": "runStatus"
+      },
+      {
+        "key": "assets_processed",
+        "label": "Endpoints Processed",
+        "type": "number"
+      },
+      {
+        "key": "actions",
+        "label": "Actions",
+        "type": "historyActions",
+        "sortable": false
+      }
+    ]
+  },
+  "settings": {
+    "title": "Configuration",
+    "validateButtonLabel": "Validate Credentials",
+    "saveButtonLabel": "Save Settings",
+    "scheduleTitle": "Schedule"
   }
 }

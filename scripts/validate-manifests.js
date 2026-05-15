@@ -17,6 +17,27 @@ const requiredTopLevel = [
 const supportedMarketplaceApiVersions = new Set(['1.0']);
 let failures = 0;
 
+function validateDisplaySection(entryName, display, section, requirement) {
+  if (!display[section] || typeof display[section] !== 'object') {
+    console.error(`${entryName}: ${requirement} requires display.${section}`);
+    failures += 1;
+    return;
+  }
+
+  if (section === 'dashboard') {
+    if (!display.dashboard.component) {
+      console.error(`${entryName}: display.dashboard must declare component`);
+      failures += 1;
+    }
+    return;
+  }
+
+  if (!Array.isArray(display[section].columns) || display[section].columns.length === 0) {
+    console.error(`${entryName}: display.${section} must declare columns`);
+    failures += 1;
+  }
+}
+
 for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
   if (!entry.isDirectory() || entry.name.startsWith('_')) continue;
   const manifestPath = path.join(root, entry.name, 'manifest.json');
@@ -74,21 +95,42 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
   }
 
   const displayPath = path.join(root, entry.name, 'display.json');
-  if (manifest.capabilities?.includes('dashboard')) {
+  let display = null;
+  if (manifest.capabilities?.includes('dashboard') || manifest.capabilities?.includes('endpoints') || manifest.capabilities?.includes('vulnerabilities') || manifest.capabilities?.includes('history')) {
     if (!fs.existsSync(displayPath)) {
-      console.error(`${entry.name}: dashboard capability requires display.json`);
+      console.error(`${entry.name}: UI capabilities require display.json`);
       failures += 1;
     } else {
       try {
-        const display = JSON.parse(fs.readFileSync(displayPath, 'utf8'));
-        if (!display.dashboard || typeof display.dashboard !== 'object') {
-          console.error(`${entry.name}: display.json must include a dashboard object`);
-          failures += 1;
-        }
+        display = JSON.parse(fs.readFileSync(displayPath, 'utf8'));
       } catch (error) {
         console.error(`${entry.name}: invalid display.json - ${error.message}`);
         failures += 1;
       }
+    }
+  }
+
+  if (display) {
+    if (!Array.isArray(display.navigation) || display.navigation.length === 0) {
+      console.error(`${entry.name}: display.json must define navigation entries`);
+      failures += 1;
+    }
+
+    if (manifest.capabilities?.includes('dashboard')) validateDisplaySection(entry.name, display, 'dashboard', 'dashboard capability');
+    if (manifest.capabilities?.includes('endpoints')) validateDisplaySection(entry.name, display, 'endpoints', 'endpoints capability');
+    if (manifest.capabilities?.includes('vulnerabilities')) validateDisplaySection(entry.name, display, 'vulnerabilities', 'vulnerabilities capability');
+    if (manifest.capabilities?.includes('history')) validateDisplaySection(entry.name, display, 'history', 'history capability');
+
+    const visibleCapabilities = ['dashboard', 'endpoints', 'vulnerabilities', 'history'].filter(capability => manifest.capabilities?.includes(capability));
+    for (const capability of visibleCapabilities) {
+      if (!display.navigation.some(item => item.capability === capability || item.id === capability)) {
+        console.error(`${entry.name}: display.navigation must include ${capability}`);
+        failures += 1;
+      }
+    }
+    if (manifest.settings?.length > 0 && !display.navigation.some(item => item.id === 'settings' || item.capability === 'settings')) {
+      console.error(`${entry.name}: display.navigation must include settings`);
+      failures += 1;
     }
   }
 

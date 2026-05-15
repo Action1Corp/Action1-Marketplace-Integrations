@@ -112,21 +112,56 @@ Integrations that do not use those standard views do not need to write to those 
 
 ## Display Definitions
 
-Integration-specific displays live with the integration in `display.json`.
+Integration-specific displays live with the integration in `display.json`. The Marketplace acts as the host shell: it loads these definitions, builds the left navigation from them, and renders the supported surfaces with the labels, columns, links, and button text supplied by the integration.
 
 ```json
 {
+  "navigation": [
+    { "id": "dashboard", "label": "Dashboard", "path": "dashboard", "icon": "Activity", "capability": "dashboard" },
+    { "id": "endpoints", "label": "Endpoints", "path": "endpoints", "icon": "Server", "capability": "endpoints" },
+    { "id": "settings", "label": "Settings", "path": "settings", "icon": "Settings", "capability": "settings", "requiresWrite": true }
+  ],
   "dashboard": {
     "component": "metric-dashboard",
     "title": "{integrationName} Vulnerability Summary",
     "description": "Comprehensive analysis across {integrationName} and Action1.",
     "kpis": [],
     "sections": []
+  },
+  "endpoints": {
+    "title": "Endpoints",
+    "searchPlaceholder": "Global search across endpoint columns...",
+    "defaultSort": { "key": "endpoint_name", "direction": "asc" },
+    "columns": [
+      { "key": "endpoint_name", "label": "Name", "type": "strong" },
+      { "key": "integration_total_vulns", "label": "{integrationName} Total", "type": "number" },
+      { "key": "status", "label": "Status", "type": "syncStatus" }
+    ]
+  },
+  "vulnerabilities": {
+    "title": "Vulnerabilities",
+    "columns": [
+      { "key": "cve", "label": "CVE", "type": "nistLink", "filterParam": "cve" },
+      { "key": "severity", "label": "Severity", "type": "severityBadgeDynamic", "filterParam": "severityColumn" }
+    ]
+  },
+  "history": {
+    "title": "Run History",
+    "columns": [
+      { "key": "id", "label": "Run ID", "type": "runId" },
+      { "key": "status", "label": "Status", "type": "runStatus" }
+    ]
+  },
+  "settings": {
+    "title": "Configuration",
+    "validateButtonLabel": "Validate Credentials",
+    "saveButtonLabel": "Save Settings",
+    "scheduleTitle": "Schedule"
   }
 }
 ```
 
-The Marketplace provides renderer components such as `metric-dashboard`. The integration owns the layout definition, labels, metric bindings, filters, and navigation targets.
+The Marketplace provides renderer components such as `metric-dashboard`, endpoint tables, vulnerability tables, history tables, and settings forms. The integration owns the layout definition, labels, metric bindings, filters, navigation targets, and which tabs should appear. Declare only the display sections that match the capabilities in `manifest.json`.
 
 For custom Marketplace-provided dashboard components, set the component name:
 
