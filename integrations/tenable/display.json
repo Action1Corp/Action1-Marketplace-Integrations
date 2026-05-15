@@ -64,7 +64,6 @@
       },
       {
         "title": "Threat Severity Profile",
-        "layout": "severity-with-distribution",
         "cards": [
           {
             "label": "Critical",
@@ -99,6 +98,10 @@
             "subtitle": "Minor security anomalies"
           }
         ]
+      },
+      {
+        "title": "Distribution",
+        "type": "severityDistribution"
       },
       {
         "title": "Remediation Strategy & Readiness",
