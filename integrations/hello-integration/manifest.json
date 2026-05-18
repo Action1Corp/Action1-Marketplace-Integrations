@@ -1,0 +1,36 @@
+{
+  "id": "hello-integration",
+  "name": "Hello Integration",
+  "vendor": "Action1 Example",
+  "version": "1.0.0",
+  "marketplaceApiVersion": "1.0",
+  "minimumMarketplaceVersion": "1.0.0",
+  "description": "A minimal example integration for Marketplace developers.",
+  "category": "Example",
+  "icon_color": "#2E8CEB",
+  "entry": "index.js",
+  "capabilities": [
+    "settings",
+    "validate",
+    "sync",
+    "dashboard",
+    "history",
+    "schedule"
+  ],
+  "settings": [
+    {
+      "key": "HelloApiUrl",
+      "label": "API URL",
+      "type": "url",
+      "group": "Hello Configuration",
+      "required": true
+    },
+    {
+      "key": "HelloApiToken",
+      "label": "API Token",
+      "type": "secret",
+      "group": "Hello Configuration",
+      "required": true
+    }
+  ]
+}

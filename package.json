@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "create-integration": "node scripts/create-integration.js",
     "test": "node scripts/validate-manifests.js && node tests/validate-contract.js",
     "test:manifests": "node scripts/validate-manifests.js",
     "test:contract": "node tests/validate-contract.js"

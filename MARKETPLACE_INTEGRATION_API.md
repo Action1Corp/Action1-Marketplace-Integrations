@@ -49,9 +49,11 @@ Current built-in capabilities:
 - `endpoints`: show the standard endpoints view backed by Marketplace data tables
 - `vulnerabilities`: show the standard vulnerabilities view backed by Marketplace data tables
 - `history`: show the standard run history view backed by Marketplace data tables
-- `schedule`: show the standard schedule controls
+- `schedule`: show the standard schedule controls for this integration
 
 Declare only what the integration actually uses. An integration can be settings-only, dashboard-only, or use none of the current action handlers.
+
+`schedule` is per integration. The Marketplace owns cron registration, timezone handling, storage, and execution. If an integration declares `schedule`, it must also declare `sync`; when the schedule fires, the Marketplace calls only that integration's `sync(context)` handler.
 
 When an integration declares a built-in action capability, the Marketplace invokes the matching optional handler:
 
@@ -91,6 +93,22 @@ context.services.computeAndSaveRunMetrics(runId, integrationId)
 ```
 
 Integrations must not import Marketplace backend files directly. The context object is the compatibility boundary.
+
+## Scaffolding
+
+Create a new integration from the repository root:
+
+```bash
+npm run create-integration -- my-integration
+```
+
+Use `integrations/hello-integration` as a minimal complete example.
+
+Run validation before opening a pull request:
+
+```bash
+npm test
+```
 
 ## Data Output
 

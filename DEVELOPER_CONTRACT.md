@@ -37,6 +37,20 @@ An integration that only stores configuration can declare:
 
 The Marketplace hides unsupported buttons and navigation automatically.
 
+`schedule` is a Marketplace-owned capability. If an integration declares `schedule`, it must also declare `sync`. The Marketplace stores a separate schedule per integration and calls that integration's `sync(context)` handler when the schedule fires. Integration developers should not implement cron logic.
+
+## Scaffolding
+
+Create a new integration with:
+
+```bash
+npm run create-integration -- my-integration
+```
+
+Then update the generated manifest, display definition, validation handler, sync handler, and README.
+
+Use `integrations/hello-integration` as the minimal complete example.
+
 ## Optional Marketplace Handlers
 
 Handlers are only required for capabilities that the Marketplace knows how to run.
@@ -89,3 +103,18 @@ context.services.computeAndSaveRunMetrics(runId, integrationId)
 ```
 
 Integrations must not import Marketplace backend files directly. The runtime context is the compatibility boundary between the Marketplace and integration packages.
+
+## SDK Helpers
+
+The `sdk/` folder contains small helpers for common integration work. For sync-style integrations, prefer:
+
+```js
+const {
+  createSyncRun,
+  appendSyncLog,
+  completeSyncRun,
+  failSyncRun
+} = require('../../sdk');
+```
+
+These helpers keep run-history behavior consistent across integrations.

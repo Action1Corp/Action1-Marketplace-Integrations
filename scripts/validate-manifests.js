@@ -15,6 +15,28 @@ const requiredTopLevel = [
   'settings'
 ];
 const supportedMarketplaceApiVersions = new Set(['1.0']);
+const supportedCapabilities = new Set(['settings', 'validate', 'sync', 'dashboard', 'endpoints', 'vulnerabilities', 'history', 'schedule']);
+const supportedSettingTypes = new Set(['text', 'url', 'secret', 'select', 'number', 'checkbox']);
+const supportedDisplaySections = new Set(['navigation', 'dashboard', 'endpoints', 'vulnerabilities', 'history', 'settings']);
+const supportedColumnTypes = new Set([
+  'strong',
+  'number',
+  'syncStatus',
+  'nistLink',
+  'severityBadgeDynamic',
+  'runId',
+  'datetime',
+  'runStatus',
+  'historyActions',
+  'text',
+  'badge',
+  'boolean',
+  'monospace',
+  'severityBadge',
+  'muted',
+  'patchStatus'
+]);
+const supportedDashboardComponents = new Set(['metric-dashboard', 'intune-agent-status']);
 let failures = 0;
 
 function validateDisplaySection(entryName, display, section, requirement) {
@@ -28,6 +50,9 @@ function validateDisplaySection(entryName, display, section, requirement) {
     if (!display.dashboard.component) {
       console.error(`${entryName}: display.dashboard must declare component`);
       failures += 1;
+    } else if (!supportedDashboardComponents.has(display.dashboard.component)) {
+      console.error(`${entryName}: unsupported dashboard component ${display.dashboard.component}`);
+      failures += 1;
     }
     return;
   }
@@ -35,6 +60,18 @@ function validateDisplaySection(entryName, display, section, requirement) {
   if (!Array.isArray(display[section].columns) || display[section].columns.length === 0) {
     console.error(`${entryName}: display.${section} must declare columns`);
     failures += 1;
+    return;
+  }
+
+  for (const column of display[section].columns) {
+    if (!column.key || !column.label) {
+      console.error(`${entryName}: display.${section}.columns entries require key and label`);
+      failures += 1;
+    }
+    if (column.type && !supportedColumnTypes.has(column.type)) {
+      console.error(`${entryName}: unsupported display column type ${column.type}`);
+      failures += 1;
+    }
   }
 }
 
@@ -76,6 +113,23 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
   if (!Array.isArray(manifest.capabilities)) {
     console.error(`${entry.name}: capabilities must be an array`);
     failures += 1;
+  } else {
+    const seenCapabilities = new Set();
+    for (const capability of manifest.capabilities) {
+      if (!supportedCapabilities.has(capability)) {
+        console.error(`${entry.name}: unsupported capability ${capability}`);
+        failures += 1;
+      }
+      if (seenCapabilities.has(capability)) {
+        console.error(`${entry.name}: duplicate capability ${capability}`);
+        failures += 1;
+      }
+      seenCapabilities.add(capability);
+    }
+    if (manifest.capabilities.includes('schedule') && !manifest.capabilities.includes('sync')) {
+      console.error(`${entry.name}: schedule capability requires sync capability`);
+      failures += 1;
+    }
   }
 
   const hasHandler = fs.existsSync(path.join(root, entry.name, manifest.entry || 'index.js'));
@@ -111,9 +165,31 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
   }
 
   if (display) {
+    for (const key of Object.keys(display)) {
+      if (!supportedDisplaySections.has(key)) {
+        console.error(`${entry.name}: unsupported display section ${key}`);
+        failures += 1;
+      }
+    }
+
     if (!Array.isArray(display.navigation) || display.navigation.length === 0) {
       console.error(`${entry.name}: display.json must define navigation entries`);
       failures += 1;
+    } else {
+      for (const item of display.navigation) {
+        if (!item.id || !item.label || !item.path) {
+          console.error(`${entry.name}: display.navigation entries require id, label, and path`);
+          failures += 1;
+        }
+        if (item.capability && !supportedCapabilities.has(item.capability)) {
+          console.error(`${entry.name}: display.navigation uses unsupported capability ${item.capability}`);
+          failures += 1;
+        }
+        if (item.capability && !manifest.capabilities?.includes(item.capability) && item.capability !== 'settings') {
+          console.error(`${entry.name}: display.navigation references undeclared capability ${item.capability}`);
+          failures += 1;
+        }
+      }
     }
 
     if (manifest.capabilities?.includes('dashboard')) validateDisplaySection(entry.name, display, 'dashboard', 'dashboard capability');
@@ -140,6 +216,18 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
       console.error(`${entry.name}: each setting requires key, label, and type`);
       failures += 1;
       continue;
+    }
+    if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(setting.key)) {
+      console.error(`${entry.name}: setting key ${setting.key} must be alphanumeric and start with a letter`);
+      failures += 1;
+    }
+    if (!supportedSettingTypes.has(setting.type)) {
+      console.error(`${entry.name}: unsupported setting type ${setting.type}`);
+      failures += 1;
+    }
+    if (setting.type === 'select' && (!Array.isArray(setting.options) || setting.options.length === 0)) {
+      console.error(`${entry.name}: select setting ${setting.key} requires options`);
+      failures += 1;
     }
     if (seenSettings.has(setting.key)) {
       console.error(`${entry.name}: duplicate setting key ${setting.key}`);
