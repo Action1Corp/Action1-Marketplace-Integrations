@@ -18,6 +18,7 @@ The scaffold creates:
 - `index.js`
 - `validate.js`
 - `sync.js`
+- `migrations/001_create_schema.sql`
 - `README.md`
 
 Use `developer/examples/hello-integration` as the smallest complete example. Files under `developer/` are not loaded by the Marketplace runtime.
@@ -39,6 +40,7 @@ The integration owns:
 - tabs, labels, columns, and dashboard sections in `display.json`
 - optional `validate(context)`
 - optional `sync(context)`
+- integration-owned database migrations in `migrations/*.sql`
 - vendor API calls and data mapping
 
 Integration developers should use the runtime `context` and helpers from `sdk/`. Do not import Marketplace backend internals.

@@ -37,6 +37,7 @@ const displayName = titleCase(id);
 const vendorName = displayName;
 
 fs.mkdirSync(targetDir, { recursive: true });
+fs.mkdirSync(path.join(targetDir, 'migrations'), { recursive: true });
 
 function writeJson(filename, value) {
   fs.writeFileSync(path.join(targetDir, filename), `${JSON.stringify(value, null, 2)}\n`);
@@ -167,6 +168,19 @@ module.exports = {
 };
 `);
 
+writeFile('migrations/001_create_schema.sql', `
+CREATE TABLE IF NOT EXISTS ${id.replace(/-/g, '_')}_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  external_id TEXT NOT NULL,
+  name TEXT,
+  raw_json TEXT,
+  last_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_${id.replace(/-/g, '_')}_items_external_id
+  ON ${id.replace(/-/g, '_')}_items(external_id);
+`);
+
 writeFile('README.md', `
 # ${displayName}
 
@@ -186,8 +200,9 @@ This integration was generated with \`npm run create-integration -- ${id}\`.
 1. Update \`manifest.json\` metadata, settings, category, and capabilities.
 2. Implement real credential checks in \`validate.js\`.
 3. Implement vendor data collection and Marketplace data writes in \`sync.js\`.
-4. Update \`display.json\` to match the tabs and metrics this integration supports.
-5. Run \`npm test\` from the repository root.
+4. Update \`migrations/001_create_schema.sql\` with this integration's private tables.
+5. Update \`display.json\` to match the tabs and metrics this integration supports.
+6. Run \`npm test\` from the repository root.
 `);
 
 console.log(`Created integrations/${id}`);

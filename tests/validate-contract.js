@@ -16,8 +16,15 @@ async function run() {
     const manifest = JSON.parse(fs.readFileSync(path.join(integrationDir, 'manifest.json'), 'utf8'));
     const displayPath = path.join(integrationDir, 'display.json');
     const handlerPath = path.join(integrationDir, manifest.entry || 'index.js');
+    const migrationsDir = path.join(integrationDir, 'migrations');
     assert(fs.existsSync(handlerPath), `${manifest.id}: handler file should exist`);
     assert(fs.existsSync(path.join(integrationDir, 'README.md')), `${manifest.id}: README.md should exist`);
+    if (fs.existsSync(migrationsDir)) {
+      const migrations = fs.readdirSync(migrationsDir).filter(file => file.endsWith('.sql'));
+      for (const migration of migrations) {
+        assert(/^\d{3,}_[a-z0-9_]+\.sql$/.test(migration), `${manifest.id}: migration ${migration} should use 001_description.sql naming`);
+      }
+    }
 
     const handlerSource = fs.readFileSync(handlerPath, 'utf8');
     assert(!handlerSource.includes("require('../database')"), `${manifest.id}: must not import Marketplace database`);

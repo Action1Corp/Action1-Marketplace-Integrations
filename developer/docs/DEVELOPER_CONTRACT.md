@@ -9,6 +9,8 @@ integrations/
   my-integration/
     manifest.json
     index.js
+    migrations/
+      001_create_schema.sql
     README.md
 ```
 
@@ -103,6 +105,33 @@ context.services.computeAndSaveRunMetrics(runId, integrationId)
 ```
 
 Integrations must not import Marketplace backend files directly. The runtime context is the compatibility boundary between the Marketplace and integration packages.
+
+## Integration-Owned Database Schema
+
+Integrations define their private database needs in migration files:
+
+```text
+integrations/
+  my-integration/
+    migrations/
+      001_create_schema.sql
+      002_add_indexes.sql
+```
+
+The Marketplace applies these migrations at startup and records completed migrations in its migration ledger. Migrations run once per integration and migration filename.
+
+Use integration-prefixed table names, for example:
+
+```sql
+CREATE TABLE IF NOT EXISTS my_integration_assets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  external_id TEXT NOT NULL,
+  raw_json TEXT,
+  last_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+The Marketplace still provides framework tables for settings, auth, schedules, run history, and standard renderers. Integration-owned tables are for vendor-specific storage and custom data needs.
 
 ## SDK Helpers
 

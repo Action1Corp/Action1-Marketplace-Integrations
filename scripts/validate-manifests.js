@@ -42,6 +42,32 @@ const supportedColumnTypes = new Set([
 const supportedDashboardComponents = new Set(['metric-dashboard', 'intune-agent-status']);
 let failures = 0;
 
+function validateMigrations(entryName, integrationDir) {
+  const migrationsDir = path.join(integrationDir, 'migrations');
+  if (!fs.existsSync(migrationsDir)) return;
+
+  const files = fs.readdirSync(migrationsDir, { withFileTypes: true })
+    .filter(entry => entry.isFile());
+  const seen = new Set();
+  for (const file of files) {
+    if (!/^\d{3,}_[a-z0-9_]+\.sql$/.test(file.name)) {
+      console.error(`${entryName}: migration ${file.name} must use format 001_description.sql`);
+      failures += 1;
+    }
+    if (seen.has(file.name)) {
+      console.error(`${entryName}: duplicate migration ${file.name}`);
+      failures += 1;
+    }
+    seen.add(file.name);
+
+    const sql = fs.readFileSync(path.join(migrationsDir, file.name), 'utf8').trim();
+    if (!sql) {
+      console.error(`${entryName}: migration ${file.name} is empty`);
+      failures += 1;
+    }
+  }
+}
+
 function validateDisplaySection(entryName, display, section, requirement) {
   if (!display[section] || typeof display[section] !== 'object') {
     console.error(`${entryName}: ${requirement} requires display.${section}`);
@@ -89,6 +115,7 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
   }
 
   let manifest;
+  const integrationDir = path.join(root, entry.name);
   try {
     manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   } catch (error) {
@@ -239,6 +266,8 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
     }
     seenSettings.add(setting.key);
   }
+
+  validateMigrations(entry.name, integrationDir);
 }
 }
 

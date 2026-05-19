@@ -10,6 +10,8 @@ integrations/
     manifest.json
     display.json
     index.js
+    migrations/
+      001_create_schema.sql
     README.md
 ```
 
@@ -112,7 +114,20 @@ npm test
 
 ## Data Output
 
-Integrations that use the standard Marketplace dashboard, endpoint, vulnerability, history, or export views should write to the shared Marketplace data tables those views read from:
+Integrations own their private vendor data schema through `migrations/*.sql`. The Marketplace applies these migrations at startup before handlers run.
+
+Use integration-prefixed tables for custom/vendor-specific data. Example:
+
+```sql
+CREATE TABLE IF NOT EXISTS vendor_id_assets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  external_id TEXT NOT NULL,
+  raw_json TEXT,
+  last_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+Integrations that use the standard Marketplace dashboard, endpoint, vulnerability, history, or export framework can also write to the Marketplace framework tables those views read from:
 
 - `sync_history`
 - `endpoints`
@@ -126,7 +141,7 @@ For sync-style integrations, call this after writing run data:
 await context.services.computeAndSaveRunMetrics(runId, context.integrationId);
 ```
 
-Integrations that do not use those standard views do not need to write to those tables.
+Integrations that do not use those standard views do not need to write to those framework tables.
 
 ## Display Definitions
 
