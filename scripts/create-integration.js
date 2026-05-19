@@ -58,7 +58,7 @@ writeJson('manifest.json', {
   category: 'Vulnerability Management',
   icon_color: '#2E8CEB',
   entry: 'index.js',
-  capabilities: ['settings', 'validate', 'sync', 'history', 'schedule'],
+  marketplaceActions: ['settings', 'validate', 'sync', 'history', 'schedule'],
   settings: [
     {
       key: `${displayName.replace(/\s+/g, '')}ApiUrl`,
@@ -80,8 +80,8 @@ writeJson('manifest.json', {
 writeJson('display.json', {
   navigation: [
     { id: 'dashboard', label: 'Dashboard', path: 'dashboard', icon: 'Activity' },
-    { id: 'history', label: 'History', path: 'history', icon: 'History', capability: 'history' },
-    { id: 'settings', label: 'Settings', path: 'settings', icon: 'Settings', capability: 'settings', requiresWrite: true }
+    { id: 'history', label: 'History', path: 'history', icon: 'History', marketplaceAction: 'history' },
+    { id: 'settings', label: 'Settings', path: 'settings', icon: 'Settings', marketplaceAction: 'settings', requiresWrite: true }
   ],
   dashboard: {
     component: 'metric-dashboard',
@@ -215,18 +215,19 @@ writeFile('README.md', `
 
 This integration was generated with \`npm run create-integration -- ${id}\`.
 
-## Capabilities
+## Marketplace Actions
 
 - Settings
 - Credential validation
 - Manual sync
-- Integration-defined dashboard view
 - Run history
 - Per-integration scheduling
 
+Views such as dashboards, endpoint lists, and vulnerability tables are defined in \`display.json\`.
+
 ## Next Steps
 
-1. Update \`manifest.json\` metadata, settings, category, and Marketplace service capabilities.
+1. Update \`manifest.json\` metadata, settings, category, and Marketplace actions.
 2. Implement real credential checks in \`validate.js\`.
 3. Implement vendor data collection and Marketplace data writes in \`sync.js\`.
 4. Update \`migrations/001_create_schema.sql\` with this integration's private tables.

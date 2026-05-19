@@ -14,11 +14,11 @@ const requiredTopLevel = [
   'minimumMarketplaceVersion',
   'description',
   'category',
-  'capabilities',
+  'marketplaceActions',
   'settings'
 ];
 const supportedMarketplaceApiVersions = new Set(['1.0']);
-const supportedCapabilities = new Set(['settings', 'validate', 'sync', 'history', 'schedule']);
+const supportedMarketplaceActions = new Set(['settings', 'validate', 'sync', 'history', 'schedule']);
 const supportedSettingTypes = new Set(['text', 'url', 'secret', 'select', 'number', 'checkbox']);
 const supportedDisplaySections = new Set(['navigation', 'dashboard', 'endpoints', 'vulnerabilities', 'history', 'settings']);
 const supportedColumnTypes = new Set([
@@ -150,34 +150,39 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
     failures += 1;
   }
 
-  if (!Array.isArray(manifest.capabilities)) {
-    console.error(`${entry.name}: capabilities must be an array`);
+  if (Object.prototype.hasOwnProperty.call(manifest, 'capabilities')) {
+    console.error(`${entry.name}: use marketplaceActions instead of capabilities`);
+    failures += 1;
+  }
+
+  if (!Array.isArray(manifest.marketplaceActions)) {
+    console.error(`${entry.name}: marketplaceActions must be an array`);
     failures += 1;
   } else {
-    const seenCapabilities = new Set();
-    for (const capability of manifest.capabilities) {
-      if (!supportedCapabilities.has(capability)) {
-        console.error(`${entry.name}: unsupported capability ${capability}`);
+    const seenActions = new Set();
+    for (const action of manifest.marketplaceActions) {
+      if (!supportedMarketplaceActions.has(action)) {
+        console.error(`${entry.name}: unsupported marketplaceAction ${action}`);
         failures += 1;
       }
-      if (seenCapabilities.has(capability)) {
-        console.error(`${entry.name}: duplicate capability ${capability}`);
+      if (seenActions.has(action)) {
+        console.error(`${entry.name}: duplicate marketplaceAction ${action}`);
         failures += 1;
       }
-      seenCapabilities.add(capability);
+      seenActions.add(action);
     }
-    if (manifest.capabilities.includes('schedule') && !manifest.capabilities.includes('sync')) {
-      console.error(`${entry.name}: schedule capability requires sync capability`);
+    if (manifest.marketplaceActions.includes('schedule') && !manifest.marketplaceActions.includes('sync')) {
+      console.error(`${entry.name}: schedule marketplaceAction requires sync marketplaceAction`);
       failures += 1;
     }
   }
 
   const hasHandler = fs.existsSync(path.join(root, entry.name, manifest.entry || 'index.js'));
-  if (manifest.capabilities?.includes('sync') && !hasHandler) {
+  if (manifest.marketplaceActions?.includes('sync') && !hasHandler) {
     console.error(`${entry.name}: declares sync but has no handler`);
     failures += 1;
   }
-  if (manifest.capabilities?.includes('validate') && !hasHandler) {
+  if (manifest.marketplaceActions?.includes('validate') && !hasHandler) {
     console.error(`${entry.name}: declares validate but has no handler`);
     failures += 1;
   }
@@ -222,12 +227,16 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
           console.error(`${entry.name}: display.navigation entries require id, label, and path`);
           failures += 1;
         }
-        if (item.capability && !supportedCapabilities.has(item.capability)) {
-          console.error(`${entry.name}: display.navigation uses unsupported capability ${item.capability}`);
+        if (item.capability) {
+          console.error(`${entry.name}: display.navigation uses deprecated capability; use marketplaceAction`);
           failures += 1;
         }
-        if (item.capability && supportedCapabilities.has(item.capability) && !manifest.capabilities?.includes(item.capability) && item.capability !== 'settings') {
-          console.error(`${entry.name}: display.navigation references undeclared capability ${item.capability}`);
+        if (item.marketplaceAction && !supportedMarketplaceActions.has(item.marketplaceAction)) {
+          console.error(`${entry.name}: display.navigation uses unsupported marketplaceAction ${item.marketplaceAction}`);
+          failures += 1;
+        }
+        if (item.marketplaceAction && supportedMarketplaceActions.has(item.marketplaceAction) && !manifest.marketplaceActions?.includes(item.marketplaceAction) && item.marketplaceAction !== 'settings') {
+          console.error(`${entry.name}: display.navigation references undeclared marketplaceAction ${item.marketplaceAction}`);
           failures += 1;
         }
       }
@@ -255,7 +264,7 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
         failures += 1;
       }
     }
-    if (manifest.settings?.length > 0 && !display.navigation.some(item => item.id === 'settings' || item.capability === 'settings')) {
+    if (manifest.settings?.length > 0 && !display.navigation.some(item => item.id === 'settings' || item.marketplaceAction === 'settings')) {
       console.error(`${entry.name}: display.navigation must include settings`);
       failures += 1;
     }

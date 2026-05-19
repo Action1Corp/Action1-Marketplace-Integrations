@@ -8,12 +8,6 @@
   "description": "Sync Intune managed devices and compliance status with Action1.",
   "category": "Endpoint Management",
   "icon_color": "#00A4EF",
-  "capabilities": [
-    "sync",
-    "validate",
-    "history",
-    "schedule"
-  ],
   "settings": [
     {
       "key": "IntuneTenantId",
@@ -50,5 +44,11 @@
       "group": "Action1 Agent Settings",
       "required": true
     }
+  ],
+  "marketplaceActions": [
+    "sync",
+    "validate",
+    "history",
+    "schedule"
   ]
 }

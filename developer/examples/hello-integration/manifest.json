@@ -9,13 +9,6 @@
   "category": "Example",
   "icon_color": "#2E8CEB",
   "entry": "index.js",
-  "capabilities": [
-    "settings",
-    "validate",
-    "sync",
-    "history",
-    "schedule"
-  ],
   "settings": [
     {
       "key": "HelloApiUrl",
@@ -31,5 +24,12 @@
       "group": "Hello Configuration",
       "required": true
     }
+  ],
+  "marketplaceActions": [
+    "settings",
+    "validate",
+    "sync",
+    "history",
+    "schedule"
   ]
 }

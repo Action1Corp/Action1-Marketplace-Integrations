@@ -35,16 +35,16 @@ Every integration must provide `manifest.json`.
   "category": "Vulnerability Management",
   "icon_color": "#2E8CEB",
   "entry": "index.js",
-  "capabilities": ["settings", "validate", "sync", "history", "schedule"],
+  "marketplaceActions": ["settings", "validate", "sync", "history", "schedule"],
   "settings": []
 }
 ```
 
-### Supported Capabilities
+### Supported `marketplaceActions`
 
-Capabilities enable Marketplace services and actions. They do not define integration screens.
+`marketplaceActions` enable Marketplace services and actions. They do not define integration screens.
 
-| Capability | Purpose |
+| Action | Purpose |
 | --- | --- |
 | `settings` | Render settings from `manifest.json`. |
 | `validate` | Show and run the credential validation action. |
@@ -202,7 +202,7 @@ Visible integration screens are defined in `display.json`.
   "navigation": [
     { "id": "dashboard", "label": "Dashboard", "path": "dashboard", "icon": "Activity" },
     { "id": "endpoints", "label": "Endpoints", "path": "endpoints", "icon": "Server" },
-    { "id": "settings", "label": "Settings", "path": "settings", "icon": "Settings", "capability": "settings", "requiresWrite": true }
+    { "id": "settings", "label": "Settings", "path": "settings", "icon": "Settings", "marketplaceAction": "settings", "requiresWrite": true }
   ],
   "dashboard": {
     "component": "metric-dashboard",

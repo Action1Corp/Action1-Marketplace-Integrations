@@ -8,12 +8,6 @@
   "description": "Correlate CrowdStrike detections and vulns with Action1 inventory.",
   "category": "EDR / XDR",
   "icon_color": "#E00400",
-  "capabilities": [
-    "sync",
-    "validate",
-    "history",
-    "schedule"
-  ],
   "settings": [
     {
       "key": "CrowdStrikeClientId",
@@ -57,5 +51,11 @@
       "group": "Action1 Configuration",
       "required": true
     }
+  ],
+  "marketplaceActions": [
+    "sync",
+    "validate",
+    "history",
+    "schedule"
   ]
 }

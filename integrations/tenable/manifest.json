@@ -9,12 +9,6 @@
   "category": "Vulnerability Management",
   "icon_color": "#2E8CEB",
   "entry": "index.js",
-  "capabilities": [
-    "sync",
-    "validate",
-    "history",
-    "schedule"
-  ],
   "settings": [
     {
       "key": "TenableAccessKey",
@@ -51,5 +45,11 @@
       "group": "Action1 Configuration",
       "required": true
     }
+  ],
+  "marketplaceActions": [
+    "sync",
+    "validate",
+    "history",
+    "schedule"
   ]
 }

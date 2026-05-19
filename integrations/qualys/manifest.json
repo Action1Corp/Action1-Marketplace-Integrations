@@ -8,12 +8,6 @@
   "description": "Ingest Qualys scan findings into Action1.",
   "category": "Vulnerability Management",
   "icon_color": "#E84B4B",
-  "capabilities": [
-    "sync",
-    "validate",
-    "history",
-    "schedule"
-  ],
   "settings": [
     {
       "key": "QualysUsername",
@@ -57,5 +51,11 @@
       "group": "Action1 Configuration",
       "required": true
     }
+  ],
+  "marketplaceActions": [
+    "sync",
+    "validate",
+    "history",
+    "schedule"
   ]
 }

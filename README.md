@@ -42,7 +42,7 @@ The Marketplace owns the host framework:
 
 Each integration owns its vendor-specific behavior:
 
-- metadata and Marketplace service capabilities in `manifest.json`
+- metadata and `marketplaceActions` in `manifest.json`
 - navigation, tabs, dashboard sections, labels, and columns in `display.json`
 - optional credential validation in `validate.js`
 - optional sync behavior in `sync.js`

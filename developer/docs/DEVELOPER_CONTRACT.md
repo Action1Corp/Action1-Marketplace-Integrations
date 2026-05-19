@@ -30,11 +30,11 @@ Only `manifest.json`, `index.js`, and `README.md` are always required. Other fil
 - Integrations should use integration-prefixed table names.
 - Database migrations must be additive and safe to run once.
 
-## Manifest Capabilities
+## Manifest `marketplaceActions`
 
-Capabilities describe Marketplace services or actions, not integration screens.
+`marketplaceActions` describe Marketplace services or actions, not integration screens.
 
-Supported capabilities:
+Supported `marketplaceActions`:
 
 - `settings`: render settings from `manifest.json`
 - `validate`: show and run a credential validation action
@@ -42,13 +42,13 @@ Supported capabilities:
 - `history`: show the Marketplace run history view
 - `schedule`: show schedule controls and run the integration on a schedule
 
-Dashboards, endpoint tables, vulnerability tables, and other tabs are defined in `display.json`. They are not manifest capabilities.
+Dashboards, endpoint tables, vulnerability tables, and other tabs are defined in `display.json`. They are not manifest marketplaceActions.
 
 Example settings-only integration:
 
 ```json
 {
-  "capabilities": ["settings"]
+  "marketplaceActions": ["settings"]
 }
 ```
 
@@ -56,7 +56,7 @@ If an integration declares `schedule`, it must also declare `sync`. The Marketpl
 
 ## Handlers
 
-Handlers are optional and should only be exported when the matching capability exists.
+Handlers are optional and should only be exported when the matching marketplaceAction exists.
 
 ```js
 module.exports = {
@@ -174,4 +174,4 @@ Run repository validation before opening a pull request:
 npm test
 ```
 
-Validation checks manifest shape, supported capabilities, display definitions, migration naming, standard table requirements, and handler exports.
+Validation checks manifest shape, supported marketplaceActions, display definitions, migration naming, standard table requirements, and handler exports.

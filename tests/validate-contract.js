@@ -14,6 +14,9 @@ async function run() {
 
     const integrationDir = path.join(root, entry.name);
     const manifest = JSON.parse(fs.readFileSync(path.join(integrationDir, 'manifest.json'), 'utf8'));
+    const marketplaceActions = manifest.marketplaceActions || [];
+    assert(!Object.prototype.hasOwnProperty.call(manifest, 'capabilities'), `${manifest.id}: use marketplaceActions instead of capabilities`);
+    assert(Array.isArray(marketplaceActions), `${manifest.id}: marketplaceActions should be an array`);
     const displayPath = path.join(integrationDir, 'display.json');
     const handlerPath = path.join(integrationDir, manifest.entry || 'index.js');
     const migrationsDir = path.join(integrationDir, 'migrations');
@@ -32,17 +35,17 @@ async function run() {
     assert(!handlerSource.includes('context.legacy'), `${manifest.id}: must not use legacy runtime bridge`);
 
     const handler = require(handlerPath);
-    if (manifest.capabilities.includes('validate')) {
-      assert(fs.existsSync(path.join(integrationDir, 'validate.js')), `${manifest.id}: validate capability requires validate.js`);
-      assert.strictEqual(typeof handler.validate, 'function', `${manifest.id}: validate capability requires validate()`);
+    if (marketplaceActions.includes('validate')) {
+      assert(fs.existsSync(path.join(integrationDir, 'validate.js')), `${manifest.id}: validate marketplaceAction requires validate.js`);
+      assert.strictEqual(typeof handler.validate, 'function', `${manifest.id}: validate marketplaceAction requires validate()`);
       const result = await handler.validate({ settings: {}, logger: console });
       assert(result && typeof result === 'object', `${manifest.id}: validate() should return an object`);
       assert(Object.prototype.hasOwnProperty.call(result, manifest.id), `${manifest.id}: validate() should include vendor result key`);
     }
 
-    if (manifest.capabilities.includes('sync')) {
-      assert(fs.existsSync(path.join(integrationDir, 'sync.js')), `${manifest.id}: sync capability requires sync.js`);
-      assert.strictEqual(typeof handler.sync, 'function', `${manifest.id}: sync capability requires sync()`);
+    if (marketplaceActions.includes('sync')) {
+      assert(fs.existsSync(path.join(integrationDir, 'sync.js')), `${manifest.id}: sync marketplaceAction requires sync.js`);
+      assert.strictEqual(typeof handler.sync, 'function', `${manifest.id}: sync marketplaceAction requires sync()`);
     }
 
     if (fs.existsSync(displayPath)) {

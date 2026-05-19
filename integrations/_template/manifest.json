@@ -8,7 +8,7 @@
   "description": "Use this folder as a starting point for a new Marketplace integration.",
   "category": "Example",
   "icon_color": "#2E8CEB",
-  "capabilities": ["settings"],
+  "marketplaceActions": ["settings"],
   "settings": [
     { "key": "ExampleApiUrl", "label": "API URL", "type": "url", "group": "Example Configuration", "required": true },
     { "key": "ExampleApiToken", "label": "API Token", "type": "secret", "group": "Example Configuration", "required": true }

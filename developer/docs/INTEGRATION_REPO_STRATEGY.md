@@ -82,7 +82,7 @@ Benefits:
 
 An integration package should contain:
 
-- `manifest.json` for metadata, settings, and Marketplace service capabilities
+- `manifest.json` for metadata, settings, and `marketplaceActions`
 - `display.json` for integration-owned screens and navigation
 - `migrations/*.sql` for integration-owned schema
 - `index.js` as the entrypoint

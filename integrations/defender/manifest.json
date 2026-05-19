@@ -8,12 +8,6 @@
   "description": "Connect Microsoft Defender for Endpoint vulnerabilities.",
   "category": "EDR / XDR",
   "icon_color": "#00A4EF",
-  "capabilities": [
-    "sync",
-    "validate",
-    "history",
-    "schedule"
-  ],
   "settings": [
     {
       "key": "DefenderTenantId",
@@ -64,5 +58,11 @@
       "group": "Action1 Configuration",
       "required": true
     }
+  ],
+  "marketplaceActions": [
+    "sync",
+    "validate",
+    "history",
+    "schedule"
   ]
 }

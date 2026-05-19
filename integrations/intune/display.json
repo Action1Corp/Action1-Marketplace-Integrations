@@ -14,15 +14,15 @@
       "label": "History",
       "path": "history",
       "icon": "History",
-      "capability": "history"
+      "marketplaceAction": "history"
     },
     {
       "id": "settings",
       "label": "Settings",
       "path": "settings",
       "icon": "Settings",
-      "capability": "settings",
-      "requiresWrite": true
+      "requiresWrite": true,
+      "marketplaceAction": "settings"
     }
   ],
   "history": {

@@ -1,10 +1,10 @@
 module.exports = {
-  // Optional Marketplace handler. Add only when manifest capabilities include "validate".
+  // Optional Marketplace handler. Add only when manifest marketplaceActions include "validate".
   // async validate(context) {
   //   return { ok: true, message: 'Connected' };
   // },
 
-  // Optional Marketplace handler. Add only when manifest capabilities include "sync".
+  // Optional Marketplace handler. Add only when manifest marketplaceActions include "sync".
   // async sync(context) {
   //   context.logger.info('Sync started');
   // }
