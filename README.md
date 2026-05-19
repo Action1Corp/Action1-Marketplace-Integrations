@@ -20,7 +20,7 @@ The scaffold creates:
 - `sync.js`
 - `README.md`
 
-Use `integrations/hello-integration` as the smallest complete example.
+Use `developer/examples/hello-integration` as the smallest complete example. Files under `developer/` are not loaded by the Marketplace runtime.
 
 ## Ownership Boundary
 
@@ -45,9 +45,9 @@ Integration developers should use the runtime `context` and helpers from `sdk/`.
 
 ## References
 
-- `MARKETPLACE_INTEGRATION_API.md`
-- `DEVELOPER_CONTRACT.md`
-- `INTEGRATION_REPO_STRATEGY.md`
+- `developer/docs/MARKETPLACE_INTEGRATION_API.md`
+- `developer/docs/DEVELOPER_CONTRACT.md`
+- `developer/docs/INTEGRATION_REPO_STRATEGY.md`
 
 Run validation before opening a pull request:
 

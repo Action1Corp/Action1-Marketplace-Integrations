@@ -3,7 +3,7 @@ const {
   appendSyncLog,
   completeSyncRun,
   failSyncRun
-} = require('../../sdk');
+} = require('../../../sdk');
 
 async function sync(context) {
   const runId = await createSyncRun(context);

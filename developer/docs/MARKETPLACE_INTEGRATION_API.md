@@ -102,7 +102,7 @@ Create a new integration from the repository root:
 npm run create-integration -- my-integration
 ```
 
-Use `integrations/hello-integration` as a minimal complete example.
+Use `developer/examples/hello-integration` as a minimal complete example. The `developer/` directory is not mounted as a runtime integration source.
 
 Run validation before opening a pull request:
 

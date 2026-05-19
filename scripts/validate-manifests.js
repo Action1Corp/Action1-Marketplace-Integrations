@@ -1,7 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 
-const root = path.join(__dirname, '..', 'integrations');
+const roots = [
+  path.join(__dirname, '..', 'integrations'),
+  path.join(__dirname, '..', 'developer', 'examples')
+];
 const requiredTopLevel = [
   'id',
   'name',
@@ -75,6 +78,7 @@ function validateDisplaySection(entryName, display, section, requirement) {
   }
 }
 
+for (const root of roots) {
 for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
   if (!entry.isDirectory() || entry.name.startsWith('_')) continue;
   const manifestPath = path.join(root, entry.name, 'manifest.json');
@@ -235,6 +239,7 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
     }
     seenSettings.add(setting.key);
   }
+}
 }
 
 if (failures > 0) {

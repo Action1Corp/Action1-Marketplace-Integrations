@@ -8,7 +8,7 @@ It demonstrates:
 - `display.json` navigation, dashboard, history, settings, and schedule metadata
 - `validate(context)`
 - `sync(context)`
-- use of the Marketplace SDK helpers in `../../sdk`
+- use of the Marketplace SDK helpers in `../../../sdk`
 
 The sync handler intentionally does not call any vendor API. It only writes a short run history entry so developers can test the Marketplace integration lifecycle quickly.
 

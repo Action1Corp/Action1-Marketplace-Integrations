@@ -2,9 +2,13 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-const root = path.join(__dirname, '..', 'integrations');
+const roots = [
+  path.join(__dirname, '..', 'integrations'),
+  path.join(__dirname, '..', 'developer', 'examples')
+];
 
 async function run() {
+  for (const root of roots) {
   for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
     if (!entry.isDirectory() || entry.name.startsWith('_')) continue;
 
@@ -52,6 +56,7 @@ async function run() {
         assert(display.history && Array.isArray(display.history.columns) && display.history.columns.length > 0, `${manifest.id}: display.json should define history columns`);
       }
     }
+  }
   }
 
   console.log('Integration handler contract tests passed.');

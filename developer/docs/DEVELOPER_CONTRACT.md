@@ -49,7 +49,7 @@ npm run create-integration -- my-integration
 
 Then update the generated manifest, display definition, validation handler, sync handler, and README.
 
-Use `integrations/hello-integration` as the minimal complete example.
+Use `developer/examples/hello-integration` as the minimal complete example. Developer examples are intentionally outside `integrations/` so the Marketplace does not load them as installable integrations.
 
 ## Optional Marketplace Handlers
 
@@ -114,7 +114,7 @@ const {
   appendSyncLog,
   completeSyncRun,
   failSyncRun
-} = require('../../sdk');
+} = require('../../../sdk');
 ```
 
 These helpers keep run-history behavior consistent across integrations.
