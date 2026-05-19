@@ -29,27 +29,6 @@
       "type": "url",
       "group": "Qualys VMDR Configuration",
       "defaultValue": "https://qualysapi.qg3.apps.qualys.com"
-    },
-    {
-      "key": "Action1APIKey",
-      "label": "API Key (Client ID)",
-      "type": "text",
-      "group": "Action1 Configuration",
-      "required": true
-    },
-    {
-      "key": "Action1APISecret",
-      "label": "API Secret (Client Secret)",
-      "type": "secret",
-      "group": "Action1 Configuration",
-      "required": true
-    },
-    {
-      "key": "Action1OrgID",
-      "label": "Organization ID",
-      "type": "text",
-      "group": "Action1 Configuration",
-      "required": true
     }
   ],
   "marketplaceActions": [

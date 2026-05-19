@@ -35,6 +35,8 @@ The Marketplace owns the host framework:
 - setup and deployment behavior
 - integration catalog loading
 - settings forms and secret masking
+- shared Action1 API credentials
+- SMTP and webhook failure notification framework
 - validation and sync button wiring
 - per-integration schedules
 - standard renderers for dashboards, tables, history, and settings
@@ -73,6 +75,8 @@ The scaffold creates a complete starting point:
 
 Use `developer/examples/hello-integration` as the smallest complete example. Files under `developer/` are documentation and examples only; they are not loaded by the Marketplace runtime.
 
+For a step-by-step walkthrough, start with `developer/docs/GETTING_STARTED.md`.
+
 ## Development Checklist
 
 Before opening a pull request:
@@ -82,8 +86,9 @@ Before opening a pull request:
 3. Define visible screens in `display.json`.
 4. Define any required database tables in `migrations/*.sql`.
 5. Use integration-prefixed table names.
-6. Use `context` and `sdk/` helpers instead of importing Marketplace internals.
-7. Run:
+6. Use Marketplace-level Action1 credentials instead of redefining `Action1APIKey`, `Action1APISecret`, or `Action1OrgID`.
+7. Use `context` and `sdk/` helpers instead of importing Marketplace internals.
+8. Run:
 
 ```bash
 npm test
@@ -91,6 +96,12 @@ npm test
 
 ## Reference Docs
 
+- `developer/docs/GETTING_STARTED.md`
 - `developer/docs/MARKETPLACE_INTEGRATION_API.md`
 - `developer/docs/DEVELOPER_CONTRACT.md`
+- `developer/docs/DISPLAY_REFERENCE.md`
+- `developer/docs/SCHEMA_REFERENCE.md`
+- `developer/docs/LOCAL_TESTING.md`
+- `developer/docs/NOTIFICATION_WEBHOOKS.md`
+- `developer/docs/REVIEW_CHECKLIST.md`
 - `developer/docs/INTEGRATION_REPO_STRATEGY.md`

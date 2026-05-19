@@ -94,6 +94,9 @@ await context.settings.get(key)
 await context.settings.set(key, value)
 await context.settings.all(["KeyA", "KeyB"])
 
+await context.action1.getCredentials()
+await context.notifications.sendFailureAlert({ error })
+
 await context.db.run(sql, params)
 await context.db.get(sql, params)
 await context.db.all(sql, params)
@@ -109,6 +112,30 @@ context.services.computeAndSaveRunMetrics(runId, context.integrationId)
 ```
 
 Use `context.db.tables` when writing data for the standard Marketplace dashboard, endpoint, vulnerability, and export renderers.
+
+## Shared Action1 Credentials
+
+The Marketplace owns shared Action1 API credentials. Integrations must not declare `Action1APIKey`, `Action1APISecret`, or `Action1OrgID` in `manifest.json`.
+
+When an integration needs Action1 data, use:
+
+```js
+const { apiKey, apiSecret, organizationId } = await context.action1.getCredentials();
+```
+
+Older integrations may still read these values from `context.settings`, but new integrations should prefer `context.action1.getCredentials()`.
+
+## Failure Notifications
+
+The Marketplace owns SMTP and webhook notification settings and automatically sends an alert when a manual or scheduled integration run fails. Integrations should rely on that framework for normal sync failures.
+
+For custom integration operations that run outside the normal sync runner, use:
+
+```js
+await context.notifications.sendFailureAlert({ error });
+```
+
+The integration must still write an accurate failed run-history entry before requesting an alert so email and webhook payloads include useful run details.
 
 ## Database Ownership
 

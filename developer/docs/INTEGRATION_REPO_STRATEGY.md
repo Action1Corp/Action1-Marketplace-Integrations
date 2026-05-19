@@ -98,6 +98,7 @@ The Marketplace host remains responsible for:
 - organization/team management
 - setup wizard and deployment configuration
 - settings rendering and secret masking
+- shared Action1 API credential storage
 - run history
 - schedules
 - standard UI renderers

@@ -138,6 +138,9 @@ await context.settings.get(key)
 await context.settings.set(key, value)
 await context.settings.all(["KeyA", "KeyB"])
 
+await context.action1.getCredentials()
+await context.notifications.sendFailureAlert({ error })
+
 await context.db.run(sql, params)
 await context.db.get(sql, params)
 await context.db.all(sql, params)
@@ -153,6 +156,28 @@ context.services.computeAndSaveRunMetrics(runId, context.integrationId)
 ```
 
 The `context` object is the Marketplace compatibility boundary. Do not import Marketplace backend files from an integration.
+
+### Shared Action1 Credentials
+
+The Marketplace owns the Action1 API credential settings:
+
+- `Action1APIKey`
+- `Action1APISecret`
+- `Action1OrgID`
+
+Do not declare those keys in an integration manifest. Integrations that need Action1 data can read the shared credentials through `context.action1.getCredentials()` or, for compatibility with older integrations, through `context.settings.get("Action1APIKey")`, `context.settings.get("Action1APISecret")`, and `context.settings.get("Action1OrgID")`.
+
+### Failure Notifications
+
+The Marketplace owns SMTP and webhook notification settings and automatically sends a failure alert when a manual or scheduled integration run finishes with a failed status. Integrations usually do not need to call notification APIs directly.
+
+If an integration has a custom operation outside the normal sync runner, it can request the same Marketplace failure alert through:
+
+```js
+await context.notifications.sendFailureAlert({ error });
+```
+
+The integration should still record the failed run in Marketplace run history so the email and webhook payload can include the run ID and details.
 
 ## Database Migrations
 
@@ -271,3 +296,12 @@ npm test
 ```
 
 Use `developer/examples/hello-integration` as the minimal complete example. The `developer/` directory is not loaded by the Marketplace runtime.
+
+## Additional Guides
+
+- `GETTING_STARTED.md`: build your first integration.
+- `DISPLAY_REFERENCE.md`: full `display.json` reference.
+- `SCHEMA_REFERENCE.md`: integration table requirements.
+- `LOCAL_TESTING.md`: test with a local Marketplace container.
+- `NOTIFICATION_WEBHOOKS.md`: failure webhook payloads.
+- `REVIEW_CHECKLIST.md`: pull request review checklist.

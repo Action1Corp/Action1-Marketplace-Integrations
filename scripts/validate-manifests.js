@@ -21,6 +21,7 @@ const supportedMarketplaceApiVersions = new Set(['1.0']);
 const supportedMarketplaceActions = new Set(['settings', 'validate', 'sync', 'history', 'schedule']);
 const supportedSettingTypes = new Set(['text', 'url', 'secret', 'select', 'number', 'checkbox']);
 const supportedDisplaySections = new Set(['navigation', 'dashboard', 'endpoints', 'vulnerabilities', 'history', 'settings']);
+const marketplaceOwnedSettings = new Set(['Action1APIKey', 'Action1APISecret', 'Action1OrgID']);
 const supportedColumnTypes = new Set([
   'strong',
   'number',
@@ -291,6 +292,10 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
     }
     if (seenSettings.has(setting.key)) {
       console.error(`${entry.name}: duplicate setting key ${setting.key}`);
+      failures += 1;
+    }
+    if (marketplaceOwnedSettings.has(setting.key)) {
+      console.error(`${entry.name}: ${setting.key} is a Marketplace-level setting and must not be declared by an integration`);
       failures += 1;
     }
     seenSettings.add(setting.key);
