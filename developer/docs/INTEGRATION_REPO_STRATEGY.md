@@ -1,160 +1,120 @@
-# Marketplace and Integration Repository Strategy
+# Marketplace And Integration Repository Strategy
 
-## Goal
+## Objective
 
-Separate the Action1 Integration Marketplace host from vendor-specific integrations so other developers can build integrations without changing the core Marketplace application.
+Separate the Action1 Integration Marketplace host from vendor-specific integrations so integrations can be developed, reviewed, versioned, and released without changing the core Marketplace application.
 
-## Recommended Repository Model
+## Repository Model
 
-Use two private GitHub repositories:
+Use two repositories:
 
 1. `action1-marketplace`
-   - Owns authentication, organization roles, setup wizard, scheduling UI, framework services, Docker image, navigation, marketplace cards, logs, standard renderers, and upgrade flow.
+   - Owns the customer-facing Marketplace application.
+   - Owns authentication, setup, roles, deployment behavior, standard renderers, scheduling, logs, framework data tables, and upgrade behavior.
    - Does not contain vendor-specific API logic.
 
 2. `action1-marketplace-integrations`
-   - Private integration catalog.
-   - Contains one folder or package per integration.
-   - Owns vendor API clients, sync logic, validation logic, settings schema, default schedules, and integration metadata.
+   - Owns the integration catalog.
+   - Contains one folder per integration.
+   - Owns vendor API clients, settings schema, validation handlers, sync handlers, display definitions, and integration-owned database schema.
 
-This keeps the customer-facing Marketplace stable while allowing integrations to be developed, reviewed, versioned, and released independently.
+This model keeps the Marketplace stable while allowing integrations to evolve independently.
 
-## Integration Package Shape
+## Runtime Model
 
-Each integration should expose a small manifest plus backend handlers.
+At startup, the Marketplace:
 
-```text
-integrations/
-  tenable/
-    manifest.json
-    index.js
-    README.md
-  qualys/
-    manifest.json
-    index.js
-    README.md
-  rapid7/
-    manifest.json
-    index.js
-    README.md
-```
+1. Scans the configured integrations directory.
+2. Reads each `manifest.json`.
+3. Loads each entrypoint.
+4. Applies integration migrations.
+5. Registers integrations in the catalog.
+6. Renders settings and display definitions.
+7. Calls integration handlers for validation, manual sync, and scheduled sync.
 
-Example `manifest.json`:
-
-```json
-{
-  "id": "tenable",
-  "name": "Tenable VM",
-  "vendor": "Tenable",
-  "category": "Vulnerability Management",
-  "description": "Synchronize vulnerabilities from Tenable.io into Action1.",
-  "settings": [
-    { "key": "TenableAccessKey", "label": "Access Key", "type": "secret", "required": true },
-    { "key": "TenableSecretKey", "label": "Secret Key", "type": "secret", "required": true },
-    { "key": "Action1APIKey", "label": "Action1 API Key", "type": "secret", "required": true },
-    { "key": "Action1APISecret", "label": "Action1 API Secret", "type": "secret", "required": true },
-    { "key": "Action1OrgID", "label": "Action1 Organization ID", "type": "text", "required": true }
-  ],
-  "capabilities": ["sync", "validate", "history", "schedule"]
-}
-```
-
-Example `index.js`:
-
-```js
-module.exports = {
-  async validate({ settings, logger }) {
-    // Validate credentials and return { ok, message }.
-  },
-
-  async sync({ settings, db, action1Client, nvdService, logger }) {
-    // Run integration sync and write normalized data through Marketplace APIs.
-  }
-};
-```
-
-## Marketplace Contract
-
-The Marketplace should load integrations from a configured directory such as:
+The integrations directory is configured with:
 
 ```env
 INTEGRATIONS_DIR=/app/integrations
 ```
 
-At startup, the Marketplace should:
+## Packaging Model
 
-1. Scan each integration folder.
-2. Read `manifest.json`.
-3. Load `index.js`.
-4. Register the integration in the marketplace catalog.
-5. Render settings dynamically from the manifest.
-6. Call `validate()` from the integration package when credentials are tested.
-7. Call `sync()` from the integration package when a manual or scheduled sync runs.
+For customer deployments, the preferred model is a prebuilt Marketplace image that already contains the approved integration catalog.
 
-The core app should continue to own auth, roles, secret masking, schedules, sync history, and shared normalized tables.
+### Production: Build-Time Bundling
 
-## Docker Packaging
+The release pipeline builds a Marketplace image and copies approved integrations into the image.
 
-For customer installs, keep one simple Marketplace container. Integrations can be included in one of two ways:
+Benefits:
 
-### Option A: Build-Time Bundling
+- simplest customer install
+- predictable release contents
+- controlled testing
+- no customer dependency on GitHub source
 
-The release pipeline clones the private integrations repo and copies selected integrations into the Marketplace image.
+### Development: Runtime Volume
 
-Best for:
-
-- Simple customer installs
-- Private integrations that should not be modified by customers
-- Controlled release testing
-
-### Option B: Runtime Volume
-
-The customer mounts an integrations folder into the container.
+Developers can mount the integrations repo into a running Marketplace container:
 
 ```yaml
 volumes:
   - ./integrations:/app/integrations:ro
 ```
 
-Best for:
+Benefits:
 
-- Developer testing
-- Partner-built integrations
-- Faster iteration without rebuilding the Marketplace image
+- fast local iteration
+- no Marketplace image rebuild for integration-only changes
+- useful for partner or internal development
 
-Recommended path: start with build-time bundling for production and support runtime volume loading for development.
+## Developer Workflow
 
-## GitHub Workflow
+1. Create a branch in `action1-marketplace-integrations`.
+2. Add or update an integration folder.
+3. Run `npm test`.
+4. Open a pull request.
+5. Review manifest, settings, migrations, display definitions, and handlers.
+6. Merge after validation passes.
+7. Build a new Marketplace image containing the approved integration catalog.
 
-Use the private integrations repository as the developer entry point.
+## Integration Package Responsibilities
 
-Recommended branch flow:
+An integration package should contain:
 
-1. Developer creates a branch in `action1-marketplace-integrations`.
-2. Developer adds a new integration folder with manifest, sync handler, validation handler, and README.
-3. CI runs contract tests against a Marketplace test harness.
-4. Pull request is reviewed.
-5. On merge, release workflow builds a new Marketplace image with the updated integration catalog.
+- `manifest.json` for metadata, settings, and Marketplace service capabilities
+- `display.json` for integration-owned screens and navigation
+- `migrations/*.sql` for integration-owned schema
+- `index.js` as the entrypoint
+- optional `validate.js`
+- optional `sync.js`
+- `README.md` for setup requirements and vendor permissions
 
-## Migration Plan
+## Marketplace Responsibilities
 
-1. Add an integration registry to the Marketplace.
-2. Move hardcoded integration requirements from `backend/integrationConfig.js` into manifests.
-3. Move `getSyncEngine()` from a switch statement to registry lookup.
-4. Move credential validation out of `backend/server.js` and into integration `validate()` handlers.
-5. Keep the Marketplace UI framework for dashboards, endpoints, vulnerabilities, and history, but have each integration define and own the data tables those views read from.
-6. Extract existing integrations one at a time: Tenable, Qualys, Rapid7, Defender, CrowdStrike, Intune.
-7. Add a template integration that developers can copy.
+The Marketplace host remains responsible for:
 
-## First Implementation Target
+- authentication and authorization
+- organization/team management
+- setup wizard and deployment configuration
+- settings rendering and secret masking
+- run history
+- schedules
+- standard UI renderers
+- shared CVE metadata/cache
+- applying integration migrations
+- invoking integration handlers through the runtime context
 
-The first technical milestone should be a local plugin registry while everything still lives in this repo:
+## Current Implementation State
 
-```text
-backend/integrations/
-  tenable/
-    manifest.json
-    index.js
-```
+The current architecture supports:
 
-Once that works, move `backend/integrations/` into the private GitHub integrations repo and mount or bundle it into the Marketplace container.
+- loading integrations from the integrations repository
+- integration-owned display definitions
+- integration-owned database migrations
+- integration-owned endpoint and vulnerability tables
+- Marketplace-owned settings, auth, schedule, and run-history framework tables
+- standard renderers backed by integration-owned tables
+- test-data seeding for fresh development containers
+
+Future work should focus on automated release packaging, CI validation against a Marketplace test harness, and customer-facing installation artifacts.

@@ -1,32 +1,50 @@
 # Integration Developer Contract
 
-For the versioned API reference, see `MARKETPLACE_INTEGRATION_API.md`.
+This document defines the rules an integration must follow to run inside the Action1 Integration Marketplace. For the full API reference, see `MARKETPLACE_INTEGRATION_API.md`.
 
-Marketplace integrations are folder-based packages loaded by manifest.
+## Package Shape
+
+Each runtime integration lives in its own folder under `integrations/`.
 
 ```text
 integrations/
   my-integration/
     manifest.json
+    display.json
     index.js
+    validate.js
+    sync.js
     migrations/
       001_create_schema.sql
     README.md
 ```
 
-## Capabilities Are Optional
+Only `manifest.json`, `index.js`, and `README.md` are always required. Other files depend on the integration's behavior.
 
-Declare only the Marketplace services/actions your integration actually supports. Views such as dashboards, endpoint lists, and vulnerability lists are defined in `display.json`, not as manifest capabilities.
+## Core Principles
+
+- The Marketplace is the host framework.
+- The integration owns vendor-specific code, schema, views, and data mapping.
+- Integrations must use the runtime `context` object as the compatibility boundary.
+- Integrations must not import Marketplace backend files directly.
+- Integrations should use integration-prefixed table names.
+- Database migrations must be additive and safe to run once.
+
+## Manifest Capabilities
+
+Capabilities describe Marketplace services or actions, not integration screens.
 
 Supported capabilities:
 
-- `settings`
-- `validate`
-- `sync`
-- `history`
-- `schedule`
+- `settings`: render settings from `manifest.json`
+- `validate`: show and run a credential validation action
+- `sync`: show and run a manual sync action
+- `history`: show the Marketplace run history view
+- `schedule`: show schedule controls and run the integration on a schedule
 
-An integration that only stores configuration can declare:
+Dashboards, endpoint tables, vulnerability tables, and other tabs are defined in `display.json`. They are not manifest capabilities.
+
+Example settings-only integration:
 
 ```json
 {
@@ -34,105 +52,105 @@ An integration that only stores configuration can declare:
 }
 ```
 
-The Marketplace hides unsupported actions automatically. Integration navigation comes from `display.json`.
+If an integration declares `schedule`, it must also declare `sync`. The Marketplace owns cron registration, timezone handling, storage, and execution.
 
-`schedule` is a Marketplace-owned capability. If an integration declares `schedule`, it must also declare `sync`. The Marketplace stores a separate schedule per integration and calls that integration's `sync(context)` handler when the schedule fires. Integration developers should not implement cron logic.
+## Handlers
 
-## Scaffolding
-
-Create a new integration with:
-
-```bash
-npm run create-integration -- my-integration
-```
-
-Then update the generated manifest, display definition, validation handler, sync handler, and README.
-
-Use `developer/examples/hello-integration` as the minimal complete example. Developer examples are intentionally outside `integrations/` so the Marketplace does not load them as installable integrations.
-
-## Optional Marketplace Handlers
-
-Handlers are only required for capabilities that the Marketplace knows how to run.
-
-For the current Marketplace API:
-
-- Declare `validate` only if the Marketplace should show and run a credential validation action.
-- Declare `sync` only if the Marketplace should show and run a sync action.
-- Omit both for integrations that only provide settings, static metadata, standard views populated another way, or future/custom behavior.
-
-`index.js` can export the Marketplace handlers it supports:
+Handlers are optional and should only be exported when the matching capability exists.
 
 ```js
 module.exports = {
   async validate(context) {
-    return { ok: true, message: 'Connected' };
+    return {
+      "my-integration": { ok: true, message: "Connected" }
+    };
   },
 
   async sync(context) {
-    context.logger.info('Sync started');
+    context.logger.info("Sync started");
   }
 };
 ```
 
-The integration can contain any internal functions it needs. The Marketplace will not call arbitrary function names unless a future API version defines them as supported handlers.
+The Marketplace currently calls only:
 
-Do not import Marketplace backend files from an integration. Use the provided `context` object.
+- `validate(context)`
+- `sync(context)`
+
+Integrations can define any internal functions they need, but the Marketplace will not call arbitrary function names unless a future API version defines them.
 
 ## Runtime Context
 
-Handlers receive:
+Handlers receive a `context` object:
 
 ```js
 context.integrationId
+
 context.logger.info(message)
 context.logger.warn(message)
 context.logger.error(message)
 
 await context.settings.get(key)
 await context.settings.set(key, value)
-await context.settings.all(['KeyA', 'KeyB'])
+await context.settings.all(["KeyA", "KeyB"])
 
 await context.db.run(sql, params)
 await context.db.get(sql, params)
 await context.db.all(sql, params)
+await context.db.statement(sql, params)
+await context.db.row(sql, params)
+
+context.db.tables.endpoints
+context.db.tables.endpointCves
 
 context.http
 context.services.nvd
-context.services.computeAndSaveRunMetrics(runId, integrationId)
+context.services.computeAndSaveRunMetrics(runId, context.integrationId)
 ```
 
-Integrations must not import Marketplace backend files directly. The runtime context is the compatibility boundary between the Marketplace and integration packages.
+Use `context.db.tables` when writing data for the standard Marketplace dashboard, endpoint, vulnerability, and export renderers.
 
-## Integration-Owned Database Schema
+## Database Ownership
 
-Integrations define their private database needs in migration files:
+Integrations define their database needs through migration files.
 
 ```text
-integrations/
-  my-integration/
-    migrations/
-      001_create_schema.sql
-      002_add_indexes.sql
+migrations/
+  001_create_schema.sql
+  002_add_indexes.sql
 ```
 
-The Marketplace applies these migrations at startup and records completed migrations in its migration ledger. Migrations run once per integration and migration filename.
+The Marketplace applies migrations at startup and records completed migrations in its migration ledger. Migration filenames must be stable and ordered.
 
-Use integration-prefixed table names, for example:
+The Marketplace owns framework tables for:
 
-```sql
-CREATE TABLE IF NOT EXISTS my_integration_assets (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  external_id TEXT NOT NULL,
-  raw_json TEXT,
-  last_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
+- authentication and organizations
+- settings and secret storage
+- schedules
+- sync history
+- shared CVE metadata/cache
+- migration tracking
+
+Integrations own tables for:
+
+- vendor assets
+- vendor findings
+- endpoint mappings
+- vulnerability mappings
+- any vendor-specific state
+
+For standard endpoint and vulnerability renderers, integrations should create:
+
+```text
+<integration_id>_endpoints
+<integration_id>_endpoint_cves
 ```
 
-The Marketplace still provides framework tables for settings, auth, schedules, run history, shared CVE metadata, and the migration ledger. Endpoint, vulnerability, and vendor-specific records belong in integration-owned tables. Standard renderers resolve those integration-owned table names from the integration ID.
+The Marketplace resolves these names from the integration ID.
 
 ## SDK Helpers
 
-The `sdk/` folder contains small helpers for common integration work. For sync-style integrations, prefer:
+The `sdk/` folder provides helpers for common integration behavior.
 
 ```js
 const {
@@ -141,9 +159,19 @@ const {
   completeSyncRun,
   failSyncRun,
   getDataTables
-} = require('../../../sdk');
+} = require("../../sdk");
 ```
 
-`getDataTables(context)` returns the Marketplace-resolved table names for the current integration's standard endpoint and vulnerability storage.
+For an integration in `developer/examples`, use `../../../sdk`.
 
-These helpers keep run-history behavior consistent across integrations.
+`getDataTables(context)` returns the Marketplace-resolved endpoint and vulnerability table names for the current integration.
+
+## Validation
+
+Run repository validation before opening a pull request:
+
+```bash
+npm test
+```
+
+Validation checks manifest shape, supported capabilities, display definitions, migration naming, standard table requirements, and handler exports.
