@@ -131,7 +131,7 @@ CREATE TABLE IF NOT EXISTS my_integration_assets (
 );
 ```
 
-The Marketplace still provides framework tables for settings, auth, schedules, run history, and standard renderers. Integration-owned tables are for vendor-specific storage and custom data needs.
+The Marketplace still provides framework tables for settings, auth, schedules, run history, shared CVE metadata, and the migration ledger. Endpoint, vulnerability, and vendor-specific records belong in integration-owned tables. Standard renderers resolve those integration-owned table names from the integration ID.
 
 ## SDK Helpers
 
@@ -142,8 +142,11 @@ const {
   createSyncRun,
   appendSyncLog,
   completeSyncRun,
-  failSyncRun
+  failSyncRun,
+  getDataTables
 } = require('../../../sdk');
 ```
+
+`getDataTables(context)` returns the Marketplace-resolved table names for the current integration's standard endpoint and vulnerability storage.
 
 These helpers keep run-history behavior consistent across integrations.

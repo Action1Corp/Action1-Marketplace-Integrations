@@ -331,7 +331,7 @@ async function runSync() {
                 db.run('BEGIN TRANSACTION');
 
                 const stmtEp = db.prepare(
-                    `INSERT INTO endpoints (integration_id, run_id, endpoint_name, ipv4, mac, os, action1_id, tenable_has_agent, missing_from_tenable, missing_from_action1, critical_vulns, high_vulns, medium_vulns, low_vulns, patchable_vulns)
+                    `INSERT INTO crowdstrike_endpoints (integration_id, run_id, endpoint_name, ipv4, mac, os, action1_id, tenable_has_agent, missing_from_tenable, missing_from_action1, critical_vulns, high_vulns, medium_vulns, low_vulns, patchable_vulns)
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
                 );
                 for (let ep of endpointsToSave) {
@@ -354,7 +354,7 @@ async function runSync() {
 
                 // Insert endpoint_cves rows without text blobs
                 const stmtCve = db.prepare(
-                    `INSERT INTO endpoint_cves (integration_id, run_id, endpoint_name, cve, severity, status)
+                    `INSERT INTO crowdstrike_endpoint_cves (integration_id, run_id, endpoint_name, cve, severity, status)
                      VALUES (?, ?, ?, ?, ?, ?)`
                 );
                 for (let cve of finalCVEList) {
@@ -369,8 +369,8 @@ async function runSync() {
         });
 
         // Cleanup: Keep only the current run
-        db.run(`DELETE FROM endpoints WHERE integration_id = 'crowdstrike' AND run_id != ?`, [runId]);
-        db.run(`DELETE FROM endpoint_cves WHERE integration_id = 'crowdstrike' AND run_id != ?`, [runId]);
+        db.run(`DELETE FROM crowdstrike_endpoints WHERE run_id != ?`, [runId]);
+        db.run(`DELETE FROM crowdstrike_endpoint_cves WHERE run_id != ?`, [runId]);
 
         await computeAndSaveRunMetrics(runId, 'crowdstrike');
 

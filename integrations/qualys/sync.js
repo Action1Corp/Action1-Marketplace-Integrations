@@ -600,7 +600,7 @@ async function runSync() {
                     const qualysCves = endpointUniqueCVEs[ep.endpoint_name] || {};
                     const mergedCounts = countBySeverity(mergeCveMaps(qualysCves, action1Counts?.cves || {}));
                     const integrationTotal = ep.critical + ep.high + ep.medium + ep.low;
-                    db.run(`INSERT INTO endpoints (integration_id, run_id, endpoint_name, ipv4, mac, os, action1_id, tenable_has_agent, missing_from_tenable, missing_from_action1, defender_total_vulns, critical_vulns, high_vulns, medium_vulns, low_vulns, action1_critical_vulns, action1_high_vulns, action1_medium_vulns, action1_low_vulns, patchable_vulns)
+                    db.run(`INSERT INTO qualys_endpoints (integration_id, run_id, endpoint_name, ipv4, mac, os, action1_id, tenable_has_agent, missing_from_tenable, missing_from_action1, defender_total_vulns, critical_vulns, high_vulns, medium_vulns, low_vulns, action1_critical_vulns, action1_high_vulns, action1_medium_vulns, action1_low_vulns, patchable_vulns)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                         [
                             ep.integration_id, runId, ep.endpoint_name, ep.ipv4, ep.mac, ep.os, ep.action1_id,
@@ -628,7 +628,7 @@ async function runSync() {
                 stmtDetails.finalize();
 
                 // Insert endpoint_cves rows without text blobs
-                let stmt2 = db.prepare(`INSERT INTO endpoint_cves (integration_id, run_id, endpoint_name, cve, severity, status)
+                let stmt2 = db.prepare(`INSERT INTO qualys_endpoint_cves (integration_id, run_id, endpoint_name, cve, severity, status)
                     VALUES (?, ?, ?, ?, ?, ?)`);
                 for (let cve of finalCVEList) {
                     stmt2.run([cve.integration_id, runId, cve.endpoint_name, cve.cve, cve.severity, cve.status]);
@@ -642,8 +642,8 @@ async function runSync() {
         });
 
         // Cleanup
-        db.run(`DELETE FROM endpoints WHERE integration_id = 'qualys' AND run_id != ?`, [runId]);
-        db.run(`DELETE FROM endpoint_cves WHERE integration_id = 'qualys' AND run_id != ?`, [runId]);
+        db.run(`DELETE FROM qualys_endpoints WHERE run_id != ?`, [runId]);
+        db.run(`DELETE FROM qualys_endpoint_cves WHERE run_id != ?`, [runId]);
 
         await computeAndSaveRunMetrics(runId, 'qualys');
 

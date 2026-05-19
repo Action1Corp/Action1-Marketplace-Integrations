@@ -9,7 +9,7 @@ Separate the Action1 Integration Marketplace host from vendor-specific integrati
 Use two private GitHub repositories:
 
 1. `action1-marketplace`
-   - Owns authentication, organization roles, setup wizard, scheduling UI, shared database schema, Docker image, navigation, marketplace cards, logs, dashboards, endpoint tables, and upgrade flow.
+   - Owns authentication, organization roles, setup wizard, scheduling UI, framework services, Docker image, navigation, marketplace cards, logs, standard renderers, and upgrade flow.
    - Does not contain vendor-specific API logic.
 
 2. `action1-marketplace-integrations`
@@ -142,7 +142,7 @@ Recommended branch flow:
 2. Move hardcoded integration requirements from `backend/integrationConfig.js` into manifests.
 3. Move `getSyncEngine()` from a switch statement to registry lookup.
 4. Move credential validation out of `backend/server.js` and into integration `validate()` handlers.
-5. Keep the current database tables and UI pages for dashboards, endpoints, vulnerabilities, and history.
+5. Keep the Marketplace UI framework for dashboards, endpoints, vulnerabilities, and history, but have each integration define and own the data tables those views read from.
 6. Extract existing integrations one at a time: Tenable, Qualys, Rapid7, Defender, CrowdStrike, Intune.
 7. Add a template integration that developers can copy.
 

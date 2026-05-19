@@ -47,10 +47,10 @@ Current built-in capabilities:
 - `settings`: render settings from `manifest.json`
 - `validate`: show the Marketplace credential validation action
 - `sync`: show the Marketplace sync action
-- `dashboard`: show the standard dashboard view backed by Marketplace data tables
-- `endpoints`: show the standard endpoints view backed by Marketplace data tables
-- `vulnerabilities`: show the standard vulnerabilities view backed by Marketplace data tables
-- `history`: show the standard run history view backed by Marketplace data tables
+- `dashboard`: show the standard dashboard view backed by this integration's own tables
+- `endpoints`: show the standard endpoints view backed by this integration's own endpoint table
+- `vulnerabilities`: show the standard vulnerabilities view backed by this integration's own vulnerability table
+- `history`: show the standard run history view backed by Marketplace run history
 - `schedule`: show the standard schedule controls for this integration
 
 Declare only what the integration actually uses. An integration can be settings-only, dashboard-only, or use none of the current action handlers.
@@ -88,6 +88,8 @@ await context.db.get(sql, params)
 await context.db.all(sql, params)
 await context.db.statement(sql, params)
 await context.db.row(sql, params)
+context.db.tables.endpoints
+context.db.tables.endpointCves
 
 context.http
 context.services.nvd
@@ -127,13 +129,15 @@ CREATE TABLE IF NOT EXISTS vendor_id_assets (
 );
 ```
 
-Integrations that use the standard Marketplace dashboard, endpoint, vulnerability, history, or export framework can also write to the Marketplace framework tables those views read from:
+Integrations that use the standard Marketplace dashboard, endpoint, vulnerability, or export framework should create and write to integration-owned tables. The standard renderer resolves these names from the integration ID:
 
 - `sync_history`
-- `endpoints`
-- `endpoint_cves`
+- `<integration_id>_endpoints`
+- `<integration_id>_endpoint_cves`
 - `cve_details`
 - `cve_cache` when NVD data is known
+
+The shared framework tables remain limited to framework services such as `sync_history`, settings, authentication, schedules, shared CVE metadata, and the migration ledger.
 
 For sync-style integrations, call this after writing run data:
 
@@ -141,7 +145,7 @@ For sync-style integrations, call this after writing run data:
 await context.services.computeAndSaveRunMetrics(runId, context.integrationId);
 ```
 
-Integrations that do not use those standard views do not need to write to those framework tables.
+Integrations that do not use the standard endpoint or vulnerability views can define any private tables they need in `migrations/*.sql`.
 
 ## Display Definitions
 

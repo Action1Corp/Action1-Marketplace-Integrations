@@ -415,7 +415,7 @@ async function sync(context) {
             db.serialize(() => {
                 db.run('BEGIN TRANSACTION');
                 const stmtEp = db.prepare(
-                    `INSERT INTO endpoints
+                    `INSERT INTO tenable_endpoints
                      (integration_id, run_id, endpoint_name, ipv4, mac, os, action1_id, tenable_has_agent, missing_from_tenable, missing_from_action1, critical_vulns, high_vulns, medium_vulns, low_vulns, patchable_vulns)
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
                 );
@@ -448,7 +448,7 @@ async function sync(context) {
 
                 // 2. Insert endpoint_cves rows (no text blobs)
                 const stmtCve = db.prepare(
-                    `INSERT INTO endpoint_cves (integration_id, run_id, endpoint_name, cve, severity, status)
+                    `INSERT INTO tenable_endpoint_cves (integration_id, run_id, endpoint_name, cve, severity, status)
                      VALUES (?, ?, ?, ?, ?, ?)`
                 );
                 for (const cve of finalCVEList) {
@@ -463,8 +463,8 @@ async function sync(context) {
         });
 
         // Cleanup: Keep only the current run
-        db.run(`DELETE FROM endpoints WHERE integration_id = 'tenable' AND run_id != ?`, [runId]);
-        db.run(`DELETE FROM endpoint_cves WHERE integration_id = 'tenable' AND run_id != ?`, [runId]);
+        db.run(`DELETE FROM tenable_endpoints WHERE run_id != ?`, [runId]);
+        db.run(`DELETE FROM tenable_endpoint_cves WHERE run_id != ?`, [runId]);
 
         await computeAndSaveRunMetrics(runId, 'tenable');
 
