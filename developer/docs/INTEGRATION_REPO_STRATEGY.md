@@ -55,7 +55,7 @@ Example `manifest.json`:
     { "key": "Action1APISecret", "label": "Action1 API Secret", "type": "secret", "required": true },
     { "key": "Action1OrgID", "label": "Action1 Organization ID", "type": "text", "required": true }
   ],
-  "capabilities": ["sync", "validate", "dashboard", "endpoints", "vulnerabilities", "history"]
+  "capabilities": ["sync", "validate", "history", "schedule"]
 }
 ```
 

@@ -58,7 +58,7 @@ writeJson('manifest.json', {
   category: 'Vulnerability Management',
   icon_color: '#2E8CEB',
   entry: 'index.js',
-  capabilities: ['settings', 'validate', 'sync', 'dashboard', 'history', 'schedule'],
+  capabilities: ['settings', 'validate', 'sync', 'history', 'schedule'],
   settings: [
     {
       key: `${displayName.replace(/\s+/g, '')}ApiUrl`,
@@ -79,7 +79,7 @@ writeJson('manifest.json', {
 
 writeJson('display.json', {
   navigation: [
-    { id: 'dashboard', label: 'Dashboard', path: 'dashboard', icon: 'Activity', capability: 'dashboard' },
+    { id: 'dashboard', label: 'Dashboard', path: 'dashboard', icon: 'Activity' },
     { id: 'history', label: 'History', path: 'history', icon: 'History', capability: 'history' },
     { id: 'settings', label: 'Settings', path: 'settings', icon: 'Settings', capability: 'settings', requiresWrite: true }
   ],
@@ -169,16 +169,45 @@ module.exports = {
 `);
 
 writeFile('migrations/001_create_schema.sql', `
-CREATE TABLE IF NOT EXISTS ${id.replace(/-/g, '_')}_items (
+CREATE TABLE IF NOT EXISTS ${id.replace(/-/g, '_')}_endpoints (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  external_id TEXT NOT NULL,
-  name TEXT,
-  raw_json TEXT,
-  last_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  integration_id TEXT DEFAULT '${id}',
+  run_id INTEGER,
+  endpoint_name TEXT,
+  ipv4 TEXT,
+  mac TEXT,
+  os TEXT,
+  action1_id TEXT,
+  tenable_has_agent BOOLEAN,
+  missing_from_tenable BOOLEAN,
+  missing_from_action1 BOOLEAN,
+  defender_total_vulns INTEGER DEFAULT 0,
+  critical_vulns INTEGER DEFAULT 0,
+  high_vulns INTEGER DEFAULT 0,
+  medium_vulns INTEGER DEFAULT 0,
+  low_vulns INTEGER DEFAULT 0,
+  action1_critical_vulns INTEGER DEFAULT 0,
+  action1_high_vulns INTEGER DEFAULT 0,
+  action1_medium_vulns INTEGER DEFAULT 0,
+  action1_low_vulns INTEGER DEFAULT 0,
+  patchable_vulns INTEGER DEFAULT 0
 );
 
-CREATE INDEX IF NOT EXISTS idx_${id.replace(/-/g, '_')}_items_external_id
-  ON ${id.replace(/-/g, '_')}_items(external_id);
+CREATE TABLE IF NOT EXISTS ${id.replace(/-/g, '_')}_endpoint_cves (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  integration_id TEXT DEFAULT '${id}',
+  run_id INTEGER,
+  endpoint_name TEXT,
+  cve TEXT,
+  severity TEXT,
+  status TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_${id.replace(/-/g, '_')}_endpoints_run
+  ON ${id.replace(/-/g, '_')}_endpoints(run_id);
+
+CREATE INDEX IF NOT EXISTS idx_${id.replace(/-/g, '_')}_endpoint_cves_run
+  ON ${id.replace(/-/g, '_')}_endpoint_cves(run_id);
 `);
 
 writeFile('README.md', `
@@ -191,17 +220,17 @@ This integration was generated with \`npm run create-integration -- ${id}\`.
 - Settings
 - Credential validation
 - Manual sync
-- Dashboard
+- Integration-defined dashboard view
 - Run history
 - Per-integration scheduling
 
 ## Next Steps
 
-1. Update \`manifest.json\` metadata, settings, category, and capabilities.
+1. Update \`manifest.json\` metadata, settings, category, and Marketplace service capabilities.
 2. Implement real credential checks in \`validate.js\`.
 3. Implement vendor data collection and Marketplace data writes in \`sync.js\`.
 4. Update \`migrations/001_create_schema.sql\` with this integration's private tables.
-5. Update \`display.json\` to match the tabs and metrics this integration supports.
+5. Update \`display.json\` to define the tabs, views, labels, and metrics this integration supports.
 6. Run \`npm test\` from the repository root.
 `);
 

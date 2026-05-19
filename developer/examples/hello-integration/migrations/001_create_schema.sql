@@ -1,10 +1,39 @@
-CREATE TABLE IF NOT EXISTS hello_integration_items (
+CREATE TABLE IF NOT EXISTS hello_integration_endpoints (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  external_id TEXT NOT NULL,
-  name TEXT,
-  raw_json TEXT,
-  last_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  integration_id TEXT DEFAULT 'hello-integration',
+  run_id INTEGER,
+  endpoint_name TEXT,
+  ipv4 TEXT,
+  mac TEXT,
+  os TEXT,
+  action1_id TEXT,
+  tenable_has_agent BOOLEAN,
+  missing_from_tenable BOOLEAN,
+  missing_from_action1 BOOLEAN,
+  defender_total_vulns INTEGER DEFAULT 0,
+  critical_vulns INTEGER DEFAULT 0,
+  high_vulns INTEGER DEFAULT 0,
+  medium_vulns INTEGER DEFAULT 0,
+  low_vulns INTEGER DEFAULT 0,
+  action1_critical_vulns INTEGER DEFAULT 0,
+  action1_high_vulns INTEGER DEFAULT 0,
+  action1_medium_vulns INTEGER DEFAULT 0,
+  action1_low_vulns INTEGER DEFAULT 0,
+  patchable_vulns INTEGER DEFAULT 0
 );
 
-CREATE INDEX IF NOT EXISTS idx_hello_integration_items_external_id
-  ON hello_integration_items(external_id);
+CREATE TABLE IF NOT EXISTS hello_integration_endpoint_cves (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  integration_id TEXT DEFAULT 'hello-integration',
+  run_id INTEGER,
+  endpoint_name TEXT,
+  cve TEXT,
+  severity TEXT,
+  status TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_hello_integration_endpoints_run
+  ON hello_integration_endpoints(run_id);
+
+CREATE INDEX IF NOT EXISTS idx_hello_integration_endpoint_cves_run
+  ON hello_integration_endpoint_cves(run_id);

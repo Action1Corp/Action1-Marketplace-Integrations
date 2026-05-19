@@ -4,8 +4,7 @@
       "id": "dashboard",
       "label": "Dashboard",
       "path": "dashboard",
-      "icon": "Activity",
-      "capability": "dashboard"
+      "icon": "Activity"
     },
     {
       "id": "history",

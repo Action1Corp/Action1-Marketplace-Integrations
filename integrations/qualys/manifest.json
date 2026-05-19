@@ -11,9 +11,6 @@
   "capabilities": [
     "sync",
     "validate",
-    "dashboard",
-    "endpoints",
-    "vulnerabilities",
     "history",
     "schedule"
   ],

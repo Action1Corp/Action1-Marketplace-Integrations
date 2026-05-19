@@ -18,7 +18,7 @@ const requiredTopLevel = [
   'settings'
 ];
 const supportedMarketplaceApiVersions = new Set(['1.0']);
-const supportedCapabilities = new Set(['settings', 'validate', 'sync', 'dashboard', 'endpoints', 'vulnerabilities', 'history', 'schedule']);
+const supportedCapabilities = new Set(['settings', 'validate', 'sync', 'history', 'schedule']);
 const supportedSettingTypes = new Set(['text', 'url', 'secret', 'select', 'number', 'checkbox']);
 const supportedDisplaySections = new Set(['navigation', 'dashboard', 'endpoints', 'vulnerabilities', 'history', 'settings']);
 const supportedColumnTypes = new Set([
@@ -66,6 +66,15 @@ function validateMigrations(entryName, integrationDir) {
       failures += 1;
     }
   }
+}
+
+function readMigrationSql(integrationDir) {
+  const migrationsDir = path.join(integrationDir, 'migrations');
+  if (!fs.existsSync(migrationsDir)) return '';
+  return fs.readdirSync(migrationsDir, { withFileTypes: true })
+    .filter(entry => entry.isFile() && entry.name.endsWith('.sql'))
+    .map(entry => fs.readFileSync(path.join(migrationsDir, entry.name), 'utf8'))
+    .join('\n');
 }
 
 function validateDisplaySection(entryName, display, section, requirement) {
@@ -181,9 +190,10 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
 
   const displayPath = path.join(root, entry.name, 'display.json');
   let display = null;
-  if (manifest.capabilities?.includes('dashboard') || manifest.capabilities?.includes('endpoints') || manifest.capabilities?.includes('vulnerabilities') || manifest.capabilities?.includes('history')) {
+  const migrationSql = readMigrationSql(integrationDir);
+  if (fs.existsSync(displayPath)) {
     if (!fs.existsSync(displayPath)) {
-      console.error(`${entry.name}: UI capabilities require display.json`);
+      console.error(`${entry.name}: display.json is required for integration UI views`);
       failures += 1;
     } else {
       try {
@@ -216,22 +226,32 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
           console.error(`${entry.name}: display.navigation uses unsupported capability ${item.capability}`);
           failures += 1;
         }
-        if (item.capability && !manifest.capabilities?.includes(item.capability) && item.capability !== 'settings') {
+        if (item.capability && supportedCapabilities.has(item.capability) && !manifest.capabilities?.includes(item.capability) && item.capability !== 'settings') {
           console.error(`${entry.name}: display.navigation references undeclared capability ${item.capability}`);
           failures += 1;
         }
       }
     }
 
-    if (manifest.capabilities?.includes('dashboard')) validateDisplaySection(entry.name, display, 'dashboard', 'dashboard capability');
-    if (manifest.capabilities?.includes('endpoints')) validateDisplaySection(entry.name, display, 'endpoints', 'endpoints capability');
-    if (manifest.capabilities?.includes('vulnerabilities')) validateDisplaySection(entry.name, display, 'vulnerabilities', 'vulnerabilities capability');
-    if (manifest.capabilities?.includes('history')) validateDisplaySection(entry.name, display, 'history', 'history capability');
+    if (display.dashboard) validateDisplaySection(entry.name, display, 'dashboard', 'dashboard view');
+    if (display.endpoints) validateDisplaySection(entry.name, display, 'endpoints', 'endpoints view');
+    if (display.vulnerabilities) validateDisplaySection(entry.name, display, 'vulnerabilities', 'vulnerabilities view');
+    if (display.history) validateDisplaySection(entry.name, display, 'history', 'history view');
 
-    const visibleCapabilities = ['dashboard', 'endpoints', 'vulnerabilities', 'history'].filter(capability => manifest.capabilities?.includes(capability));
-    for (const capability of visibleCapabilities) {
-      if (!display.navigation.some(item => item.capability === capability || item.id === capability)) {
-        console.error(`${entry.name}: display.navigation must include ${capability}`);
+    const tablePrefix = manifest.id.replace(/[^a-z0-9]+/gi, '_').toLowerCase();
+    if ((display.endpoints || display.dashboard?.component === 'metric-dashboard') && !migrationSql.includes(`${tablePrefix}_endpoints`)) {
+      console.error(`${entry.name}: standard endpoint/dashboard views require ${tablePrefix}_endpoints in migrations`);
+      failures += 1;
+    }
+    if ((display.vulnerabilities || display.dashboard?.component === 'metric-dashboard') && !migrationSql.includes(`${tablePrefix}_endpoint_cves`)) {
+      console.error(`${entry.name}: standard vulnerability/dashboard views require ${tablePrefix}_endpoint_cves in migrations`);
+      failures += 1;
+    }
+
+    const visibleViews = ['dashboard', 'endpoints', 'vulnerabilities', 'history'].filter(view => display[view]);
+    for (const view of visibleViews) {
+      if (!display.navigation.some(item => item.id === view || item.path === view)) {
+        console.error(`${entry.name}: display.navigation must include ${view}`);
         failures += 1;
       }
     }

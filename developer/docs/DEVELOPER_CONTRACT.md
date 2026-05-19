@@ -16,16 +16,13 @@ integrations/
 
 ## Capabilities Are Optional
 
-Declare only the capabilities your integration actually supports.
+Declare only the Marketplace services/actions your integration actually supports. Views such as dashboards, endpoint lists, and vulnerability lists are defined in `display.json`, not as manifest capabilities.
 
 Supported capabilities:
 
 - `settings`
 - `validate`
 - `sync`
-- `dashboard`
-- `endpoints`
-- `vulnerabilities`
 - `history`
 - `schedule`
 
@@ -37,7 +34,7 @@ An integration that only stores configuration can declare:
 }
 ```
 
-The Marketplace hides unsupported buttons and navigation automatically.
+The Marketplace hides unsupported actions automatically. Integration navigation comes from `display.json`.
 
 `schedule` is a Marketplace-owned capability. If an integration declares `schedule`, it must also declare `sync`. The Marketplace stores a separate schedule per integration and calls that integration's `sync(context)` handler when the schedule fires. Integration developers should not implement cron logic.
 

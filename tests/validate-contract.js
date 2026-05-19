@@ -45,22 +45,31 @@ async function run() {
       assert.strictEqual(typeof handler.sync, 'function', `${manifest.id}: sync capability requires sync()`);
     }
 
-    if (manifest.capabilities.includes('dashboard') || manifest.capabilities.includes('endpoints') || manifest.capabilities.includes('vulnerabilities') || manifest.capabilities.includes('history')) {
-      assert(fs.existsSync(displayPath), `${manifest.id}: dashboard capability requires display.json`);
+    if (fs.existsSync(displayPath)) {
       const display = JSON.parse(fs.readFileSync(displayPath, 'utf8'));
+      const migrationSql = fs.existsSync(migrationsDir)
+        ? fs.readdirSync(migrationsDir).filter(file => file.endsWith('.sql')).map(file => fs.readFileSync(path.join(migrationsDir, file), 'utf8')).join('\n')
+        : '';
+      const tablePrefix = manifest.id.replace(/[^a-z0-9]+/gi, '_').toLowerCase();
       assert(Array.isArray(display.navigation) && display.navigation.length > 0, `${manifest.id}: display.json should define navigation`);
-      if (manifest.capabilities.includes('dashboard')) {
+      if (display.dashboard) {
         assert(display.dashboard && typeof display.dashboard === 'object', `${manifest.id}: display.json should define dashboard`);
         assert(display.dashboard.component, `${manifest.id}: dashboard definition should declare component`);
       }
-      if (manifest.capabilities.includes('endpoints')) {
+      if (display.endpoints) {
         assert(display.endpoints && Array.isArray(display.endpoints.columns) && display.endpoints.columns.length > 0, `${manifest.id}: display.json should define endpoint columns`);
       }
-      if (manifest.capabilities.includes('vulnerabilities')) {
+      if (display.vulnerabilities) {
         assert(display.vulnerabilities && Array.isArray(display.vulnerabilities.columns) && display.vulnerabilities.columns.length > 0, `${manifest.id}: display.json should define vulnerability columns`);
       }
-      if (manifest.capabilities.includes('history')) {
+      if (display.history) {
         assert(display.history && Array.isArray(display.history.columns) && display.history.columns.length > 0, `${manifest.id}: display.json should define history columns`);
+      }
+      if (display.endpoints || display.dashboard?.component === 'metric-dashboard') {
+        assert(migrationSql.includes(`${tablePrefix}_endpoints`), `${manifest.id}: standard endpoint/dashboard views require ${tablePrefix}_endpoints migration`);
+      }
+      if (display.vulnerabilities || display.dashboard?.component === 'metric-dashboard') {
+        assert(migrationSql.includes(`${tablePrefix}_endpoint_cves`), `${manifest.id}: standard vulnerability/dashboard views require ${tablePrefix}_endpoint_cves migration`);
       }
     }
   }

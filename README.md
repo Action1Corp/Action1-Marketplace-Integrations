@@ -36,7 +36,7 @@ The Marketplace owns:
 
 The integration owns:
 
-- metadata and capabilities in `manifest.json`
+- metadata and Marketplace service capabilities in `manifest.json`
 - tabs, labels, columns, and dashboard sections in `display.json`
 - optional `validate(context)`
 - optional `sync(context)`

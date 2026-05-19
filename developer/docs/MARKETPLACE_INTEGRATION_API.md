@@ -31,29 +31,26 @@ Every integration must provide `manifest.json`.
   "category": "Vulnerability Management",
   "icon_color": "#2E8CEB",
   "entry": "index.js",
-  "capabilities": ["settings", "validate", "sync", "dashboard", "endpoints", "vulnerabilities", "history", "schedule"],
+  "capabilities": ["settings", "validate", "sync", "history", "schedule"],
   "settings": []
 }
 ```
 
-Declare only the capabilities the integration actually supports. The Marketplace hides unsupported navigation and actions automatically.
+Declare only the Marketplace services/actions the integration actually supports. The integration defines its own navigation and views in `display.json`.
 
 ## Capabilities And Handlers
 
-Capabilities describe which Marketplace-provided UI surfaces and actions should be enabled for an integration.
+Capabilities describe which Marketplace-provided services/actions should be enabled for an integration. Integration-specific screens are display definitions, not capabilities.
 
 Current built-in capabilities:
 
 - `settings`: render settings from `manifest.json`
 - `validate`: show the Marketplace credential validation action
 - `sync`: show the Marketplace sync action
-- `dashboard`: show the standard dashboard view backed by this integration's own tables
-- `endpoints`: show the standard endpoints view backed by this integration's own endpoint table
-- `vulnerabilities`: show the standard vulnerabilities view backed by this integration's own vulnerability table
 - `history`: show the standard run history view backed by Marketplace run history
 - `schedule`: show the standard schedule controls for this integration
 
-Declare only what the integration actually uses. An integration can be settings-only, dashboard-only, or use none of the current action handlers.
+Declare only what the integration actually uses. An integration can be settings-only, sync-only, or use none of the current action handlers.
 
 `schedule` is per integration. The Marketplace owns cron registration, timezone handling, storage, and execution. If an integration declares `schedule`, it must also declare `sync`; when the schedule fires, the Marketplace calls only that integration's `sync(context)` handler.
 
@@ -154,8 +151,8 @@ Integration-specific displays live with the integration in `display.json`. The M
 ```json
 {
   "navigation": [
-    { "id": "dashboard", "label": "Dashboard", "path": "dashboard", "icon": "Activity", "capability": "dashboard" },
-    { "id": "endpoints", "label": "Endpoints", "path": "endpoints", "icon": "Server", "capability": "endpoints" },
+    { "id": "dashboard", "label": "Dashboard", "path": "dashboard", "icon": "Activity" },
+    { "id": "endpoints", "label": "Endpoints", "path": "endpoints", "icon": "Server" },
     { "id": "settings", "label": "Settings", "path": "settings", "icon": "Settings", "capability": "settings", "requiresWrite": true }
   ],
   "dashboard": {
@@ -198,7 +195,7 @@ Integration-specific displays live with the integration in `display.json`. The M
 }
 ```
 
-The Marketplace provides renderer components such as `metric-dashboard`, endpoint tables, vulnerability tables, history tables, and settings forms. The integration owns the layout definition, labels, metric bindings, filters, navigation targets, and which tabs should appear. Declare only the display sections that match the capabilities in `manifest.json`.
+The Marketplace provides renderer components such as `metric-dashboard`, endpoint tables, vulnerability tables, history tables, and settings forms. The integration owns the layout definition, labels, metric bindings, filters, navigation targets, and which tabs should appear. Declare display sections only for the views this integration wants to expose.
 
 For custom Marketplace-provided dashboard components, set the component name:
 
