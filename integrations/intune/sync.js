@@ -8,6 +8,10 @@ let nvdService;
 
 const crypto = require('crypto');
 
+const ACTION1_APP_IMAGE_URL = 'https://www.action1.com/wp-content/uploads/2025/03/Action1_2560x1600.png';
+const ACTION1_APP_INFORMATION_URL = 'https://www.action1.com/documentation/';
+const ACTION1_APP_PRIVACY_URL = 'https://www.action1.com/legal/privacy-policy/';
+
 
 function updateProgress(details, status = 'Running') {
     console.log(`[Intune] ${details}`);
@@ -77,6 +81,35 @@ function assertMsiDownload(response, buffer) {
     if (header !== oleCompoundFileHeader) {
         const contentType = response.headers?.['content-type'] || 'unknown';
         throw new Error(`Action1 agent download did not return an MSI file. Content-Type: ${contentType}. Check the Action1 Agent ID and organization name.`);
+    }
+}
+
+async function getAction1LargeIcon() {
+    try {
+        const response = await axios.get(ACTION1_APP_IMAGE_URL, {
+            responseType: 'arraybuffer',
+            timeout: 30000,
+            validateStatus: () => true
+        });
+        if (response.status < 200 || response.status >= 300) {
+            await updateProgress(`Warning: Action1 app image returned HTTP ${response.status}. Continuing without app icon.`);
+            return null;
+        }
+
+        const contentType = response.headers?.['content-type'] || 'image/png';
+        if (!contentType.toLowerCase().startsWith('image/')) {
+            await updateProgress(`Warning: Action1 app image returned ${contentType}. Continuing without app icon.`);
+            return null;
+        }
+
+        return {
+            "@odata.type": "#microsoft.graph.mimeContent",
+            type: contentType.split(';')[0],
+            value: Buffer.from(response.data).toString('base64')
+        };
+    } catch (error) {
+        await updateProgress(`Warning: Could not download Action1 app image: ${error.message}. Continuing without app icon.`);
+        return null;
     }
 }
 
@@ -171,12 +204,17 @@ async function createIntuneApp(graphHeaders, msiBuffer, msiFileName, version, pr
     const graphBase = 'https://graph.microsoft.com/beta';
     let appId = null;
 
+    const largeIcon = await getAction1LargeIcon();
+
     // 1. Create the app shell
     const appBody = {
         "@odata.type": "#microsoft.graph.win32LobApp",
         displayName: "Action1 Agent",
         description: "Action1 Remote Monitoring and Management Agent",
         publisher: "Action1 Corporation",
+        informationUrl: ACTION1_APP_INFORMATION_URL,
+        privacyInformationUrl: ACTION1_APP_PRIVACY_URL,
+        ...(largeIcon ? { largeIcon } : {}),
         displayVersion: version,
         fileName: msiFileName,
         installCommandLine: `msiexec /i "${msiFileName}" /qn`,
