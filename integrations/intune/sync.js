@@ -194,7 +194,6 @@ async function createIntuneApp(graphHeaders, msiBuffer, msiFileName, version, pr
             keyPath: "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion",
             valueName: "CurrentBuildNumber",
             check32BitOn64System: false,
-            operationType: "version",
             detectionType: "version"
         }],
         minimumSupportedOperatingSystem: { v10_1903: true }
