@@ -24,12 +24,30 @@ function updateProgress(details, status = 'Running') {
 
 /** Extract ProductVersion from MSI binary buffer (UTF-16LE scan) */
 function extractMsiVersion(buffer) {
-    const searchBuf = Buffer.from('ProductVersion', 'utf16le');
-    let idx = buffer.indexOf(searchBuf);
-    if (idx === -1) return null;
-    const region = buffer.slice(idx, Math.min(idx + 500, buffer.length)).toString('utf16le');
-    const m = region.match(/(\d+\.\d+\.\d+(?:\.\d+)?)/);
-    return m ? m[1] : null;
+    const versionPattern = /(\d+\.\d+\.\d+(?:\.\d+)?)/;
+    const ascii = buffer.toString('latin1');
+    const productIconMatch = ascii.match(/(\d+\.\d+\.\d+(?:\.\d+)?)ProductIcon/);
+    if (productIconMatch) return productIconMatch[1];
+
+    const productVersionUtf16 = Buffer.from('ProductVersion', 'utf16le');
+    const productVersionAscii = Buffer.from('ProductVersion', 'latin1');
+
+    for (const searchBuf of [productVersionUtf16, productVersionAscii]) {
+        const idx = buffer.indexOf(searchBuf);
+        if (idx === -1) continue;
+
+        for (const encoding of ['utf16le', 'latin1']) {
+            const region = buffer.slice(idx, Math.min(idx + 5000, buffer.length)).toString(encoding);
+            const match = region.match(versionPattern);
+            if (match) return match[1];
+        }
+    }
+
+    const candidates = [...ascii.matchAll(versionPattern)]
+        .map(match => match[1])
+        .filter(version => !version.startsWith('10.0.') && !version.startsWith('6.0.') && !version.startsWith('6.1.') && !version.startsWith('3.14.'));
+
+    return candidates[0] || null;
 }
 
 /** Extract ProductCode GUID from MSI binary buffer */
@@ -40,6 +58,26 @@ function extractMsiProductCode(buffer) {
     const region = buffer.slice(idx, Math.min(idx + 500, buffer.length)).toString('utf16le');
     const m = region.match(/(\{[0-9A-Fa-f-]{36}\})/);
     return m ? m[1] : null;
+}
+
+function buildAction1AgentDownloadUrl(agentId, orgName) {
+    const msiFileName = `agent(${orgName}).msi`;
+    return {
+        msiFileName,
+        downloadUrl: `https://app.action1.com/agent/${encodeURIComponent(agentId)}/Windows/${encodeURIComponent(msiFileName)}`
+    };
+}
+
+function assertMsiDownload(response, buffer) {
+    const header = buffer.slice(0, 8).toString('hex');
+    const oleCompoundFileHeader = 'd0cf11e0a1b11ae1';
+    if (response.status && (response.status < 200 || response.status >= 300)) {
+        throw new Error(`Action1 agent download returned HTTP ${response.status}. Check the Action1 Agent ID and organization name.`);
+    }
+    if (header !== oleCompoundFileHeader) {
+        const contentType = response.headers?.['content-type'] || 'unknown';
+        throw new Error(`Action1 agent download did not return an MSI file. Content-Type: ${contentType}. Check the Action1 Agent ID and organization name.`);
+    }
 }
 
 /** Encrypt file buffer for Intune content upload */
@@ -279,16 +317,16 @@ async function runSync() {
 
         // 2. Download latest Action1 Agent MSI
         await updateProgress("Downloading latest Action1 Agent MSI...");
-        const msiFileName = `agent(${IntuneOrgName}).msi`;
-        const downloadUrl = `https://app.action1.com/agent/${IntuneAgentId}/Windows/${msiFileName}`;
+        const { msiFileName, downloadUrl } = buildAction1AgentDownloadUrl(IntuneAgentId, IntuneOrgName);
 
-        const msiRes = await axios.get(downloadUrl, { responseType: 'arraybuffer', timeout: 120000 });
+        const msiRes = await axios.get(downloadUrl, { responseType: 'arraybuffer', timeout: 120000, validateStatus: () => true });
         const msiBuffer = Buffer.from(msiRes.data);
+        assertMsiDownload(msiRes, msiBuffer);
         const latestVersion = extractMsiVersion(msiBuffer) || 'Unknown';
         const productCode = extractMsiProductCode(msiBuffer);
 
         if (latestVersion === 'Unknown') {
-            throw new Error("Could not determine version from downloaded MSI.");
+            throw new Error("Could not determine version from downloaded Action1 Agent MSI.");
         }
         await updateProgress(`Latest Action1 Agent version: ${latestVersion}`);
 
