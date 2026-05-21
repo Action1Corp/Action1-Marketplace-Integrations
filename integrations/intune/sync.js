@@ -138,22 +138,38 @@ async function uploadToAzureStorage(sasUri, data) {
     });
 }
 
-/** Wait for a file's uploadState to reach a target value */
-async function waitForFileState(graphHeaders, fileUrl, targetState, maxWait = 120) {
+const FAILED_UPLOAD_STATES = new Set([
+    'azureStorageUriRequestFailed',
+    'azureStorageUriRenewalFailed',
+    'commitFileFailed'
+]);
+
+/** Wait for a file's uploadState to satisfy a condition */
+async function waitForFileState(graphHeaders, fileUrl, description, isReady, maxWait = 300) {
+    let lastState = 'unknown';
     for (let i = 0; i < maxWait; i++) {
         await new Promise(r => setTimeout(r, 2000));
         const res = await axios.get(fileUrl, { headers: graphHeaders });
-        if (res.data.uploadState === targetState) return res.data;
-        if (res.data.uploadState === 'commitFileFailed' || res.data.uploadState === 'azureStorageUriRequestFailed') {
-            throw new Error(`Upload failed with state: ${res.data.uploadState}`);
+        lastState = res.data.uploadState || 'unknown';
+        if (isReady(res.data)) return res.data;
+        if (FAILED_UPLOAD_STATES.has(lastState)) {
+            throw new Error(`Upload failed with state: ${lastState}`);
+        }
+        if (i > 0 && i % 15 === 0) {
+            await updateProgress(`Waiting for Intune ${description}... current state: ${lastState}`);
         }
     }
-    throw new Error(`Timeout waiting for file state: ${targetState}`);
+    throw new Error(`Timeout waiting for Intune ${description}. Last state: ${lastState}`);
+}
+
+async function deleteIntuneApp(graphHeaders, appId) {
+    await axios.delete(`https://graph.microsoft.com/beta/deviceAppManagement/mobileApps/${appId}`, { headers: graphHeaders });
 }
 
 /** Create a new Win32 LOB app in Intune and upload the MSI content */
 async function createIntuneApp(graphHeaders, msiBuffer, msiFileName, version, productCode) {
     const graphBase = 'https://graph.microsoft.com/beta';
+    let appId = null;
 
     // 1. Create the app shell
     const appBody = {
@@ -199,8 +215,9 @@ async function createIntuneApp(graphHeaders, msiBuffer, msiFileName, version, pr
         minimumSupportedOperatingSystem: { v10_1903: true }
     };
 
+    try {
     const appRes = await axios.post(`${graphBase}/deviceAppManagement/mobileApps`, appBody, { headers: graphHeaders });
-    const appId = appRes.data.id;
+    appId = appRes.data.id;
 
     // 2. Create content version
     const cvRes = await axios.post(
@@ -229,7 +246,13 @@ async function createIntuneApp(graphHeaders, msiBuffer, msiFileName, version, pr
     const fileUrl = `${graphBase}/deviceAppManagement/mobileApps/${appId}/microsoft.graph.win32LobApp/contentVersions/${cvId}/files/${fileId}`;
 
     // 5. Wait for Azure Storage URI
-    const fileWithUri = await waitForFileState(graphHeaders, fileUrl, 'azureStorageUriRequest');
+    const fileWithUri = await waitForFileState(
+        graphHeaders,
+        fileUrl,
+        'upload URL',
+        file => Boolean(file.azureStorageUri),
+        450
+    );
 
     // 6. Upload to Azure Storage
     await uploadToAzureStorage(fileWithUri.azureStorageUri, enc.uploadData);
@@ -240,7 +263,13 @@ async function createIntuneApp(graphHeaders, msiBuffer, msiFileName, version, pr
     }, { headers: graphHeaders });
 
     // 8. Wait for commit success
-    await waitForFileState(graphHeaders, fileUrl, 'commitFileSuccess');
+    await waitForFileState(
+        graphHeaders,
+        fileUrl,
+        'commit success',
+        file => file.uploadState === 'commitFileSuccess',
+        450
+    );
 
     // 9. Update app to point to committed content
     await axios.patch(`${graphBase}/deviceAppManagement/mobileApps/${appId}`, {
@@ -267,6 +296,17 @@ async function createIntuneApp(graphHeaders, msiBuffer, msiFileName, version, pr
     }
 
     return appId;
+    } catch (e) {
+        if (appId) {
+            try {
+                await updateProgress("Creation did not complete. Removing partial Intune app before retry...");
+                await deleteIntuneApp(graphHeaders, appId);
+            } catch (cleanupError) {
+                await updateProgress(`Warning: Could not remove partial Intune app: ${cleanupError.response?.data?.error?.message || cleanupError.message}`);
+            }
+        }
+        throw e;
+    }
 }
 
 function compareVersions(v1, v2) {
@@ -345,10 +385,18 @@ async function runSync() {
             const action1App = apps.find(app => app.displayName && app.displayName.toLowerCase().includes('action1'));
 
             if (action1App) {
-                intuneVersion = action1App.displayVersion || 'Unknown';
-                intuneAppId = action1App.id;
-                intuneAppName = action1App.displayName;
-                await updateProgress(`Found: "${intuneAppName}" v${intuneVersion}`);
+                const hasCommittedContentField = Object.prototype.hasOwnProperty.call(action1App, 'committedContentVersion');
+                if (hasCommittedContentField && !action1App.committedContentVersion) {
+                    await updateProgress(`Found incomplete Action1 Agent app "${action1App.displayName}". Removing it before recreating...`);
+                    await deleteIntuneApp(graphHeaders, action1App.id);
+                    await new Promise(r => setTimeout(r, 3000));
+                    await updateProgress("Removed incomplete Intune app.");
+                } else {
+                    intuneVersion = action1App.displayVersion || 'Unknown';
+                    intuneAppId = action1App.id;
+                    intuneAppName = action1App.displayName;
+                    await updateProgress(`Found: "${intuneAppName}" v${intuneVersion}`);
+                }
             } else {
                 await updateProgress("No Action1 Agent app found in Intune.");
             }
