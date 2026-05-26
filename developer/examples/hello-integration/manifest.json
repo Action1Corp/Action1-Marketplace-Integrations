@@ -31,5 +31,14 @@
     "sync",
     "history",
     "schedule"
+  ],
+  "actions": [
+    {
+      "id": "check-configuration",
+      "label": "Check Configuration",
+      "buttonLabel": "Check Configuration",
+      "description": "Runs an example integration-owned action from the settings page.",
+      "placement": "settings"
+    }
   ]
 }

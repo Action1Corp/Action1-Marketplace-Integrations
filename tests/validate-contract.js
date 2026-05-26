@@ -35,6 +35,12 @@ async function run() {
     assert(!handlerSource.includes('context.legacy'), `${manifest.id}: must not use legacy runtime bridge`);
 
     const handler = require(handlerPath);
+    if (Array.isArray(manifest.actions) && manifest.actions.length > 0) {
+      assert(handler.actions && typeof handler.actions === 'object', `${manifest.id}: manifest actions require exported action handlers`);
+      for (const action of manifest.actions) {
+        assert.strictEqual(typeof handler.actions[action.id], 'function', `${manifest.id}: action ${action.id} requires a handler`);
+      }
+    }
     if (marketplaceActions.includes('validate')) {
       assert(fs.existsSync(path.join(integrationDir, 'validate.js')), `${manifest.id}: validate marketplaceAction requires validate.js`);
       assert.strictEqual(typeof handler.validate, 'function', `${manifest.id}: validate marketplaceAction requires validate()`);

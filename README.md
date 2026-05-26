@@ -47,6 +47,7 @@ Each integration owns its vendor-specific behavior:
 - navigation, tabs, dashboard sections, labels, and columns in `display.json`
 - optional integration-owned credential validation handler
 - optional integration-owned run handler for vendor jobs, collection, or synchronization
+- optional custom actions and action handlers
 - vendor API calls and data mapping
 - integration-owned database schema in `migrations/*.sql`
 - setup notes and required vendor permissions in `README.md`

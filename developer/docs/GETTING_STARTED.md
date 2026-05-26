@@ -47,6 +47,7 @@ Required fields:
 - `description`
 - `category`
 - `marketplaceActions`
+- `actions`, when the integration exposes custom host-screen actions
 - `settings`
 
 Only declare Marketplace services the integration actually supports.

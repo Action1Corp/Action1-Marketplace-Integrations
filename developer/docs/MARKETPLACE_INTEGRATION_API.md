@@ -35,6 +35,7 @@ Every integration must provide `manifest.json`.
   "icon_color": "#2E8CEB",
   "entry": "index.js",
   "marketplaceActions": ["settings", "validate", "sync", "history", "schedule"],
+  "actions": [],
   "settings": []
 }
 ```
@@ -52,6 +53,32 @@ Every integration must provide `manifest.json`.
 | `schedule` | Show schedule controls and run scheduled syncs. |
 
 If `schedule` is declared, `sync` must also be declared.
+
+### Integration Actions
+
+Integrations can define custom actions in `manifest.json`. The Marketplace renders the action in the requested host placement and dispatches the click back to the integration-owned handler.
+
+```json
+{
+  "actions": [
+    {
+      "id": "publish-agent",
+      "label": "Publish Agent",
+      "buttonLabel": "Publish",
+      "description": "Publishes the current agent package to the vendor platform.",
+      "placement": "settings",
+      "confirm": true,
+      "confirmMessage": "Publish the agent package now?"
+    }
+  ]
+}
+```
+
+Supported placements:
+
+- `settings`
+
+The action `id` must be lowercase kebab-case and must match an integration-owned handler exported from the entrypoint.
 
 ### Settings
 
@@ -82,6 +109,8 @@ Use `secret` for API keys, tokens, passwords, and client secrets.
 
 The integration entrypoint defaults to `index.js`, or the file specified by `manifest.entry`.
 It exports whichever integration-owned handlers match the actions declared in `manifest.json`.
+
+Generic actions are exported as an action map keyed by action id. Each action receives the runtime context and the submitted settings/payload from the Marketplace.
 
 ### Validation Handler
 

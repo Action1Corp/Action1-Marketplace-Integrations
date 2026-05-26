@@ -20,6 +20,7 @@ const requiredTopLevel = [
 const supportedMarketplaceApiVersions = new Set(['1.0']);
 const supportedMarketplaceActions = new Set(['settings', 'validate', 'sync', 'history', 'schedule']);
 const supportedSettingTypes = new Set(['text', 'url', 'secret', 'select', 'number', 'checkbox']);
+const supportedActionPlacements = new Set(['settings']);
 const supportedDisplaySections = new Set(['navigation', 'dashboard', 'endpoints', 'vulnerabilities', 'history', 'settings']);
 const marketplaceOwnedSettings = new Set(['Action1APIKey', 'Action1APISecret', 'Action1OrgID']);
 const supportedColumnTypes = new Set([
@@ -192,6 +193,34 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
     console.error(`${entry.name}: settings must be an array`);
     failures += 1;
     continue;
+  }
+
+  if (manifest.actions !== undefined) {
+    if (!Array.isArray(manifest.actions)) {
+      console.error(`${entry.name}: actions must be an array`);
+      failures += 1;
+    } else {
+      const seenIntegrationActions = new Set();
+      for (const action of manifest.actions) {
+        if (!action.id || !/^[a-z][a-z0-9-]*$/.test(action.id)) {
+          console.error(`${entry.name}: action id must use lowercase kebab-case`);
+          failures += 1;
+        }
+        if (!action.label) {
+          console.error(`${entry.name}: action ${action.id || '<missing>'} requires label`);
+          failures += 1;
+        }
+        if (action.id && seenIntegrationActions.has(action.id)) {
+          console.error(`${entry.name}: duplicate action ${action.id}`);
+          failures += 1;
+        }
+        if (action.placement && !supportedActionPlacements.has(action.placement)) {
+          console.error(`${entry.name}: action ${action.id} uses unsupported placement ${action.placement}`);
+          failures += 1;
+        }
+        if (action.id) seenIntegrationActions.add(action.id);
+      }
+    }
   }
 
   const displayPath = path.join(root, entry.name, 'display.json');

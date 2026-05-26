@@ -53,6 +53,12 @@ Example settings-only integration:
 
 If an integration declares `schedule`, it must also declare `sync`. The Marketplace owns cron registration, timezone handling, storage, and execution.
 
+## Integration Actions
+
+Use `actions` in `manifest.json` for custom integration-owned operations that should appear in Marketplace host screens. The Marketplace renders the button and dispatches the request; the integration owns the behavior.
+
+Action IDs must be stable lowercase kebab-case values. The entrypoint must export an action map with a matching handler for each declared action.
+
 ## Handlers
 
 Handlers are integration-owned. The Marketplace does not implement vendor validation or vendor run logic; it only exposes host UI/actions and calls the matching handler when the integration declares that Marketplace action.
@@ -61,6 +67,8 @@ The Marketplace currently supports two optional integration-owned handler types:
 
 - validation handler
 - run handler
+
+Integrations can also expose generic action handlers through the action map. These are invoked by action id and receive the runtime context plus submitted settings and payload values.
 
 Integrations can define any internal functions they need. The Marketplace will not call arbitrary function names unless a future API version defines them.
 
