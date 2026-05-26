@@ -228,8 +228,8 @@ Views such as dashboards, endpoint lists, and vulnerability tables are defined i
 ## Next Steps
 
 1. Update \`manifest.json\` metadata, settings, category, and Marketplace actions.
-2. Implement integration-owned credential checks in \`validate.js\` if this integration declares \`validate\`.
-3. Implement integration-owned vendor data collection and Marketplace data writes in \`sync.js\` if this integration declares \`sync\`.
+2. Implement the integration-owned validation handler if this integration declares the validation action.
+3. Implement the integration-owned run handler if this integration declares the run action.
 4. Update \`migrations/001_create_schema.sql\` with this integration's private tables.
 5. Update \`display.json\` to define the tabs, views, labels, and metrics this integration supports.
 6. Run \`npm test\` from the repository root.

@@ -24,8 +24,7 @@ integrations/acme-vm/
   manifest.json
   display.json
   index.js
-  validate.js      optional integration-owned handler
-  sync.js          optional integration-owned handler
+  optional handler modules
   migrations/
     001_create_schema.sql
   README.md
@@ -128,24 +127,9 @@ const { endpoints, endpointCves } = context.db.tables;
 
 See `SCHEMA_REFERENCE.md` for required columns.
 
-## 6. Implement Validation
+## 6. Implement Validation Logic
 
-If `marketplaceActions` includes `validate`, export an integration-owned validation handler.
-
-```js
-async function validate(context) {
-  const apiToken = context.settings.get("AcmeApiToken");
-
-  return {
-    "acme-vm": {
-      ok: Boolean(apiToken),
-      message: apiToken ? "Configuration present" : "Missing API token"
-    }
-  };
-}
-
-module.exports = { validate };
-```
+If the integration declares the validation action, export an integration-owned validation handler.
 
 Validation should check vendor credentials and any required base URL or region. If the integration also needs Action1 access, use:
 
@@ -153,40 +137,11 @@ Validation should check vendor credentials and any required base URL or region. 
 const { apiKey, apiSecret, organizationId } = await context.action1.getCredentials();
 ```
 
-## 7. Implement Sync
+## 7. Implement Run Logic
 
-If `marketplaceActions` includes `sync`, export an integration-owned sync or job handler.
+If the integration declares the run action, export an integration-owned run handler.
 
-```js
-const {
-  createSyncRun,
-  appendSyncLog,
-  completeSyncRun,
-  failSyncRun
-} = require("../../sdk");
-
-async function sync(context) {
-  const runId = await createSyncRun(context);
-  let details = "Started sync\n";
-
-  try {
-    details = await appendSyncLog(context, runId, details, "Fetching vendor assets...");
-
-    const { endpoints } = context.db.tables;
-    await context.db.run(
-      `INSERT INTO ${endpoints} (integration_id, run_id, endpoint_name)
-       VALUES (?, ?, ?)`,
-      [context.integrationId, runId, "example-endpoint"]
-    );
-
-    await completeSyncRun(context, runId, details, 1);
-  } catch (error) {
-    await failSyncRun(context, runId, details, error);
-  }
-}
-
-module.exports = { sync };
-```
+Use the `sdk/` run-history helpers to create, update, complete, and fail run-history entries consistently.
 
 The Marketplace sends failure notifications automatically for failed manual and scheduled sync runs.
 

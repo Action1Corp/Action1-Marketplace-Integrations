@@ -8,8 +8,8 @@ Synchronize vulnerabilities from Tenable.io into Action1.
 - `display.json` - Integration-owned navigation, dashboards, and display definitions.
 - `migrations/` - Integration-owned database schema.
 - `index.js` - Small entrypoint that exports Marketplace handlers.
-- `validate.js` - Optional integration-owned validation handler for configured credentials.
-- `sync.js` - Optional integration-owned sync handler for collecting and writing integration data.
+- Validation handler - Optional integration-owned credential validation logic.
+- Run handler - Optional integration-owned job logic for collecting and writing integration data.
 
 ## Marketplace Actions
 

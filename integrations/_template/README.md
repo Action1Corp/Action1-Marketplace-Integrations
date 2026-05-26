@@ -10,6 +10,6 @@ Recommended files:
 - `display.json` for integration-owned navigation and views
 - `migrations/` for integration-owned database schema
 - `index.js` as the Marketplace entrypoint
-- optional integration-owned `validate.js` handler when the integration declares `validate`
-- optional integration-owned `sync.js` handler when the integration declares `sync`
+- optional integration-owned validation handler when the integration declares the validation action
+- optional integration-owned run handler when the integration declares the run action
 - `README.md` for setup requirements and vendor permissions

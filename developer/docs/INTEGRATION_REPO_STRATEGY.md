@@ -16,7 +16,7 @@ Use two repositories:
 2. `action1-marketplace-integrations`
    - Owns the integration catalog.
    - Contains one folder per integration.
-   - Owns vendor API clients, settings schema, validation handlers, sync handlers, display definitions, and integration-owned database schema.
+   - Owns vendor API clients, settings schema, handlers, display definitions, and integration-owned database schema.
 
 This model keeps the Marketplace stable while allowing integrations to evolve independently.
 
@@ -86,8 +86,8 @@ An integration package should contain:
 - `display.json` for integration-owned screens and navigation
 - `migrations/*.sql` for integration-owned schema
 - `index.js` as the entrypoint
-- optional integration-owned `validate.js`
-- optional integration-owned `sync.js`
+- optional integration-owned validation handler
+- optional integration-owned run handler
 - `README.md` for setup requirements and vendor permissions
 
 ## Marketplace Responsibilities

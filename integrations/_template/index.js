@@ -1,13 +1,6 @@
 module.exports = {
-  // Optional Marketplace handler. Add only when manifest marketplaceActions include "validate".
-  // async validate(context) {
-  //   return { ok: true, message: 'Connected' };
-  // },
-
-  // Optional Marketplace handler. Add only when manifest marketplaceActions include "sync".
-  // async sync(context) {
-  //   context.logger.info('Sync started');
-  // }
+  // Export optional integration-owned handlers here when this integration
+  // declares matching Marketplace actions.
 };
 
 // Integrations can define any internal helper functions they need. The Marketplace

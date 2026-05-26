@@ -12,8 +12,7 @@ integrations/
     manifest.json
     display.json
     index.js
-    validate.js      optional integration-owned handler
-    sync.js          optional integration-owned handler
+    optional handler modules
     migrations/
       001_create_schema.sql
     README.md
@@ -47,8 +46,8 @@ Every integration must provide `manifest.json`.
 | Action | Purpose |
 | --- | --- |
 | `settings` | Render settings from `manifest.json`. |
-| `validate` | Show a validation action and call the integration-owned `validate(context)` handler. |
-| `sync` | Show a manual run action and call the integration-owned `sync(context)` handler. |
+| `validate` | Show a validation action and call the integration-owned validation handler. |
+| `sync` | Show a manual run action and call the integration-owned run handler. |
 | `history` | Show Marketplace run history for this integration. |
 | `schedule` | Show schedule controls and run scheduled syncs. |
 
@@ -82,20 +81,11 @@ Use `secret` for API keys, tokens, passwords, and client secrets.
 ## Runtime Handlers
 
 The integration entrypoint defaults to `index.js`, or the file specified by `manifest.entry`.
+It exports whichever integration-owned handlers match the actions declared in `manifest.json`.
 
-```js
-const { validate } = require("./validate");
-const { sync } = require("./sync");
+### Validation Handler
 
-module.exports = {
-  validate,
-  sync
-};
-```
-
-### `validate(context)`
-
-Required only when the integration declares `validate`. The handler belongs to the integration and should contain the vendor-specific credential check.
+Required only when the integration declares the validation action. The handler belongs to the integration and should contain the vendor-specific credential check.
 
 Return keyed validation results:
 
@@ -108,11 +98,11 @@ return {
 
 If the integration does not use Action1 credentials directly, omit `action1`.
 
-### `sync(context)`
+### Run Handler
 
-Required only when the integration declares `sync`. The handler belongs to the integration and should contain the vendor-specific job logic.
+Required only when the integration declares the run action. The handler belongs to the integration and should contain the vendor-specific job logic.
 
-The sync handler should:
+The run handler should:
 
 1. Create a run-history entry.
 2. Fetch vendor data.

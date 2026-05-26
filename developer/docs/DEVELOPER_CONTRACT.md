@@ -12,8 +12,7 @@ integrations/
     manifest.json
     display.json
     index.js
-    validate.js      optional integration-owned handler
-    sync.js          optional integration-owned handler
+    optional handler modules
     migrations/
       001_create_schema.sql
     README.md
@@ -56,26 +55,12 @@ If an integration declares `schedule`, it must also declare `sync`. The Marketpl
 
 ## Handlers
 
-Handlers are integration-owned. The Marketplace does not implement vendor validation or vendor sync logic; it only exposes host UI/actions and calls the handler when the matching `marketplaceAction` exists.
+Handlers are integration-owned. The Marketplace does not implement vendor validation or vendor run logic; it only exposes host UI/actions and calls the matching handler when the integration declares that Marketplace action.
 
-```js
-module.exports = {
-  async validate(context) {
-    return {
-      "my-integration": { ok: true, message: "Connected" }
-    };
-  },
+The Marketplace currently supports two optional integration-owned handler types:
 
-  async sync(context) {
-    context.logger.info("Sync started");
-  }
-};
-```
-
-The Marketplace currently calls these integration-owned entry points:
-
-- `validate(context)`
-- `sync(context)`
+- validation handler
+- run handler
 
 Integrations can define any internal functions they need. The Marketplace will not call arbitrary function names unless a future API version defines them.
 

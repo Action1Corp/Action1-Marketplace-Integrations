@@ -48,8 +48,8 @@ Use this checklist before merging an integration pull request.
 
 ## Handler Review
 
-- `validate(context)` exists only when `marketplaceActions` includes `validate`.
-- `sync(context)` exists only when `marketplaceActions` includes `sync`.
+- Validation handler exists only when the integration declares the validation action.
+- Run handler exists only when the integration declares the run action.
 - Handlers use `context` and `sdk/` helpers.
 - Sync creates, updates, and completes/fails run history.
 - Sync catches errors and records meaningful failure details.
@@ -75,4 +75,3 @@ Use this checklist before merging an integration pull request.
 - Setup steps are customer-readable.
 - Known limits and unsupported modes are documented.
 - Any vendor rate-limit considerations are documented.
-
