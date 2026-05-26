@@ -86,8 +86,8 @@ An integration package should contain:
 - `display.json` for integration-owned screens and navigation
 - `migrations/*.sql` for integration-owned schema
 - `index.js` as the entrypoint
-- optional `validate.js`
-- optional `sync.js`
+- optional integration-owned `validate.js`
+- optional integration-owned `sync.js`
 - `README.md` for setup requirements and vendor permissions
 
 ## Marketplace Responsibilities

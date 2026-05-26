@@ -24,8 +24,8 @@ integrations/acme-vm/
   manifest.json
   display.json
   index.js
-  validate.js
-  sync.js
+  validate.js      optional integration-owned handler
+  sync.js          optional integration-owned handler
   migrations/
     001_create_schema.sql
   README.md
@@ -130,7 +130,7 @@ See `SCHEMA_REFERENCE.md` for required columns.
 
 ## 6. Implement Validation
 
-If `marketplaceActions` includes `validate`, export a validation handler.
+If `marketplaceActions` includes `validate`, export an integration-owned validation handler.
 
 ```js
 async function validate(context) {
@@ -155,7 +155,7 @@ const { apiKey, apiSecret, organizationId } = await context.action1.getCredentia
 
 ## 7. Implement Sync
 
-If `marketplaceActions` includes `sync`, export a sync handler.
+If `marketplaceActions` includes `sync`, export an integration-owned sync or job handler.
 
 ```js
 const {
@@ -209,4 +209,3 @@ npm test
 ```
 
 Then follow `REVIEW_CHECKLIST.md`.
-

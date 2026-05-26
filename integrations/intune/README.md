@@ -8,8 +8,8 @@ Sync Intune managed devices and compliance status with Action1.
 - `display.json` - Integration-owned navigation, dashboards, and display definitions.
 - `migrations/` - Integration-owned database schema.
 - `index.js` - Small entrypoint that exports Marketplace handlers.
-- `validate.js` - Optional Marketplace validation handler for configured credentials.
-- `sync.js` - Optional Marketplace sync handler for collecting and writing integration data.
+- `validate.js` - Optional integration-owned validation handler for configured credentials.
+- `sync.js` - Optional integration-owned sync handler for collecting and writing integration data.
 
 ## Marketplace Actions
 

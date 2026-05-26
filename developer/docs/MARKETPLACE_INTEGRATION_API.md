@@ -12,8 +12,8 @@ integrations/
     manifest.json
     display.json
     index.js
-    validate.js
-    sync.js
+    validate.js      optional integration-owned handler
+    sync.js          optional integration-owned handler
     migrations/
       001_create_schema.sql
     README.md
@@ -42,13 +42,13 @@ Every integration must provide `manifest.json`.
 
 ### Supported `marketplaceActions`
 
-`marketplaceActions` enable Marketplace services and actions. They do not define integration screens.
+`marketplaceActions` enable Marketplace host services and action buttons. They do not define integration screens, and they do not move vendor-specific behavior into the Marketplace.
 
 | Action | Purpose |
 | --- | --- |
 | `settings` | Render settings from `manifest.json`. |
-| `validate` | Show and run the credential validation action. |
-| `sync` | Show and run the manual sync action. |
+| `validate` | Show a validation action and call the integration-owned `validate(context)` handler. |
+| `sync` | Show a manual run action and call the integration-owned `sync(context)` handler. |
 | `history` | Show Marketplace run history for this integration. |
 | `schedule` | Show schedule controls and run scheduled syncs. |
 
@@ -95,7 +95,7 @@ module.exports = {
 
 ### `validate(context)`
 
-Required only when the integration declares `validate`.
+Required only when the integration declares `validate`. The handler belongs to the integration and should contain the vendor-specific credential check.
 
 Return keyed validation results:
 
@@ -110,7 +110,7 @@ If the integration does not use Action1 credentials directly, omit `action1`.
 
 ### `sync(context)`
 
-Required only when the integration declares `sync`.
+Required only when the integration declares `sync`. The handler belongs to the integration and should contain the vendor-specific job logic.
 
 The sync handler should:
 

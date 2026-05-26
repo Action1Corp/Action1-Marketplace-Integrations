@@ -1,6 +1,6 @@
 # Action1 Marketplace Integrations
 
-This private repository contains integration packages for the Action1 Integration Marketplace. The Marketplace host loads these packages at startup and uses them to render integration-specific screens, collect settings, validate credentials, run sync jobs, and apply integration-owned database migrations.
+This private repository contains integration packages for the Action1 Integration Marketplace. The Marketplace host loads these packages at startup and uses their manifests, display definitions, handlers, and migrations to render integration-specific screens and run integration-owned behavior.
 
 The goal is to let integration developers build and maintain vendor integrations without changing the Marketplace application itself.
 
@@ -12,8 +12,8 @@ integrations/
     manifest.json
     display.json
     index.js
-    validate.js
-    sync.js
+    validate.js      optional integration-owned handler
+    sync.js          optional integration-owned handler
     migrations/
       001_create_schema.sql
     README.md
@@ -37,7 +37,7 @@ The Marketplace owns the host framework:
 - settings forms and secret masking
 - shared Action1 API credentials
 - SMTP and webhook failure notification framework
-- validation and sync button wiring
+- validation and sync button wiring when an integration declares those actions
 - per-integration schedules
 - standard renderers for dashboards, tables, history, and settings
 - shared framework tables such as settings, sync history, schedules, auth, CVE metadata, and migration tracking
@@ -46,8 +46,8 @@ Each integration owns its vendor-specific behavior:
 
 - metadata and `marketplaceActions` in `manifest.json`
 - navigation, tabs, dashboard sections, labels, and columns in `display.json`
-- optional credential validation in `validate.js`
-- optional sync behavior in `sync.js`
+- optional integration-owned credential validation handler in `validate.js`
+- optional integration-owned sync or job handler in `sync.js`
 - vendor API calls and data mapping
 - integration-owned database schema in `migrations/*.sql`
 - setup notes and required vendor permissions in `README.md`
@@ -68,8 +68,8 @@ The scaffold creates a complete starting point:
 - `manifest.json`
 - `display.json`
 - `index.js`
-- `validate.js`
-- `sync.js`
+- `validate.js`, when the integration declares the `validate` marketplace action
+- `sync.js`, when the integration declares the `sync` marketplace action
 - `migrations/001_create_schema.sql`
 - `README.md`
 
