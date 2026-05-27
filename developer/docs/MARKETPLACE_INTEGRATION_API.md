@@ -77,6 +77,7 @@ Integrations can define custom actions in `manifest.json`. The Marketplace rende
 Supported placements:
 
 - `settings`
+- a custom screen path declared in `display.customScreens`, such as `actions-lab`
 
 The action `id` must be lowercase kebab-case and must match an integration-owned handler exported from the entrypoint.
 
@@ -284,6 +285,13 @@ Visible integration screens are defined in `display.json`.
     "validateButtonLabel": "Validate Credentials",
     "saveButtonLabel": "Save Settings",
     "scheduleTitle": "Schedule"
+  },
+  "customScreens": {
+    "actions-lab": {
+      "title": "Actions Lab",
+      "description": "Run integration-owned operations and display their results.",
+      "actions": ["inspect-settings", "generate-summary", "runtime-diagnostics"]
+    }
   }
 }
 ```

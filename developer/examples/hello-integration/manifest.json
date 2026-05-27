@@ -40,6 +40,30 @@
       "runningLabel": "Checking...",
       "description": "Runs an integration-owned custom action from the settings page.",
       "placement": "settings"
+    },
+    {
+      "id": "inspect-settings",
+      "label": "Inspect Settings",
+      "buttonLabel": "Inspect",
+      "runningLabel": "Inspecting...",
+      "description": "Returns a safe summary of values supplied to the integration action handler.",
+      "placement": "actions-lab"
+    },
+    {
+      "id": "generate-summary",
+      "label": "Generate Summary",
+      "buttonLabel": "Generate",
+      "runningLabel": "Generating...",
+      "description": "Returns an example operational summary payload for the custom screen.",
+      "placement": "actions-lab"
+    },
+    {
+      "id": "runtime-diagnostics",
+      "label": "Runtime Diagnostics",
+      "buttonLabel": "Run Diagnostics",
+      "runningLabel": "Checking...",
+      "description": "Uses Marketplace runtime context to return integration and database information.",
+      "placement": "actions-lab"
     }
   ]
 }

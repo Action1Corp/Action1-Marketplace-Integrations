@@ -13,7 +13,8 @@ Each integration owns its visible Marketplace screens in `display.json`.
   "endpoints": {},
   "vulnerabilities": {},
   "history": {},
-  "settings": {}
+  "settings": {},
+  "customScreens": {}
 }
 ```
 
@@ -25,6 +26,7 @@ Supported top-level sections:
 - `vulnerabilities`
 - `history`
 - `settings`
+- `customScreens`
 
 Only define sections the integration actually uses.
 
@@ -221,6 +223,27 @@ Use `filterParam` for column filters.
 
 Settings fields come from `manifest.json`. Schedule controls appear when the integration declares `schedule` or `sync`.
 
+## Custom Action Screens
+
+Custom action screens let an integration define a simple screen that contains integration-owned action buttons. The Marketplace renders the screen and dispatches button clicks to handlers exported by the integration.
+
+```json
+{
+  "navigation": [
+    { "id": "actions-lab", "label": "Actions Lab", "path": "actions-lab", "icon": "FileText", "requiresWrite": true }
+  ],
+  "customScreens": {
+    "actions-lab": {
+      "title": "Actions Lab",
+      "description": "Run integration-owned operations and display their results.",
+      "actions": ["inspect-settings", "generate-summary", "runtime-diagnostics"]
+    }
+  }
+}
+```
+
+Each action ID must also be declared in `manifest.json` and implemented by the integration entrypoint action map.
+
 ## Supported Column Types
 
 - `strong`
@@ -241,4 +264,3 @@ Settings fields come from `manifest.json`. Schedule controls appear when the int
 - `patchStatus`
 
 If `type` is omitted, the value renders as plain text.
-

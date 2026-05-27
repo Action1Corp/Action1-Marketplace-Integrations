@@ -11,6 +11,7 @@ This is a minimal example integration for developers. It demonstrates the Market
 - run handler for the Marketplace `sync` and `schedule` actions
 - custom integration-owned action declared in `manifest.json`
 - custom action handler exported from `actions.js`
+- custom action screen defined in `display.json`
 - `migrations/001_create_schema.sql`
 - Marketplace SDK helpers from `../../../sdk`
 
@@ -19,6 +20,8 @@ This is a minimal example integration for developers. It demonstrates the Market
 The run handler writes a short run-history entry only. It does not collect vendor data.
 
 The custom `check-configuration` action appears on the settings page because it is declared in `manifest.json` with `"placement": "settings"`. When a user clicks the button, the Marketplace posts to the integration action endpoint and dispatches the request to the matching handler exported from `actions.js`.
+
+The `Actions Lab` screen demonstrates a custom integration-owned screen. It is added to navigation in `display.json`, defined under `customScreens.actions-lab`, and populated with three action IDs. Each ID maps to an action declared in `manifest.json`, and each action is implemented in `actions.js`.
 
 The Marketplace actions are different:
 

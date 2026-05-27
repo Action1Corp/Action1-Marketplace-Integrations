@@ -14,6 +14,13 @@
       "marketplaceAction": "history"
     },
     {
+      "id": "actions-lab",
+      "label": "Actions Lab",
+      "path": "actions-lab",
+      "icon": "FileText",
+      "requiresWrite": true
+    },
+    {
       "id": "settings",
       "label": "Settings",
       "path": "settings",
@@ -90,5 +97,16 @@
     "validateButtonLabel": "Validate Credentials",
     "saveButtonLabel": "Save Settings",
     "scheduleTitle": "Schedule"
+  },
+  "customScreens": {
+    "actions-lab": {
+      "title": "Actions Lab",
+      "description": "A developer example screen that renders three integration-owned custom actions and displays each action result.",
+      "actions": [
+        "inspect-settings",
+        "generate-summary",
+        "runtime-diagnostics"
+      ]
+    }
   }
 }

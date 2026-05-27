@@ -21,7 +21,7 @@ const supportedMarketplaceApiVersions = new Set(['1.0']);
 const supportedMarketplaceActions = new Set(['settings', 'validate', 'sync', 'history', 'schedule']);
 const supportedSettingTypes = new Set(['text', 'url', 'secret', 'select', 'number', 'checkbox']);
 const supportedActionPlacements = new Set(['settings']);
-const supportedDisplaySections = new Set(['navigation', 'dashboard', 'endpoints', 'vulnerabilities', 'history', 'settings']);
+const supportedDisplaySections = new Set(['navigation', 'dashboard', 'endpoints', 'vulnerabilities', 'history', 'settings', 'customScreens']);
 const marketplaceOwnedSettings = new Set(['Action1APIKey', 'Action1APISecret', 'Action1OrgID']);
 const supportedColumnTypes = new Set([
   'strong',
@@ -195,36 +195,9 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
     continue;
   }
 
-  if (manifest.actions !== undefined) {
-    if (!Array.isArray(manifest.actions)) {
-      console.error(`${entry.name}: actions must be an array`);
-      failures += 1;
-    } else {
-      const seenIntegrationActions = new Set();
-      for (const action of manifest.actions) {
-        if (!action.id || !/^[a-z][a-z0-9-]*$/.test(action.id)) {
-          console.error(`${entry.name}: action id must use lowercase kebab-case`);
-          failures += 1;
-        }
-        if (!action.label) {
-          console.error(`${entry.name}: action ${action.id || '<missing>'} requires label`);
-          failures += 1;
-        }
-        if (action.id && seenIntegrationActions.has(action.id)) {
-          console.error(`${entry.name}: duplicate action ${action.id}`);
-          failures += 1;
-        }
-        if (action.placement && !supportedActionPlacements.has(action.placement)) {
-          console.error(`${entry.name}: action ${action.id} uses unsupported placement ${action.placement}`);
-          failures += 1;
-        }
-        if (action.id) seenIntegrationActions.add(action.id);
-      }
-    }
-  }
-
   const displayPath = path.join(root, entry.name, 'display.json');
   let display = null;
+  const availableActionPlacements = new Set(supportedActionPlacements);
   const migrationSql = readMigrationSql(integrationDir);
   if (fs.existsSync(displayPath)) {
     if (!fs.existsSync(displayPath)) {
@@ -297,6 +270,74 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
     if (manifest.settings?.length > 0 && !display.navigation.some(item => item.id === 'settings' || item.marketplaceAction === 'settings')) {
       console.error(`${entry.name}: display.navigation must include settings`);
       failures += 1;
+    }
+
+    if (display.customScreens !== undefined) {
+      if (!display.customScreens || typeof display.customScreens !== 'object' || Array.isArray(display.customScreens)) {
+        console.error(`${entry.name}: display.customScreens must be an object keyed by screen path`);
+        failures += 1;
+      } else {
+        for (const [screenId, screen] of Object.entries(display.customScreens)) {
+          if (!/^[a-z][a-z0-9-]*$/.test(screenId)) {
+            console.error(`${entry.name}: custom screen ${screenId} must use lowercase kebab-case`);
+            failures += 1;
+          }
+          if (!screen.title) {
+            console.error(`${entry.name}: custom screen ${screenId} requires title`);
+            failures += 1;
+          }
+          if (screen.actions !== undefined && !Array.isArray(screen.actions)) {
+            console.error(`${entry.name}: custom screen ${screenId} actions must be an array`);
+            failures += 1;
+          }
+          if (!display.navigation.some(item => item.path === screenId || item.id === screenId)) {
+            console.error(`${entry.name}: display.navigation must include custom screen ${screenId}`);
+            failures += 1;
+          }
+          availableActionPlacements.add(screenId);
+        }
+      }
+    }
+  }
+
+  if (manifest.actions !== undefined) {
+    if (!Array.isArray(manifest.actions)) {
+      console.error(`${entry.name}: actions must be an array`);
+      failures += 1;
+    } else {
+      const seenIntegrationActions = new Set();
+      const actionIds = new Set();
+      for (const action of manifest.actions) {
+        if (!action.id || !/^[a-z][a-z0-9-]*$/.test(action.id)) {
+          console.error(`${entry.name}: action id must use lowercase kebab-case`);
+          failures += 1;
+        }
+        if (!action.label) {
+          console.error(`${entry.name}: action ${action.id || '<missing>'} requires label`);
+          failures += 1;
+        }
+        if (action.id && seenIntegrationActions.has(action.id)) {
+          console.error(`${entry.name}: duplicate action ${action.id}`);
+          failures += 1;
+        }
+        if (action.placement && !availableActionPlacements.has(action.placement)) {
+          console.error(`${entry.name}: action ${action.id} uses unsupported placement ${action.placement}`);
+          failures += 1;
+        }
+        if (action.id) {
+          seenIntegrationActions.add(action.id);
+          actionIds.add(action.id);
+        }
+      }
+
+      for (const [screenId, screen] of Object.entries(display?.customScreens || {})) {
+        for (const actionId of screen.actions || []) {
+          if (!actionIds.has(actionId)) {
+            console.error(`${entry.name}: custom screen ${screenId} references unknown action ${actionId}`);
+            failures += 1;
+          }
+        }
+      }
     }
   }
 
