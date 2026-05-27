@@ -358,8 +358,8 @@ async function runSync() {
             }
         }
 
-        // Finalize lists and counts
-        const finalCVEList = [];
+        // Finalize Defender-reported counts. Action1 CVEs are merged after
+        // endpoint-level Action1 vulnerability details are fetched.
         for (let name in endpointUniqueCVEs) {
             endpointSeverityCounts[name] = { Critical: 0, High: 0, Medium: 0, Low: 0 };
             const hostCVEMap = endpointUniqueCVEs[name];
@@ -371,17 +371,6 @@ async function runSync() {
                 else if (s === 'High') endpointSeverityCounts[name].High++;
                 else if (s === 'Medium') endpointSeverityCounts[name].Medium++;
                 else if (s === 'Low') endpointSeverityCounts[name].Low++;
-
-                finalCVEList.push({
-                    integration_id: 'defender',
-                    endpoint_name: name,
-                    cve: cveId,
-                    severity: s,
-                    status: cveData.status,
-                    plugin_name: cveId,
-                    description: '',
-                    solution: ''
-                });
             }
         }
 
@@ -433,6 +422,32 @@ async function runSync() {
                         authoritativeCounts[id] = await fetchAction1EndpointVulnCounts(a1Base, action1Org, id, a1Headers);
                     } catch (e) { authoritativeCounts[id] = null; }
                 }));
+            }
+        }
+
+        const finalCVEList = [];
+        for (let ep of endpointsToSave) {
+            const defenderCves = endpointUniqueCVEs[ep.endpoint_name] || {};
+            const action1Counts = ep.action1_id ? authoritativeCounts[ep.action1_id] : null;
+            const mergedCves = mergeCveMaps(defenderCves, action1Counts?.cves || {});
+
+            for (const [cveId, action1Cve] of Object.entries(action1Counts?.cves || {})) {
+                if (mergedCves[cveId]) {
+                    mergedCves[cveId].status = action1Cve.status;
+                }
+            }
+
+            for (const [cveId, cveData] of Object.entries(mergedCves)) {
+                finalCVEList.push({
+                    integration_id: 'defender',
+                    endpoint_name: ep.endpoint_name,
+                    cve: cveId,
+                    severity: normalizeSeverityLabel(cveData.severity, cveData.cvss),
+                    status: cveData.status,
+                    plugin_name: cveData.plugin_name || cveData.title || cveId,
+                    description: '',
+                    solution: ''
+                });
             }
         }
 
