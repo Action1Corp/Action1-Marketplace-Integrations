@@ -77,6 +77,11 @@ function mergeCveMaps(...maps) {
     return merged;
 }
 
+function hasAction1AvailableUpdates(vulnerability) {
+    return Array.isArray(vulnerability?.software)
+        && vulnerability.software.some((software) => Array.isArray(software.available_updates) && software.available_updates.length > 0);
+}
+
 async function fetchAction1EndpointVulnCounts(a1Base, action1Org, endpointId, headers) {
     const cves = {};
     const limit = 500;
@@ -98,7 +103,7 @@ async function fetchAction1EndpointVulnCounts(a1Base, action1Org, endpointId, he
                 cve: cveId,
                 severity,
                 cvss: Number.isNaN(score) ? null : score,
-                status: 'Patch Available'
+                status: hasAction1AvailableUpdates(item) ? 'Patch Available' : 'No Patch Available'
             });
         }
 
@@ -109,8 +114,8 @@ async function fetchAction1EndpointVulnCounts(a1Base, action1Org, endpointId, he
     }
 
     const counts = countBySeverity(cves);
-    if (counts.total === 0) counts.total = Object.keys(cves).length;
-    return { ...counts, cves };
+    const patchableTotal = Object.values(cves).filter((cve) => cve.status === 'Patch Available').length;
+    return { ...counts, patchableTotal, cves };
 }
 
 async function runSync() {
@@ -460,7 +465,7 @@ async function runSync() {
                     const defenderCves = endpointUniqueCVEs[ep.endpoint_name] || {};
                     const defenderCounts = countBySeverity(defenderCves);
                     const mergedCounts = countBySeverity(mergeCveMaps(defenderCves, action1Counts?.cves || {}));
-                    const finalPatchCount = action1Counts ? action1Counts.total : 0;
+                    const finalPatchCount = action1Counts ? action1Counts.patchableTotal : 0;
 
                     db.run(`INSERT INTO defender_endpoints (integration_id, run_id, endpoint_name, ipv4, mac, os, action1_id, tenable_has_agent, missing_from_tenable, missing_from_action1, defender_total_vulns, critical_vulns, high_vulns, medium_vulns, low_vulns, action1_critical_vulns, action1_high_vulns, action1_medium_vulns, action1_low_vulns, patchable_vulns)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
