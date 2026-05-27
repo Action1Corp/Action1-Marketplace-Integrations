@@ -37,7 +37,8 @@
       "id": "check-configuration",
       "label": "Check Configuration",
       "buttonLabel": "Check Configuration",
-      "description": "Runs an example integration-owned action from the settings page.",
+      "runningLabel": "Checking...",
+      "description": "Runs an integration-owned custom action from the settings page.",
       "placement": "settings"
     }
   ]
