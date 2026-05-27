@@ -67,6 +67,11 @@ function mergeCveMaps(...maps) {
     return merged;
 }
 
+function hasAction1AvailableUpdates(vulnerability) {
+    return Array.isArray(vulnerability?.software)
+        && vulnerability.software.some((software) => Array.isArray(software.available_updates) && software.available_updates.length > 0);
+}
+
 async function fetchAction1EndpointVulnCounts(a1Base, action1Org, endpointId, headers) {
     const cves = {};
     const limit = 500;
@@ -88,7 +93,7 @@ async function fetchAction1EndpointVulnCounts(a1Base, action1Org, endpointId, he
                 cve: cveId,
                 severity,
                 cvss: Number.isNaN(score) ? null : score,
-                status: 'Patch Available'
+                status: hasAction1AvailableUpdates(item) ? 'Patch Available' : 'No Patch Available'
             });
         }
 
@@ -98,7 +103,9 @@ async function fetchAction1EndpointVulnCounts(a1Base, action1Org, endpointId, he
         if (offset > 100000) break;
     }
 
-    return { ...countBySeverity(cves), cves };
+    const counts = countBySeverity(cves);
+    const patchableTotal = Object.values(cves).filter((cve) => cve.status === 'Patch Available').length;
+    return { ...counts, patchableTotal, cves };
 }
 
 async function runSync() {
@@ -611,7 +618,7 @@ async function runSync() {
                             action1Counts?.High || 0,
                             action1Counts?.Medium || 0,
                             action1Counts?.Low || 0,
-                            action1Counts?.total || 0
+                            action1Counts?.patchableTotal || 0
                         ]
                     );
                 }
