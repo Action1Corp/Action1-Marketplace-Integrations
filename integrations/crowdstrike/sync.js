@@ -9,6 +9,35 @@ let nvdService;
 // Wait utility
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
+function hasAction1AvailableUpdates(vulnerability) {
+    return Array.isArray(vulnerability?.software)
+        && vulnerability.software.some((software) => Array.isArray(software.available_updates) && software.available_updates.length > 0);
+}
+
+async function fetchAction1EndpointPatchableCount(a1Base, action1Org, endpointId, headers) {
+    let patchableCount = 0;
+    const limit = 500;
+    let offset = 0;
+
+    while (true) {
+        const vRes = await axios.get(`${a1Base}/Vulnerabilities/${action1Org}?endpoint_id=${endpointId}&limit=${limit}&from=${offset}`, { headers });
+        const payload = vRes.data || {};
+        const items = Array.isArray(payload) ? payload : (payload.items || payload.data || payload.vulnerabilities || []);
+        const totalItems = Number(payload.total_items ?? payload.total ?? 0);
+
+        for (const item of items) {
+            if (hasAction1AvailableUpdates(item)) patchableCount++;
+        }
+
+        if (items.length === 0 || items.length < limit) break;
+        offset += limit;
+        if (totalItems > 0 && offset >= totalItems) break;
+        if (offset > 100000) break;
+    }
+
+    return patchableCount;
+}
+
 async function runSync() {
     console.log("Starting CrowdStrike Sync Engine...");
     
@@ -319,8 +348,7 @@ async function runSync() {
                 const batch = epIdsForSync.slice(i, i + batchSize);
                 await Promise.all(batch.map(async (id) => {
                     try {
-                        const vRes = await axios.get(`${a1Base}/Vulnerabilities/${Action1OrgID}?endpoint_id=${id}&limit=0`, { headers: a1Headers });
-                        authoritativeCounts[id] = vRes.data.total_items || 0;
+                        authoritativeCounts[id] = await fetchAction1EndpointPatchableCount(a1Base, Action1OrgID, id, a1Headers);
                     } catch (e) { authoritativeCounts[id] = null; }
                 }));
             }
