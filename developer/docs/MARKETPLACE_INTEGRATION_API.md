@@ -13,6 +13,9 @@ integrations/
     display.json
     index.js
     optional handler modules
+    ui/
+      index.jsx
+      optional React view components
     migrations/
       001_create_schema.sql
     README.md
@@ -296,7 +299,43 @@ Visible integration screens are defined in `display.json`.
 }
 ```
 
-The Marketplace provides renderers. The integration owns the labels, columns, metrics, navigation, and which screens should appear.
+The Marketplace provides fallback renderers. The integration owns the labels, columns, metrics, navigation, and which screens should appear.
+
+## Integration-Owned React Views
+
+An integration can own a full screen by providing a `ui/index.jsx` file that exports a `views` map. These views are bundled into the Marketplace frontend at image build time.
+
+```jsx
+import Dashboard from './Dashboard.jsx';
+import ActionsLab from './ActionsLab.jsx';
+
+export const views = {
+  dashboard: Dashboard,
+  'actions-lab': ActionsLab
+};
+```
+
+Each key maps to a route segment under `/apps/<integration_id>/<view>`. If a view exists in the map, the Marketplace renders that integration-owned component. If it does not exist, the Marketplace uses the standard fallback renderer for known screens such as dashboard, endpoints, vulnerabilities, history, settings, and custom action screens.
+
+View components receive Marketplace context props:
+
+```jsx
+function Dashboard({ integration, screen, runSync, canRunSync, integrationMeta }) {
+  return <div>{integration}</div>;
+}
+```
+
+Integration-owned UI can call Marketplace APIs such as:
+
+```js
+await fetch(`/api/integrations/${integration}/actions/my-action`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ payload: { source: 'integration-ui' } })
+});
+```
+
+The Marketplace still owns authentication, authorization, routing, shell layout, backend runtime context, scheduler, settings storage, and notification services.
 
 For a custom Marketplace-provided dashboard component:
 

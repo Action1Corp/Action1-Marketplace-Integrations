@@ -244,6 +244,22 @@ Custom action screens let an integration define a simple screen that contains in
 
 Each action ID must also be declared in `manifest.json` and implemented by the integration entrypoint action map.
 
+## Integration-Owned React Views
+
+For full UI ownership, an integration can provide React components under `ui/` and export them from `ui/index.jsx`.
+
+```jsx
+import Dashboard from './Dashboard.jsx';
+import ActionsLab from './ActionsLab.jsx';
+
+export const views = {
+  dashboard: Dashboard,
+  'actions-lab': ActionsLab
+};
+```
+
+When a matching view exists, the Marketplace renders the integration-owned component. Otherwise, it falls back to the standard Marketplace renderer for that route.
+
 ## Supported Column Types
 
 - `strong`

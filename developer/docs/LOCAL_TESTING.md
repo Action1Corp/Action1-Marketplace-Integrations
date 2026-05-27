@@ -71,6 +71,24 @@ After starting the Marketplace:
 9. Open Dashboard, Endpoints, and Vulnerabilities if those views are defined.
 10. Confirm a failed sync shows a failure state and triggers configured Marketplace notifications.
 
+## Test Integration-Owned UI
+
+If an integration has a `ui/index.jsx` file, the Marketplace frontend must be built with that integration source available.
+
+For local Marketplace builds, set `INTEGRATION_UI_SOURCE` to the folder that contains integration packages:
+
+```bash
+INTEGRATION_UI_SOURCE=/path/to/action1-marketplace-integrations-dev/integrations npm run build
+```
+
+For the developer example package:
+
+```bash
+INTEGRATION_UI_SOURCE=/path/to/action1-marketplace-integrations-dev/developer/examples npm run build
+```
+
+For Docker builds, copy or check out the integrations repository into the Marketplace repo's `.integration-ui-build/` folder before building the image. The Dockerfile copies that folder into the frontend build stage. Backend integration code can still be mounted at runtime through `INTEGRATIONS_DIR`.
+
 ## Troubleshooting
 
 If the integration does not appear:
@@ -95,4 +113,3 @@ If validation or sync does not run:
 - confirm `index.js` exports the matching handler
 - confirm the handler returns or resolves a promise
 - check Marketplace run history and container logs
-

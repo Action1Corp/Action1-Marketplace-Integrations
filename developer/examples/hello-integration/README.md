@@ -12,6 +12,7 @@ This is a minimal example integration for developers. It demonstrates the Market
 - custom integration-owned action declared in `manifest.json`
 - custom action handler exported from `actions.js`
 - custom action screen defined in `display.json`
+- integration-owned React views in `ui/`
 - `migrations/001_create_schema.sql`
 - Marketplace SDK helpers from `../../../sdk`
 
@@ -22,6 +23,8 @@ The run handler writes a short run-history entry only. It does not collect vendo
 The custom `check-configuration` action appears on the settings page because it is declared in `manifest.json` with `"placement": "settings"`. When a user clicks the button, the Marketplace posts to the integration action endpoint and dispatches the request to the matching handler exported from `actions.js`.
 
 The `Actions Lab` screen demonstrates a custom integration-owned screen. It is added to navigation in `display.json`, defined under `customScreens.actions-lab`, and populated with three action IDs. Each ID maps to an action declared in `manifest.json`, and each action is implemented in `actions.js`.
+
+The `ui/` folder demonstrates integration-owned React screens. When the Marketplace build includes this integration package, `ui/index.jsx` exports a `views` map. Any matching view, such as `dashboard` or `actions-lab`, is rendered by the integration component instead of the Marketplace fallback renderer.
 
 The Marketplace actions are different:
 
