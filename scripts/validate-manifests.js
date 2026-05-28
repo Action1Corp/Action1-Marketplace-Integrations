@@ -79,6 +79,23 @@ function readMigrationSql(integrationDir) {
     .join('\n');
 }
 
+function readUiViewKeys(integrationDir) {
+  const uiEntryPath = path.join(integrationDir, 'ui', 'index.jsx');
+  if (!fs.existsSync(uiEntryPath)) return null;
+  const source = fs.readFileSync(uiEntryPath, 'utf8');
+  const directMatch = source.match(/export\s+const\s+views\s*=\s*{([\s\S]*?)}/m);
+  if (directMatch) {
+    return new Set(
+      Array.from(directMatch[1].matchAll(/['"]?([a-z][a-z0-9-]*)['"]?\s*:/g))
+        .map(match => match[1])
+    );
+  }
+  if (/createStandardIntegrationViews\s*\(/.test(source)) {
+    return new Set(['dashboard', 'endpoints', 'vulnerabilities', 'history', 'settings']);
+  }
+  return new Set();
+}
+
 function validateDisplaySection(entryName, display, section, requirement) {
   if (!display[section] || typeof display[section] !== 'object') {
     console.error(`${entryName}: ${requirement} requires display.${section}`);
@@ -196,6 +213,11 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
   }
 
   const displayPath = path.join(root, entry.name, 'display.json');
+  const uiViewKeys = readUiViewKeys(integrationDir);
+  if (!uiViewKeys) {
+    console.error(`${entry.name}: integration-owned UI requires ui/index.jsx`);
+    failures += 1;
+  }
   let display = null;
   const availableActionPlacements = new Set(supportedActionPlacements);
   const migrationSql = readMigrationSql(integrationDir);
@@ -242,6 +264,10 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
           console.error(`${entry.name}: display.navigation references undeclared marketplaceAction ${item.marketplaceAction}`);
           failures += 1;
         }
+        if (uiViewKeys && item.path && !uiViewKeys.has(item.path)) {
+          console.error(`${entry.name}: ui/index.jsx must export a view for navigation path ${item.path}`);
+          failures += 1;
+        }
       }
     }
 
@@ -252,11 +278,11 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
 
     const tablePrefix = manifest.id.replace(/[^a-z0-9]+/gi, '_').toLowerCase();
     if ((display.endpoints || display.dashboard?.component === 'metric-dashboard') && !migrationSql.includes(`${tablePrefix}_endpoints`)) {
-      console.error(`${entry.name}: standard endpoint/dashboard views require ${tablePrefix}_endpoints in migrations`);
+      console.error(`${entry.name}: shared endpoint/dashboard helper views require ${tablePrefix}_endpoints in migrations`);
       failures += 1;
     }
     if ((display.vulnerabilities || display.dashboard?.component === 'metric-dashboard') && !migrationSql.includes(`${tablePrefix}_endpoint_cves`)) {
-      console.error(`${entry.name}: standard vulnerability/dashboard views require ${tablePrefix}_endpoint_cves in migrations`);
+      console.error(`${entry.name}: shared vulnerability/dashboard helper views require ${tablePrefix}_endpoint_cves in migrations`);
       failures += 1;
     }
 

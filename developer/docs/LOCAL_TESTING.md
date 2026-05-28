@@ -73,7 +73,7 @@ After starting the Marketplace:
 
 ## Test Integration-Owned UI
 
-If an integration has a `ui/index.jsx` file, the Marketplace frontend must be built with that integration source available.
+Every integration must have a `ui/index.jsx` file. The Marketplace frontend must be built with integration source available so those views can be bundled.
 
 For local Marketplace builds, set `INTEGRATION_UI_SOURCE` to the folder that contains integration packages:
 

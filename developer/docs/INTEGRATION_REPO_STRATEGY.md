@@ -10,7 +10,7 @@ Use two repositories:
 
 1. `action1-marketplace`
    - Owns the customer-facing Marketplace application.
-   - Owns authentication, setup, roles, deployment behavior, standard renderers, scheduling, logs, framework data tables, and upgrade behavior.
+   - Owns authentication, setup, roles, deployment behavior, scheduling, logs, framework data tables, and upgrade behavior.
    - Does not contain vendor-specific API logic.
 
 2. `action1-marketplace-integrations`
@@ -29,7 +29,7 @@ At startup, the Marketplace:
 3. Loads each entrypoint.
 4. Applies integration migrations.
 5. Registers integrations in the catalog.
-6. Renders settings and display definitions.
+6. Bundles and renders integration-owned React views.
 7. Calls integration handlers for validation, manual sync, and scheduled sync.
 
 The integrations directory is configured with:
@@ -84,6 +84,7 @@ An integration package should contain:
 
 - `manifest.json` for metadata, settings, and `marketplaceActions`
 - `display.json` for integration-owned screens and navigation
+- `ui/index.jsx` and React components for every visible screen
 - `migrations/*.sql` for integration-owned schema
 - `index.js` as the entrypoint
 - optional integration-owned validation handler
@@ -97,11 +98,10 @@ The Marketplace host remains responsible for:
 - authentication and authorization
 - organization/team management
 - setup wizard and deployment configuration
-- settings rendering and secret masking
+- settings storage APIs and secret masking
 - shared Action1 API credential storage
 - run history
 - schedules
-- standard UI renderers
 - shared CVE metadata/cache
 - applying integration migrations
 - invoking integration handlers through the runtime context
@@ -115,7 +115,7 @@ The current architecture supports:
 - integration-owned database migrations
 - integration-owned endpoint and vulnerability tables
 - Marketplace-owned settings, auth, schedule, and run-history framework tables
-- standard renderers backed by integration-owned tables
+- integration-owned React views for all integration screens
 - test-data seeding for fresh development containers
 
 Future work should focus on automated release packaging, CI validation against a Marketplace test harness, and customer-facing installation artifacts.

@@ -12,9 +12,9 @@ Integrations own their database schema. The Marketplace applies integration migr
 
 The Marketplace supports local Postgres and Supabase Postgres. Existing migrations use a portable SQL subset that the Marketplace normalizes for Postgres.
 
-## Standard Vulnerability Tables
+## Shared Helper Vulnerability Tables
 
-If the integration uses the standard dashboard, endpoints, or vulnerabilities renderers, create:
+If a vulnerability-management integration uses the repository's shared helper views, create:
 
 ```text
 <integration_id>_endpoints
@@ -34,7 +34,7 @@ At runtime, use:
 const { endpoints, endpointCves } = context.db.tables;
 ```
 
-Do not hard-code table names in sync logic unless there is no alternative.
+Do not hard-code table names in runtime handlers unless there is no alternative.
 
 ## `<integration_id>_endpoints`
 
@@ -137,7 +137,7 @@ Not every integration needs endpoint or vulnerability tables.
 
 For settings-only, validation-only, or status-only integrations:
 
-- omit standard endpoint/CVE display sections
+- omit endpoint/CVE display sections
 - omit endpoint/CVE tables
 - keep only the vendor-specific schema needed by the integration
 
@@ -155,4 +155,3 @@ The Marketplace owns:
 - migration tracking
 
 Integrations may write sync history through `sdk` helpers and may update shared CVE metadata where useful. They must not alter Marketplace-owned table structure.
-

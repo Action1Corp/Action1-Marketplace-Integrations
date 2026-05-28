@@ -13,14 +13,14 @@ Correlate CrowdStrike detections and vulns with Action1 inventory.
 
 ## Marketplace-Provided Actions
 
-This integration declares the Marketplace host actions it wants the host to render and wire:
+This integration declares the Marketplace services its integration-owned UI and handlers use:
 
-- `sync` - show a manual run action and call the integration-owned run handler.
-- `validate` - show a credential validation action and call the integration-owned validation handler.
-- `history` - show the Marketplace run history view for this integration.
-- `schedule` - show Marketplace schedule controls and run this integration on its configured schedule.
+- `sync` - allow manual or scheduled calls to the integration-owned run handler.
+- `validate` - allow credential validation calls to the integration-owned validation handler.
+- `history` - allow the integration-owned UI to read Marketplace run history for this integration.
+- `schedule` - allow the Marketplace scheduler to run this integration on its configured schedule.
 
-These are host-provided action slots. Vendor-specific behavior, data mapping, screens, labels, and custom actions remain owned by the integration.
+These are host services. Vendor-specific behavior, data mapping, screens, labels, and custom actions remain owned by the integration.
 
 ## Integration-Owned Views
 

@@ -59,7 +59,7 @@ Use `marketplaceAction` only for Marketplace services such as `settings`, `histo
 
 ## Dashboard
 
-The standard vulnerability dashboard uses:
+Shared helper dashboard views can use:
 
 ```json
 {
@@ -225,7 +225,7 @@ Settings fields come from `manifest.json`. Schedule controls appear when the int
 
 ## Custom Action Screens
 
-Custom action screens let an integration define a simple screen that contains integration-owned action buttons. The Marketplace renders the screen and dispatches button clicks to handlers exported by the integration.
+Custom action screens let an integration define a screen that contains integration-owned action buttons. The integration-owned React view renders the screen and calls Marketplace action endpoints, and the Marketplace dispatches those calls to handlers exported by the integration.
 
 ```json
 {
@@ -246,7 +246,7 @@ Each action ID must also be declared in `manifest.json` and implemented by the i
 
 ## Integration-Owned React Views
 
-For full UI ownership, an integration can provide React components under `ui/` and export them from `ui/index.jsx`.
+Every integration screen must be backed by React components under `ui/` and exported from `ui/index.jsx`.
 
 ```jsx
 import Dashboard from './Dashboard.jsx';
@@ -258,7 +258,7 @@ export const views = {
 };
 ```
 
-When a matching view exists, the Marketplace renders the integration-owned component. Otherwise, it falls back to the standard Marketplace renderer for that route.
+Every navigation path must have a matching view export. The Marketplace renders only integration-owned components for integration screens.
 
 ## Supported Column Types
 

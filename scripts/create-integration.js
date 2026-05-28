@@ -38,6 +38,7 @@ const vendorName = displayName;
 
 fs.mkdirSync(targetDir, { recursive: true });
 fs.mkdirSync(path.join(targetDir, 'migrations'), { recursive: true });
+fs.mkdirSync(path.join(targetDir, 'ui'), { recursive: true });
 
 function writeJson(filename, value) {
   fs.writeFileSync(path.join(targetDir, filename), `${JSON.stringify(value, null, 2)}\n`);
@@ -168,6 +169,12 @@ module.exports = {
 };
 `);
 
+writeFile('ui/index.jsx', `
+import { createStandardIntegrationViews } from '../../_shared/ui/standardViews.jsx';
+
+export const views = createStandardIntegrationViews();
+`);
+
 writeFile('migrations/001_create_schema.sql', `
 CREATE TABLE IF NOT EXISTS ${id.replace(/-/g, '_')}_endpoints (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -224,6 +231,7 @@ This integration was generated with \`npm run create-integration -- ${id}\`.
 - Per-integration scheduling
 
 Views such as dashboards, endpoint lists, and vulnerability tables are defined in \`display.json\`.
+Every visible screen must also have a matching integration-owned React view exported from \`ui/index.jsx\`.
 
 ## Next Steps
 
@@ -232,7 +240,8 @@ Views such as dashboards, endpoint lists, and vulnerability tables are defined i
 3. Implement the integration-owned run handler if this integration declares the run action.
 4. Update \`migrations/001_create_schema.sql\` with this integration's private tables.
 5. Update \`display.json\` to define the tabs, views, labels, and metrics this integration supports.
-6. Run \`npm test\` from the repository root.
+6. Update \`ui/index.jsx\` and add React view components for every visible screen.
+7. Run \`npm test\` from the repository root.
 `);
 
 console.log(`Created integrations/${id}`);

@@ -24,16 +24,16 @@ The custom `check-configuration` action appears on the settings page because it 
 
 The `Actions Lab` screen demonstrates a custom integration-owned screen. It is added to navigation in `display.json`, defined under `customScreens.actions-lab`, and populated with three action IDs. Each ID maps to an action declared in `manifest.json`, and each action is implemented in `actions.js`.
 
-The `ui/` folder demonstrates integration-owned React screens. When the Marketplace build includes this integration package, `ui/index.jsx` exports a `views` map. Any matching view, such as `dashboard` or `actions-lab`, is rendered by the integration component instead of the Marketplace fallback renderer.
+The `ui/` folder demonstrates integration-owned React screens. When the Marketplace build includes this integration package, `ui/index.jsx` exports a `views` map. Each matching view, such as `dashboard` or `actions-lab`, is rendered by the integration component.
 
 The Marketplace actions are different:
 
 - `validate` displays the standard validation button and calls the exported validation handler.
 - `sync` displays the standard run action and calls the exported run handler.
-- `history` displays the Marketplace run history view.
-- `schedule` displays schedule controls and calls the same run handler on the configured schedule.
+- `history` allows the integration-owned UI to read Marketplace run history.
+- `schedule` allows the Marketplace scheduler to call the same run handler on the configured schedule.
 
-The migration file demonstrates integration-owned endpoint and vulnerability tables for the standard metric dashboard renderer. Real integrations should define the database tables they need in `migrations/*.sql`.
+The migration file demonstrates integration-owned endpoint and vulnerability tables for helper views. Real integrations should define the database tables they need in `migrations/*.sql`.
 
 ## Validation
 

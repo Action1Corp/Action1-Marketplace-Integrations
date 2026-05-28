@@ -13,12 +13,15 @@ integrations/
     display.json
     index.js
     optional handler modules
+    ui/
+      index.jsx
+      view components
     migrations/
       001_create_schema.sql
     README.md
 ```
 
-Only `manifest.json`, `index.js`, and `README.md` are always required. Other files depend on the integration's behavior.
+`manifest.json`, `index.js`, `ui/index.jsx`, and `README.md` are always required. Other files depend on the integration's behavior.
 
 ## Core Principles
 
@@ -35,11 +38,11 @@ Only `manifest.json`, `index.js`, and `README.md` are always required. Other fil
 
 Supported `marketplaceActions`:
 
-- `settings`: render settings from `manifest.json`
-- `validate`: show and run a credential validation action
-- `sync`: show and run a manual sync action
-- `history`: show the Marketplace run history view
-- `schedule`: show schedule controls and run the integration on a schedule
+- `settings`: expose Marketplace settings storage APIs and settings host actions
+- `validate`: allow an integration-owned validation handler to be called
+- `sync`: allow an integration-owned run handler to be called manually or by schedules
+- `history`: allow integration UI to read Marketplace run history
+- `schedule`: allow the Marketplace scheduler to run the integration on a schedule
 
 Dashboards, endpoint tables, vulnerability tables, and other tabs are defined in `display.json`. They are not manifest marketplaceActions.
 
@@ -55,13 +58,13 @@ If an integration declares `schedule`, it must also declare `sync`. The Marketpl
 
 ## Integration Actions
 
-Use `actions` in `manifest.json` for custom integration-owned operations that should appear in Marketplace host screens. The Marketplace renders the button and dispatches the request; the integration owns the behavior.
+Use `actions` in `manifest.json` for custom integration-owned operations that should appear in integration-owned screens. The integration UI renders the button and calls the Marketplace action endpoint; the Marketplace dispatches the request to the integration-owned handler.
 
 Action IDs must be stable lowercase kebab-case values. The entrypoint must export an action map with a matching handler for each declared action.
 
 ## Handlers
 
-Handlers are integration-owned. The Marketplace does not implement vendor validation or vendor run logic; it only exposes host UI/actions and calls the matching handler when the integration declares that Marketplace action.
+Handlers are integration-owned. The Marketplace does not implement vendor validation or vendor run logic; it only exposes host APIs/actions and calls the matching handler when the integration declares that Marketplace action.
 
 The Marketplace currently supports two optional integration-owned handler types:
 
@@ -104,7 +107,7 @@ context.services.nvd
 context.services.computeAndSaveRunMetrics(runId, context.integrationId)
 ```
 
-Use `context.db.tables` when writing data for the standard Marketplace dashboard, endpoint, vulnerability, and export renderers.
+Use `context.db.tables` when writing data for shared helper views that expect the endpoint and vulnerability table names.
 
 ## Shared Action1 Credentials
 
@@ -159,7 +162,7 @@ Integrations own tables for:
 - vulnerability mappings
 - any vendor-specific state
 
-For standard endpoint and vulnerability renderers, integrations should create:
+For vulnerability-management integrations that use the shared helper views, integrations should create:
 
 ```text
 <integration_id>_endpoints
@@ -194,4 +197,4 @@ Run repository validation before opening a pull request:
 npm test
 ```
 
-Validation checks manifest shape, supported marketplaceActions, display definitions, migration naming, standard table requirements, and handler exports.
+Validation checks manifest shape, supported marketplaceActions, display definitions, integration-owned UI exports, migration naming, table requirements, and handler exports.

@@ -13,6 +13,9 @@ integrations/
     display.json
     index.js
     optional handler modules
+    ui/
+      index.jsx
+      view components
     migrations/
       001_create_schema.sql
     README.md
@@ -33,18 +36,18 @@ The Marketplace owns the host framework:
 - authentication and organization roles
 - setup and deployment behavior
 - integration catalog loading
-- settings forms and secret masking
+- settings and secret storage APIs
 - shared Action1 API credentials
 - SMTP and webhook failure notification framework
 - action button wiring when an integration declares Marketplace actions
 - per-integration schedules
-- standard renderers for dashboards, tables, history, and settings
 - shared framework tables such as settings, sync history, schedules, auth, CVE metadata, and migration tracking
 
 Each integration owns its vendor-specific behavior:
 
 - metadata and `marketplaceActions` in `manifest.json`
 - navigation, tabs, dashboard sections, labels, and columns in `display.json`
+- React views for every visible screen in `ui/`
 - optional integration-owned credential validation handler
 - optional integration-owned run handler for vendor jobs, collection, or synchronization
 - optional custom actions and action handlers
@@ -70,6 +73,7 @@ The scaffold creates a complete starting point:
 - `index.js`
 - optional validation handler, when the integration declares the validation action
 - optional run handler, when the integration declares the run action
+- `ui/index.jsx` and any view components
 - `migrations/001_create_schema.sql`
 - `README.md`
 
@@ -84,10 +88,11 @@ Before opening a pull request:
 1. Keep all vendor-specific code inside the integration folder.
 2. Define required settings in `manifest.json`.
 3. Define visible screens in `display.json`.
-4. Define any required database tables in `migrations/*.sql`.
-5. Use integration-prefixed table names.
-6. Use Marketplace-level Action1 credentials instead of redefining `Action1APIKey`, `Action1APISecret`, or `Action1OrgID`.
-7. Use `context` and `sdk/` helpers instead of importing Marketplace internals.
+4. Export one React view for every visible screen from `ui/index.jsx`.
+5. Define any required database tables in `migrations/*.sql`.
+6. Use integration-prefixed table names.
+7. Use Marketplace-level Action1 credentials instead of redefining `Action1APIKey`, `Action1APISecret`, or `Action1OrgID`.
+8. Use `context` and `sdk/` helpers instead of importing Marketplace internals.
 8. Run:
 
 ```bash

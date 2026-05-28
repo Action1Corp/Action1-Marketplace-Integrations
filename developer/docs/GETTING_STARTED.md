@@ -25,6 +25,9 @@ integrations/acme-vm/
   display.json
   index.js
   optional handler modules
+  ui/
+    index.jsx
+    view components
   migrations/
     001_create_schema.sql
   README.md
@@ -113,7 +116,7 @@ See `DISPLAY_REFERENCE.md` for the full display contract.
 
 Add integration-owned tables in `migrations/*.sql`.
 
-For standard vulnerability management views, create:
+For vulnerability-management integrations that use the shared helper views, create:
 
 ```text
 <integration_id>_endpoints
