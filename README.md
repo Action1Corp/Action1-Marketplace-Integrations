@@ -15,6 +15,7 @@ integrations/
     optional handler modules
     ui/
       index.jsx
+      settingsSchema.json
       view components
     migrations/
       001_create_schema.sql
@@ -39,14 +40,15 @@ The Marketplace owns the host framework:
 - settings and secret storage APIs
 - shared Action1 API credentials
 - SMTP and webhook failure notification framework
-- action button wiring when an integration declares Marketplace actions
+- action button wiring when an integration declares host services
 - per-integration schedules
 - shared framework tables such as settings, sync history, schedules, auth, CVE metadata, and migration tracking
 
 Each integration owns its vendor-specific behavior:
 
-- metadata and `marketplaceActions` in `manifest.json`
+- metadata and `hostServices` in `manifest.json`
 - navigation and integration-owned screen metadata in `display.json`
+- settings schema in `ui/settingsSchema.json`
 - React views for every visible screen in `ui/`
 - optional integration-owned credential validation handler
 - optional integration-owned run handler for vendor jobs, collection, or synchronization
@@ -74,6 +76,7 @@ The scaffold creates a complete starting point:
 - optional validation handler, when the integration declares the validation action
 - optional run handler, when the integration declares the run action
 - `ui/index.jsx` and any view components
+- `ui/settingsSchema.json`
 - `migrations/001_create_schema.sql`
 - `README.md`
 
@@ -86,7 +89,7 @@ For a step-by-step walkthrough, start with `developer/docs/GETTING_STARTED.md`.
 Before opening a pull request:
 
 1. Keep all vendor-specific code inside the integration folder.
-2. Define required settings in `manifest.json`.
+2. Define required settings in `ui/settingsSchema.json`.
 3. Define visible screens in `display.json`.
 4. Export one React view for every visible screen from `ui/index.jsx`.
 5. Define any required database tables in `migrations/*.sql`.
@@ -110,3 +113,4 @@ npm test
 - `developer/docs/NOTIFICATION_WEBHOOKS.md`
 - `developer/docs/REVIEW_CHECKLIST.md`
 - `developer/docs/INTEGRATION_REPO_STRATEGY.md`
+

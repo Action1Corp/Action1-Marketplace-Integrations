@@ -4,8 +4,9 @@ Sync Intune managed devices and compliance status with Action1.
 
 ## Files
 
-- `manifest.json` - Marketplace metadata, `marketplaceActions`, and settings schema.
+- `manifest.json` - Marketplace metadata and host services.
 - `display.json` - Integration-owned navigation, dashboards, and display definitions.
+- ui/settingsSchema.json - Integration-owned settings schema.
 - `migrations/` - Integration-owned database schema.
 - `index.js` - Small entrypoint that exports Marketplace handlers.
 - Validation handler - Optional integration-owned credential validation logic.
@@ -27,3 +28,4 @@ These are host services. Vendor-specific behavior, data mapping, screens, labels
 - dashboard
 - history
 - settings
+

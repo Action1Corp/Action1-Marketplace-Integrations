@@ -32,11 +32,11 @@ integrations/
 - Integrations should use integration-prefixed table names.
 - Database migrations must be additive and safe to run once.
 
-## Manifest `marketplaceActions`
+## Manifest `hostServices`
 
-`marketplaceActions` describe Marketplace services or actions, not integration screens.
+`hostServices` describe Marketplace services or actions, not integration screens.
 
-Supported `marketplaceActions`:
+Supported `hostServices`:
 
 - `settings`: expose Marketplace settings storage APIs and settings host actions
 - `validate`: allow an integration-owned validation handler to be called
@@ -44,13 +44,13 @@ Supported `marketplaceActions`:
 - `history`: allow integration UI to read Marketplace run history
 - `schedule`: allow the Marketplace scheduler to run the integration on a schedule
 
-Dashboards, endpoint tables, vulnerability tables, and other tabs are defined in `display.json`. They are not manifest marketplaceActions.
+Dashboards, endpoint tables, vulnerability tables, and other tabs are defined in `display.json`. They are not manifest hostServices.
 
 Example settings-only integration:
 
 ```json
 {
-  "marketplaceActions": ["settings"]
+  "hostServices": ["settings"]
 }
 ```
 
@@ -58,13 +58,13 @@ If an integration declares `schedule`, it must also declare `sync`. The Marketpl
 
 ## Integration Actions
 
-Use `actions` in `manifest.json` for custom integration-owned operations that should appear in integration-owned screens. The integration UI renders the button and calls the Marketplace action endpoint; the Marketplace dispatches the request to the integration-owned handler.
+Use `actions` in `manifest.json` for custom integration-owned operations that should appear in integration-owned screens. The integration UI renders the button and calls the host service endpoint; the Marketplace dispatches the request to the integration-owned handler.
 
 Action IDs must be stable lowercase kebab-case values. The entrypoint must export an action map with a matching handler for each declared action.
 
 ## Handlers
 
-Handlers are integration-owned. The Marketplace does not implement vendor validation or vendor run logic; it only exposes host APIs/actions and calls the matching handler when the integration declares that Marketplace action.
+Handlers are integration-owned. The Marketplace does not implement vendor validation or vendor run logic; it only exposes host APIs/actions and calls the matching handler when the integration declares that host service.
 
 The Marketplace currently supports two optional integration-owned handler types:
 
@@ -197,4 +197,5 @@ Run repository validation before opening a pull request:
 npm test
 ```
 
-Validation checks manifest shape, supported marketplaceActions, display definitions, integration-owned UI exports, migration naming, table requirements, and handler exports.
+Validation checks manifest shape, supported hostServices, display definitions, integration-owned UI exports, migration naming, table requirements, and handler exports.
+

@@ -59,30 +59,14 @@ writeJson('manifest.json', {
   category: 'Integration',
   icon_color: '#2E8CEB',
   entry: 'index.js',
-  marketplaceActions: ['settings', 'validate', 'sync', 'history', 'schedule'],
-  settings: [
-    {
-      key: `${displayName.replace(/\s+/g, '')}ApiUrl`,
-      label: 'API URL',
-      type: 'url',
-      group: `${displayName} Configuration`,
-      required: true
-    },
-    {
-      key: `${displayName.replace(/\s+/g, '')}ApiToken`,
-      label: 'API Token',
-      type: 'secret',
-      group: `${displayName} Configuration`,
-      required: true
-    }
-  ]
+  hostServices: ['settings', 'validate', 'sync', 'history', 'schedule']
 });
 
 writeJson('display.json', {
   navigation: [
     { id: 'dashboard', label: 'Dashboard', path: 'dashboard', icon: 'Activity' },
-    { id: 'history', label: 'History', path: 'history', icon: 'History', marketplaceAction: 'history' },
-    { id: 'settings', label: 'Settings', path: 'settings', icon: 'Settings', marketplaceAction: 'settings', requiresWrite: true }
+    { id: 'history', label: 'History', path: 'history', icon: 'History', hostService: 'history' },
+    { id: 'settings', label: 'Settings', path: 'settings', icon: 'Settings', hostService: 'settings', requiresWrite: true }
   ],
   dashboard: {
     title: '{integrationName} Dashboard',
@@ -247,6 +231,23 @@ function Settings() {
 export default Settings;
 `);
 
+writeJson('ui/settingsSchema.json', [
+  {
+    key: `${displayName.replace(/\s+/g, '')}ApiUrl`,
+    label: 'API URL',
+    type: 'url',
+    group: `${displayName} Configuration`,
+    required: true
+  },
+  {
+    key: `${displayName.replace(/\s+/g, '')}ApiToken`,
+    label: 'API Token',
+    type: 'secret',
+    group: `${displayName} Configuration`,
+    required: true
+  }
+]);
+
 writeFile('ui/index.jsx', `
 import Dashboard from './Dashboard.jsx';
 import History from './History.jsx';
@@ -279,7 +280,7 @@ writeFile('README.md', `
 
 This integration was generated with \`npm run create-integration -- ${id}\`.
 
-## Marketplace Actions
+## Host Services
 
 - Settings
 - Credential validation
@@ -292,13 +293,14 @@ Every visible screen must also have a matching integration-owned React view expo
 
 ## Next Steps
 
-1. Update \`manifest.json\` metadata, settings, category, and Marketplace actions.
+1. Update \`manifest.json\` metadata, category, and host services.
 2. Implement the integration-owned validation handler if this integration declares the validation action.
 3. Implement the integration-owned run handler if this integration declares the run action.
 4. Update \`migrations/001_create_schema.sql\` with this integration's private tables.
-5. Update \`display.json\` to define the tabs, views, labels, and metrics this integration supports.
-6. Update \`ui/index.jsx\` and add React view components for every visible screen.
-7. Run \`npm test\` from the repository root.
+5. Update \`ui/settingsSchema.json\` with this integration's settings.
+6. Update \`display.json\` to define the tabs, views, labels, and metrics this integration supports.
+7. Update \`ui/index.jsx\` and add React view components for every visible screen.
+8. Run \`npm test\` from the repository root.
 `);
 
 console.log(`Created integrations/${id}`);

@@ -1,0 +1,23 @@
+[
+  {
+    "key": "QualysUsername",
+    "label": "Qualys Username",
+    "type": "text",
+    "group": "Qualys VMDR Configuration",
+    "required": true
+  },
+  {
+    "key": "QualysPassword",
+    "label": "Qualys Password",
+    "type": "secret",
+    "group": "Qualys VMDR Configuration",
+    "required": true
+  },
+  {
+    "key": "QualysBaseUrl",
+    "label": "Qualys API Base URL",
+    "type": "url",
+    "group": "Qualys VMDR Configuration",
+    "defaultValue": "https://qualysapi.qg3.apps.qualys.com"
+  }
+]

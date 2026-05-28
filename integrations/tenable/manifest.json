@@ -9,23 +9,7 @@
   "category": "Vulnerability Management",
   "icon_color": "#2E8CEB",
   "entry": "index.js",
-  "settings": [
-    {
-      "key": "TenableAccessKey",
-      "label": "Access Key",
-      "type": "secret",
-      "group": "Tenable Configuration",
-      "required": true
-    },
-    {
-      "key": "TenableSecretKey",
-      "label": "Secret Key",
-      "type": "secret",
-      "group": "Tenable Configuration",
-      "required": true
-    }
-  ],
-  "marketplaceActions": [
+  "hostServices": [
     "sync",
     "validate",
     "history",

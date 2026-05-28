@@ -16,7 +16,7 @@ Use two repositories:
 2. `action1-marketplace-integrations`
    - Owns the integration catalog.
    - Contains one folder per integration.
-   - Owns vendor API clients, settings schema, handlers, display definitions, and integration-owned database schema.
+   - Owns vendor API clients, UI settings schema, handlers, display definitions, and integration-owned database schema.
 
 This model keeps the Marketplace stable while allowing integrations to evolve independently.
 
@@ -74,7 +74,7 @@ Benefits:
 2. Add or update an integration folder.
 3. Run `npm test`.
 4. Open a pull request.
-5. Review manifest, settings, migrations, display definitions, and handlers.
+5. Review manifest metadata, UI settings schema, migrations, display definitions, and handlers.
 6. Merge after validation passes.
 7. Build a new Marketplace image containing the approved integration catalog.
 
@@ -82,7 +82,8 @@ Benefits:
 
 An integration package should contain:
 
-- `manifest.json` for metadata, settings, and `marketplaceActions`
+- `manifest.json` for metadata and `hostServices`
+- `ui/settingsSchema.json` for integration-owned settings
 - `display.json` for integration-owned screens and navigation
 - `ui/index.jsx` and React components for every visible screen
 - `migrations/*.sql` for integration-owned schema
@@ -119,3 +120,4 @@ The current architecture supports:
 - test-data seeding for fresh development containers
 
 Future work should focus on automated release packaging, CI validation against a Marketplace test harness, and customer-facing installation artifacts.
+

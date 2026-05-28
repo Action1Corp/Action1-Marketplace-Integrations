@@ -1,0 +1,30 @@
+[
+  {
+    "key": "DefenderTenantId",
+    "label": "Tenant ID",
+    "type": "text",
+    "group": "Microsoft Defender Configuration",
+    "required": true
+  },
+  {
+    "key": "DefenderClientId",
+    "label": "Client ID (App ID)",
+    "type": "text",
+    "group": "Microsoft Defender Configuration",
+    "required": true
+  },
+  {
+    "key": "DefenderClientSecret",
+    "label": "Client Secret",
+    "type": "secret",
+    "group": "Microsoft Defender Configuration",
+    "required": true
+  },
+  {
+    "key": "DefenderBaseUrl",
+    "label": "Defender API Base URL",
+    "type": "url",
+    "group": "Microsoft Defender Configuration",
+    "defaultValue": "https://api.security.microsoft.com"
+  }
+]

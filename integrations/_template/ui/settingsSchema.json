@@ -1,0 +1,16 @@
+[
+  {
+    "key": "ExampleApiUrl",
+    "label": "API URL",
+    "type": "url",
+    "group": "Example Configuration",
+    "required": true
+  },
+  {
+    "key": "ExampleApiToken",
+    "label": "API Token",
+    "type": "secret",
+    "group": "Example Configuration",
+    "required": true
+  }
+]

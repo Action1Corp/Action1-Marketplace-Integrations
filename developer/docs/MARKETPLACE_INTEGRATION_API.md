@@ -2,7 +2,7 @@
 
 Current API version: `1.0`
 
-The Action1 Integration Marketplace loads integrations as folder-based packages. Each package declares its metadata, settings, optional Marketplace actions, visible screens, database schema, and runtime handlers.
+The Action1 Integration Marketplace loads integrations as folder-based packages. Each package declares its metadata, host services, integration-owned settings schema, visible screens, database schema, and runtime handlers.
 
 ## Package Layout
 
@@ -15,6 +15,7 @@ integrations/
     optional handler modules
     ui/
       index.jsx
+      settingsSchema.json
       view components
     migrations/
       001_create_schema.sql
@@ -37,17 +38,16 @@ Every integration must provide `manifest.json`.
   "category": "Vulnerability Management",
   "icon_color": "#2E8CEB",
   "entry": "index.js",
-  "marketplaceActions": ["settings", "validate", "sync", "history", "schedule"],
-  "actions": [],
-  "settings": []
+  "hostServices": ["settings", "validate", "sync", "history", "schedule"],
+  "actions": []
 }
 ```
 
-### Supported `marketplaceActions`
+### Supported `hostServices`
 
-`marketplaceActions` enable Marketplace host services and action buttons. They do not define integration screens, and they do not move vendor-specific behavior into the Marketplace.
+`hostServices` enable Marketplace host runtime services. They do not define integration screens, and they do not move vendor-specific behavior into the Marketplace.
 
-| Action | Purpose |
+| Host Service | Purpose |
 | --- | --- |
 | `settings` | Expose Marketplace settings storage APIs and allow settings UI actions. |
 | `validate` | Allow integration-owned validation handlers to be called from integration UI. |
@@ -59,7 +59,7 @@ If `schedule` is declared, `sync` must also be declared.
 
 ### Integration Actions
 
-Integrations can define custom actions in `manifest.json`. Integration-owned React views render those actions and call the Marketplace action endpoint, which dispatches the request back to the integration-owned handler.
+Integrations can define custom actions in `manifest.json`. Integration-owned React views render those actions and call the host service endpoint, which dispatches the request back to the integration-owned handler.
 
 ```json
 {
@@ -86,16 +86,20 @@ The action `id` must be lowercase kebab-case and must match an integration-owned
 
 ### Settings
 
-Settings are rendered by the Marketplace and stored by key.
+Settings are defined by the integration in `ui/settingsSchema.json`. The integration-owned settings view imports this file for rendering, and the Marketplace backend reads the same file so secret values can be masked/encrypted and required configuration can be detected.
+
+`ui/settingsSchema.json`:
 
 ```json
-{
-  "key": "VendorApiToken",
-  "label": "API Token",
-  "type": "secret",
-  "group": "Vendor Configuration",
-  "required": true
-}
+[
+  {
+    "key": "VendorApiToken",
+    "label": "API Token",
+    "type": "secret",
+    "group": "Vendor Configuration",
+    "required": true
+  }
+]
 ```
 
 Supported setting types:
@@ -250,7 +254,7 @@ Visible integration screens are defined by `display.navigation`. Other top-level
   "navigation": [
     { "id": "asset-risk", "label": "Asset Risk", "path": "asset-risk", "icon": "Activity" },
     { "id": "deployment-status", "label": "Deployment Status", "path": "deployment-status", "icon": "Server" },
-    { "id": "settings", "label": "Settings", "path": "settings", "icon": "Settings", "marketplaceAction": "settings", "requiresWrite": true }
+    { "id": "settings", "label": "Settings", "path": "settings", "icon": "Settings", "hostService": "settings", "requiresWrite": true }
   ],
   "asset-risk": {
     "title": "Asset Risk",
@@ -326,3 +330,4 @@ Use `developer/examples/hello-integration` as the minimal complete example. The 
 - `LOCAL_TESTING.md`: test with a local Marketplace container.
 - `NOTIFICATION_WEBHOOKS.md`: failure webhook payloads.
 - `REVIEW_CHECKLIST.md`: pull request review checklist.
+

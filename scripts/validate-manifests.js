@@ -14,11 +14,10 @@ const requiredTopLevel = [
   'minimumMarketplaceVersion',
   'description',
   'category',
-  'marketplaceActions',
-  'settings'
+  'hostServices'
 ];
 const supportedMarketplaceApiVersions = new Set(['1.0']);
-const supportedMarketplaceActions = new Set(['settings', 'validate', 'sync', 'history', 'schedule']);
+const supportedHostServices = new Set(['settings', 'validate', 'sync', 'history', 'schedule']);
 const supportedSettingTypes = new Set(['text', 'url', 'secret', 'select', 'number', 'checkbox']);
 const supportedActionPlacements = new Set(['settings']);
 const marketplaceOwnedSettings = new Set(['Action1APIKey', 'Action1APISecret', 'Action1OrgID']);
@@ -80,6 +79,24 @@ function readUiViewKeys(integrationDir) {
     );
   }
   return new Set();
+}
+
+function readSettingsSchema(integrationDir) {
+  const settingsPath = path.join(integrationDir, 'ui', 'settingsSchema.json');
+  if (!fs.existsSync(settingsPath)) return [];
+  try {
+    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    if (!Array.isArray(settings)) {
+      console.error(`${path.basename(integrationDir)}: ui/settingsSchema.json must be an array`);
+      failures += 1;
+      return [];
+    }
+    return settings;
+  } catch (error) {
+    console.error(`${path.basename(integrationDir)}: invalid ui/settingsSchema.json - ${error.message}`);
+    failures += 1;
+    return [];
+  }
 }
 
 function validateDisplaySection(entryName, display, section, requirement) {
@@ -149,49 +166,54 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
   }
 
   if (Object.prototype.hasOwnProperty.call(manifest, 'capabilities')) {
-    console.error(`${entry.name}: use marketplaceActions instead of capabilities`);
+    console.error(`${entry.name}: use hostServices instead of capabilities`);
     failures += 1;
   }
 
-  if (!Array.isArray(manifest.marketplaceActions)) {
-    console.error(`${entry.name}: marketplaceActions must be an array`);
+  if (Object.prototype.hasOwnProperty.call(manifest, 'marketplaceActions')) {
+    console.error(`${entry.name}: use hostServices instead of marketplaceActions`);
+    failures += 1;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(manifest, 'settings')) {
+    console.error(`${entry.name}: move integration settings to ui/settingsSchema.json`);
+    failures += 1;
+  }
+
+  if (!Array.isArray(manifest.hostServices)) {
+    console.error(`${entry.name}: hostServices must be an array`);
     failures += 1;
   } else {
-    const seenActions = new Set();
-    for (const action of manifest.marketplaceActions) {
-      if (!supportedMarketplaceActions.has(action)) {
-        console.error(`${entry.name}: unsupported marketplaceAction ${action}`);
+    const seenServices = new Set();
+    for (const service of manifest.hostServices) {
+      if (!supportedHostServices.has(service)) {
+        console.error(`${entry.name}: unsupported hostService ${service}`);
         failures += 1;
       }
-      if (seenActions.has(action)) {
-        console.error(`${entry.name}: duplicate marketplaceAction ${action}`);
+      if (seenServices.has(service)) {
+        console.error(`${entry.name}: duplicate hostService ${service}`);
         failures += 1;
       }
-      seenActions.add(action);
+      seenServices.add(service);
     }
-    if (manifest.marketplaceActions.includes('schedule') && !manifest.marketplaceActions.includes('sync')) {
-      console.error(`${entry.name}: schedule marketplaceAction requires sync marketplaceAction`);
+    if (manifest.hostServices.includes('schedule') && !manifest.hostServices.includes('sync')) {
+      console.error(`${entry.name}: schedule hostService requires sync hostService`);
       failures += 1;
     }
   }
 
   const hasHandler = fs.existsSync(path.join(root, entry.name, manifest.entry || 'index.js'));
-  if (manifest.marketplaceActions?.includes('sync') && !hasHandler) {
+  if (manifest.hostServices?.includes('sync') && !hasHandler) {
     console.error(`${entry.name}: declares sync but has no handler`);
     failures += 1;
   }
-  if (manifest.marketplaceActions?.includes('validate') && !hasHandler) {
+  if (manifest.hostServices?.includes('validate') && !hasHandler) {
     console.error(`${entry.name}: declares validate but has no handler`);
     failures += 1;
   }
 
-  if (!Array.isArray(manifest.settings)) {
-    console.error(`${entry.name}: settings must be an array`);
-    failures += 1;
-    continue;
-  }
-
   const displayPath = path.join(root, entry.name, 'display.json');
+  const settingsSchema = readSettingsSchema(integrationDir);
   const uiViewKeys = readUiViewKeys(integrationDir);
   if (!uiViewKeys) {
     console.error(`${entry.name}: integration-owned UI requires ui/index.jsx`);
@@ -224,15 +246,19 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
           failures += 1;
         }
         if (item.capability) {
-          console.error(`${entry.name}: display.navigation uses deprecated capability; use marketplaceAction`);
+          console.error(`${entry.name}: display.navigation uses deprecated capability; use hostService`);
           failures += 1;
         }
-        if (item.marketplaceAction && !supportedMarketplaceActions.has(item.marketplaceAction)) {
-          console.error(`${entry.name}: display.navigation uses unsupported marketplaceAction ${item.marketplaceAction}`);
+        if (item.marketplaceAction) {
+          console.error(`${entry.name}: display.navigation uses deprecated marketplaceAction; use hostService`);
           failures += 1;
         }
-        if (item.marketplaceAction && supportedMarketplaceActions.has(item.marketplaceAction) && !manifest.marketplaceActions?.includes(item.marketplaceAction) && item.marketplaceAction !== 'settings') {
-          console.error(`${entry.name}: display.navigation references undeclared marketplaceAction ${item.marketplaceAction}`);
+        if (item.hostService && !supportedHostServices.has(item.hostService)) {
+          console.error(`${entry.name}: display.navigation uses unsupported hostService ${item.hostService}`);
+          failures += 1;
+        }
+        if (item.hostService && supportedHostServices.has(item.hostService) && !manifest.hostServices?.includes(item.hostService) && item.hostService !== 'settings') {
+          console.error(`${entry.name}: display.navigation references undeclared hostService ${item.hostService}`);
           failures += 1;
         }
         if (uiViewKeys && item.path && !uiViewKeys.has(item.path)) {
@@ -257,7 +283,7 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
         failures += 1;
       }
     }
-    if (manifest.settings?.length > 0 && !display.navigation.some(item => item.id === 'settings' || item.marketplaceAction === 'settings')) {
+    if (settingsSchema.length > 0 && !display.navigation.some(item => item.id === 'settings' || item.hostService === 'settings')) {
       console.error(`${entry.name}: display.navigation must include settings`);
       failures += 1;
     }
@@ -332,7 +358,7 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
   }
 
   const seenSettings = new Set();
-  for (const setting of manifest.settings) {
+  for (const setting of settingsSchema) {
     if (!setting.key || !setting.label || !setting.type) {
       console.error(`${entry.name}: each setting requires key, label, and type`);
       failures += 1;

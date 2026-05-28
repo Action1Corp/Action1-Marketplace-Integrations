@@ -9,29 +9,6 @@
   "category": "Example",
   "icon_color": "#2E8CEB",
   "entry": "index.js",
-  "settings": [
-    {
-      "key": "HelloApiUrl",
-      "label": "API URL",
-      "type": "url",
-      "group": "Hello Configuration",
-      "required": true
-    },
-    {
-      "key": "HelloApiToken",
-      "label": "API Token",
-      "type": "secret",
-      "group": "Hello Configuration",
-      "required": true
-    }
-  ],
-  "marketplaceActions": [
-    "settings",
-    "validate",
-    "sync",
-    "history",
-    "schedule"
-  ],
   "actions": [
     {
       "id": "check-configuration",
@@ -65,5 +42,12 @@
       "description": "Uses Marketplace runtime context to return integration and database information.",
       "placement": "actions-lab"
     }
+  ],
+  "hostServices": [
+    "settings",
+    "validate",
+    "sync",
+    "history",
+    "schedule"
   ]
 }

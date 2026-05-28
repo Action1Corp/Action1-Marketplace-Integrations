@@ -1,0 +1,16 @@
+[
+  {
+    "key": "TenableAccessKey",
+    "label": "Access Key",
+    "type": "secret",
+    "group": "Tenable Configuration",
+    "required": true
+  },
+  {
+    "key": "TenableSecretKey",
+    "label": "Secret Key",
+    "type": "secret",
+    "group": "Tenable Configuration",
+    "required": true
+  }
+]

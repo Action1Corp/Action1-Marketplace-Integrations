@@ -1,0 +1,47 @@
+[
+  {
+    "key": "Rapid7ApiKey",
+    "label": "Insight API Key",
+    "type": "secret",
+    "group": "Rapid7 InsightVM Configuration",
+    "required": true
+  },
+  {
+    "key": "Rapid7Region",
+    "label": "Insight Region",
+    "type": "select",
+    "group": "Rapid7 InsightVM Configuration",
+    "required": true,
+    "defaultValue": "us",
+    "options": [
+      {
+        "value": "us",
+        "label": "United States (us)"
+      },
+      {
+        "value": "us2",
+        "label": "United States (us2)"
+      },
+      {
+        "value": "us3",
+        "label": "United States (us3)"
+      },
+      {
+        "value": "eu",
+        "label": "Europe (eu)"
+      },
+      {
+        "value": "ca",
+        "label": "Canada (ca)"
+      },
+      {
+        "value": "au",
+        "label": "Australia (au)"
+      },
+      {
+        "value": "ap",
+        "label": "Japan (ap)"
+      }
+    ]
+  }
+]

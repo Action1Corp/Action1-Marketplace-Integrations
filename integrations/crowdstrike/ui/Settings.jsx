@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import settingsSchema from './settingsSchema.json';
 import {
   SECRET_MASK,
   WEEKDAYS,
@@ -18,16 +19,15 @@ function Settings({ integration }) {
   const [validating, setValidating] = useState(false);
   const [validationResult, setValidationResult] = useState(null);
   const [scheduleUi, setScheduleUi] = useState(cronToSchedule(''));
-  const settingsSchema = meta?.settingsSchema || [];
   const sensitiveSettings = useMemo(() => new Set(settingsSchema.filter(setting => setting.type === 'secret' || setting.sensitive).map(setting => setting.key)), [settingsSchema]);
-  const supportsSchedule = (meta?.marketplaceActions || []).includes('schedule') || (meta?.marketplaceActions || []).includes('sync');
-  const supportsValidation = (meta?.marketplaceActions || []).includes('validate');
+  const supportsSchedule = (meta?.hostServices || []).includes('schedule') || (meta?.hostServices || []).includes('sync');
+  const supportsValidation = (meta?.hostServices || []).includes('validate');
 
   useEffect(() => {
     Promise.all([fetch(`/api/marketplace/${integration}`).then(r => r.json()), fetch('/api/settings').then(r => r.json())])
       .then(([nextMeta, data]) => {
         const nextSettings = { ...(data.settings || {}) };
-        for (const setting of nextMeta.settingsSchema || []) {
+        for (const setting of settingsSchema || []) {
           if ((setting.type === 'secret' || setting.sensitive) && data.storedSecrets?.[setting.key]) nextSettings[setting.key] = SECRET_MASK;
         }
         if (!nextSettings[timezoneKey(integration)]) nextSettings[timezoneKey(integration)] = browserTimezone();
@@ -175,3 +175,4 @@ function Settings({ integration }) {
 }
 
 export default Settings;
+

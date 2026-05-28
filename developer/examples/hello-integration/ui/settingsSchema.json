@@ -1,0 +1,16 @@
+[
+  {
+    "key": "HelloApiUrl",
+    "label": "API URL",
+    "type": "url",
+    "group": "Hello Configuration",
+    "required": true
+  },
+  {
+    "key": "HelloApiToken",
+    "label": "API Token",
+    "type": "secret",
+    "group": "Hello Configuration",
+    "required": true
+  }
+]

@@ -27,6 +27,7 @@ integrations/acme-vm/
   optional handler modules
   ui/
     index.jsx
+    settingsSchema.json
     view components
   migrations/
     001_create_schema.sql
@@ -49,7 +50,7 @@ Required fields:
 - `minimumMarketplaceVersion`
 - `description`
 - `category`
-- `marketplaceActions`
+- `hostServices`
 - `actions`, when the integration exposes custom host-screen actions
 - `settings`
 
@@ -57,7 +58,7 @@ Only declare Marketplace services the integration actually supports.
 
 ```json
 {
-  "marketplaceActions": ["settings", "validate", "sync", "history", "schedule"]
+  "hostServices": ["settings", "validate", "sync", "history", "schedule"]
 }
 ```
 
@@ -73,7 +74,7 @@ Use `context.action1.getCredentials()` when the integration needs Action1 API ac
 
 ## 3. Define Settings
 
-Settings in `manifest.json` are vendor-specific configuration fields rendered by the Marketplace.
+Settings in `ui/settingsSchema.json` are vendor-specific configuration fields owned by the integration. The integration settings view can import this file to render controls, and the Marketplace backend reads it to protect secret values.
 
 ```json
 {
@@ -110,7 +111,7 @@ Example screen paths used by existing integrations:
 
 These are examples, not required screen names. An integration can define any route-safe screen path, such as `asset-risk`, `deployment-status`, or `license-usage`.
 
-Every visible screen path must also have a matching React view exported from `ui/index.jsx`. Visible screens are not defined in `marketplaceActions`.
+Every visible screen path must also have a matching React view exported from `ui/index.jsx`. Visible screens are not defined in `hostServices`.
 
 See `DISPLAY_REFERENCE.md` for the full display contract.
 
@@ -170,3 +171,4 @@ npm test
 ```
 
 Then follow `REVIEW_CHECKLIST.md`.
+

@@ -4,9 +4,10 @@ This is a minimal example integration for developers. It demonstrates the Market
 
 ## What It Demonstrates
 
-- `manifest.json` metadata and settings
+- `manifest.json` metadata and host services
+- `ui/settingsSchema.json` integration-owned settings fields
 - `display.json` navigation, dashboard, history, settings, and schedule metadata
-- Marketplace-provided actions through `marketplaceActions`
+- Marketplace host services through `hostServices`
 - validation handler for the Marketplace `validate` action
 - run handler for the Marketplace `sync` and `schedule` actions
 - custom integration-owned action declared in `manifest.json`
@@ -26,7 +27,7 @@ The `Actions Lab` screen demonstrates a custom integration-owned screen. It is a
 
 The `ui/` folder demonstrates integration-owned React screens. When the Marketplace build includes this integration package, `ui/index.jsx` exports a `views` map. Each matching view, such as `dashboard` or `actions-lab`, is rendered by the integration component.
 
-The Marketplace actions are different:
+The host services are different from integration screens:
 
 - `validate` displays the standard validation button and calls the exported validation handler.
 - `sync` displays the standard run action and calls the exported run handler.
@@ -42,3 +43,4 @@ Run repository checks after copying or modifying this example:
 ```bash
 npm test
 ```
+

@@ -1,0 +1,37 @@
+[
+  {
+    "key": "IntuneTenantId",
+    "label": "Tenant ID",
+    "type": "text",
+    "group": "Microsoft Intune Configuration",
+    "required": true
+  },
+  {
+    "key": "IntuneClientId",
+    "label": "Client ID (App ID)",
+    "type": "text",
+    "group": "Microsoft Intune Configuration",
+    "required": true
+  },
+  {
+    "key": "IntuneClientSecret",
+    "label": "Client Secret",
+    "type": "secret",
+    "group": "Microsoft Intune Configuration",
+    "required": true
+  },
+  {
+    "key": "IntuneAgentId",
+    "label": "Action1 Agent ID",
+    "type": "text",
+    "group": "Action1 Agent Settings",
+    "required": true
+  },
+  {
+    "key": "IntuneOrgName",
+    "label": "Action1 Organization Name",
+    "type": "text",
+    "group": "Action1 Agent Settings",
+    "required": true
+  }
+]

@@ -157,3 +157,4 @@ The Marketplace owns:
 - migration tracking
 
 Integrations may write sync history through `sdk` helpers and may update shared CVE metadata where useful. They must not alter Marketplace-owned table structure.
+

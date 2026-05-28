@@ -8,30 +8,7 @@
   "description": "Correlate CrowdStrike detections and vulns with Action1 inventory.",
   "category": "EDR / XDR",
   "icon_color": "#E00400",
-  "settings": [
-    {
-      "key": "CrowdStrikeClientId",
-      "label": "Falcon Client ID",
-      "type": "text",
-      "group": "CrowdStrike Configuration",
-      "required": true
-    },
-    {
-      "key": "CrowdStrikeClientSecret",
-      "label": "Falcon Client Secret",
-      "type": "secret",
-      "group": "CrowdStrike Configuration",
-      "required": true
-    },
-    {
-      "key": "CrowdStrikeBaseUrl",
-      "label": "Falcon API Base URL",
-      "type": "url",
-      "group": "CrowdStrike Configuration",
-      "defaultValue": "https://api.crowdstrike.com"
-    }
-  ],
-  "marketplaceActions": [
+  "hostServices": [
     "sync",
     "validate",
     "history",

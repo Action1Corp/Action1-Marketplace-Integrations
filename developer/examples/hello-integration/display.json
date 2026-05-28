@@ -11,7 +11,7 @@
       "label": "History",
       "path": "history",
       "icon": "History",
-      "marketplaceAction": "history"
+      "hostService": "history"
     },
     {
       "id": "actions-lab",
@@ -26,7 +26,7 @@
       "path": "settings",
       "icon": "Settings",
       "requiresWrite": true,
-      "marketplaceAction": "settings"
+      "hostService": "settings"
     }
   ],
   "dashboard": {

@@ -4,7 +4,8 @@ Each folder in this directory is loaded by the Marketplace runtime, unless the f
 
 Each integration should include:
 
-- `manifest.json` for metadata, settings, and `marketplaceActions`
+- `manifest.json` for metadata and `hostServices`
+- `ui/settingsSchema.json` for integration-owned settings fields
 - `display.json` for integration-owned navigation and views
 - `migrations/` for integration-owned database schema
 - `index.js` as the Marketplace entrypoint
@@ -13,3 +14,4 @@ Each integration should include:
 - `README.md` for setup notes and required vendor permissions
 
 Developer examples and design notes belong under `developer/`, not in this runtime directory.
+

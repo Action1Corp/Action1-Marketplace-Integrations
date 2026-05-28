@@ -21,7 +21,7 @@ Use this checklist before merging an integration pull request.
 
 - Metadata is clear and customer-facing.
 - `category` is appropriate.
-- `marketplaceActions` only includes services the integration supports.
+- `hostServices` only includes services the integration supports.
 - `schedule` is not declared unless `sync` is also declared.
 - Required settings are marked `required`.
 - Sensitive settings use `type: "secret"`.
@@ -30,8 +30,8 @@ Use this checklist before merging an integration pull request.
 ## Display Review
 
 - Navigation only includes views the integration supports.
-- Settings navigation uses `marketplaceAction: "settings"` and `requiresWrite: true`.
-- History navigation uses `marketplaceAction: "history"` when history is declared.
+- Settings navigation uses `hostService: "settings"` and `requiresWrite: true`.
+- History navigation uses `hostService: "history"` when history is declared.
 - Dashboard metadata matches the integration-owned React view that consumes it.
 - Columns and cards map to real integration-owned data sources.
 - Column labels are clear to a customer.
@@ -75,3 +75,4 @@ Use this checklist before merging an integration pull request.
 - Setup steps are customer-readable.
 - Known limits and unsupported modes are documented.
 - Any vendor rate-limit considerations are documented.
+

@@ -13,7 +13,7 @@ npm test
 This checks:
 
 - manifest shape
-- supported `marketplaceActions`
+- supported `hostServices`
 - display definitions
 - migration naming
 - standard table requirements
@@ -109,7 +109,8 @@ If migrations do not apply:
 
 If validation or sync does not run:
 
-- confirm `marketplaceActions` includes `validate` or `sync`
+- confirm `hostServices` includes `validate` or `sync`
 - confirm `index.js` exports the matching handler
 - confirm the handler returns or resolves a promise
 - check Marketplace run history and container logs
+

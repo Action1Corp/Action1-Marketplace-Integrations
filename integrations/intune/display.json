@@ -14,7 +14,7 @@
       "label": "History",
       "path": "history",
       "icon": "History",
-      "marketplaceAction": "history"
+      "hostService": "history"
     },
     {
       "id": "settings",
@@ -22,7 +22,7 @@
       "path": "settings",
       "icon": "Settings",
       "requiresWrite": true,
-      "marketplaceAction": "settings"
+      "hostService": "settings"
     }
   ],
   "history": {
