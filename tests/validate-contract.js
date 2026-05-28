@@ -14,11 +14,10 @@ async function run() {
 
     const integrationDir = path.join(root, entry.name);
     const manifest = JSON.parse(fs.readFileSync(path.join(integrationDir, 'manifest.json'), 'utf8'));
-    const hostServices = manifest.hostServices || [];
-    assert(!Object.prototype.hasOwnProperty.call(manifest, 'capabilities'), `${manifest.id}: use hostServices instead of capabilities`);
-    assert(!Object.prototype.hasOwnProperty.call(manifest, 'marketplaceActions'), `${manifest.id}: use hostServices instead of marketplaceActions`);
+    assert(!Object.prototype.hasOwnProperty.call(manifest, 'capabilities'), `${manifest.id}: capabilities are inferred and should not be in manifest.json`);
+    assert(!Object.prototype.hasOwnProperty.call(manifest, 'marketplaceActions'), `${manifest.id}: marketplaceActions should not be in manifest.json`);
+    assert(!Object.prototype.hasOwnProperty.call(manifest, 'hostServices'), `${manifest.id}: hostServices should not be in manifest.json`);
     assert(!Object.prototype.hasOwnProperty.call(manifest, 'settings'), `${manifest.id}: settings belong in ui/settingsSchema.json`);
-    assert(Array.isArray(hostServices), `${manifest.id}: hostServices should be an array`);
     const displayPath = path.join(integrationDir, 'display.json');
     const handlerPath = path.join(integrationDir, manifest.entry || 'index.js');
     const migrationsDir = path.join(integrationDir, 'migrations');
@@ -43,17 +42,17 @@ async function run() {
         assert.strictEqual(typeof handler.actions[action.id], 'function', `${manifest.id}: action ${action.id} requires a handler`);
       }
     }
-    if (hostServices.includes('validate')) {
-      assert(fs.existsSync(path.join(integrationDir, 'validate.js')), `${manifest.id}: validate hostService requires validate.js`);
-      assert.strictEqual(typeof handler.validate, 'function', `${manifest.id}: validate hostService requires validate()`);
+    if (fs.existsSync(path.join(integrationDir, 'validate.js'))) {
+      assert(fs.existsSync(path.join(integrationDir, 'validate.js')), `${manifest.id}: validate.js should exist when validation is implemented`);
+      assert.strictEqual(typeof handler.validate, 'function', `${manifest.id}: validate.js requires an exported validate() handler`);
       const result = await handler.validate({ settings: {}, logger: console });
       assert(result && typeof result === 'object', `${manifest.id}: validate() should return an object`);
       assert(Object.prototype.hasOwnProperty.call(result, manifest.id), `${manifest.id}: validate() should include vendor result key`);
     }
 
-    if (hostServices.includes('sync')) {
-      assert(fs.existsSync(path.join(integrationDir, 'sync.js')), `${manifest.id}: sync hostService requires sync.js`);
-      assert.strictEqual(typeof handler.sync, 'function', `${manifest.id}: sync hostService requires sync()`);
+    if (fs.existsSync(path.join(integrationDir, 'sync.js'))) {
+      assert(fs.existsSync(path.join(integrationDir, 'sync.js')), `${manifest.id}: sync.js should exist when sync is implemented`);
+      assert.strictEqual(typeof handler.sync, 'function', `${manifest.id}: sync.js requires an exported sync() handler`);
     }
 
     if (fs.existsSync(displayPath)) {

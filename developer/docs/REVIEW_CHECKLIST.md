@@ -21,7 +21,7 @@ Use this checklist before merging an integration pull request.
 
 - Metadata is clear and customer-facing.
 - `category` is appropriate.
-- `hostServices` only includes services the integration supports.
+- Runtime behavior is inferred from integration-owned files and exported handlers.
 - `schedule` is not declared unless `sync` is also declared.
 - Required settings are marked `required`.
 - Sensitive settings use `type: "secret"`.
@@ -30,8 +30,8 @@ Use this checklist before merging an integration pull request.
 ## Display Review
 
 - Navigation only includes views the integration supports.
-- Settings navigation uses `hostService: "settings"` and `requiresWrite: true`.
-- History navigation uses `hostService: "history"` when history is declared.
+- Settings navigation uses `requiresWrite: true`.
+- History navigation points to a history view when the integration exposes one.
 - Dashboard metadata matches the integration-owned React view that consumes it.
 - Columns and cards map to real integration-owned data sources.
 - Column labels are clear to a customer.

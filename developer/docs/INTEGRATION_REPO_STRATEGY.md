@@ -82,7 +82,7 @@ Benefits:
 
 An integration package should contain:
 
-- `manifest.json` for metadata and `hostServices`
+- `manifest.json` for catalog metadata
 - `ui/settingsSchema.json` for integration-owned settings
 - `display.json` for integration-owned screens and navigation
 - `ui/index.jsx` and React components for every visible screen

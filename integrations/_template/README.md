@@ -6,7 +6,7 @@ Template folders are ignored by the Marketplace runtime because the directory na
 
 Recommended files:
 
-- `manifest.json` for metadata and `hostServices`
+- `manifest.json` for catalog metadata
 - `ui/settingsSchema.json` for settings
 - `display.json` for integration-owned navigation and views
 - `migrations/` for integration-owned database schema

@@ -158,16 +158,14 @@
       "id": "history",
       "label": "History",
       "path": "history",
-      "icon": "History",
-      "hostService": "history"
+      "icon": "History"
     },
     {
       "id": "settings",
       "label": "Settings",
       "path": "settings",
       "icon": "Settings",
-      "requiresWrite": true,
-      "hostService": "settings"
+      "requiresWrite": true
     }
   ],
   "endpoints": {

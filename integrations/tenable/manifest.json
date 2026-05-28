@@ -8,11 +8,5 @@
   "description": "Synchronize vulnerabilities from Tenable.io into Action1.",
   "category": "Vulnerability Management",
   "icon_color": "#2E8CEB",
-  "entry": "index.js",
-  "hostServices": [
-    "sync",
-    "validate",
-    "history",
-    "schedule"
-  ]
+  "entry": "index.js"
 }

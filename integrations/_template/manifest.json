@@ -7,8 +7,5 @@
   "minimumMarketplaceVersion": "1.0.0",
   "description": "Use this folder as a starting point for a new Marketplace integration.",
   "category": "Example",
-  "icon_color": "#2E8CEB",
-  "hostServices": [
-    "settings"
-  ]
+  "icon_color": "#2E8CEB"
 }

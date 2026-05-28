@@ -7,11 +7,5 @@
   "minimumMarketplaceVersion": "1.0.0",
   "description": "Sync Intune managed devices and compliance status with Action1.",
   "category": "Endpoint Management",
-  "icon_color": "#00A4EF",
-  "hostServices": [
-    "sync",
-    "validate",
-    "history",
-    "schedule"
-  ]
+  "icon_color": "#00A4EF"
 }

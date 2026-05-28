@@ -4,7 +4,7 @@ Each folder in this directory is loaded by the Marketplace runtime, unless the f
 
 Each integration should include:
 
-- `manifest.json` for metadata and `hostServices`
+- `manifest.json` for catalog metadata
 - `ui/settingsSchema.json` for integration-owned settings fields
 - `display.json` for integration-owned navigation and views
 - `migrations/` for integration-owned database schema

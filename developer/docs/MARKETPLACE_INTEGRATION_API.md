@@ -2,7 +2,7 @@
 
 Current API version: `1.0`
 
-The Action1 Integration Marketplace loads integrations as folder-based packages. Each package declares its metadata, host services, integration-owned settings schema, visible screens, database schema, and runtime handlers.
+The Action1 Integration Marketplace loads integrations as folder-based packages. Each package declares its catalog metadata, integration-owned settings schema, visible screens, database schema, and runtime handlers.
 
 ## Package Layout
 
@@ -38,28 +38,24 @@ Every integration must provide `manifest.json`.
   "category": "Vulnerability Management",
   "icon_color": "#2E8CEB",
   "entry": "index.js",
-  "hostServices": ["settings", "validate", "sync", "history", "schedule"],
   "actions": []
 }
 ```
 
-### Supported `hostServices`
+### Inferred Runtime Behavior
 
-`hostServices` enable Marketplace host runtime services. They do not define integration screens, and they do not move vendor-specific behavior into the Marketplace.
+Runtime behavior is inferred from the integration package instead of being declared in the manifest.
 
-| Host Service | Purpose |
+| Package Content | Marketplace Behavior |
 | --- | --- |
-| `settings` | Expose Marketplace settings storage APIs and allow settings UI actions. |
-| `validate` | Allow integration-owned validation handlers to be called from integration UI. |
-| `sync` | Allow integration-owned run handlers to be called manually or by schedules. |
-| `history` | Allow integration UI to read Marketplace run history for this integration. |
-| `schedule` | Enable the Marketplace scheduler for this integration. |
-
-If `schedule` is declared, `sync` must also be declared.
+| `ui/settingsSchema.json` plus a settings view | settings storage, secret masking, and configured-state detection |
+| exported validation handler | credential validation endpoint can dispatch to the integration |
+| exported run handler | manual runs and schedules can dispatch to the integration |
+| history view or API calls | integration UI can read Marketplace run history |
 
 ### Integration Actions
 
-Integrations can define custom actions in `manifest.json`. Integration-owned React views render those actions and call the host service endpoint, which dispatches the request back to the integration-owned handler.
+Integrations can define custom actions in `manifest.json`. Integration-owned React views render those actions and call the Marketplace action endpoint, which dispatches the request back to the integration-owned handler.
 
 ```json
 {
@@ -122,7 +118,7 @@ Generic actions are exported as an action map keyed by action id. Each action re
 
 ### Validation Handler
 
-Required only when the integration declares the validation action. The handler belongs to the integration and should contain the vendor-specific credential check.
+Optional. When exported by the integration entrypoint, the Marketplace validation endpoint can dispatch to it. The handler belongs to the integration and should contain the vendor-specific credential check.
 
 Return keyed validation results:
 
@@ -137,7 +133,7 @@ If the integration does not use Action1 credentials directly, omit `action1`.
 
 ### Run Handler
 
-Required only when the integration declares the run action. The handler belongs to the integration and should contain the vendor-specific job logic.
+Optional. When exported by the integration entrypoint, the Marketplace can dispatch manual runs and scheduled runs to it. The handler belongs to the integration and should contain the vendor-specific job logic.
 
 The run handler should:
 
@@ -254,7 +250,7 @@ Visible integration screens are defined by `display.navigation`. Other top-level
   "navigation": [
     { "id": "asset-risk", "label": "Asset Risk", "path": "asset-risk", "icon": "Activity" },
     { "id": "deployment-status", "label": "Deployment Status", "path": "deployment-status", "icon": "Server" },
-    { "id": "settings", "label": "Settings", "path": "settings", "icon": "Settings", "hostService": "settings", "requiresWrite": true }
+    { "id": "settings", "label": "Settings", "path": "settings", "icon": "Settings", "requiresWrite": true }
   ],
   "asset-risk": {
     "title": "Asset Risk",

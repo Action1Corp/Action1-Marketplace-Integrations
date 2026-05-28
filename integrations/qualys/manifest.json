@@ -7,11 +7,5 @@
   "minimumMarketplaceVersion": "1.0.0",
   "description": "Ingest Qualys scan findings into Action1.",
   "category": "Vulnerability Management",
-  "icon_color": "#E84B4B",
-  "hostServices": [
-    "sync",
-    "validate",
-    "history",
-    "schedule"
-  ]
+  "icon_color": "#E84B4B"
 }

@@ -2,7 +2,7 @@
 
 Each integration owns its visible Marketplace screens in `display.json` and `ui/`.
 
-`hostServices` define host services. `display.json` defines navigation and any screen metadata the integration's React views want to consume.
+`display.json` defines navigation and any screen metadata the integration's React views want to consume.
 
 ## Top-Level Shape
 
@@ -33,8 +33,8 @@ Navigation controls the tabs shown under the enabled integration in the sidebar.
     { "id": "dashboard", "label": "Dashboard", "path": "dashboard", "icon": "Activity" },
     { "id": "endpoints", "label": "Endpoints", "path": "endpoints", "icon": "Server" },
     { "id": "vulnerabilities", "label": "Vulnerabilities", "path": "vulnerabilities", "icon": "ShieldAlert" },
-    { "id": "history", "label": "History", "path": "history", "icon": "History", "hostService": "history" },
-    { "id": "settings", "label": "Settings", "path": "settings", "icon": "Settings", "hostService": "settings", "requiresWrite": true }
+    { "id": "history", "label": "History", "path": "history", "icon": "History" },
+    { "id": "settings", "label": "Settings", "path": "settings", "icon": "Settings", "requiresWrite": true }
   ]
 }
 ```
@@ -45,10 +45,7 @@ Fields:
 - `label`: sidebar label.
 - `path`: route segment under `/apps/<integration_id>/`.
 - `icon`: Marketplace icon name.
-- `hostService`: optional service dependency.
 - `requiresWrite`: hide from read-only users when true.
-
-Use `hostService` only for Marketplace services such as `settings`, `history`, `sync`, `validate`, or `schedule`.
 
 ## Optional View Metadata
 
@@ -199,7 +196,7 @@ Settings fields usually come from the integration's `ui/settingsSchema.json`. Th
 
 ## Custom Action Screen Metadata
 
-Custom action screen metadata is one pattern for a screen that contains integration-owned action buttons. The integration-owned React view renders the screen and calls host service endpoints, and the Marketplace dispatches those calls to handlers exported by the integration.
+Custom action screen metadata is one pattern for a screen that contains integration-owned action buttons. The integration-owned React view renders the screen and calls Marketplace action endpoints, and the Marketplace dispatches those calls to handlers exported by the integration.
 
 ```json
 {

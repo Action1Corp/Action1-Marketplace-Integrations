@@ -7,11 +7,5 @@
   "minimumMarketplaceVersion": "1.0.0",
   "description": "Import Rapid7 asset risk scores into Action1.",
   "category": "Vulnerability Management",
-  "icon_color": "#FF6B00",
-  "hostServices": [
-    "sync",
-    "validate",
-    "history",
-    "schedule"
-  ]
+  "icon_color": "#FF6B00"
 }

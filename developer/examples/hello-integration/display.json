@@ -10,8 +10,7 @@
       "id": "history",
       "label": "History",
       "path": "history",
-      "icon": "History",
-      "hostService": "history"
+      "icon": "History"
     },
     {
       "id": "actions-lab",
@@ -25,8 +24,7 @@
       "label": "Settings",
       "path": "settings",
       "icon": "Settings",
-      "requiresWrite": true,
-      "hostService": "settings"
+      "requiresWrite": true
     }
   ],
   "dashboard": {

@@ -42,12 +42,5 @@
       "description": "Uses Marketplace runtime context to return integration and database information.",
       "placement": "actions-lab"
     }
-  ],
-  "hostServices": [
-    "settings",
-    "validate",
-    "sync",
-    "history",
-    "schedule"
   ]
 }

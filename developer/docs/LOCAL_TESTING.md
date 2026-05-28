@@ -13,7 +13,7 @@ npm test
 This checks:
 
 - manifest shape
-- supported `hostServices`
+- inferred runtime behavior from handlers and UI files
 - display definitions
 - migration naming
 - standard table requirements
@@ -109,7 +109,7 @@ If migrations do not apply:
 
 If validation or sync does not run:
 
-- confirm `hostServices` includes `validate` or `sync`
+- confirm the integration entrypoint exports the expected validation or run handler
 - confirm `index.js` exports the matching handler
 - confirm the handler returns or resolves a promise
 - check Marketplace run history and container logs

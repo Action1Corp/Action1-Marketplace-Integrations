@@ -4,7 +4,7 @@ Connect Microsoft Defender for Endpoint vulnerabilities.
 
 ## Files
 
-- `manifest.json` - Marketplace metadata and host services.
+- `manifest.json` - Marketplace catalog metadata.
 - `display.json` - Integration-owned navigation, dashboards, and display definitions.
 - ui/settingsSchema.json - Integration-owned settings schema.
 - `migrations/` - Integration-owned database schema.
@@ -12,16 +12,14 @@ Connect Microsoft Defender for Endpoint vulnerabilities.
 - Validation handler - Optional integration-owned credential validation logic.
 - Run handler - Optional integration-owned job logic for collecting and writing integration data.
 
-## Marketplace-Provided Actions
+## Runtime Behavior
 
-This integration declares the Marketplace services its integration-owned UI and handlers use:
+The Marketplace infers supported operations from this integration's files and exported handlers:
 
-- `sync` - allow manual or scheduled calls to the integration-owned run handler.
-- `validate` - allow credential validation calls to the integration-owned validation handler.
-- `history` - allow the integration-owned UI to read Marketplace run history for this integration.
-- `schedule` - allow the Marketplace scheduler to run this integration on its configured schedule.
-
-These are host services. Vendor-specific behavior, data mapping, screens, labels, and custom actions remain owned by the integration.
+- Settings are available because this package provides `ui/settingsSchema.json` and a settings view.
+- Credential validation is available when the entrypoint exports a validation handler.
+- Manual runs and scheduling are available when the entrypoint exports a run handler.
+- Run history is available to integration-owned views through Marketplace APIs.
 
 ## Integration-Owned Views
 

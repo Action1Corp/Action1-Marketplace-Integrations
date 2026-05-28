@@ -40,13 +40,13 @@ The Marketplace owns the host framework:
 - settings and secret storage APIs
 - shared Action1 API credentials
 - SMTP and webhook failure notification framework
-- action button wiring when an integration declares host services
+- action endpoint dispatch for integration-owned custom actions
 - per-integration schedules
 - shared framework tables such as settings, sync history, schedules, auth, CVE metadata, and migration tracking
 
 Each integration owns its vendor-specific behavior:
 
-- metadata and `hostServices` in `manifest.json`
+- catalog metadata in `manifest.json`
 - navigation and integration-owned screen metadata in `display.json`
 - settings schema in `ui/settingsSchema.json`
 - React views for every visible screen in `ui/`
@@ -73,8 +73,8 @@ The scaffold creates a complete starting point:
 - `manifest.json`
 - `display.json`
 - `index.js`
-- optional validation handler, when the integration declares the validation action
-- optional run handler, when the integration declares the run action
+- optional validation handler
+- optional run handler
 - `ui/index.jsx` and any view components
 - `ui/settingsSchema.json`
 - `migrations/001_create_schema.sql`

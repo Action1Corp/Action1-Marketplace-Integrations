@@ -50,19 +50,9 @@ Required fields:
 - `minimumMarketplaceVersion`
 - `description`
 - `category`
-- `hostServices`
 - `actions`, when the integration exposes custom host-screen actions
-- `settings`
 
-Only declare Marketplace services the integration actually supports.
-
-```json
-{
-  "hostServices": ["settings", "validate", "sync", "history", "schedule"]
-}
-```
-
-If the integration has no sync job, omit `sync`, `history`, and `schedule`.
+Do not declare runtime capabilities in the manifest. The Marketplace infers behavior from the files and handlers the integration provides.
 
 Do not declare these shared Marketplace settings:
 
@@ -77,13 +67,15 @@ Use `context.action1.getCredentials()` when the integration needs Action1 API ac
 Settings in `ui/settingsSchema.json` are vendor-specific configuration fields owned by the integration. The integration settings view can import this file to render controls, and the Marketplace backend reads it to protect secret values.
 
 ```json
-{
-  "key": "AcmeApiToken",
-  "label": "API Token",
-  "type": "secret",
-  "group": "ACME Configuration",
-  "required": true
-}
+[
+  {
+    "key": "AcmeApiToken",
+    "label": "API Token",
+    "type": "secret",
+    "group": "ACME Configuration",
+    "required": true
+  }
+]
 ```
 
 Supported types:
@@ -111,7 +103,7 @@ Example screen paths used by existing integrations:
 
 These are examples, not required screen names. An integration can define any route-safe screen path, such as `asset-risk`, `deployment-status`, or `license-usage`.
 
-Every visible screen path must also have a matching React view exported from `ui/index.jsx`. Visible screens are not defined in `hostServices`.
+Every visible screen path must also have a matching React view exported from `ui/index.jsx`.
 
 See `DISPLAY_REFERENCE.md` for the full display contract.
 

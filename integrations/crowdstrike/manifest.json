@@ -7,11 +7,5 @@
   "minimumMarketplaceVersion": "1.0.0",
   "description": "Correlate CrowdStrike detections and vulns with Action1 inventory.",
   "category": "EDR / XDR",
-  "icon_color": "#E00400",
-  "hostServices": [
-    "sync",
-    "validate",
-    "history",
-    "schedule"
-  ]
+  "icon_color": "#E00400"
 }

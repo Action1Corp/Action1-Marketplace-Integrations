@@ -58,15 +58,14 @@ writeJson('manifest.json', {
   description: `Connect ${displayName} to the Action1 Integration Marketplace.`,
   category: 'Integration',
   icon_color: '#2E8CEB',
-  entry: 'index.js',
-  hostServices: ['settings', 'validate', 'sync', 'history', 'schedule']
+  entry: 'index.js'
 });
 
 writeJson('display.json', {
   navigation: [
     { id: 'dashboard', label: 'Dashboard', path: 'dashboard', icon: 'Activity' },
-    { id: 'history', label: 'History', path: 'history', icon: 'History', hostService: 'history' },
-    { id: 'settings', label: 'Settings', path: 'settings', icon: 'Settings', hostService: 'settings', requiresWrite: true }
+    { id: 'history', label: 'History', path: 'history', icon: 'History' },
+    { id: 'settings', label: 'Settings', path: 'settings', icon: 'Settings', requiresWrite: true }
   ],
   dashboard: {
     title: '{integrationName} Dashboard',
@@ -280,20 +279,21 @@ writeFile('README.md', `
 
 This integration was generated with \`npm run create-integration -- ${id}\`.
 
-## Host Services
+## Runtime Behavior
 
-- Settings
-- Credential validation
-- Manual sync
-- Run history
-- Per-integration scheduling
+The Marketplace infers supported operations from the handlers and UI files this package provides:
+
+- \`ui/settingsSchema.json\` and the settings view enable integration settings.
+- \`validate.js\` and an exported validation handler enable credential validation.
+- \`sync.js\` and an exported run handler enable manual runs and scheduling.
+- A history view can read Marketplace run history for this integration.
 
 Visible screens are declared in \`display.json\` navigation and rendered by React views exported from \`ui/index.jsx\`.
 Every visible screen must also have a matching integration-owned React view exported from \`ui/index.jsx\`.
 
 ## Next Steps
 
-1. Update \`manifest.json\` metadata, category, and host services.
+1. Update \`manifest.json\` metadata and category.
 2. Implement the integration-owned validation handler if this integration declares the validation action.
 3. Implement the integration-owned run handler if this integration declares the run action.
 4. Update \`migrations/001_create_schema.sql\` with this integration's private tables.

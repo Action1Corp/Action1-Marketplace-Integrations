@@ -20,8 +20,8 @@ function Settings({ integration }) {
   const [validationResult, setValidationResult] = useState(null);
   const [scheduleUi, setScheduleUi] = useState(cronToSchedule(''));
   const sensitiveSettings = useMemo(() => new Set(settingsSchema.filter(setting => setting.type === 'secret' || setting.sensitive).map(setting => setting.key)), [settingsSchema]);
-  const supportsSchedule = (meta?.hostServices || []).includes('schedule') || (meta?.hostServices || []).includes('sync');
-  const supportsValidation = (meta?.hostServices || []).includes('validate');
+  const supportsSchedule = Boolean(meta?.operations?.schedule || meta?.operations?.sync);
+  const supportsValidation = Boolean(meta?.operations?.validate);
 
   useEffect(() => {
     Promise.all([fetch(`/api/marketplace/${integration}`).then(r => r.json()), fetch('/api/settings').then(r => r.json())])
