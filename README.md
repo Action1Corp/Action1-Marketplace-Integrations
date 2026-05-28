@@ -46,7 +46,7 @@ The Marketplace owns the host framework:
 Each integration owns its vendor-specific behavior:
 
 - metadata and `marketplaceActions` in `manifest.json`
-- navigation, tabs, dashboard sections, labels, and columns in `display.json`
+- navigation and integration-owned screen metadata in `display.json`
 - React views for every visible screen in `ui/`
 - optional integration-owned credential validation handler
 - optional integration-owned run handler for vendor jobs, collection, or synchronization

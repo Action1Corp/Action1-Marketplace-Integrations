@@ -80,7 +80,7 @@ Integrations can define custom actions in `manifest.json`. Integration-owned Rea
 Supported placements:
 
 - `settings`
-- a custom screen path declared in `display.customScreens`, such as `actions-lab`
+- any screen path declared in `display.navigation`, such as `actions-lab` or `asset-risk`
 
 The action `id` must be lowercase kebab-case and must match an integration-owned handler exported from the entrypoint.
 
@@ -243,63 +243,26 @@ The Marketplace framework owns shared tables for settings, authentication, sched
 
 ## Display Definitions
 
-Visible integration screens are defined in `display.json`.
+Visible integration screens are defined by `display.navigation`. Other top-level keys in `display.json` are integration-owned metadata for the integration's React views.
 
 ```json
 {
   "navigation": [
-    { "id": "dashboard", "label": "Dashboard", "path": "dashboard", "icon": "Activity" },
-    { "id": "endpoints", "label": "Endpoints", "path": "endpoints", "icon": "Server" },
+    { "id": "asset-risk", "label": "Asset Risk", "path": "asset-risk", "icon": "Activity" },
+    { "id": "deployment-status", "label": "Deployment Status", "path": "deployment-status", "icon": "Server" },
     { "id": "settings", "label": "Settings", "path": "settings", "icon": "Settings", "marketplaceAction": "settings", "requiresWrite": true }
   ],
-  "dashboard": {
-    "component": "metric-dashboard",
-    "title": "{integrationName} Vulnerability Summary",
-    "description": "Comprehensive analysis across {integrationName} and Action1.",
-    "kpis": [],
-    "sections": []
+  "asset-risk": {
+    "title": "Asset Risk",
+    "columns": []
   },
-  "endpoints": {
-    "title": "Endpoints",
-    "searchPlaceholder": "Search endpoints...",
-    "defaultSort": { "key": "endpoint_name", "direction": "asc" },
-    "columns": [
-      { "key": "endpoint_name", "label": "Name", "type": "strong" },
-      { "key": "integration_total_vulns", "label": "{integrationName} Total", "type": "number" },
-      { "key": "status", "label": "Status", "type": "syncStatus" }
-    ]
-  },
-  "vulnerabilities": {
-    "title": "Vulnerabilities",
-    "columns": [
-      { "key": "cve", "label": "CVE", "type": "nistLink", "filterParam": "cve" },
-      { "key": "severity", "label": "Severity", "type": "severityBadgeDynamic", "filterParam": "severityColumn" }
-    ]
-  },
-  "history": {
-    "title": "Run History",
-    "columns": [
-      { "key": "id", "label": "Run ID", "type": "runId" },
-      { "key": "status", "label": "Status", "type": "runStatus" }
-    ]
-  },
-  "settings": {
-    "title": "Configuration",
-    "validateButtonLabel": "Validate Credentials",
-    "saveButtonLabel": "Save Settings",
-    "scheduleTitle": "Schedule"
-  },
-  "customScreens": {
-    "actions-lab": {
-      "title": "Actions Lab",
-      "description": "Run integration-owned operations and display their results.",
-      "actions": ["inspect-settings", "generate-summary", "runtime-diagnostics"]
-    }
+  "deployment-status": {
+    "title": "Deployment Status"
   }
 }
 ```
 
-The integration owns the labels, columns, metrics, navigation, and the React views for every screen it exposes. The Marketplace uses `display.json` for navigation metadata and for any integration UI helper components that choose to read it.
+The integration owns the labels, columns, metrics, navigation, metadata keys, and the React views for every screen it exposes. Existing integrations use keys like `dashboard`, `endpoints`, `vulnerabilities`, `history`, `settings`, and `customScreens`, but those are not required screen types.
 
 ## Integration-Owned React Views
 

@@ -1,34 +1,27 @@
 # Display Reference
 
-Each integration owns its visible Marketplace screens in `display.json`.
+Each integration owns its visible Marketplace screens in `display.json` and `ui/`.
 
-`marketplaceActions` define host services. `display.json` defines screens, tabs, labels, columns, and dashboard sections.
+`marketplaceActions` define host services. `display.json` defines navigation and any screen metadata the integration's React views want to consume.
 
 ## Top-Level Shape
+
+Only `navigation` has a Marketplace-level meaning. Every other top-level key is integration-owned metadata.
 
 ```json
 {
   "navigation": [],
-  "dashboard": {},
-  "endpoints": {},
-  "vulnerabilities": {},
-  "history": {},
-  "settings": {},
-  "customScreens": {}
+  "asset-risk": {
+    "title": "Asset Risk",
+    "columns": []
+  },
+  "deployment-status": {
+    "title": "Deployment Status"
+  }
 }
 ```
 
-Supported top-level sections:
-
-- `navigation`
-- `dashboard`
-- `endpoints`
-- `vulnerabilities`
-- `history`
-- `settings`
-- `customScreens`
-
-Only define sections the integration actually uses.
+Existing integrations use keys such as `dashboard`, `endpoints`, `vulnerabilities`, `history`, `settings`, and `customScreens`. Those are examples, not required screen types. A new integration can define `asset-risk`, `agent-deployment`, `license-usage`, or any other screen metadata that fits its domain.
 
 ## Navigation
 
@@ -57,7 +50,13 @@ Fields:
 
 Use `marketplaceAction` only for Marketplace services such as `settings`, `history`, `sync`, `validate`, or `schedule`.
 
-## Dashboard
+## Optional Shared Helper Metadata
+
+The integrations repository includes shared React helper views for common vulnerability-management screens. If an integration chooses to use those helper views, it can use the metadata shapes below.
+
+These sections are not Marketplace-owned screen types. Custom React views can ignore them or define different metadata.
+
+## Dashboard Helper Metadata
 
 Shared helper dashboard views can use:
 
@@ -73,7 +72,7 @@ Shared helper dashboard views can use:
 }
 ```
 
-Supported dashboard components:
+Helper dashboard components:
 
 - `metric-dashboard`
 - `intune-agent-status`
@@ -139,7 +138,7 @@ Severity distribution section:
 }
 ```
 
-## Endpoints View
+## Endpoints Helper Metadata
 
 ```json
 {
@@ -163,7 +162,7 @@ Columns map to fields returned from the integration endpoint table.
 }
 ```
 
-## Vulnerabilities View
+## Vulnerabilities Helper Metadata
 
 ```json
 {
@@ -188,7 +187,7 @@ Use `filterParam` for column filters.
 }
 ```
 
-## History View
+## History Helper Metadata
 
 ```json
 {
@@ -208,7 +207,7 @@ Use `filterParam` for column filters.
 }
 ```
 
-## Settings View
+## Settings Helper Metadata
 
 ```json
 {
@@ -223,9 +222,9 @@ Use `filterParam` for column filters.
 
 Settings fields come from `manifest.json`. Schedule controls appear when the integration declares `schedule` or `sync`.
 
-## Custom Action Screens
+## Custom Action Screen Metadata
 
-Custom action screens let an integration define a screen that contains integration-owned action buttons. The integration-owned React view renders the screen and calls Marketplace action endpoints, and the Marketplace dispatches those calls to handlers exported by the integration.
+Custom action screen metadata is one pattern for a screen that contains integration-owned action buttons. The integration-owned React view renders the screen and calls Marketplace action endpoints, and the Marketplace dispatches those calls to handlers exported by the integration.
 
 ```json
 {

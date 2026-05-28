@@ -96,11 +96,11 @@ Supported types:
 
 Use `secret` for tokens, passwords, client secrets, private keys, and app passwords.
 
-## 4. Define Views
+## 4. Define Screens
 
-Edit `display.json` to declare the integration-owned tabs and UI behavior.
+Edit `display.json` to declare the integration-owned navigation and any screen metadata your React views need.
 
-Common tabs:
+Example screen paths used by existing integrations:
 
 - `dashboard`
 - `endpoints`
@@ -108,7 +108,9 @@ Common tabs:
 - `history`
 - `settings`
 
-Visible screens are defined in `display.json`, not in `marketplaceActions`.
+These are examples, not required screen names. An integration can define any route-safe screen path, such as `asset-risk`, `deployment-status`, or `license-usage`.
+
+Every visible screen path must also have a matching React view exported from `ui/index.jsx`. Visible screens are not defined in `marketplaceActions`.
 
 See `DISPLAY_REFERENCE.md` for the full display contract.
 

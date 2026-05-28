@@ -21,7 +21,6 @@ const supportedMarketplaceApiVersions = new Set(['1.0']);
 const supportedMarketplaceActions = new Set(['settings', 'validate', 'sync', 'history', 'schedule']);
 const supportedSettingTypes = new Set(['text', 'url', 'secret', 'select', 'number', 'checkbox']);
 const supportedActionPlacements = new Set(['settings']);
-const supportedDisplaySections = new Set(['navigation', 'dashboard', 'endpoints', 'vulnerabilities', 'history', 'settings', 'customScreens']);
 const marketplaceOwnedSettings = new Set(['Action1APIKey', 'Action1APISecret', 'Action1OrgID']);
 const supportedColumnTypes = new Set([
   'strong',
@@ -236,13 +235,6 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
   }
 
   if (display) {
-    for (const key of Object.keys(display)) {
-      if (!supportedDisplaySections.has(key)) {
-        console.error(`${entry.name}: unsupported display section ${key}`);
-        failures += 1;
-      }
-    }
-
     if (!Array.isArray(display.navigation) || display.navigation.length === 0) {
       console.error(`${entry.name}: display.json must define navigation entries`);
       failures += 1;
@@ -267,6 +259,9 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
         if (uiViewKeys && item.path && !uiViewKeys.has(item.path)) {
           console.error(`${entry.name}: ui/index.jsx must export a view for navigation path ${item.path}`);
           failures += 1;
+        }
+        if (item.path) {
+          availableActionPlacements.add(item.path);
         }
       }
     }
