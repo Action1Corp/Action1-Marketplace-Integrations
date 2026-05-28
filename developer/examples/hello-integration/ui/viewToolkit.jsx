@@ -121,7 +121,7 @@ function DataTable({ title, columns, rows, emptyText, integration }) {
   );
 }
 
-function DashboardView({ integration, runSync, canRunSync }) {
+export function Dashboard({ integration, runSync, canRunSync }) {
   const meta = useIntegrationMeta(integration);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -166,7 +166,7 @@ function DashboardView({ integration, runSync, canRunSync }) {
   );
 }
 
-function EndpointsView({ integration }) {
+export function Endpoints({ integration }) {
   const meta = useIntegrationMeta(integration);
   const [rows, setRows] = useState([]);
   const display = meta?.display?.endpoints || {};
@@ -180,7 +180,7 @@ function EndpointsView({ integration }) {
   return <DataTable title={display.title || 'Endpoints'} columns={columns} rows={rows} emptyText={display.emptyText} integration={integration} />;
 }
 
-function VulnerabilitiesView({ integration }) {
+export function Vulnerabilities({ integration }) {
   const meta = useIntegrationMeta(integration);
   const location = useLocation();
   const [rows, setRows] = useState([]);
@@ -199,7 +199,7 @@ function VulnerabilitiesView({ integration }) {
   return <DataTable title={display.title || 'Vulnerabilities'} columns={columns} rows={rows} emptyText={display.emptyText} integration={integration} />;
 }
 
-function HistoryView({ integration }) {
+export function History({ integration }) {
   const meta = useIntegrationMeta(integration);
   const [rows, setRows] = useState([]);
   const display = meta?.display?.history || {};
@@ -222,7 +222,7 @@ function groupSettings(settingsSchema) {
   }, {});
 }
 
-function SettingsView({ integration }) {
+export function Settings({ integration }) {
   const [meta, setMeta] = useState(null);
   const [settings, setSettings] = useState({});
   const [storedSecrets, setStoredSecrets] = useState({});
@@ -386,12 +386,5 @@ function SettingsView({ integration }) {
   );
 }
 
-export function createStandardIntegrationViews() {
-  return {
-    dashboard: DashboardView,
-    endpoints: EndpointsView,
-    vulnerabilities: VulnerabilitiesView,
-    history: HistoryView,
-    settings: SettingsView
-  };
-}
+
+

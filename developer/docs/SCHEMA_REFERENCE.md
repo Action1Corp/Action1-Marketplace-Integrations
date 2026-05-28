@@ -12,9 +12,11 @@ Integrations own their database schema. The Marketplace applies integration migr
 
 The Marketplace supports local Postgres and Supabase Postgres. Existing migrations use a portable SQL subset that the Marketplace normalizes for Postgres.
 
-## Shared Helper Vulnerability Tables
+## Example Vulnerability Tables
 
-If a vulnerability-management integration uses the repository's shared helper views, create:
+Vulnerability-management integrations often need endpoint and finding tables. The exact tables are owned by the integration and should match the integration's React views and runtime handlers.
+
+One common pattern is:
 
 ```text
 <integration_id>_endpoints
@@ -79,7 +81,7 @@ Key columns:
 - `action1_critical_vulns`, `action1_high_vulns`, `action1_medium_vulns`, `action1_low_vulns`: Action1 vulnerability counts.
 - `patchable_vulns`: vendor CVEs with an available Action1 patch.
 
-The renderer also computes:
+An integration-owned view may compute:
 
 - `integration_total_vulns`
 - `action1_total_vulns`
@@ -111,7 +113,7 @@ Key columns:
 - `severity`: `Critical`, `High`, `Medium`, `Low`, or vendor-equivalent value.
 - `status`: patchability or remediation status. Current standard values include `Patch Available`, `No Patch Available`, and `Not Recognized`.
 
-The vulnerabilities view joins `cve_details` for plugin name, description, and solution when available.
+An integration-owned vulnerabilities view may join `cve_details` for plugin name, description, and solution when useful.
 
 ## Indexes
 

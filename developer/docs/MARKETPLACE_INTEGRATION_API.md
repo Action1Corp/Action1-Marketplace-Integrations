@@ -225,7 +225,7 @@ CREATE TABLE IF NOT EXISTS vendor_id_assets (
 );
 ```
 
-For vulnerability-management integrations that use the shared helper views, create:
+For vulnerability-management integrations, one common table pattern is:
 
 ```text
 <integration_id>_endpoints

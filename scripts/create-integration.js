@@ -56,7 +56,7 @@ writeJson('manifest.json', {
   marketplaceApiVersion: '1.0',
   minimumMarketplaceVersion: '1.0.0',
   description: `Connect ${displayName} to the Action1 Integration Marketplace.`,
-  category: 'Vulnerability Management',
+  category: 'Integration',
   icon_color: '#2E8CEB',
   entry: 'index.js',
   marketplaceActions: ['settings', 'validate', 'sync', 'history', 'schedule'],
@@ -85,14 +85,9 @@ writeJson('display.json', {
     { id: 'settings', label: 'Settings', path: 'settings', icon: 'Settings', marketplaceAction: 'settings', requiresWrite: true }
   ],
   dashboard: {
-    component: 'metric-dashboard',
     title: '{integrationName} Dashboard',
     description: 'Operational summary for {integrationName}.',
-    kpis: [
-      { label: 'TOTAL ENDPOINTS', metric: 'totalEndpoints', color: '#1D8EE6', tone: 'blue' },
-      { label: 'TOTAL VULNERABILITIES', metric: 'totalCves', color: '#111827', tone: 'gray' },
-      { label: 'PATCHABILITY RATE', metric: 'patchRate', color: '#10b981', tone: 'green' }
-    ],
+    cards: [],
     sections: []
   },
   history: {
@@ -169,52 +164,114 @@ module.exports = {
 };
 `);
 
-writeFile('ui/index.jsx', `
-import { createStandardIntegrationViews } from '../../_shared/ui/standardViews.jsx';
+writeFile('ui/Dashboard.jsx', `
+function Dashboard({ integration }) {
+  return (
+    <div>
+      <h1 className="page-title">${displayName} Dashboard</h1>
+      <div className="glass-panel">
+        <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
+          Build this screen with React components owned by the ${displayName} integration.
+        </p>
+      </div>
+    </div>
+  );
+}
 
-export const views = createStandardIntegrationViews();
+export default Dashboard;
+`);
+
+writeFile('ui/History.jsx', `
+import { useEffect, useState } from 'react';
+
+function History({ integration }) {
+  const [rows, setRows] = useState([]);
+
+  useEffect(() => {
+    fetch(\`/api/history?integration=\${integration}&page=1&pageSize=50\`)
+      .then(response => response.json())
+      .then(data => setRows(data.rows || []))
+      .catch(() => setRows([]));
+  }, [integration]);
+
+  return (
+    <div>
+      <h1 className="page-title">Run History</h1>
+      <div className="glass-panel">
+        {rows.length === 0 ? (
+          <div style={{ color: '#6B7280' }}>No runs have been recorded yet.</div>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Run ID</th>
+                <th>Timestamp</th>
+                <th>Status</th>
+                <th>Items Processed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(row => (
+                <tr key={row.id}>
+                  <td>#{row.id}</td>
+                  <td>{row.timestamp ? new Date(row.timestamp).toLocaleString() : ''}</td>
+                  <td>{row.status}</td>
+                  <td>{Number(row.assets_processed || 0).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default History;
+`);
+
+writeFile('ui/Settings.jsx', `
+function Settings() {
+  return (
+    <div>
+      <h1 className="page-title">Configuration</h1>
+      <div className="glass-panel">
+        <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
+          Add ${displayName} settings controls here. Use Marketplace settings APIs for storage and secret handling.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export default Settings;
+`);
+
+writeFile('ui/index.jsx', `
+import Dashboard from './Dashboard.jsx';
+import History from './History.jsx';
+import Settings from './Settings.jsx';
+
+export const views = {
+  dashboard: Dashboard,
+  history: History,
+  settings: Settings
+};
 `);
 
 writeFile('migrations/001_create_schema.sql', `
-CREATE TABLE IF NOT EXISTS ${id.replace(/-/g, '_')}_endpoints (
+CREATE TABLE IF NOT EXISTS ${id.replace(/-/g, '_')}_items (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   integration_id TEXT DEFAULT '${id}',
-  run_id INTEGER,
-  endpoint_name TEXT,
-  ipv4 TEXT,
-  mac TEXT,
-  os TEXT,
-  action1_id TEXT,
-  tenable_has_agent BOOLEAN,
-  missing_from_tenable BOOLEAN,
-  missing_from_action1 BOOLEAN,
-  defender_total_vulns INTEGER DEFAULT 0,
-  critical_vulns INTEGER DEFAULT 0,
-  high_vulns INTEGER DEFAULT 0,
-  medium_vulns INTEGER DEFAULT 0,
-  low_vulns INTEGER DEFAULT 0,
-  action1_critical_vulns INTEGER DEFAULT 0,
-  action1_high_vulns INTEGER DEFAULT 0,
-  action1_medium_vulns INTEGER DEFAULT 0,
-  action1_low_vulns INTEGER DEFAULT 0,
-  patchable_vulns INTEGER DEFAULT 0
+  external_id TEXT,
+  name TEXT,
+  status TEXT,
+  raw_json TEXT,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS ${id.replace(/-/g, '_')}_endpoint_cves (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  integration_id TEXT DEFAULT '${id}',
-  run_id INTEGER,
-  endpoint_name TEXT,
-  cve TEXT,
-  severity TEXT,
-  status TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_${id.replace(/-/g, '_')}_endpoints_run
-  ON ${id.replace(/-/g, '_')}_endpoints(run_id);
-
-CREATE INDEX IF NOT EXISTS idx_${id.replace(/-/g, '_')}_endpoint_cves_run
-  ON ${id.replace(/-/g, '_')}_endpoint_cves(run_id);
+CREATE INDEX IF NOT EXISTS idx_${id.replace(/-/g, '_')}_items_external_id
+  ON ${id.replace(/-/g, '_')}_items(external_id);
 `);
 
 writeFile('README.md', `

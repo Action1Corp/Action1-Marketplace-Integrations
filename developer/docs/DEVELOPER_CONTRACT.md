@@ -107,7 +107,7 @@ context.services.nvd
 context.services.computeAndSaveRunMetrics(runId, context.integrationId)
 ```
 
-Use `context.db.tables` when writing data for shared helper views that expect the endpoint and vulnerability table names.
+Use `context.db.tables` only when the integration follows the common endpoint/CVE table naming pattern. Otherwise, integrations can query their own tables directly through `context.db`.
 
 ## Shared Action1 Credentials
 
@@ -162,7 +162,7 @@ Integrations own tables for:
 - vulnerability mappings
 - any vendor-specific state
 
-For vulnerability-management integrations that use the shared helper views, integrations should create:
+For vulnerability-management integrations, one common table pattern is:
 
 ```text
 <integration_id>_endpoints

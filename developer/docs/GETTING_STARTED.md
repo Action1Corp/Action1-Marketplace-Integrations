@@ -118,14 +118,14 @@ See `DISPLAY_REFERENCE.md` for the full display contract.
 
 Add integration-owned tables in `migrations/*.sql`.
 
-For vulnerability-management integrations that use the shared helper views, create:
+For a vulnerability-management integration, you might create tables such as:
 
 ```text
 <integration_id>_endpoints
 <integration_id>_endpoint_cves
 ```
 
-Use the table names exposed at runtime:
+When an integration follows the common endpoint/CVE naming pattern, these table names are exposed at runtime:
 
 ```js
 const { endpoints, endpointCves } = context.db.tables;

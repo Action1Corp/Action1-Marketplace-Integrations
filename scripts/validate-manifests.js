@@ -68,15 +68,6 @@ function validateMigrations(entryName, integrationDir) {
   }
 }
 
-function readMigrationSql(integrationDir) {
-  const migrationsDir = path.join(integrationDir, 'migrations');
-  if (!fs.existsSync(migrationsDir)) return '';
-  return fs.readdirSync(migrationsDir, { withFileTypes: true })
-    .filter(entry => entry.isFile() && entry.name.endsWith('.sql'))
-    .map(entry => fs.readFileSync(path.join(migrationsDir, entry.name), 'utf8'))
-    .join('\n');
-}
-
 function readUiViewKeys(integrationDir) {
   const uiEntryPath = path.join(integrationDir, 'ui', 'index.jsx');
   if (!fs.existsSync(uiEntryPath)) return null;
@@ -87,9 +78,6 @@ function readUiViewKeys(integrationDir) {
       Array.from(directMatch[1].matchAll(/['"]?([a-z][a-z0-9-]*)['"]?\s*:/g))
         .map(match => match[1])
     );
-  }
-  if (/createStandardIntegrationViews\s*\(/.test(source)) {
-    return new Set(['dashboard', 'endpoints', 'vulnerabilities', 'history', 'settings']);
   }
   return new Set();
 }
@@ -211,7 +199,6 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
   }
   let display = null;
   const availableActionPlacements = new Set(supportedActionPlacements);
-  const migrationSql = readMigrationSql(integrationDir);
   if (fs.existsSync(displayPath)) {
     if (!fs.existsSync(displayPath)) {
       console.error(`${entry.name}: display.json is required for integration UI views`);
@@ -262,16 +249,6 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
     if (display.endpoints) validateDisplaySection(entry.name, display, 'endpoints', 'endpoints view');
     if (display.vulnerabilities) validateDisplaySection(entry.name, display, 'vulnerabilities', 'vulnerabilities view');
     if (display.history) validateDisplaySection(entry.name, display, 'history', 'history view');
-
-    const tablePrefix = manifest.id.replace(/[^a-z0-9]+/gi, '_').toLowerCase();
-    if (display.endpoints && !migrationSql.includes(`${tablePrefix}_endpoints`)) {
-      console.error(`${entry.name}: endpoint helper metadata requires ${tablePrefix}_endpoints in migrations`);
-      failures += 1;
-    }
-    if (display.vulnerabilities && !migrationSql.includes(`${tablePrefix}_endpoint_cves`)) {
-      console.error(`${entry.name}: vulnerability helper metadata requires ${tablePrefix}_endpoint_cves in migrations`);
-      failures += 1;
-    }
 
     const visibleViews = ['dashboard', 'endpoints', 'vulnerabilities', 'history'].filter(view => display[view]);
     for (const view of visibleViews) {

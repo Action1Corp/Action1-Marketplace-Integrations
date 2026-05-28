@@ -33,7 +33,7 @@ The Marketplace actions are different:
 - `history` allows the integration-owned UI to read Marketplace run history.
 - `schedule` allows the Marketplace scheduler to call the same run handler on the configured schedule.
 
-The migration file demonstrates integration-owned endpoint and vulnerability tables for helper views. Real integrations should define the database tables they need in `migrations/*.sql`.
+The migration file demonstrates integration-owned endpoint and vulnerability tables. Real integrations should define the database tables their own React views and handlers need in `migrations/*.sql`.
 
 ## Validation
 

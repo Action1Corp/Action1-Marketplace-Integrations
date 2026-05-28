@@ -1,12 +1,11 @@
 import Dashboard from './Dashboard.jsx';
 import ActionsLab from './ActionsLab.jsx';
-import { createStandardIntegrationViews } from '../../../../integrations/_shared/ui/standardViews.jsx';
-
-const standardViews = createStandardIntegrationViews();
+import History from './History.jsx';
+import Settings from './Settings.jsx';
 
 export const views = {
   dashboard: Dashboard,
-  history: standardViews.history,
+  history: History,
   'actions-lab': ActionsLab,
-  settings: standardViews.settings
+  settings: Settings
 };

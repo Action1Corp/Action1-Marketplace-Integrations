@@ -113,7 +113,7 @@ Section metadata is also integration-owned:
 }
 ```
 
-## Endpoints Helper Metadata
+## Endpoint-Style Screen Metadata
 
 ```json
 {
@@ -127,7 +127,7 @@ Section metadata is also integration-owned:
 }
 ```
 
-Columns map to fields returned from the integration endpoint table.
+Columns can map to any fields returned by the integration-owned React view. The view decides which integration-owned table, Marketplace API, custom action, or vendor source provides the data.
 
 ```json
 {
@@ -137,7 +137,7 @@ Columns map to fields returned from the integration endpoint table.
 }
 ```
 
-## Vulnerabilities Helper Metadata
+## Finding-Style Screen Metadata
 
 ```json
 {
@@ -151,7 +151,7 @@ Columns map to fields returned from the integration endpoint table.
 }
 ```
 
-Use `filterParam` for column filters.
+Use metadata such as `filterParam` only when the integration-owned React view implements that behavior.
 
 ```json
 {
@@ -162,7 +162,7 @@ Use `filterParam` for column filters.
 }
 ```
 
-## History Helper Metadata
+## History Screen Metadata
 
 ```json
 {
@@ -182,7 +182,7 @@ Use `filterParam` for column filters.
 }
 ```
 
-## Settings Helper Metadata
+## Settings Screen Metadata
 
 ```json
 {
@@ -195,7 +195,7 @@ Use `filterParam` for column filters.
 }
 ```
 
-Settings fields come from `manifest.json`. Schedule controls appear when the integration declares `schedule` or `sync`.
+Settings fields usually come from `manifest.json`. The integration-owned React view decides how to render settings, validation actions, schedules, and any custom controls while using Marketplace APIs for storage.
 
 ## Custom Action Screen Metadata
 
