@@ -32,8 +32,8 @@ Use this checklist before merging an integration pull request.
 - Navigation only includes views the integration supports.
 - Settings navigation uses `marketplaceAction: "settings"` and `requiresWrite: true`.
 - History navigation uses `marketplaceAction: "history"` when history is declared.
-- Dashboard sections use supported metrics.
-- Endpoint and vulnerability columns map to real query fields.
+- Dashboard metadata matches the integration-owned React view that consumes it.
+- Columns and cards map to real integration-owned data sources.
 - Column labels are clear to a customer.
 - Empty states and search placeholders are useful.
 
@@ -41,7 +41,7 @@ Use this checklist before merging an integration pull request.
 
 - Migration filenames use `001_description.sql` format.
 - Tables are integration-prefixed.
-- Standard endpoint/CVE views have required tables and columns.
+- Helper views have the integration-owned tables and columns they expect.
 - Indexes exist for run ID and common filters.
 - Migrations are additive after release.
 - Integration does not alter Marketplace-owned framework tables.

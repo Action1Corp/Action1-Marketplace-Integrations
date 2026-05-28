@@ -230,7 +230,7 @@ This integration was generated with \`npm run create-integration -- ${id}\`.
 - Run history
 - Per-integration scheduling
 
-Views such as dashboards, endpoint lists, and vulnerability tables are defined in \`display.json\`.
+Visible screens are declared in \`display.json\` navigation and rendered by React views exported from \`ui/index.jsx\`.
 Every visible screen must also have a matching integration-owned React view exported from \`ui/index.jsx\`.
 
 ## Next Steps

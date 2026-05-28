@@ -141,7 +141,7 @@ The run handler should:
 2. Fetch vendor data.
 3. Map vendor data into integration-owned tables.
 4. Update shared CVE metadata/cache where useful.
-5. Compute run metrics if using the standard metric dashboard.
+5. Compute or store any metrics needed by the integration-owned React views.
 6. Mark the run as success or failure.
 
 Prefer the helpers in `sdk/` for run-history consistency.

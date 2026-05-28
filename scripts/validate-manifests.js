@@ -40,7 +40,6 @@ const supportedColumnTypes = new Set([
   'muted',
   'patchStatus'
 ]);
-const supportedDashboardComponents = new Set(['metric-dashboard', 'intune-agent-status']);
 let failures = 0;
 
 function validateMigrations(entryName, integrationDir) {
@@ -103,13 +102,6 @@ function validateDisplaySection(entryName, display, section, requirement) {
   }
 
   if (section === 'dashboard') {
-    if (!display.dashboard.component) {
-      console.error(`${entryName}: display.dashboard must declare component`);
-      failures += 1;
-    } else if (!supportedDashboardComponents.has(display.dashboard.component)) {
-      console.error(`${entryName}: unsupported dashboard component ${display.dashboard.component}`);
-      failures += 1;
-    }
     return;
   }
 
@@ -272,12 +264,12 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
     if (display.history) validateDisplaySection(entry.name, display, 'history', 'history view');
 
     const tablePrefix = manifest.id.replace(/[^a-z0-9]+/gi, '_').toLowerCase();
-    if ((display.endpoints || display.dashboard?.component === 'metric-dashboard') && !migrationSql.includes(`${tablePrefix}_endpoints`)) {
-      console.error(`${entry.name}: shared endpoint/dashboard helper views require ${tablePrefix}_endpoints in migrations`);
+    if (display.endpoints && !migrationSql.includes(`${tablePrefix}_endpoints`)) {
+      console.error(`${entry.name}: endpoint helper metadata requires ${tablePrefix}_endpoints in migrations`);
       failures += 1;
     }
-    if ((display.vulnerabilities || display.dashboard?.component === 'metric-dashboard') && !migrationSql.includes(`${tablePrefix}_endpoint_cves`)) {
-      console.error(`${entry.name}: shared vulnerability/dashboard helper views require ${tablePrefix}_endpoint_cves in migrations`);
+    if (display.vulnerabilities && !migrationSql.includes(`${tablePrefix}_endpoint_cves`)) {
+      console.error(`${entry.name}: vulnerability helper metadata requires ${tablePrefix}_endpoint_cves in migrations`);
       failures += 1;
     }
 

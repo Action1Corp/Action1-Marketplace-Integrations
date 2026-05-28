@@ -50,91 +50,66 @@ Fields:
 
 Use `marketplaceAction` only for Marketplace services such as `settings`, `history`, `sync`, `validate`, or `schedule`.
 
-## Optional Shared Helper Metadata
+## Optional View Metadata
 
-The integrations repository includes shared React helper views for common vulnerability-management screens. If an integration chooses to use those helper views, it can use the metadata shapes below.
+Integration-owned React views can read any metadata shape from `display.json`. Use metadata to keep labels, columns, card definitions, thresholds, or query hints out of component code when that helps the integration stay maintainable.
 
-These sections are not Marketplace-owned screen types. Custom React views can ignore them or define different metadata.
+The examples below are patterns used by existing integrations. They are not Marketplace-owned screen contracts.
 
-## Dashboard Helper Metadata
+## Dashboard Metadata
 
-Shared helper dashboard views can use:
+An integration dashboard can define any metadata its React view understands:
 
 ```json
 {
   "dashboard": {
-    "component": "metric-dashboard",
-    "title": "{integrationName} Vulnerability Summary",
-    "description": "Comprehensive analysis across {integrationName} and Action1.",
-    "kpis": [],
-    "sections": []
+    "title": "Deployment Health",
+    "description": "Current deployment state and operational signals.",
+    "cards": [
+      {
+        "label": "Managed Devices",
+        "metric": "managedDevices",
+        "source": "intune_agent_state",
+        "color": "#1D8EE6"
+      }
+    ],
+    "sections": [
+      {
+        "id": "recent-failures",
+        "title": "Recent Failures",
+        "source": "intune_install_events"
+      }
+    ]
   }
 }
 ```
 
-Helper dashboard components:
+The Marketplace does not require a `component` value and does not decide where dashboard metrics come from. The integration's React view can query its own integration tables, call Marketplace APIs, call custom action endpoints, or combine those sources.
 
-- `metric-dashboard`
-- `intune-agent-status`
+For example, a vulnerability-management integration might choose to store summary metrics in its own `qualys_dashboard_metrics` table, while an Intune-style integration might read from `intune_app_state` or only from run history.
 
-`metric-dashboard` reads metrics computed from integration-owned endpoint and CVE tables.
-
-### KPI Metrics
+### Card Metadata
 
 ```json
 {
-  "label": "TOTAL VULNERABILITIES",
-  "metric": "totalCves",
+  "label": "Open Findings",
+  "metric": "openFindings",
+  "source": "vendor_findings_summary",
   "color": "#111827",
-  "tone": "gray",
-  "to": "vulnerabilities"
+  "to": "findings"
 }
 ```
-
-Common metrics:
-
-- `totalEndpoints`
-- `totalAction1Assets`
-- `totalIntegrationAssets`
-- `missingFromIntegration`
-- `missingFromAction1`
-- `totalCves`
-- `totalCritical`
-- `totalHigh`
-- `totalMedium`
-- `totalLow`
-- `totalPatchable`
-- `totalNotPatchable`
-- `totalUnrecognized`
-- `syncRate`
-- `patchRate`
 
 ### Dashboard Sections
 
-Card section:
+Section metadata is also integration-owned:
 
 ```json
 {
-  "title": "Threat Severity Profile",
-  "cards": [
-    {
-      "label": "Critical",
-      "metric": "totalCritical",
-      "color": "#ef4444",
-      "to": "vulnerabilities?severity=Critical",
-      "icon": "ShieldAlert",
-      "subtitle": "Immediate corrective action required"
-    }
-  ]
-}
-```
-
-Severity distribution section:
-
-```json
-{
-  "title": "Distribution",
-  "type": "severityDistribution"
+  "id": "by-business-unit",
+  "title": "Business Unit Distribution",
+  "type": "bar-chart",
+  "source": "vendor_business_unit_metrics"
 }
 ```
 
