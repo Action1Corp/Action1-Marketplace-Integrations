@@ -1,6 +1,7 @@
 let axios;
 let db;
 let getSetting;
+let getAction1Credentials;
 let computeAndSaveRunMetrics;
 let nvdService;
 
@@ -63,11 +64,9 @@ async function runSync() {
         const CrowdStrikeClientSecret = await getSetting('CrowdStrikeClientSecret');
         const CrowdStrikeBaseUrl = (await getSetting('CrowdStrikeBaseUrl')) || 'https://api.crowdstrike.com';
         
-        const Action1APIKey = await getSetting('Action1APIKey');
-        const Action1APISecret = await getSetting('Action1APISecret');
-        const Action1OrgID = await getSetting('Action1OrgID');
+        const { apiKey: action1ApiKey, apiSecret: action1ApiSecret, organizationId: action1OrgId } = await getAction1Credentials();
 
-        if (!CrowdStrikeClientId || !CrowdStrikeClientSecret || !Action1APIKey || !Action1OrgID) {
+        if (!CrowdStrikeClientId || !CrowdStrikeClientSecret || !action1ApiKey || !action1OrgId) {
             throw new Error('CrowdStrike or Action1 API keys are not fully configured.');
         }
 
@@ -94,8 +93,8 @@ async function runSync() {
         let a1Token = null;
         try {
             const tokenParams = new URLSearchParams();
-            tokenParams.append('client_id', Action1APIKey);
-            tokenParams.append('client_secret', Action1APISecret);
+            tokenParams.append('client_id', action1ApiKey);
+            tokenParams.append('client_secret', action1ApiSecret);
             const tokenRes = await axios.post('https://app.action1.com/api/3.0/oauth2/token', tokenParams, {
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
             });
@@ -108,7 +107,7 @@ async function runSync() {
         // 3. Fetch Action1 Endpoints
         await updateProgress("Retrieving Action1 endpoints...");
         let action1Assets = [];
-        const a1Res = await axios.get(`${a1Base}/endpoints/managed/${Action1OrgID}?limit=9999`, { headers: a1Headers });
+        const a1Res = await axios.get(`${a1Base}/endpoints/managed/${action1OrgId}?limit=9999`, { headers: a1Headers });
         action1Assets = a1Res.data.items || a1Res.data.data || a1Res.data.endpoints || (Array.isArray(a1Res.data) ? a1Res.data : []);
         
         let a1eps = {};
@@ -170,7 +169,7 @@ async function runSync() {
             let hasMore = true;
 
             while (hasMore) {
-                const catRes = await axios.get(`${a1Base}/Vulnerabilities/${Action1OrgID}?limit=${limit}&from=${offset}`, { headers: a1Headers });
+                const catRes = await axios.get(`${a1Base}/Vulnerabilities/${action1OrgId}?limit=${limit}&from=${offset}`, { headers: a1Headers });
                 const p = catRes.data;
                 let catData = Array.isArray(p) ? p : (p.items || p.data || p.vulnerabilities || []);
                 
@@ -348,7 +347,7 @@ async function runSync() {
                 const batch = epIdsForSync.slice(i, i + batchSize);
                 await Promise.all(batch.map(async (id) => {
                     try {
-                        authoritativeCounts[id] = await fetchAction1EndpointPatchableCount(a1Base, Action1OrgID, id, a1Headers);
+                        authoritativeCounts[id] = await fetchAction1EndpointPatchableCount(a1Base, action1OrgId, id, a1Headers);
                     } catch (e) { authoritativeCounts[id] = null; }
                 }));
             }
@@ -422,6 +421,7 @@ async function sync(context) {
   axios = context.http;
   db = context.db.raw;
   getSetting = context.settings.get;
+  getAction1Credentials = context.action1.getCredentials;
   computeAndSaveRunMetrics = context.services.computeAndSaveRunMetrics;
   nvdService = context.services.nvd;
   return runSync();

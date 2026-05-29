@@ -1,8 +1,7 @@
-async function validate({ settings }) {
+async function validate({ settings, action1 }) {
   const accessKey = settings.TenableAccessKey;
   const secretKey = settings.TenableSecretKey;
-  const action1ApiKey = settings.Action1APIKey;
-  const action1ApiSecret = settings.Action1APISecret;
+  const { apiKey: action1ApiKey, apiSecret: action1ApiSecret } = await action1.getCredentials();
   const results = { tenable: null, action1: null };
 
   if (!accessKey || !secretKey) {

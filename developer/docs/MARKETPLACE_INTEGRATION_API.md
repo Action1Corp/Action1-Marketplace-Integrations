@@ -182,13 +182,9 @@ The `context` object is the Marketplace compatibility boundary. Do not import Ma
 
 ### Shared Action1 Credentials
 
-The Marketplace owns the Action1 API credential settings:
+The Marketplace owns the Action1 API credential settings. Do not declare Action1 credentials in an integration manifest or settings schema.
 
-- `Action1APIKey`
-- `Action1APISecret`
-- `Action1OrgID`
-
-Do not declare those keys in an integration manifest. Integrations that need Action1 data can read the shared credentials through `context.action1.getCredentials()` or, for compatibility with older integrations, through `context.settings.get("Action1APIKey")`, `context.settings.get("Action1APISecret")`, and `context.settings.get("Action1OrgID")`.
+Integrations that need Action1 data must read the shared credentials through `context.action1.getCredentials()`.
 
 ### Failure Notifications
 

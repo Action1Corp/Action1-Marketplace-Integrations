@@ -94,7 +94,7 @@ Before opening a pull request:
 4. Export one React view for every visible screen from `ui/index.jsx`.
 5. Define any required database tables in `migrations/*.sql`.
 6. Use integration-prefixed table names.
-7. Use Marketplace-level Action1 credentials instead of redefining `Action1APIKey`, `Action1APISecret`, or `Action1OrgID`.
+7. Use Marketplace-level Action1 credentials through `context.action1.getCredentials()`.
 8. Use `context` and `sdk/` helpers instead of importing Marketplace internals.
 9. Run:
 

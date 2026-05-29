@@ -10,10 +10,7 @@ Use this checklist before merging an integration pull request.
 - `display.json` is valid JSON when present.
 - `marketplaceApiVersion` is supported.
 - `minimumMarketplaceVersion` is accurate.
-- The integration does not declare Marketplace-owned Action1 settings:
-  - `Action1APIKey`
-  - `Action1APISecret`
-  - `Action1OrgID`
+- The integration does not declare Marketplace-owned Action1 credential settings.
 - No integration imports Marketplace backend internals directly.
 - No secrets, credentials, tokens, tenant IDs, or customer data are committed.
 

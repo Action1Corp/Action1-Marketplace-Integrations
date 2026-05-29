@@ -1,6 +1,5 @@
-async function validateAction1(settings) {
-  const apiKey = settings.Action1APIKey;
-  const apiSecret = settings.Action1APISecret;
+async function validateAction1(action1) {
+  const { apiKey, apiSecret } = await action1.getCredentials();
 
   if (!apiKey || !apiSecret) {
     return { ok: false, message: 'Missing Action1 API key or secret' };
@@ -60,10 +59,10 @@ async function validateDefender(settings) {
   }
 }
 
-async function validate({ settings }) {
+async function validate({ settings, action1 }) {
   return {
     defender: await validateDefender(settings),
-    action1: await validateAction1(settings)
+    action1: await validateAction1(action1)
   };
 }
 

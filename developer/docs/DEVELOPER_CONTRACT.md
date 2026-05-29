@@ -100,7 +100,7 @@ Use `context.db.tables` only when the integration follows the common endpoint/CV
 
 ## Shared Action1 Credentials
 
-The Marketplace owns shared Action1 API credentials. Integrations must not declare `Action1APIKey`, `Action1APISecret`, or `Action1OrgID` in `manifest.json`.
+The Marketplace owns shared Action1 API credentials. Integrations must not declare their own Action1 credential settings.
 
 When an integration needs Action1 data, use:
 
@@ -108,7 +108,7 @@ When an integration needs Action1 data, use:
 const { apiKey, apiSecret, organizationId } = await context.action1.getCredentials();
 ```
 
-Older integrations may still read these values from `context.settings`, but new integrations should prefer `context.action1.getCredentials()`.
+Use `context.action1.getCredentials()` whenever an integration needs Action1 API access.
 
 ## Failure Notifications
 

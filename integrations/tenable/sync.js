@@ -5,6 +5,7 @@ async function sync(context) {
     const axios = context.http;
     const db = context.db.raw;
     const getSetting = context.settings.get;
+    const getAction1Credentials = context.action1.getCredentials;
     const nvdService = context.services.nvd;
     const computeAndSaveRunMetrics = context.services.computeAndSaveRunMetrics;
     context.logger.info("Starting Tenable Sync Engine...");
@@ -29,11 +30,9 @@ async function sync(context) {
     try {
         const TenableAccessKey = await getSetting('TenableAccessKey');
         const TenableSecretKey = await getSetting('TenableSecretKey');
-        const Action1APIKey = await getSetting('Action1APIKey');
-        const Action1APISecret = await getSetting('Action1APISecret');
-        const Action1OrgID = await getSetting('Action1OrgID');
+        const { apiKey: action1ApiKey, apiSecret: action1ApiSecret, organizationId: action1OrgId } = await getAction1Credentials();
 
-        if (!TenableAccessKey || !Action1APIKey || !Action1OrgID) {
+        if (!TenableAccessKey || !action1ApiKey || !action1OrgId) {
             throw new Error('API keys are not fully configured in settings.');
         }
 
@@ -50,8 +49,8 @@ async function sync(context) {
         let a1Token = null;
         try {
             const tokenParams = new URLSearchParams();
-            tokenParams.append('client_id', Action1APIKey);
-            tokenParams.append('client_secret', Action1APISecret);
+            tokenParams.append('client_id', action1ApiKey);
+            tokenParams.append('client_secret', action1ApiSecret);
             const tokenRes = await axios.post('https://app.action1.com/api/3.0/oauth2/token', tokenParams, {
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
             });
@@ -68,7 +67,7 @@ async function sync(context) {
         await updateProgress("Retrieving Action1 endpoints...");
         let action1Assets = [];
         try {
-            const a1Res = await axios.get(`${a1Base}/endpoints/managed/${Action1OrgID}?limit=9999`, { headers: a1Headers });
+            const a1Res = await axios.get(`${a1Base}/endpoints/managed/${action1OrgId}?limit=9999`, { headers: a1Headers });
             const payload = a1Res.data;
             if (Array.isArray(payload)) action1Assets = payload;
             else if (Array.isArray(payload.items)) action1Assets = payload.items;
@@ -169,7 +168,7 @@ async function sync(context) {
             let hasMore = true;
 
             while (hasMore) {
-                const catRes = await axios.get(`${a1Base}/Vulnerabilities/${Action1OrgID}?limit=${limit}&from=${offset}`, { headers: a1Headers });
+                const catRes = await axios.get(`${a1Base}/Vulnerabilities/${action1OrgId}?limit=${limit}&from=${offset}`, { headers: a1Headers });
                 const p = catRes.data;
                 let catData = Array.isArray(p) ? p : (p.items || p.data || p.vulnerabilities || []);
                 

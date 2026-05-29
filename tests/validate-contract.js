@@ -45,7 +45,13 @@ async function run() {
     if (fs.existsSync(path.join(integrationDir, 'validate.js'))) {
       assert(fs.existsSync(path.join(integrationDir, 'validate.js')), `${manifest.id}: validate.js should exist when validation is implemented`);
       assert.strictEqual(typeof handler.validate, 'function', `${manifest.id}: validate.js requires an exported validate() handler`);
-      const result = await handler.validate({ settings: {}, logger: console });
+      const result = await handler.validate({
+        settings: {},
+        action1: {
+          getCredentials: async () => ({ apiKey: '', apiSecret: '', organizationId: '' })
+        },
+        logger: console
+      });
       assert(result && typeof result === 'object', `${manifest.id}: validate() should return an object`);
       assert(Object.prototype.hasOwnProperty.call(result, manifest.id), `${manifest.id}: validate() should include vendor result key`);
     }

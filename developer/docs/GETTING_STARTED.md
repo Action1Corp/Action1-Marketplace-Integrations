@@ -54,13 +54,7 @@ Required fields:
 
 Do not declare runtime capabilities in the manifest. The Marketplace infers behavior from the files and handlers the integration provides.
 
-Do not declare these shared Marketplace settings:
-
-- `Action1APIKey`
-- `Action1APISecret`
-- `Action1OrgID`
-
-Use `context.action1.getCredentials()` when the integration needs Action1 API access.
+Do not redeclare Marketplace-owned Action1 credentials. Use `context.action1.getCredentials()` when the integration needs Action1 API access.
 
 ## 3. Define Settings
 

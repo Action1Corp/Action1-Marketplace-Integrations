@@ -1,6 +1,7 @@
 let axios;
 let db;
 let getSetting;
+let getAction1Credentials;
 let computeAndSaveRunMetrics;
 let nvdService;
 
@@ -31,11 +32,9 @@ async function runSync() {
         const Rapid7Region = await getSetting('Rapid7Region');
         const Rapid7BaseUrl = `https://${Rapid7Region}.api.insight.rapid7.com/vm/v4`;
         
-        const Action1APIKey = await getSetting('Action1APIKey');
-        const Action1APISecret = await getSetting('Action1APISecret');
-        const Action1OrgID = await getSetting('Action1OrgID');
+        const { apiKey: action1ApiKey, apiSecret: action1ApiSecret, organizationId: action1OrgId } = await getAction1Credentials();
 
-        if (!Rapid7ApiKey || !Rapid7Region || !Action1APIKey || !Action1OrgID) {
+        if (!Rapid7ApiKey || !Rapid7Region || !action1ApiKey || !action1OrgId) {
             throw new Error('Rapid7 or Action1 API keys are not fully configured.');
         }
 
@@ -52,8 +51,8 @@ async function runSync() {
         let a1Token = null;
         try {
             const tokenParams = new URLSearchParams();
-            tokenParams.append('client_id', Action1APIKey);
-            tokenParams.append('client_secret', Action1APISecret);
+            tokenParams.append('client_id', action1ApiKey);
+            tokenParams.append('client_secret', action1ApiSecret);
             const tokenRes = await axios.post('https://app.action1.com/api/3.0/oauth2/token', tokenParams, {
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
             });
@@ -66,7 +65,7 @@ async function runSync() {
         // 2. Fetch Action1 Endpoints
         await updateProgress("Retrieving Action1 endpoints...");
         let action1Assets = [];
-        const a1Res = await axios.get(`${a1Base}/endpoints/managed/${Action1OrgID}?limit=9999`, { headers: a1Headers });
+        const a1Res = await axios.get(`${a1Base}/endpoints/managed/${action1OrgId}?limit=9999`, { headers: a1Headers });
         action1Assets = a1Res.data.items || a1Res.data.data || a1Res.data.endpoints || (Array.isArray(a1Res.data) ? a1Res.data : []);
         
         let a1eps = {};
@@ -160,7 +159,7 @@ async function runSync() {
             let hasMore = true;
 
             while (hasMore) {
-                const catRes = await axios.get(`${a1Base}/Vulnerabilities/${Action1OrgID}?limit=${limit}&from=${offset}`, { headers: a1Headers });
+                const catRes = await axios.get(`${a1Base}/Vulnerabilities/${action1OrgId}?limit=${limit}&from=${offset}`, { headers: a1Headers });
                 const p = catRes.data;
                 let catData = Array.isArray(p) ? p : (p.items || p.data || p.vulnerabilities || []);
                 
@@ -422,6 +421,7 @@ async function sync(context) {
   axios = context.http;
   db = context.db.raw;
   getSetting = context.settings.get;
+  getAction1Credentials = context.action1.getCredentials;
   computeAndSaveRunMetrics = context.services.computeAndSaveRunMetrics;
   nvdService = context.services.nvd;
   return runSync();

@@ -1,6 +1,7 @@
 let axios;
 let db;
 let getSetting;
+let getAction1Credentials;
 let computeAndSaveRunMetrics;
 let nvdService;
 
@@ -179,9 +180,7 @@ async function runSync() {
         let DefenderBaseUrl = await getSetting('DefenderBaseUrl');
         DefenderBaseUrl = cleanBaseUrl(DefenderBaseUrl, 'https://api.securitycenter.microsoft.com');
 
-        const action1Id = await getSetting('Action1APIKey');
-        const action1Secret = await getSetting('Action1APISecret');
-        const action1Org = await getSetting('Action1OrgID');
+        const { apiKey: action1Id, apiSecret: action1Secret, organizationId: action1Org } = await getAction1Credentials();
 
         if (!DefenderTenantId || !DefenderClientId || !DefenderClientSecret) throw new Error("Defender credentials missing.");
         if (!action1Id || !action1Secret || !action1Org) throw new Error("Action1 credentials missing.");
@@ -571,6 +570,7 @@ async function sync(context) {
   axios = context.http;
   db = context.db.raw;
   getSetting = context.settings.get;
+  getAction1Credentials = context.action1.getCredentials;
   computeAndSaveRunMetrics = context.services.computeAndSaveRunMetrics;
   nvdService = context.services.nvd;
   return runSync();

@@ -18,8 +18,11 @@ const requiredTopLevel = [
 const supportedMarketplaceApiVersions = new Set(['1.0']);
 const supportedSettingTypes = new Set(['text', 'url', 'secret', 'select', 'number', 'checkbox']);
 const supportedActionPlacements = new Set(['settings']);
-const marketplaceOwnedSettings = new Set(['Action1APIKey', 'Action1APISecret', 'Action1OrgID']);
 let failures = 0;
+
+function isMarketplaceOwnedSetting(key) {
+  return /^Action1[A-Za-z0-9_]*$/.test(key);
+}
 
 function validateMigrations(entryName, integrationDir) {
   const migrationsDir = path.join(integrationDir, 'migrations');
@@ -260,8 +263,8 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
       console.error(`${entry.name}: duplicate setting key ${setting.key}`);
       failures += 1;
     }
-    if (marketplaceOwnedSettings.has(setting.key)) {
-      console.error(`${entry.name}: ${setting.key} is a Marketplace-level setting and must not be declared by an integration`);
+    if (isMarketplaceOwnedSetting(setting.key)) {
+      console.error(`${entry.name}: Marketplace-level Action1 settings must not be declared by an integration`);
       failures += 1;
     }
     seenSettings.add(setting.key);
