@@ -19,7 +19,7 @@ Use this checklist before merging an integration pull request.
 - Metadata is clear and customer-facing.
 - `category` is appropriate.
 - Runtime behavior is inferred from integration-owned files and exported handlers.
-- `schedule` is not declared unless `sync` is also declared.
+- Scheduling is only exposed when the integration provides a run handler.
 - Required settings are marked `required`.
 - Sensitive settings use `type: "secret"`.
 - Select settings define valid options.
@@ -47,8 +47,8 @@ Use this checklist before merging an integration pull request.
 - Validation handler exists only when the integration declares the validation action.
 - Run handler exists only when the integration declares the run action.
 - Handlers use `context` and `sdk/` helpers.
-- Sync creates, updates, and completes/fails run history.
-- Sync catches errors and records meaningful failure details.
+- Run handler creates, updates, and completes/fails run history.
+- Run handler catches errors and records meaningful failure details.
 - Vendor API calls have timeouts or bounded pagination.
 - Large API responses are not stored blindly unless needed.
 - Logs avoid secrets and sensitive customer data.
@@ -58,8 +58,8 @@ Use this checklist before merging an integration pull request.
 - Integration works in a local mounted Marketplace container.
 - Settings save correctly.
 - Validation reports success and failure accurately.
-- Manual sync succeeds with valid credentials.
-- Manual sync fails cleanly with bad credentials.
+- Manual run succeeds with valid credentials.
+- Manual run fails cleanly with bad credentials.
 - Failure appears in History and Dashboard.
 - Failure notifications can use Marketplace email/webhook settings.
 - Read-only users cannot perform write actions.

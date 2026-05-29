@@ -42,7 +42,7 @@ The Marketplace owns the host framework:
 - SMTP and webhook failure notification framework
 - action endpoint dispatch for integration-owned custom actions
 - per-integration schedules
-- shared framework tables such as settings, sync history, schedules, auth, CVE metadata, and migration tracking
+- shared framework tables such as settings, run history, schedules, auth, CVE metadata, and migration tracking
 
 Each integration owns its vendor-specific behavior:
 

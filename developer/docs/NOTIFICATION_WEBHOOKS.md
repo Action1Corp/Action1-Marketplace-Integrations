@@ -2,7 +2,7 @@
 
 The Marketplace owns failure alert delivery. Integrations do not configure SMTP or webhook settings themselves.
 
-When a manual or scheduled integration sync ends as failed or interrupted, the Marketplace can:
+When a manual or scheduled integration run ends as failed or interrupted, the Marketplace can:
 
 - send an email through configured SMTP settings
 - send an HTTP POST to a configured webhook URL
@@ -48,7 +48,7 @@ Example payload:
     "startedAt": "2026-05-19T18:20:00.000Z",
     "assetsProcessed": 125
   },
-  "details": "18:20:00 - Started sync\n18:25:43 - Error: Vendor API returned 401\n"
+  "details": "18:20:00 - Started run\n18:25:43 - Error: Vendor API returned 401\n"
 }
 ```
 
@@ -79,13 +79,13 @@ The Send Test Webhook action sends:
 
 ## Integration Responsibilities
 
-For normal sync failures, integrations should:
+For normal run failures, integrations should:
 
 1. create a run-history entry
 2. mark the run as `Failed` with useful details
 3. let the Marketplace send configured alerts
 
-For custom operations outside the normal sync runner, integrations may call:
+For custom operations outside the standard run flow, integrations may call:
 
 ```js
 await context.notifications.sendFailureAlert({ error });

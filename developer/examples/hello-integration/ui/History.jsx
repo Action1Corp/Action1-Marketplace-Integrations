@@ -18,7 +18,7 @@ function History({ integration }) {
       .catch(() => setRows([]));
   }, [integration]);
 
-  return <DataTable title="Run History" columns={columns} rows={rows} emptyText="No sync history found matching criteria." integration={integration} />;
+  return <DataTable title="Run History" columns={columns} rows={rows} emptyText="No run history found matching criteria." integration={integration} />;
 }
 
 export default History;

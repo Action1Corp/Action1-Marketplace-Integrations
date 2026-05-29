@@ -66,10 +66,10 @@ After starting the Marketplace:
 4. Open Settings and confirm vendor fields render correctly.
 5. Save settings.
 6. Run validation if the integration declares `validate`.
-7. Run sync if the integration declares `sync`.
+7. Start a manual run if the integration exports a run handler.
 8. Open History and confirm run logs appear.
 9. Open Dashboard, Endpoints, and Vulnerabilities if those views are defined.
-10. Confirm a failed sync shows a failure state and triggers configured Marketplace notifications.
+10. Confirm a failed run shows a failure state and triggers configured Marketplace notifications.
 
 ## Test Integration-Owned UI
 
@@ -107,7 +107,7 @@ If migrations do not apply:
 - confirm SQL statements end cleanly with semicolons
 - check Marketplace container logs for migration errors
 
-If validation or sync does not run:
+If validation or a run handler does not execute:
 
 - confirm the integration entrypoint exports the expected validation or run handler
 - confirm `index.js` exports the matching handler

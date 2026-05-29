@@ -34,7 +34,7 @@ async function generateSummary() {
     details: {
       status: 'Ready',
       itemsReviewed: 3,
-      nextRecommendedStep: 'Use this pattern for vendor-specific operations that do not fit the standard sync flow.'
+      nextRecommendedStep: 'Use this pattern for vendor-specific operations that do not fit the standard run flow.'
     },
     data: [
       { label: 'Custom screens', value: 'Rendered by integration React views' },

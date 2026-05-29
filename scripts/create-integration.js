@@ -107,7 +107,7 @@ const {
 
 async function sync(context) {
   const runId = await createSyncRun(context);
-  let details = 'Started sync\\n';
+  let details = 'Started run\\n';
 
   try {
     details = await appendSyncLog(context, runId, details, 'Add vendor API calls and data writes here.');
@@ -260,7 +260,7 @@ The Marketplace infers supported operations from the handlers and UI files this 
 
 - \`ui/settingsSchema.json\` and the settings view enable integration settings.
 - \`validate.js\` and an exported validation handler enable credential validation.
-- \`sync.js\` and an exported run handler enable manual runs and scheduling.
+- An exported run handler enables manual runs and scheduling.
 - A history view can read Marketplace run history for this integration.
 
 Visible screens are declared in \`display.json\` navigation and rendered by React views exported from \`ui/index.jsx\`.

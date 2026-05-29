@@ -30,7 +30,7 @@ At startup, the Marketplace:
 4. Applies integration migrations.
 5. Registers integrations in the catalog.
 6. Bundles and renders integration-owned React views.
-7. Calls integration handlers for validation, manual sync, and scheduled sync.
+7. Calls integration handlers for validation, manual runs, and scheduled runs.
 
 The integrations directory is configured with:
 

@@ -190,7 +190,7 @@ Integrations that need Action1 data must read the shared credentials through `co
 
 The Marketplace owns SMTP and webhook notification settings and automatically sends a failure alert when a manual or scheduled integration run finishes with a failed status. Integrations usually do not need to call notification APIs directly.
 
-If an integration has a custom operation outside the normal sync runner, it can request the same Marketplace failure alert through:
+If an integration has a custom operation outside the standard run flow, it can request the same Marketplace failure alert through:
 
 ```js
 await context.notifications.sendFailureAlert({ error });
@@ -235,7 +235,7 @@ const endpointTable = context.db.tables.endpoints;
 const cveTable = context.db.tables.endpointCves;
 ```
 
-The Marketplace framework owns shared tables for settings, authentication, schedules, sync history, shared CVE metadata, and migration tracking.
+The Marketplace framework owns shared tables for settings, authentication, schedules, run history, shared CVE metadata, and migration tracking.
 
 ## Display Definitions
 

@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS acme_vm_endpoint_cves (
 Key columns:
 
 - `integration_id`: integration ID.
-- `run_id`: sync run ID.
+- `run_id`: Marketplace run-history ID.
 - `endpoint_name`: endpoint this CVE was observed on.
 - `cve`: CVE ID.
 - `severity`: `Critical`, `High`, `Medium`, `Low`, or vendor-equivalent value.
@@ -151,10 +151,10 @@ The Marketplace owns:
 
 - settings and encrypted secrets
 - authentication and organization membership
-- sync history
+- run history
 - schedules
 - CVE metadata/cache
 - migration tracking
 
-Integrations may write sync history through `sdk` helpers and may update shared CVE metadata where useful. They must not alter Marketplace-owned table structure.
+Integrations may write run history through `sdk` helpers and may update shared CVE metadata where useful. They must not alter Marketplace-owned table structure.
 

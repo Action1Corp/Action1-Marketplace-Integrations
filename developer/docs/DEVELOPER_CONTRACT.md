@@ -112,9 +112,9 @@ Use `context.action1.getCredentials()` whenever an integration needs Action1 API
 
 ## Failure Notifications
 
-The Marketplace owns SMTP and webhook notification settings and automatically sends an alert when a manual or scheduled integration run fails. Integrations should rely on that framework for normal sync failures.
+The Marketplace owns SMTP and webhook notification settings and automatically sends an alert when a manual or scheduled integration run fails. Integrations should rely on that framework for normal run failures.
 
-For custom integration operations that run outside the normal sync runner, use:
+For custom integration operations that run outside the standard run flow, use:
 
 ```js
 await context.notifications.sendFailureAlert({ error });
@@ -139,7 +139,7 @@ The Marketplace owns framework tables for:
 - authentication and organizations
 - settings and secret storage
 - schedules
-- sync history
+- run history
 - shared CVE metadata/cache
 - migration tracking
 

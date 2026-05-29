@@ -136,7 +136,7 @@ If the integration declares the run action, export an integration-owned run hand
 
 Use the `sdk/` run-history helpers to create, update, complete, and fail run-history entries consistently.
 
-The Marketplace sends failure notifications automatically for failed manual and scheduled sync runs.
+The Marketplace sends failure notifications automatically for failed manual and scheduled integration runs.
 
 ## 8. Test Locally
 
