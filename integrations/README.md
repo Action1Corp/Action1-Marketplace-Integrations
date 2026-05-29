@@ -6,7 +6,7 @@ Each integration should include:
 
 - `manifest.json` for catalog metadata
 - `ui/settingsSchema.json` for integration-owned settings fields
-- `display.json` for integration-owned navigation and views
+- `display.json` for Marketplace sidebar navigation
 - `migrations/` for integration-owned database schema
 - `index.js` as the Marketplace entrypoint
 - optional integration-owned validation handler when the integration declares the validation action

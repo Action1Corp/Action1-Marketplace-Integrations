@@ -40,7 +40,7 @@ Use this checklist before merging an integration pull request.
 
 - Migration filenames use `001_description.sql` format.
 - Tables are integration-prefixed.
-- Helper views have the integration-owned tables and columns they expect.
+- React views have the integration-owned tables and columns they expect.
 - Indexes exist for run ID and common filters.
 - Migrations are additive after release.
 - Integration does not alter Marketplace-owned framework tables.

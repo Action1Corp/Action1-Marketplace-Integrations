@@ -186,5 +186,5 @@ Run repository validation before opening a pull request:
 npm test
 ```
 
-Validation checks manifest shape, display definitions, integration-owned UI exports, migration naming, table requirements, and handler exports.
+Validation checks manifest shape, sidebar navigation, integration-owned UI exports, migration naming, table requirements, and handler exports.
 

@@ -1,6 +1,6 @@
 # Action1 Marketplace Integrations
 
-This private repository contains integration packages for the Action1 Integration Marketplace. The Marketplace host loads these packages at startup and uses their manifests, display definitions, handlers, and migrations to render integration-specific screens and run integration-owned behavior.
+This private repository contains integration packages for the Action1 Integration Marketplace. The Marketplace host loads these packages at startup and uses their manifests, navigation definitions, React views, handlers, and migrations to render integration-specific screens and run integration-owned behavior.
 
 The goal is to let integration developers build and maintain vendor integrations without changing the Marketplace application itself.
 
@@ -47,7 +47,7 @@ The Marketplace owns the host framework:
 Each integration owns its vendor-specific behavior:
 
 - catalog metadata in `manifest.json`
-- navigation and integration-owned screen metadata in `display.json`
+- Marketplace sidebar navigation in `display.json`
 - settings schema in `ui/settingsSchema.json`
 - React views for every visible screen in `ui/`
 - optional integration-owned credential validation handler
@@ -90,13 +90,13 @@ Before opening a pull request:
 
 1. Keep all vendor-specific code inside the integration folder.
 2. Define required settings in `ui/settingsSchema.json`.
-3. Define visible screens in `display.json`.
+3. Define sidebar navigation in `display.json`.
 4. Export one React view for every visible screen from `ui/index.jsx`.
 5. Define any required database tables in `migrations/*.sql`.
 6. Use integration-prefixed table names.
 7. Use Marketplace-level Action1 credentials instead of redefining `Action1APIKey`, `Action1APISecret`, or `Action1OrgID`.
 8. Use `context` and `sdk/` helpers instead of importing Marketplace internals.
-8. Run:
+9. Run:
 
 ```bash
 npm test

@@ -14,7 +14,7 @@ This checks:
 
 - manifest shape
 - inferred runtime behavior from handlers and UI files
-- display definitions
+- sidebar navigation
 - migration naming
 - standard table requirements
 - handler exports
