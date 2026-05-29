@@ -19,24 +19,6 @@ const supportedMarketplaceApiVersions = new Set(['1.0']);
 const supportedSettingTypes = new Set(['text', 'url', 'secret', 'select', 'number', 'checkbox']);
 const supportedActionPlacements = new Set(['settings']);
 const marketplaceOwnedSettings = new Set(['Action1APIKey', 'Action1APISecret', 'Action1OrgID']);
-const supportedColumnTypes = new Set([
-  'strong',
-  'number',
-  'syncStatus',
-  'nistLink',
-  'severityBadgeDynamic',
-  'runId',
-  'datetime',
-  'runStatus',
-  'historyActions',
-  'text',
-  'badge',
-  'boolean',
-  'monospace',
-  'severityBadge',
-  'muted',
-  'patchStatus'
-]);
 let failures = 0;
 
 function validateMigrations(entryName, integrationDir) {
@@ -94,35 +76,6 @@ function readSettingsSchema(integrationDir) {
     console.error(`${path.basename(integrationDir)}: invalid ui/settingsSchema.json - ${error.message}`);
     failures += 1;
     return [];
-  }
-}
-
-function validateDisplaySection(entryName, display, section, requirement) {
-  if (!display[section] || typeof display[section] !== 'object') {
-    console.error(`${entryName}: ${requirement} requires display.${section}`);
-    failures += 1;
-    return;
-  }
-
-  if (section === 'dashboard') {
-    return;
-  }
-
-  if (!Array.isArray(display[section].columns) || display[section].columns.length === 0) {
-    console.error(`${entryName}: display.${section} must declare columns`);
-    failures += 1;
-    return;
-  }
-
-  for (const column of display[section].columns) {
-    if (!column.key || !column.label) {
-      console.error(`${entryName}: display.${section}.columns entries require key and label`);
-      failures += 1;
-    }
-    if (column.type && !supportedColumnTypes.has(column.type)) {
-      console.error(`${entryName}: unsupported display column type ${column.type}`);
-      failures += 1;
-    }
   }
 }
 
@@ -207,6 +160,13 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
   }
 
   if (display) {
+    for (const key of Object.keys(display)) {
+      if (key !== 'navigation') {
+        console.error(`${entry.name}: display.json should only define marketplace navigation; move ${key} UI metadata into integration React views`);
+        failures += 1;
+      }
+    }
+
     if (!Array.isArray(display.navigation) || display.navigation.length === 0) {
       console.error(`${entry.name}: display.json must define navigation entries`);
       failures += 1;
@@ -238,48 +198,9 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
       }
     }
 
-    if (display.dashboard) validateDisplaySection(entry.name, display, 'dashboard', 'dashboard view');
-    if (display.endpoints) validateDisplaySection(entry.name, display, 'endpoints', 'endpoints view');
-    if (display.vulnerabilities) validateDisplaySection(entry.name, display, 'vulnerabilities', 'vulnerabilities view');
-    if (display.history) validateDisplaySection(entry.name, display, 'history', 'history view');
-
-    const visibleViews = ['dashboard', 'endpoints', 'vulnerabilities', 'history'].filter(view => display[view]);
-    for (const view of visibleViews) {
-      if (!display.navigation.some(item => item.id === view || item.path === view)) {
-        console.error(`${entry.name}: display.navigation must include ${view}`);
-        failures += 1;
-      }
-    }
     if (settingsSchema.length > 0 && !display.navigation.some(item => item.id === 'settings' || item.path === 'settings')) {
       console.error(`${entry.name}: display.navigation must include settings`);
       failures += 1;
-    }
-
-    if (display.customScreens !== undefined) {
-      if (!display.customScreens || typeof display.customScreens !== 'object' || Array.isArray(display.customScreens)) {
-        console.error(`${entry.name}: display.customScreens must be an object keyed by screen path`);
-        failures += 1;
-      } else {
-        for (const [screenId, screen] of Object.entries(display.customScreens)) {
-          if (!/^[a-z][a-z0-9-]*$/.test(screenId)) {
-            console.error(`${entry.name}: custom screen ${screenId} must use lowercase kebab-case`);
-            failures += 1;
-          }
-          if (!screen.title) {
-            console.error(`${entry.name}: custom screen ${screenId} requires title`);
-            failures += 1;
-          }
-          if (screen.actions !== undefined && !Array.isArray(screen.actions)) {
-            console.error(`${entry.name}: custom screen ${screenId} actions must be an array`);
-            failures += 1;
-          }
-          if (!display.navigation.some(item => item.path === screenId || item.id === screenId)) {
-            console.error(`${entry.name}: display.navigation must include custom screen ${screenId}`);
-            failures += 1;
-          }
-          availableActionPlacements.add(screenId);
-        }
-      }
     }
   }
 
@@ -313,14 +234,6 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
         }
       }
 
-      for (const [screenId, screen] of Object.entries(display?.customScreens || {})) {
-        for (const actionId of screen.actions || []) {
-          if (!actionIds.has(actionId)) {
-            console.error(`${entry.name}: custom screen ${screenId} references unknown action ${actionId}`);
-            failures += 1;
-          }
-        }
-      }
     }
   }
 

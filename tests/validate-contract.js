@@ -58,15 +58,8 @@ async function run() {
     if (fs.existsSync(displayPath)) {
       const display = JSON.parse(fs.readFileSync(displayPath, 'utf8'));
       assert(Array.isArray(display.navigation) && display.navigation.length > 0, `${manifest.id}: display.json should define navigation`);
-      if (display.dashboard) assert(display.dashboard && typeof display.dashboard === 'object', `${manifest.id}: display.json should define dashboard`);
-      if (display.endpoints) {
-        assert(display.endpoints && Array.isArray(display.endpoints.columns) && display.endpoints.columns.length > 0, `${manifest.id}: display.json should define endpoint columns`);
-      }
-      if (display.vulnerabilities) {
-        assert(display.vulnerabilities && Array.isArray(display.vulnerabilities.columns) && display.vulnerabilities.columns.length > 0, `${manifest.id}: display.json should define vulnerability columns`);
-      }
-      if (display.history) {
-        assert(display.history && Array.isArray(display.history.columns) && display.history.columns.length > 0, `${manifest.id}: display.json should define history columns`);
+      for (const key of Object.keys(display)) {
+        assert.strictEqual(key, 'navigation', `${manifest.id}: display.json should only define marketplace navigation; move screen UI metadata into React views`);
       }
     }
   }

@@ -6,13 +6,13 @@ This is a minimal example integration for developers. It demonstrates the Market
 
 - `manifest.json` catalog metadata
 - `ui/settingsSchema.json` integration-owned settings fields
-- `display.json` navigation, dashboard, history, settings, and schedule metadata
+- `display.json` marketplace navigation
 - Marketplace runtime services through `context` and HTTP APIs
 - optional validation handler exported by the integration
 - optional run handler exported by the integration
 - custom integration-owned action declared in `manifest.json`
 - custom action handler exported from `actions.js`
-- custom action screen defined in `display.json`
+- custom action screen listed in `display.json` navigation
 - integration-owned React views in `ui/`
 - `migrations/001_create_schema.sql`
 - Marketplace SDK helpers from `../../../sdk`
@@ -23,7 +23,7 @@ The run handler writes a short run-history entry only. It does not collect vendo
 
 The custom `check-configuration` action appears on the settings page because it is declared in `manifest.json` with `"placement": "settings"`. When a user clicks the button, the Marketplace posts to the integration action endpoint and dispatches the request to the matching handler exported from `actions.js`.
 
-The `Actions Lab` screen demonstrates a custom integration-owned screen. It is added to navigation in `display.json`, defined under `customScreens.actions-lab`, and populated with three action IDs. Each ID maps to an action declared in `manifest.json`, and each action is implemented in `actions.js`.
+The `Actions Lab` screen demonstrates a custom integration-owned screen. It is added to navigation in `display.json` and rendered by `ui/ActionsLab.jsx`. Its buttons call action IDs declared in `manifest.json`, and each action is implemented in `actions.js`.
 
 The `ui/` folder demonstrates integration-owned React screens. When the Marketplace build includes this integration package, `ui/index.jsx` exports a `views` map. Each matching view, such as `dashboard` or `actions-lab`, is rendered by the integration component.
 

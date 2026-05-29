@@ -1,4 +1,4 @@
-import Dashboard from './Dashboard.jsx';
+import Dashboard from './IntuneDashboard.jsx';
 import History from './History.jsx';
 import Settings from './Settings.jsx';
 

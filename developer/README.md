@@ -8,7 +8,7 @@ This directory contains integration developer materials that should not be loade
 - `docs/GETTING_STARTED.md`: step-by-step first integration walkthrough
 - `docs/DEVELOPER_CONTRACT.md`: developer-facing contract and SDK usage
 - `docs/MARKETPLACE_INTEGRATION_API.md`: versioned integration API reference
-- `docs/DISPLAY_REFERENCE.md`: `display.json` screens, columns, and dashboard reference
+- `docs/DISPLAY_REFERENCE.md`: `display.json` navigation reference
 - `docs/SCHEMA_REFERENCE.md`: integration-owned database schema guidance
 - `docs/LOCAL_TESTING.md`: local Marketplace container testing workflow
 - `docs/NOTIFICATION_WEBHOOKS.md`: failure webhook payloads and expectations

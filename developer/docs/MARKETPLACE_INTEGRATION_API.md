@@ -243,7 +243,7 @@ The Marketplace framework owns shared tables for settings, authentication, sched
 
 ## Display Definitions
 
-Visible integration screens are defined by `display.navigation`. Other top-level keys in `display.json` are integration-owned metadata for the integration's React views.
+Visible integration screens are defined by `display.navigation`. `display.json` should not contain screen layout metadata; screen titles, columns, cards, buttons, and other UI details belong in the integration-owned React views.
 
 ```json
 {
@@ -251,18 +251,11 @@ Visible integration screens are defined by `display.navigation`. Other top-level
     { "id": "asset-risk", "label": "Asset Risk", "path": "asset-risk", "icon": "Activity" },
     { "id": "deployment-status", "label": "Deployment Status", "path": "deployment-status", "icon": "Server" },
     { "id": "settings", "label": "Settings", "path": "settings", "icon": "Settings", "requiresWrite": true }
-  ],
-  "asset-risk": {
-    "title": "Asset Risk",
-    "columns": []
-  },
-  "deployment-status": {
-    "title": "Deployment Status"
-  }
+  ]
 }
 ```
 
-The integration owns the labels, columns, metrics, navigation, metadata keys, and the React views for every screen it exposes. Existing integrations use keys like `dashboard`, `endpoints`, `vulnerabilities`, `history`, `settings`, and `customScreens`, but those are not required screen types.
+The integration owns the labels, columns, metrics, and React views for every screen it exposes. `display.json` only tells the Marketplace which screens to show in the sidebar.
 
 ## Integration-Owned React Views
 

@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react';
-import { DataTable, PAGE_SIZE, useIntegrationMeta } from './viewToolkit.jsx';
+import { DataTable, PAGE_SIZE } from './viewToolkit.jsx';
 
 function History({ integration }) {
-  const meta = useIntegrationMeta(integration);
   const [rows, setRows] = useState([]);
-  const display = meta?.display?.history || {};
-  const columns = display.columns || [];
+  const columns = [
+    { key: 'id', label: 'Run ID', type: 'runId' },
+    { key: 'timestamp', label: 'Timestamp', type: 'datetime' },
+    { key: 'status', label: 'Status', type: 'runStatus' },
+    { key: 'assets_processed', label: 'Items Processed', type: 'number' },
+    { key: 'actions', label: 'Actions', type: 'historyActions', sortable: false }
+  ];
 
   useEffect(() => {
     fetch(`/api/history?integration=${integration}&page=1&pageSize=${PAGE_SIZE}`)
@@ -14,7 +18,7 @@ function History({ integration }) {
       .catch(() => setRows([]));
   }, [integration]);
 
-  return <DataTable title={display.title || 'Run History'} columns={columns} rows={rows} emptyText={display.emptyText} integration={integration} />;
+  return <DataTable title="Run History" columns={columns} rows={rows} emptyText="No sync history found matching criteria." integration={integration} />;
 }
 
 export default History;

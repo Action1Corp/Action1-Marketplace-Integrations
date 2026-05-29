@@ -91,7 +91,7 @@ Use `secret` for tokens, passwords, client secrets, private keys, and app passwo
 
 ## 4. Define Screens
 
-Edit `display.json` to declare the integration-owned navigation and any screen metadata your React views need.
+Edit `display.json` to declare only the integration-owned navigation shown in the Marketplace sidebar.
 
 Example screen paths used by existing integrations:
 
@@ -105,7 +105,7 @@ These are examples, not required screen names. An integration can define any rou
 
 Every visible screen path must also have a matching React view exported from `ui/index.jsx`.
 
-See `DISPLAY_REFERENCE.md` for the full display contract.
+Put screen titles, columns, cards, buttons, and empty states in the React views under `ui/`. See `DISPLAY_REFERENCE.md` for the full display contract.
 
 ## 5. Define Database Tables
 

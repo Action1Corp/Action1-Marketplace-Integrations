@@ -44,8 +44,8 @@ function History() {
   const [sortConfig, setSortConfig] = useState(fallbackDisplay.defaultSort);
   const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
 
-  const display = integrationMeta?.display?.history || fallbackDisplay;
-  const columns = Array.isArray(display.columns) && display.columns.length > 0 ? display.columns : fallbackDisplay.columns;
+  const display = fallbackDisplay;
+  const columns = fallbackDisplay.columns;
 
   useEffect(() => {
     let cancelled = false;
@@ -53,9 +53,8 @@ function History() {
       .then(r => r.json())
       .then(meta => {
         if (cancelled) return;
-        const historyDisplay = meta.display?.history || fallbackDisplay;
         setIntegrationMeta(meta);
-        setSortConfig(historyDisplay.defaultSort || fallbackDisplay.defaultSort);
+        setSortConfig(fallbackDisplay.defaultSort);
       })
       .catch(() => {
         if (!cancelled) setIntegrationMeta(null);

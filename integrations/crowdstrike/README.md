@@ -5,7 +5,7 @@ Correlates CrowdStrike exposure data with Action1 endpoint and patch context for
 ## Files
 
 - `manifest.json` - Marketplace catalog metadata.
-- `display.json` - Integration-owned navigation, dashboards, and display definitions.
+- `display.json` - Marketplace sidebar navigation for integration-owned screens.
 - ui/settingsSchema.json - Integration-owned settings schema.
 - `migrations/` - Integration-owned database schema.
 - `index.js` - Small entrypoint that exports Marketplace handlers.

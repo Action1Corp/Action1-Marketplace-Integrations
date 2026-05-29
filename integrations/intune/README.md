@@ -5,7 +5,7 @@ Sync Intune managed devices and compliance status with Action1.
 ## Files
 
 - `manifest.json` - Marketplace catalog metadata.
-- `display.json` - Integration-owned navigation, dashboards, and display definitions.
+- `display.json` - Marketplace sidebar navigation for integration-owned screens.
 - ui/settingsSchema.json - Integration-owned settings schema.
 - `migrations/` - Integration-owned database schema.
 - `index.js` - Small entrypoint that exports Marketplace handlers.

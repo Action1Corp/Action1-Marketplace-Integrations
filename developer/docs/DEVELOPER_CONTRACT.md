@@ -43,7 +43,7 @@ The Marketplace infers supported runtime behavior from the integration package:
 - manual runs and schedules are available when the entrypoint exports a run handler
 - history is available to any integration-owned view through Marketplace APIs
 
-Dashboards, endpoint tables, vulnerability tables, and other tabs are defined in `display.json` and rendered by integration-owned React views.
+Visible tabs are listed in `display.json` navigation. Dashboards, endpoint tables, vulnerability tables, settings layouts, and other screens are defined in integration-owned React views.
 
 ## Integration Actions
 

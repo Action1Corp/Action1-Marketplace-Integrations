@@ -140,7 +140,7 @@ function Settings({ integration }) {
             ))}
             {supportsValidation && groupName.toLowerCase().includes('configuration') && (
               <button className="btn-primary" type="button" onClick={validate} disabled={validating}>
-                {validating ? 'Validating...' : (meta.display?.settings?.validateButtonLabel || 'Validate Credentials')}
+                {validating ? 'Validating...' : 'Validate Credentials'}
               </button>
             )}
             {validationResult && groupName.toLowerCase().includes('configuration') && (

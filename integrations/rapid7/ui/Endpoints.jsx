@@ -52,8 +52,8 @@ function Endpoints() {
   const [colFilters, setColFilters] = useState({});
 
   const integrationName = integrationMeta?.name || integration.charAt(0).toUpperCase() + integration.slice(1);
-  const display = integrationMeta?.display?.endpoints || fallbackDisplay;
-  const columns = Array.isArray(display.columns) && display.columns.length > 0 ? display.columns : fallbackDisplay.columns;
+  const display = fallbackDisplay;
+  const columns = fallbackDisplay.columns;
   const filterType = new URLSearchParams(location.search).get('filter') || '';
 
   useEffect(() => {
@@ -62,9 +62,8 @@ function Endpoints() {
       .then(r => r.json())
       .then(meta => {
         if (cancelled) return;
-        const endpointsDisplay = meta.display?.endpoints || fallbackDisplay;
         setIntegrationMeta(meta);
-        setSortConfig(endpointsDisplay.defaultSort || fallbackDisplay.defaultSort);
+        setSortConfig(fallbackDisplay.defaultSort);
         setColFilters({});
       })
       .catch(() => {

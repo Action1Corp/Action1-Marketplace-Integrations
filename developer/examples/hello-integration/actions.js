@@ -37,7 +37,7 @@ async function generateSummary() {
       nextRecommendedStep: 'Use this pattern for vendor-specific operations that do not fit the standard sync flow.'
     },
     data: [
-      { label: 'Custom screens', value: 'Defined in display.json' },
+      { label: 'Custom screens', value: 'Rendered by integration React views' },
       { label: 'Custom buttons', value: 'Declared in manifest.json actions' },
       { label: 'Custom behavior', value: 'Implemented in actions.js' }
     ]

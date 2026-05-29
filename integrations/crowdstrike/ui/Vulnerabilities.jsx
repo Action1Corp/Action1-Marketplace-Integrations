@@ -42,8 +42,8 @@ function Vulnerabilities() {
   const [sortConfig, setSortConfig] = useState(fallbackDisplay.defaultSort);
   const [colFilters, setColFilters] = useState({});
 
-  const display = integrationMeta?.display?.vulnerabilities || fallbackDisplay;
-  const columns = Array.isArray(display.columns) && display.columns.length > 0 ? display.columns : fallbackDisplay.columns;
+  const display = fallbackDisplay;
+  const columns = fallbackDisplay.columns;
   const params = new URLSearchParams(location.search);
   const severityFilter = params.get('severity') || '';
   const statusFilter = params.get('status') || '';
@@ -54,9 +54,8 @@ function Vulnerabilities() {
       .then(r => r.json())
       .then(meta => {
         if (cancelled) return;
-        const vulnerabilitiesDisplay = meta.display?.vulnerabilities || fallbackDisplay;
         setIntegrationMeta(meta);
-        setSortConfig(vulnerabilitiesDisplay.defaultSort || fallbackDisplay.defaultSort);
+        setSortConfig(fallbackDisplay.defaultSort);
         setColFilters({});
       })
       .catch(() => {

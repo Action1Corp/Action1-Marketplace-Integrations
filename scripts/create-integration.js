@@ -66,32 +66,7 @@ writeJson('display.json', {
     { id: 'dashboard', label: 'Dashboard', path: 'dashboard', icon: 'Activity' },
     { id: 'history', label: 'History', path: 'history', icon: 'History' },
     { id: 'settings', label: 'Settings', path: 'settings', icon: 'Settings', requiresWrite: true }
-  ],
-  dashboard: {
-    title: '{integrationName} Dashboard',
-    description: 'Operational summary for {integrationName}.',
-    cards: [],
-    sections: []
-  },
-  history: {
-    title: 'Run History',
-    searchPlaceholder: 'Search history...',
-    emptyText: 'No sync history found matching criteria.',
-    defaultSort: { key: 'id', direction: 'desc' },
-    columns: [
-      { key: 'id', label: 'Run ID', type: 'runId' },
-      { key: 'timestamp', label: 'Timestamp', type: 'datetime' },
-      { key: 'status', label: 'Status', type: 'runStatus' },
-      { key: 'assets_processed', label: 'Items Processed', type: 'number' },
-      { key: 'actions', label: 'Actions', type: 'historyActions', sortable: false }
-    ]
-  },
-  settings: {
-    title: 'Configuration',
-    validateButtonLabel: 'Validate Credentials',
-    saveButtonLabel: 'Save Settings',
-    scheduleTitle: 'Schedule'
-  }
+  ]
 });
 
 writeFile('index.js', `
@@ -298,7 +273,7 @@ Every visible screen must also have a matching integration-owned React view expo
 3. Implement the integration-owned run handler if this integration declares the run action.
 4. Update \`migrations/001_create_schema.sql\` with this integration's private tables.
 5. Update \`ui/settingsSchema.json\` with this integration's settings.
-6. Update \`display.json\` to define the tabs, views, labels, and metrics this integration supports.
+6. Update \`display.json\` to define only the sidebar navigation for this integration.
 7. Update \`ui/index.jsx\` and add React view components for every visible screen.
 8. Run \`npm test\` from the repository root.
 `);
