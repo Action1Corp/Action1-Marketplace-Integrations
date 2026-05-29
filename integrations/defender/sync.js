@@ -4,6 +4,50 @@ let getSetting;
 let computeAndSaveRunMetrics;
 let nvdService;
 
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isRetryableNetworkError(error) {
+    const code = error?.code || error?.cause?.code;
+    const status = error?.response?.status;
+    return ['ENOTFOUND', 'EAI_AGAIN', 'ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED'].includes(code)
+        || status === 408
+        || status === 429
+        || (status >= 500 && status < 600);
+}
+
+function cleanBaseUrl(value, fallback) {
+    return String(value || fallback || '')
+        .trim()
+        .replace(/^['"]+|['"]+$/g, '')
+        .replace(/\/$/, '');
+}
+
+async function defenderGetWithRetry(url, config = {}, label = 'Microsoft Defender API request') {
+    const attempts = 4;
+    let lastError;
+
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+        try {
+            return await axios.get(url, {
+                timeout: 30000,
+                ...config
+            });
+        } catch (error) {
+            lastError = error;
+            if (!isRetryableNetworkError(error) || attempt === attempts) break;
+
+            const code = error?.code || error?.cause?.code || error?.response?.status || error.message;
+            const delayMs = attempt * 2000;
+            await updateProgress(`${label} failed with ${code}. Retrying ${attempt + 1}/${attempts}...`);
+            await sleep(delayMs);
+        }
+    }
+
+    throw lastError;
+}
+
 
 
 function updateProgress(details, status = 'Running') {
@@ -133,8 +177,7 @@ async function runSync() {
         const DefenderClientId = await getSetting('DefenderClientId');
         const DefenderClientSecret = await getSetting('DefenderClientSecret');
         let DefenderBaseUrl = await getSetting('DefenderBaseUrl');
-        if (!DefenderBaseUrl) { DefenderBaseUrl = 'https://api.securitycenter.microsoft.com'; }
-        DefenderBaseUrl = DefenderBaseUrl.replace(/\/$/, '');
+        DefenderBaseUrl = cleanBaseUrl(DefenderBaseUrl, 'https://api.securitycenter.microsoft.com');
 
         const action1Id = await getSetting('Action1APIKey');
         const action1Secret = await getSetting('Action1APISecret');
@@ -200,9 +243,9 @@ async function runSync() {
         let dHostSeen = {};   // dns -> bool
         
         while (true) {
-            const mRes = await axios.get(`${DefenderBaseUrl}/api/machines?$top=500&$skip=${skip}`, {
+            const mRes = await defenderGetWithRetry(`${DefenderBaseUrl}/api/machines?$top=500&$skip=${skip}`, {
                 headers: { 'Authorization': `Bearer ${dToken}` }
-            });
+            }, 'Fetching Microsoft Defender machines');
             const vals = mRes.data.value || [];
             DefenderMachines.push(...vals);
             
@@ -224,9 +267,9 @@ async function runSync() {
         const rawVulns = []; // collect raw, categorize after catalog fetch
 
         while (true) {
-            const vRes = await axios.get(`${DefenderBaseUrl}/api/vulnerabilities/machinesVulnerabilities?$top=500&$skip=${vSkip}`, {
+            const vRes = await defenderGetWithRetry(`${DefenderBaseUrl}/api/vulnerabilities/machinesVulnerabilities?$top=500&$skip=${vSkip}`, {
                 headers: { 'Authorization': `Bearer ${dToken}` }
-            });
+            }, 'Fetching Microsoft Defender vulnerabilities');
             const vulns = vRes.data.value || [];
 
             vulns.forEach(v => {
