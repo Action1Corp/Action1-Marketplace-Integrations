@@ -1,6 +1,6 @@
 # Microsoft Defender
 
-Connect Microsoft Defender for Endpoint vulnerabilities.
+Correlates Microsoft Defender vulnerabilities with Action1 endpoint and patch context for shared dashboards.
 
 ## Files
 

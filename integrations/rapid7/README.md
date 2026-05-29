@@ -1,6 +1,6 @@
 # Rapid7 InsightVM
 
-Import Rapid7 asset risk scores into Action1.
+Correlates Rapid7 InsightVM exposure data with Action1 endpoint and patch context for shared dashboards.
 
 ## Files
 

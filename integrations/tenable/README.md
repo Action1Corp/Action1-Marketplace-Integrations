@@ -1,6 +1,6 @@
 # Tenable VM
 
-Synchronize vulnerabilities from Tenable.io into Action1.
+Correlates Tenable vulnerability data with Action1 endpoint and patch context for shared dashboards.
 
 ## Files
 

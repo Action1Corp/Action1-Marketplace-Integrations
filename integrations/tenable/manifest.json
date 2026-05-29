@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "marketplaceApiVersion": "1.0",
   "minimumMarketplaceVersion": "1.0.0",
-  "description": "Synchronize vulnerabilities from Tenable.io into Action1.",
+  "description": "Correlate Tenable vulnerability data with Action1 endpoint and patch context.",
   "category": "Vulnerability Management",
   "icon_color": "#2E8CEB",
   "entry": "index.js"

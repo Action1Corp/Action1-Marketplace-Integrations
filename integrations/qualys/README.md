@@ -1,6 +1,6 @@
 # Qualys VMDR
 
-Ingest Qualys scan findings into Action1.
+Correlates Qualys VMDR findings with Action1 endpoint and patch context for shared dashboards.
 
 ## Files
 

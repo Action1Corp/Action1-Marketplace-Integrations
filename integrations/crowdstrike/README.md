@@ -1,6 +1,6 @@
 # CrowdStrike Falcon
 
-Correlate CrowdStrike detections and vulns with Action1 inventory.
+Correlates CrowdStrike exposure data with Action1 endpoint and patch context for shared dashboards.
 
 ## Files
 

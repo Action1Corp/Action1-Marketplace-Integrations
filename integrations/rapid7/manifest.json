@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "marketplaceApiVersion": "1.0",
   "minimumMarketplaceVersion": "1.0.0",
-  "description": "Import Rapid7 asset risk scores into Action1.",
+  "description": "Correlate Rapid7 InsightVM exposure data with Action1 endpoint and patch context.",
   "category": "Vulnerability Management",
   "icon_color": "#FF6B00"
 }
