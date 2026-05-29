@@ -1,4 +1,4 @@
-async function createSyncRun(context, details = 'Started sync') {
+async function createRun(context, details = 'Started run') {
   const result = await context.db.run(
     'INSERT INTO sync_history (integration_id, status, details) VALUES (?, ?, ?)',
     [context.integrationId, 'Running', details]
@@ -6,14 +6,14 @@ async function createSyncRun(context, details = 'Started sync') {
   return result.lastID;
 }
 
-async function appendSyncLog(context, runId, currentDetails, message) {
+async function appendRunLog(context, runId, currentDetails, message) {
   const nextDetails = `${currentDetails || ''}${new Date().toISOString().substring(11, 19)} - ${message}\n`;
   context.logger.info(message);
   await context.db.run('UPDATE sync_history SET details = ? WHERE id = ?', [nextDetails, runId]);
   return nextDetails;
 }
 
-async function completeSyncRun(context, runId, details, assetsProcessed = 0) {
+async function completeRun(context, runId, details, assetsProcessed = 0) {
   await context.services.computeAndSaveRunMetrics(runId, context.integrationId);
   await context.db.run(
     'UPDATE sync_history SET status = ?, details = ?, assets_processed = ? WHERE id = ?',
@@ -21,7 +21,7 @@ async function completeSyncRun(context, runId, details, assetsProcessed = 0) {
   );
 }
 
-async function failSyncRun(context, runId, details, error) {
+async function failRun(context, runId, details, error) {
   const message = error?.message || String(error);
   const nextDetails = `${details || ''}${new Date().toISOString().substring(11, 19)} - Error: ${message}\n`;
   await context.db.run(
@@ -39,9 +39,9 @@ function getDataTables(context) {
 }
 
 module.exports = {
-  createSyncRun,
-  appendSyncLog,
-  completeSyncRun,
-  failSyncRun,
+  createRun,
+  appendRunLog,
+  completeRun,
+  failRun,
   getDataTables
 };

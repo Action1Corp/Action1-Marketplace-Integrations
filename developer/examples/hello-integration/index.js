@@ -1,9 +1,9 @@
 const { validate } = require('./validate');
-const { sync } = require('./sync');
+const { runSync } = require('./run');
 const { actions } = require('./actions');
 
 module.exports = {
   validate,
-  sync,
+  runSync,
   actions
 };

@@ -71,11 +71,11 @@ writeJson('display.json', {
 
 writeFile('index.js', `
 const { validate } = require('./validate');
-const { sync } = require('./sync');
+const { runSync } = require('./run');
 
 module.exports = {
   validate,
-  sync
+  runSync
 };
 `);
 
@@ -97,28 +97,28 @@ module.exports = {
 };
 `);
 
-writeFile('sync.js', `
+writeFile('run.js', `
 const {
-  createSyncRun,
-  appendSyncLog,
-  completeSyncRun,
-  failSyncRun
+  createRun,
+  appendRunLog,
+  completeRun,
+  failRun
 } = require('../../sdk');
 
-async function sync(context) {
-  const runId = await createSyncRun(context);
+async function runSync(context) {
+  const runId = await createRun(context);
   let details = 'Started run\\n';
 
   try {
-    details = await appendSyncLog(context, runId, details, 'Add vendor API calls and data writes here.');
-    await completeSyncRun(context, runId, details, 0);
+    details = await appendRunLog(context, runId, details, 'Add vendor API calls and data writes here.');
+    await completeRun(context, runId, details, 0);
   } catch (error) {
-    await failSyncRun(context, runId, details, error);
+    await failRun(context, runId, details, error);
   }
 }
 
 module.exports = {
-  sync
+  runSync
 };
 `);
 

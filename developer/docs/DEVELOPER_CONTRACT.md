@@ -166,10 +166,10 @@ The `sdk/` folder provides helpers for common integration behavior.
 
 ```js
 const {
-  createSyncRun,
-  appendSyncLog,
-  completeSyncRun,
-  failSyncRun,
+  createRun,
+  appendRunLog,
+  completeRun,
+  failRun,
   getDataTables
 } = require("../../sdk");
 ```

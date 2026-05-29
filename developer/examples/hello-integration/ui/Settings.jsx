@@ -20,7 +20,7 @@ function Settings({ integration }) {
   const [validationResult, setValidationResult] = useState(null);
   const [scheduleUi, setScheduleUi] = useState(cronToSchedule(''));
   const sensitiveSettings = useMemo(() => new Set(settingsSchema.filter(setting => setting.type === 'secret' || setting.sensitive).map(setting => setting.key)), [settingsSchema]);
-  const supportsSchedule = Boolean(meta?.operations?.schedule || meta?.operations?.sync);
+  const supportsSchedule = Boolean(meta?.operations?.schedule || meta?.operations?.run);
   const supportsValidation = Boolean(meta?.operations?.validate);
 
   useEffect(() => {
