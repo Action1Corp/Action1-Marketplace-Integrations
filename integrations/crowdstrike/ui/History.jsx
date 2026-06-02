@@ -10,6 +10,7 @@ const fallbackDisplay = {
   defaultSort: { key: 'id', direction: 'desc' },
   columns: [
     { key: 'id', label: 'Run ID', type: 'runId' },
+    { key: 'action_label', label: 'Action', type: 'text' },
     { key: 'timestamp', label: 'Timestamp', type: 'datetime' },
     { key: 'status', label: 'Status', type: 'runStatus' },
     { key: 'assets_processed', label: 'Endpoints Processed', type: 'number' },
@@ -133,7 +134,7 @@ function History() {
 
   const renderCell = (row, column) => {
     const value = row[column.key];
-    if (column.type === 'runId') return <td style={{ fontWeight: '500' }}>#{value}</td>;
+    if (column.type === 'runId') return <td style={{ fontWeight: '500' }}>#{row.integration_run_id ?? value}</td>;
     if (column.type === 'datetime') return <td>{value ? new Date(value).toLocaleString() : ''}</td>;
     if (column.type === 'runStatus') {
       return (

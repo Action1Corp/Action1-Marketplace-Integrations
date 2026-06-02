@@ -42,23 +42,27 @@ async function run() {
         assert.strictEqual(typeof handler.actions[action.id], 'function', `${manifest.id}: action ${action.id} requires a handler`);
       }
     }
-    if (fs.existsSync(path.join(integrationDir, 'validate.js'))) {
-      assert(fs.existsSync(path.join(integrationDir, 'validate.js')), `${manifest.id}: validate.js should exist when validation is implemented`);
-      assert.strictEqual(typeof handler.validate, 'function', `${manifest.id}: validate.js requires an exported validate() handler`);
-      const result = await handler.validate({
-        settings: {},
+    const validateAction = Array.isArray(manifest.actions) && manifest.actions.find(action => action.kind === 'validate');
+    if (validateAction) {
+      assert.strictEqual(typeof handler.actions[validateAction.id], 'function', `${manifest.id}: validate action ${validateAction.id} requires a handler`);
+      const result = await handler.actions[validateAction.id]({
+        integrationId: manifest.id,
         action1: {
           getCredentials: async () => ({ apiKey: '', apiSecret: '', organizationId: '' })
         },
         logger: console
+      }, {
+        settings: {},
+        payload: {},
+        run: null
       });
-      assert(result && typeof result === 'object', `${manifest.id}: validate() should return an object`);
-      assert(Object.prototype.hasOwnProperty.call(result, manifest.id), `${manifest.id}: validate() should include vendor result key`);
+      assert(result && typeof result === 'object', `${manifest.id}: validate action should return an object`);
+      assert(Object.prototype.hasOwnProperty.call(result, 'ok'), `${manifest.id}: validate action should return an ok field`);
     }
 
-    if (fs.existsSync(path.join(integrationDir, 'sync.js'))) {
-      assert(fs.existsSync(path.join(integrationDir, 'sync.js')), `${manifest.id}: sync.js should exist when sync is implemented`);
-      assert.strictEqual(typeof handler.sync, 'function', `${manifest.id}: sync.js requires an exported sync() handler`);
+    const syncAction = Array.isArray(manifest.actions) && manifest.actions.find(action => action.kind === 'sync');
+    if (syncAction) {
+      assert.strictEqual(typeof handler.actions[syncAction.id], 'function', `${manifest.id}: sync action ${syncAction.id} requires a handler`);
     }
 
     if (fs.existsSync(displayPath)) {

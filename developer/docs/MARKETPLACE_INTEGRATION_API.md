@@ -2,7 +2,7 @@
 
 Current API version: `1.0`
 
-The Action1 Integration Marketplace loads integrations as folder-based packages. Each package declares its catalog metadata, integration-owned settings schema, visible screens, database schema, and runtime handlers.
+The Action1 Integration Marketplace loads integrations as folder-based packages. Each package declares its catalog metadata, integration-owned actions, settings schema, visible screens, database schema, and runtime handlers.
 
 ## Package Layout
 
@@ -49,13 +49,14 @@ Runtime behavior is inferred from the integration package instead of being decla
 | Package Content | Marketplace Behavior |
 | --- | --- |
 | `ui/settingsSchema.json` plus a settings view | settings storage, secret masking, and configured-state detection |
-| exported validation handler | credential validation endpoint can dispatch to the integration |
-| exported run handler | manual runs and schedules can dispatch to the integration |
+| manifest actions plus exported action handlers | integration-owned operations can run through the Marketplace action endpoint and history/notification framework |
+| exported validation handler | compatibility validation endpoint can dispatch to the integration |
+| exported run handler | compatibility manual runs and schedules can dispatch to the integration |
 | history view or API calls | integration UI can read Marketplace run history |
 
 ### Integration Actions
 
-Integrations can define custom actions in `manifest.json`. Integration-owned React views render those actions and call the Marketplace action endpoint, which dispatches the request back to the integration-owned handler.
+Integrations define custom actions in `manifest.json`. Integration-owned React views render those actions and call the Marketplace action endpoint, which dispatches the request back to the integration-owned handler.
 
 ```json
 {
@@ -66,6 +67,7 @@ Integrations can define custom actions in `manifest.json`. Integration-owned Rea
       "buttonLabel": "Publish",
       "description": "Publishes the current agent package to the vendor platform.",
       "placement": "settings",
+      "history": true,
       "confirm": true,
       "confirmMessage": "Publish the agent package now?"
     }
@@ -79,6 +81,16 @@ Supported placements:
 - any screen path declared in `display.navigation`, such as `actions-lab` or `asset-risk`
 
 The action `id` must be lowercase kebab-case and must match an integration-owned handler exported from the entrypoint.
+
+Actions are tracked in Marketplace history by default. A tracked action creates a history row with:
+
+- `action_id`
+- `action_label`
+- `status`
+- `details`
+- `assets_processed`
+
+Failed tracked actions use the Marketplace failure notification path. Set `history: false` only for actions that should not create a history row. Set `preventConcurrent: false` only when this action can safely run while another action for the same integration is already running.
 
 ### Settings
 
@@ -114,11 +126,32 @@ Use `secret` for API keys, tokens, passwords, and client secrets.
 The integration entrypoint defaults to `index.js`, or the file specified by `manifest.entry`.
 It exports whichever integration-owned handlers match the actions declared in `manifest.json`.
 
-Generic actions are exported as an action map keyed by action id. Each action receives the runtime context and the submitted settings/payload from the Marketplace.
+Generic actions are exported as an action map keyed by action id. Each action receives the runtime context, action metadata, submitted settings/payload, and tracked-run helpers from the Marketplace.
+
+```js
+module.exports = {
+  actions: {
+    "publish-agent": async (context, request) => {
+      await request.run?.appendLog("Starting publish.");
+      await request.run?.setAssetsProcessed(1);
+      return { ok: true, message: "Publish completed." };
+    }
+  }
+};
+```
+
+When history tracking is enabled, `request.run` includes:
+
+- `id`
+- `appendLog(message)`
+- `setStatus(status, details)`
+- `setAssetsProcessed(count)`
+
+The Marketplace marks the action `Success` when the handler returns normally, and `Failed` when the handler throws or returns `{ ok: false }`.
 
 ### Validation Handler
 
-Optional. When exported by the integration entrypoint, the Marketplace validation endpoint can dispatch to it. The handler belongs to the integration and should contain the vendor-specific credential check.
+Optional compatibility hook. When exported by the integration entrypoint, the Marketplace validation endpoint can dispatch to it. New integrations can also model validation as a manifest action such as `check-configuration`.
 
 Return keyed validation results:
 
@@ -133,7 +166,7 @@ If the integration does not use Action1 credentials directly, omit `action1`.
 
 ### Run Handler
 
-Optional. When exported by the integration entrypoint, the Marketplace can dispatch manual runs and scheduled runs to it. The handler belongs to the integration and should contain the vendor-specific job logic.
+Optional compatibility hook. When exported by the integration entrypoint, the Marketplace can dispatch manual runs and scheduled runs to it. New integrations can also model vendor jobs as manifest actions.
 
 The run handler should:
 
@@ -144,7 +177,7 @@ The run handler should:
 5. Compute or store any metrics needed by the integration-owned React views.
 6. Mark the run as success or failure.
 
-Prefer the helpers in `sdk/` for run-history consistency.
+Prefer manifest actions and `request.run` for new work. Use the helpers in `sdk/` when maintaining compatibility run handlers that manage history directly.
 
 ## Runtime Context
 
@@ -188,15 +221,15 @@ Integrations that need Action1 data must read the shared credentials through `co
 
 ### Failure Notifications
 
-The Marketplace owns SMTP and webhook notification settings and automatically sends a failure alert when a manual or scheduled integration run finishes with a failed status. Integrations usually do not need to call notification APIs directly.
+The Marketplace owns SMTP and webhook notification settings and automatically sends a failure alert when a tracked action, manual run, or scheduled integration run finishes with a failed status. Integrations usually do not need to call notification APIs directly.
 
-If an integration has a custom operation outside the standard run flow, it can request the same Marketplace failure alert through:
+If an integration intentionally disables action history and runs outside the tracked action flow, it can request the same Marketplace failure alert through:
 
 ```js
 await context.notifications.sendFailureAlert({ error });
 ```
 
-The integration should still record the failed run in Marketplace run history so the email and webhook payload can include the run ID and details.
+Tracked actions do not need to create their own history row. Untracked actions should still record a failed run in Marketplace run history so the email and webhook payload can include the run ID and details.
 
 ## Database Migrations
 

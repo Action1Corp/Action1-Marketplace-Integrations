@@ -19,7 +19,8 @@ Use this checklist before merging an integration pull request.
 - Metadata is clear and customer-facing.
 - `category` is appropriate.
 - Runtime behavior is inferred from integration-owned files and exported handlers.
-- Scheduling is only exposed when the integration provides a run handler.
+- Scheduling is only exposed when the integration provides a compatible run handler.
+- Manifest actions have stable IDs, clear labels, and appropriate history/concurrency settings.
 - Required settings are marked `required`.
 - Sensitive settings use `type: "secret"`.
 - Select settings define valid options.
@@ -44,11 +45,12 @@ Use this checklist before merging an integration pull request.
 
 ## Handler Review
 
-- Validation handler exists only when the integration declares the validation action.
-- Run handler exists only when the integration declares the run action.
-- Handlers use `context` and `sdk/` helpers.
-- Run handler creates, updates, and completes/fails run history.
-- Run handler catches errors and records meaningful failure details.
+- Manifest actions have matching exported action handlers.
+- Compatibility validation/run handlers exist only when the integration needs legacy Marketplace lifecycle hooks.
+- Handlers use `context` and Marketplace-provided request helpers.
+- Tracked action handlers use `request.run` for meaningful logs and processed counts.
+- Compatibility run handlers create, update, and complete/fail run history.
+- Handlers catch or throw errors in a way that records meaningful failure details.
 - Vendor API calls have timeouts or bounded pagination.
 - Large API responses are not stored blindly unless needed.
 - Logs avoid secrets and sensitive customer data.
@@ -58,8 +60,8 @@ Use this checklist before merging an integration pull request.
 - Integration works in a local mounted Marketplace container.
 - Settings save correctly.
 - Validation reports success and failure accurately.
-- Manual run succeeds with valid credentials.
-- Manual run fails cleanly with bad credentials.
+- Tracked actions succeed with valid credentials.
+- Tracked actions fail cleanly with bad credentials or invalid input.
 - Failure appears in History and Dashboard.
 - Failure notifications can use Marketplace email/webhook settings.
 - Read-only users cannot perform write actions.

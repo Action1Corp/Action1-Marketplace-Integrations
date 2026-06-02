@@ -7,5 +7,27 @@
   "minimumMarketplaceVersion": "1.0.0",
   "description": "Correlate Microsoft Defender vulnerabilities with Action1 endpoint and patch context.",
   "category": "EDR / XDR",
-  "icon_color": "#00A4EF"
+  "icon_color": "#00A4EF",
+  "entry": "index.js",
+  "actions": [
+    {
+      "id": "validate-configuration",
+      "kind": "validate",
+      "label": "Validate Configuration",
+      "buttonLabel": "Validate Credentials",
+      "runningLabel": "Validating...",
+      "description": "Validates Microsoft Defender and shared Action1 credentials.",
+      "placement": "settings"
+    },
+    {
+      "id": "sync",
+      "kind": "sync",
+      "label": "Sync",
+      "buttonLabel": "Run Sync Now",
+      "runningLabel": "Syncing...",
+      "description": "Synchronizes Microsoft Defender vulnerabilities and endpoint data.",
+      "placement": "dashboard",
+      "history": false
+    }
+  ]
 }

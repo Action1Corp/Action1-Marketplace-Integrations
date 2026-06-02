@@ -7,5 +7,27 @@
   "minimumMarketplaceVersion": "1.0.0",
   "description": "Sync Intune managed devices and compliance status with Action1.",
   "category": "Endpoint Management",
-  "icon_color": "#00A4EF"
+  "icon_color": "#00A4EF",
+  "entry": "index.js",
+  "actions": [
+    {
+      "id": "validate-configuration",
+      "kind": "validate",
+      "label": "Validate Configuration",
+      "buttonLabel": "Validate Credentials",
+      "runningLabel": "Validating...",
+      "description": "Validates Microsoft Intune credentials.",
+      "placement": "settings"
+    },
+    {
+      "id": "sync",
+      "kind": "sync",
+      "label": "Check Agent Version",
+      "buttonLabel": "Check Now",
+      "runningLabel": "Checking...",
+      "description": "Checks and updates the Action1 Agent package in Microsoft Intune.",
+      "placement": "dashboard",
+      "history": false
+    }
+  ]
 }

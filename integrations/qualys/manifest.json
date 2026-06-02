@@ -7,5 +7,27 @@
   "minimumMarketplaceVersion": "1.0.0",
   "description": "Correlate Qualys VMDR findings with Action1 endpoint and patch context.",
   "category": "Vulnerability Management",
-  "icon_color": "#E84B4B"
+  "icon_color": "#E84B4B",
+  "entry": "index.js",
+  "actions": [
+    {
+      "id": "validate-configuration",
+      "kind": "validate",
+      "label": "Validate Configuration",
+      "buttonLabel": "Validate Credentials",
+      "runningLabel": "Validating...",
+      "description": "Validates Qualys VMDR and shared Action1 credentials.",
+      "placement": "settings"
+    },
+    {
+      "id": "sync",
+      "kind": "sync",
+      "label": "Sync",
+      "buttonLabel": "Run Sync Now",
+      "runningLabel": "Syncing...",
+      "description": "Synchronizes Qualys VMDR vulnerabilities and endpoint data.",
+      "placement": "dashboard",
+      "history": false
+    }
+  ]
 }

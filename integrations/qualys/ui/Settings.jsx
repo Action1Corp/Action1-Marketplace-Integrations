@@ -70,13 +70,13 @@ function Settings({ integration }) {
     setValidating(true);
     setValidationResult(null);
     try {
-      const response = await fetch('/api/validate', {
+      const response = await fetch(`/api/integrations/${integration}/actions/validate-configuration`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(validationPayload())
+        body: JSON.stringify({ settings: validationPayload() })
       });
       const data = await response.json();
-      setValidationResult(data[integration] || data);
+      setValidationResult(data);
     } catch (error) {
       setValidationResult({ ok: false, message: error.message });
     } finally {

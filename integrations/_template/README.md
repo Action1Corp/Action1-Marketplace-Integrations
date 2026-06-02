@@ -11,7 +11,7 @@ Recommended files:
 - `display.json` for Marketplace sidebar navigation
 - `migrations/` for integration-owned database schema
 - `index.js` as the Marketplace entrypoint
-- optional integration-owned validation handler when the integration declares the validation action
-- optional integration-owned run handler when the integration declares the run action
+- optional manifest actions plus matching integration-owned action handlers
+- optional compatibility validation/run handlers for integrations that need legacy Marketplace lifecycle hooks
 - `README.md` for setup requirements and vendor permissions
 

@@ -5,6 +5,7 @@ function History({ integration }) {
   const [rows, setRows] = useState([]);
   const columns = [
     { key: 'id', label: 'Run ID', type: 'runId' },
+    { key: 'action_label', label: 'Action', type: 'text' },
     { key: 'timestamp', label: 'Timestamp', type: 'datetime' },
     { key: 'status', label: 'Status', type: 'runStatus' },
     { key: 'assets_processed', label: 'Items Processed', type: 'number' },

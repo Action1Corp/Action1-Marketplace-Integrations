@@ -7,5 +7,27 @@
   "minimumMarketplaceVersion": "1.0.0",
   "description": "Correlate CrowdStrike exposure data with Action1 endpoint and patch context.",
   "category": "EDR / XDR",
-  "icon_color": "#E00400"
+  "icon_color": "#E00400",
+  "entry": "index.js",
+  "actions": [
+    {
+      "id": "validate-configuration",
+      "kind": "validate",
+      "label": "Validate Configuration",
+      "buttonLabel": "Validate Credentials",
+      "runningLabel": "Validating...",
+      "description": "Validates CrowdStrike Falcon and shared Action1 credentials.",
+      "placement": "settings"
+    },
+    {
+      "id": "sync",
+      "kind": "sync",
+      "label": "Sync",
+      "buttonLabel": "Run Sync Now",
+      "runningLabel": "Syncing...",
+      "description": "Synchronizes CrowdStrike Falcon vulnerabilities and endpoint data.",
+      "placement": "dashboard",
+      "history": false
+    }
+  ]
 }

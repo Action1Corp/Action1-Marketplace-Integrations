@@ -79,18 +79,19 @@ The Send Test Webhook action sends:
 
 ## Integration Responsibilities
 
-For normal run failures, integrations should:
+For normal tracked action failures, integrations should:
 
-1. create a run-history entry
-2. mark the run as `Failed` with useful details
-3. let the Marketplace send configured alerts
+1. let the Marketplace create the action-history entry
+2. write useful progress through `request.run.appendLog(...)`
+3. throw an error or return `{ "ok": false }` when the action fails
+4. let the Marketplace send configured alerts
 
-For custom operations outside the standard run flow, integrations may call:
+For intentionally untracked operations, integrations may call:
 
 ```js
 await context.notifications.sendFailureAlert({ error });
 ```
 
-The integration should write a failed run-history entry before calling this helper.
+The integration should write a failed run-history entry before calling this helper. Tracked actions do not need to call this helper directly.
 
 

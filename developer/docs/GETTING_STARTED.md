@@ -50,7 +50,7 @@ Required fields:
 - `minimumMarketplaceVersion`
 - `description`
 - `category`
-- `actions`, when the integration exposes custom host-screen actions
+- `actions`, when the integration exposes integration-owned operations
 
 Do not declare runtime capabilities in the manifest. The Marketplace infers behavior from the files and handlers the integration provides.
 
@@ -120,23 +120,30 @@ const { endpoints, endpointCves } = context.db.tables;
 
 See `SCHEMA_REFERENCE.md` for required columns.
 
-## 6. Implement Validation Logic
+## 6. Implement Actions
 
-If the integration declares the validation action, export an integration-owned validation handler.
+Define integration-owned operations in `manifest.json`, then export matching handlers from the entrypoint.
 
-Validation should check vendor credentials and any required base URL or region. If the integration also needs Action1 access, use:
+Actions are tracked in Marketplace history by default and can be monitored for failure notifications. Handler code receives `request.run` helpers:
 
 ```js
-const { apiKey, apiSecret, organizationId } = await context.action1.getCredentials();
+module.exports = {
+  actions: {
+    "check-configuration": async (context, request) => {
+      await request.run?.appendLog("Checking vendor configuration.");
+      return { ok: true, message: "Configuration is valid." };
+    }
+  }
+};
 ```
 
-## 7. Implement Run Logic
+Set `history: false` on a manifest action only when it should not appear in run history.
 
-If the integration declares the run action, export an integration-owned run handler.
+## 7. Implement Validation Or Run Compatibility Hooks
 
-Use the `sdk/` run-history helpers to create, update, complete, and fail run-history entries consistently.
+Existing Marketplace screens still support optional exported `validate` and `sync`/`runSync` handlers. Use these compatibility hooks when an integration needs the standard settings validation button, "Run Sync Now" button, or scheduler wiring.
 
-The Marketplace sends failure notifications automatically for failed manual and scheduled integration runs.
+For new developer apps, prefer manifest actions for integration-owned operations. The Marketplace sends failure notifications automatically for failed tracked actions, manual runs, and scheduled runs.
 
 ## 8. Test Locally
 

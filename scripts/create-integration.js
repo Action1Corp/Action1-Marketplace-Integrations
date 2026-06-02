@@ -58,7 +58,25 @@ writeJson('manifest.json', {
   description: `Connect ${displayName} to the Action1 Integration Marketplace.`,
   category: 'Integration',
   icon_color: '#2E8CEB',
-  entry: 'index.js'
+  entry: 'index.js',
+  actions: [
+    {
+      id: 'check-configuration',
+      label: 'Check Configuration',
+      buttonLabel: 'Check Configuration',
+      runningLabel: 'Checking...',
+      description: 'Checks whether required configuration values are present.',
+      placement: 'settings'
+    },
+    {
+      id: 'run-operation',
+      label: 'Run Operation',
+      buttonLabel: 'Run',
+      runningLabel: 'Running...',
+      description: `Runs the primary ${displayName} operation.`,
+      placement: 'dashboard'
+    }
+  ]
 });
 
 writeJson('display.json', {
@@ -70,55 +88,39 @@ writeJson('display.json', {
 });
 
 writeFile('index.js', `
-const { validate } = require('./validate');
-const { runSync } = require('./run');
+const { actions } = require('./actions');
 
 module.exports = {
-  validate,
-  runSync
+  actions
 };
 `);
 
-writeFile('validate.js', `
-async function validate({ settings }) {
+writeFile('actions.js', `
+async function checkConfiguration(context, { settings, run }) {
+  await run?.appendLog('Checking configuration values.');
   const hasUrl = Object.values(settings || {}).some(value => typeof value === 'string' && value.startsWith('http'));
   const hasToken = Object.values(settings || {}).some(value => typeof value === 'string' && value.length > 12);
 
   return {
-    '${id}': {
-      ok: hasUrl && hasToken,
-      message: hasUrl && hasToken ? 'Configuration values are present' : 'Missing API URL or token'
-    }
+    ok: hasUrl && hasToken,
+    message: hasUrl && hasToken ? 'Configuration values are present' : 'Missing API URL or token'
+  };
+}
+
+async function runOperation(context, { run }) {
+  await run?.appendLog('Add vendor API calls and data writes here.');
+  await run?.setAssetsProcessed(0);
+  return {
+    ok: true,
+    message: '${displayName} operation completed.'
   };
 }
 
 module.exports = {
-  validate
-};
-`);
-
-writeFile('run.js', `
-const {
-  createRun,
-  appendRunLog,
-  completeRun,
-  failRun
-} = require('../../sdk');
-
-async function runSync(context) {
-  const runId = await createRun(context);
-  let details = 'Started run\\n';
-
-  try {
-    details = await appendRunLog(context, runId, details, 'Add vendor API calls and data writes here.');
-    await completeRun(context, runId, details, 0);
-  } catch (error) {
-    await failRun(context, runId, details, error);
+  actions: {
+    'check-configuration': checkConfiguration,
+    'run-operation': runOperation
   }
-}
-
-module.exports = {
-  runSync
 };
 `);
 
@@ -163,6 +165,7 @@ function History({ integration }) {
             <thead>
               <tr>
                 <th>Run ID</th>
+                <th>Action</th>
                 <th>Timestamp</th>
                 <th>Status</th>
                 <th>Items Processed</th>
@@ -172,6 +175,7 @@ function History({ integration }) {
               {rows.map(row => (
                 <tr key={row.id}>
                   <td>#{row.id}</td>
+                  <td>{row.action_label || row.action_id || 'Action'}</td>
                   <td>{row.timestamp ? new Date(row.timestamp).toLocaleString() : ''}</td>
                   <td>{row.status}</td>
                   <td>{Number(row.assets_processed || 0).toLocaleString()}</td>
@@ -259,9 +263,9 @@ This integration was generated with \`npm run create-integration -- ${id}\`.
 The Marketplace infers supported operations from the handlers and UI files this package provides:
 
 - \`ui/settingsSchema.json\` and the settings view enable integration settings.
-- \`validate.js\` and an exported validation handler enable credential validation.
-- An exported run handler enables manual runs and scheduling.
-- A history view can read Marketplace run history for this integration.
+- Manifest \`actions\` and exported action handlers define integration-owned operations.
+- Tracked actions are written to Marketplace history and monitored for failures by default.
+- A history view can read Marketplace action/run history for this integration.
 
 Visible screens are declared in \`display.json\` navigation and rendered by React views exported from \`ui/index.jsx\`.
 Every visible screen must also have a matching integration-owned React view exported from \`ui/index.jsx\`.
@@ -269,8 +273,8 @@ Every visible screen must also have a matching integration-owned React view expo
 ## Next Steps
 
 1. Update \`manifest.json\` metadata and category.
-2. Implement the integration-owned validation handler if this integration declares the validation action.
-3. Implement the integration-owned run handler if this integration declares the run action.
+2. Update manifest \`actions\` for the operations this integration owns.
+3. Implement matching action handlers in \`actions.js\`.
 4. Update \`migrations/001_create_schema.sql\` with this integration's private tables.
 5. Update \`ui/settingsSchema.json\` with this integration's settings.
 6. Update \`display.json\` to define only the sidebar navigation for this integration.

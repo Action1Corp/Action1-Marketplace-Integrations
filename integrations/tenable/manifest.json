@@ -8,5 +8,26 @@
   "description": "Correlate Tenable vulnerability data with Action1 endpoint and patch context.",
   "category": "Vulnerability Management",
   "icon_color": "#2E8CEB",
-  "entry": "index.js"
+  "entry": "index.js",
+  "actions": [
+    {
+      "id": "validate-configuration",
+      "kind": "validate",
+      "label": "Validate Configuration",
+      "buttonLabel": "Validate Credentials",
+      "runningLabel": "Validating...",
+      "description": "Validates Tenable VM and shared Action1 credentials.",
+      "placement": "settings"
+    },
+    {
+      "id": "sync",
+      "kind": "sync",
+      "label": "Sync",
+      "buttonLabel": "Run Sync Now",
+      "runningLabel": "Syncing...",
+      "description": "Synchronizes Tenable VM vulnerabilities and endpoint data.",
+      "placement": "dashboard",
+      "history": false
+    }
+  ]
 }
