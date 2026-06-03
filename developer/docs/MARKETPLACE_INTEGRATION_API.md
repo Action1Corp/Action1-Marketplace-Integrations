@@ -203,9 +203,6 @@ await context.db.all(sql, params)
 await context.db.statement(sql, params)
 await context.db.row(sql, params)
 
-context.db.tables.endpoints
-context.db.tables.endpointCves
-
 context.http
 context.services.nvd
 context.services.computeAndSaveRunMetrics(runId, context.integrationId)
@@ -261,11 +258,11 @@ For vulnerability-management integrations, one common table pattern is:
 <integration_id>_endpoint_cves
 ```
 
-The Marketplace exposes these names at runtime:
+The integration should define any table names it uses in its own code:
 
 ```js
-const endpointTable = context.db.tables.endpoints;
-const cveTable = context.db.tables.endpointCves;
+const endpointTable = "vendor_id_endpoints";
+const cveTable = "vendor_id_endpoint_cves";
 ```
 
 The Marketplace framework owns shared tables for settings, authentication, schedules, run history, shared CVE metadata, and migration tracking.

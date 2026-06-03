@@ -112,10 +112,11 @@ For a vulnerability-management integration, you might create tables such as:
 <integration_id>_endpoint_cves
 ```
 
-When an integration follows the common endpoint/CVE naming pattern, these table names are exposed at runtime:
+Define the table names in your integration code so they stay aligned with your migrations:
 
 ```js
-const { endpoints, endpointCves } = context.db.tables;
+const endpointTable = "acme_vm_endpoints";
+const cveTable = "acme_vm_endpoint_cves";
 ```
 
 See `SCHEMA_REFERENCE.md` for required columns.

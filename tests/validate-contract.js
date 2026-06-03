@@ -34,6 +34,7 @@ async function run() {
     assert(!handlerSource.includes("require('../database')"), `${manifest.id}: must not import Marketplace database`);
     assert(!handlerSource.includes("require('./nvdService')"), `${manifest.id}: must not import Marketplace NVD service`);
     assert(!handlerSource.includes('context.legacy'), `${manifest.id}: must not use legacy runtime bridge`);
+    assert(!handlerSource.includes('context.db.tables'), `${manifest.id}: must own table names instead of using Marketplace table helpers`);
 
     const handler = require(handlerPath);
     if (Array.isArray(manifest.actions) && manifest.actions.length > 0) {

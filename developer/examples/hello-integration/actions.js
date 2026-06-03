@@ -49,21 +49,17 @@ async function generateSummary(context, { run }) {
 }
 
 async function runtimeDiagnostics(context, { run }) {
-  await run?.appendLog('Reading Marketplace-provided integration table names.');
-  const endpointTable = context.db.tables.endpoints;
-  const cveTable = context.db.tables.endpointCves;
-  const endpointRow = await context.db.get(`SELECT COUNT(*) AS count FROM ${endpointTable}`);
-  const cveRow = await context.db.get(`SELECT COUNT(*) AS count FROM ${cveTable}`);
+  await run?.appendLog('Inspecting integration-owned example table.');
+  const itemTable = 'hello_integration_items';
+  const itemRow = await context.db.get(`SELECT COUNT(*) AS count FROM ${itemTable}`);
 
   return {
     ok: true,
     message: 'Runtime diagnostics completed.',
     details: {
       integrationId: context.integrationId,
-      endpointTable,
-      endpointRows: endpointRow?.count || 0,
-      vulnerabilityTable: cveTable,
-      vulnerabilityRows: cveRow?.count || 0
+      itemTable,
+      itemRows: itemRow?.count || 0
     }
   };
 }

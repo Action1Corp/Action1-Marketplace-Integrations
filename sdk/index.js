@@ -31,17 +31,9 @@ async function failRun(context, runId, details, error) {
   return nextDetails;
 }
 
-function getDataTables(context) {
-  if (!context?.db?.tables) {
-    throw new Error('Marketplace context does not expose integration data tables.');
-  }
-  return context.db.tables;
-}
-
 module.exports = {
   createRun,
   appendRunLog,
   completeRun,
-  failRun,
-  getDataTables
+  failRun
 };

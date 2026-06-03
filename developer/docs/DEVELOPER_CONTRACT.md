@@ -108,15 +108,12 @@ await context.db.all(sql, params)
 await context.db.statement(sql, params)
 await context.db.row(sql, params)
 
-context.db.tables.endpoints
-context.db.tables.endpointCves
-
 context.http
 context.services.nvd
 context.services.computeAndSaveRunMetrics(runId, context.integrationId)
 ```
 
-Use `context.db.tables` only when the integration follows the common endpoint/CVE table naming pattern. Otherwise, integrations can query their own tables directly through `context.db`.
+Integrations own their table names. Define table-name constants in integration code that match the integration's migration files.
 
 ## Shared Action1 Credentials
 
@@ -178,7 +175,7 @@ For vulnerability-management integrations, one common table pattern is:
 <integration_id>_endpoint_cves
 ```
 
-The Marketplace resolves these names from the integration ID.
+If an integration uses this pattern, it should still define those names in its own code and migrations.
 
 ## SDK Helpers
 
@@ -189,14 +186,13 @@ const {
   createRun,
   appendRunLog,
   completeRun,
-  failRun,
-  getDataTables
+  failRun
 } = require("../../sdk");
 ```
 
 For an integration in `developer/examples`, use `../../../sdk`.
 
-New action handlers should prefer the Marketplace-provided `request.run` helpers for action logs and status. `getDataTables(context)` returns the Marketplace-resolved endpoint and vulnerability table names for the current integration.
+New action handlers should prefer the Marketplace-provided `request.run` helpers for action logs and status.
 
 ## Validation
 

@@ -30,13 +30,14 @@ acme_vm_endpoints
 acme_vm_endpoint_cves
 ```
 
-At runtime, use:
+At runtime, define table-name constants that match the integration's migrations:
 
 ```js
-const { endpoints, endpointCves } = context.db.tables;
+const endpointTable = "acme_vm_endpoints";
+const cveTable = "acme_vm_endpoint_cves";
 ```
 
-Do not hard-code table names in runtime handlers unless there is no alternative.
+Keep these names integration-owned; the Marketplace does not expose table-name helpers to integration handlers.
 
 ## `<integration_id>_endpoints`
 
