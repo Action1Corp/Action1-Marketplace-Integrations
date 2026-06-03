@@ -50,9 +50,9 @@ Each integration owns its vendor-specific behavior:
 - Marketplace sidebar navigation in `display.json`
 - settings schema in `ui/settingsSchema.json`
 - React views for every visible screen in `ui/`
-- optional integration-owned credential validation handler
-- optional integration-owned run handler for vendor jobs, collection, or synchronization
-- optional custom actions and action handlers
+- optional validation action for credential checks
+- optional sync/run action for vendor jobs, collection, or synchronization
+- custom actions and matching action handlers
 - vendor API calls and data mapping
 - integration-owned database schema in `migrations/*.sql`
 - setup notes and required vendor permissions in `README.md`
@@ -73,8 +73,7 @@ The scaffold creates a complete starting point:
 - `manifest.json`
 - `display.json`
 - `index.js`
-- optional validation handler
-- optional run handler
+- `actions.js` for manifest action handlers
 - `ui/index.jsx` and any view components
 - `ui/settingsSchema.json`
 - `migrations/001_create_schema.sql`

@@ -8,8 +8,8 @@ This is a minimal example integration for developers. It demonstrates the Market
 - `ui/settingsSchema.json` integration-owned settings fields
 - `display.json` marketplace navigation
 - Marketplace runtime services through `context` and HTTP APIs
-- optional validation handler exported by the integration
-- optional run handler exported by the integration
+- validation action declared in `manifest.json`
+- run action declared in `manifest.json`
 - custom integration-owned action declared in `manifest.json`
 - custom action handler exported from `actions.js`
 - custom action screen listed in `display.json` navigation
@@ -19,7 +19,7 @@ This is a minimal example integration for developers. It demonstrates the Market
 
 ## Behavior
 
-The run handler writes a short run-history entry only. It does not collect vendor data.
+The run action writes a short run-history entry only. It does not collect vendor data.
 
 The custom `check-configuration` action appears on the settings page because it is declared in `manifest.json` with `"placement": "settings"`. When a user clicks the button, the Marketplace posts to the integration action endpoint and dispatches the request to the matching handler exported from `actions.js`.
 
@@ -29,10 +29,10 @@ The `ui/` folder demonstrates integration-owned React screens. When the Marketpl
 
 The Marketplace runtime services are different from integration screens:
 
-- The settings view can call the validation endpoint, which dispatches to the exported validation handler.
-- The UI or scheduler can start a run, which dispatches to the exported run handler.
+- The settings view can call the Marketplace action endpoint, which dispatches to the declared validation action handler.
+- The UI or scheduler can start a run, which dispatches to the declared run action handler.
 - Integration-owned views can read Marketplace run history.
-- The Marketplace stores schedule configuration and uses it to call the same run handler.
+- The Marketplace stores schedule configuration and uses it to call the same sync/run action handler.
 
 The migration file demonstrates integration-owned endpoint and vulnerability tables. Real integrations should define the database tables their own React views and handlers need in `migrations/*.sql`.
 

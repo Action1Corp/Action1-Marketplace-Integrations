@@ -27,7 +27,7 @@ integrations/
 
 - The Marketplace is the host framework.
 - The integration owns vendor-specific code, schema, views, and data mapping.
-- Integrations must use the runtime `context` object as the compatibility boundary.
+- Integrations must use the runtime `context` object as the host boundary.
 - Integrations must not import Marketplace backend files directly.
 - Integrations should use integration-prefixed table names.
 - Database migrations must be additive and safe to run once.
@@ -39,9 +39,9 @@ integrations/
 The Marketplace infers supported runtime behavior from the integration package:
 
 - settings are available when `ui/settingsSchema.json` and a settings view exist
-- validation is available when the entrypoint exports a validation handler, or when an integration-owned validation action calls the Marketplace action endpoint
+- validation is available when the integration declares a validation action and exports the matching action handler
 - manual operations are available when the integration declares actions and exports matching action handlers
-- manual runs and schedules are available for legacy integrations that export a run handler
+- manual runs and schedules are available when the integration declares a sync/run action and exports the matching action handler
 - history is available to any integration-owned view through Marketplace APIs
 
 Visible tabs are listed in `display.json` navigation. Dashboards, endpoint tables, vulnerability tables, settings layouts, and other screens are defined in integration-owned React views.
@@ -81,13 +81,6 @@ await request.run.setAssetsProcessed(42);
 ```
 
 The Marketplace will mark the action `Success` when the handler returns normally, and `Failed` when it throws or returns `{ ok: false }`.
-
-For backward compatibility, the Marketplace also supports two optional lifecycle handlers:
-
-- validation handler
-- run handler
-
-Use these compatibility hooks for existing integrations. New developer apps should prefer manifest actions for integration-owned operations.
 
 Integrations can define any internal functions they need. The Marketplace will not call arbitrary function names unless a future API version defines them.
 
@@ -139,7 +132,7 @@ Use `context.action1.getCredentials()` whenever an integration needs Action1 API
 
 ## Failure Notifications
 
-The Marketplace owns SMTP and webhook notification settings and automatically sends an alert when a tracked action, manual run, or scheduled run fails. Integrations should rely on that framework for normal operation failures.
+The Marketplace owns SMTP and webhook notification settings and automatically sends an alert when a tracked action, manual run, or scheduled run action fails. Integrations should rely on that framework for normal operation failures.
 
 For untracked operations that intentionally bypass Marketplace history, use:
 
@@ -189,7 +182,7 @@ The Marketplace resolves these names from the integration ID.
 
 ## SDK Helpers
 
-The `sdk/` folder provides helpers for legacy run handlers and advanced cases where an integration intentionally manages run history itself.
+The `sdk/` folder provides helpers for advanced cases where an integration intentionally manages run history itself.
 
 ```js
 const {

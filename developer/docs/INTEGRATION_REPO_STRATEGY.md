@@ -88,8 +88,8 @@ An integration package should contain:
 - `ui/index.jsx` and React components for every visible screen
 - `migrations/*.sql` for integration-owned schema
 - `index.js` as the entrypoint
-- optional integration-owned validation handler
-- optional integration-owned run handler
+- optional integration-owned validation action and matching handler
+- optional integration-owned sync/run action and matching handler
 - `README.md` for setup requirements and vendor permissions
 
 ## Marketplace Responsibilities

@@ -9,8 +9,8 @@ Each integration should include:
 - `display.json` for Marketplace sidebar navigation
 - `migrations/` for integration-owned database schema
 - `index.js` as the Marketplace entrypoint
-- optional integration-owned validation handler when the integration declares the validation action
-- optional integration-owned run handler when the integration declares the run action
+- optional integration-owned validation action and matching handler
+- optional integration-owned sync/run action and matching handler
 - `README.md` for setup notes and required vendor permissions
 
 Developer examples and design notes belong under `developer/`, not in this runtime directory.

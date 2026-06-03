@@ -12,6 +12,5 @@ Recommended files:
 - `migrations/` for integration-owned database schema
 - `index.js` as the Marketplace entrypoint
 - optional manifest actions plus matching integration-owned action handlers
-- optional compatibility validation/run handlers for integrations that need legacy Marketplace lifecycle hooks
 - `README.md` for setup requirements and vendor permissions
 

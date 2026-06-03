@@ -50,8 +50,8 @@ Runtime behavior is inferred from the integration package instead of being decla
 | --- | --- |
 | `ui/settingsSchema.json` plus a settings view | settings storage, secret masking, and configured-state detection |
 | manifest actions plus exported action handlers | integration-owned operations can run through the Marketplace action endpoint and history/notification framework |
-| exported validation handler | compatibility validation endpoint can dispatch to the integration |
-| exported run handler | compatibility manual runs and schedules can dispatch to the integration |
+| manifest action with `kind: "validate"` | settings screens can call the integration-owned validation action |
+| manifest action with `kind: "sync"` | manual run buttons and schedules can dispatch to the integration-owned sync action |
 | history view or API calls | integration UI can read Marketplace run history |
 
 ### Integration Actions
@@ -149,9 +149,9 @@ When history tracking is enabled, `request.run` includes:
 
 The Marketplace marks the action `Success` when the handler returns normally, and `Failed` when the handler throws or returns `{ ok: false }`.
 
-### Validation Handler
+### Validation Actions
 
-Optional compatibility hook. When exported by the integration entrypoint, the Marketplace validation endpoint can dispatch to it. New integrations can also model validation as a manifest action such as `check-configuration`.
+When an integration needs credential or configuration validation, declare an action such as `validate-configuration` with `kind: "validate"` and export the matching action handler.
 
 Return keyed validation results:
 
@@ -164,20 +164,20 @@ return {
 
 If the integration does not use Action1 credentials directly, omit `action1`.
 
-### Run Handler
+### Sync And Run Actions
 
-Optional compatibility hook. When exported by the integration entrypoint, the Marketplace can dispatch manual runs and scheduled runs to it. New integrations can also model vendor jobs as manifest actions.
+When an integration needs a user-triggered or scheduled vendor job, declare an action such as `sync` with `kind: "sync"` and export the matching action handler.
 
-The run handler should:
+The action handler should:
 
-1. Create a run-history entry.
+1. Use `request.run` for run-history logs when Marketplace history tracking is enabled.
 2. Fetch vendor data.
 3. Map vendor data into integration-owned tables.
 4. Update shared CVE metadata/cache where useful.
 5. Compute or store any metrics needed by the integration-owned React views.
-6. Mark the run as success or failure.
+6. Return success, return `{ ok: false }`, or throw an error so the Marketplace can record the final status.
 
-Prefer manifest actions and `request.run` for new work. Use the helpers in `sdk/` when maintaining compatibility run handlers that manage history directly.
+Use the helpers in `sdk/` only when an integration intentionally disables Marketplace action history and manages run history directly.
 
 ## Runtime Context
 
@@ -211,7 +211,7 @@ context.services.nvd
 context.services.computeAndSaveRunMetrics(runId, context.integrationId)
 ```
 
-The `context` object is the Marketplace compatibility boundary. Do not import Marketplace backend files from an integration.
+The `context` object is the Marketplace host boundary. Do not import Marketplace backend files from an integration.
 
 ### Shared Action1 Credentials
 
@@ -221,7 +221,7 @@ Integrations that need Action1 data must read the shared credentials through `co
 
 ### Failure Notifications
 
-The Marketplace owns SMTP and webhook notification settings and automatically sends a failure alert when a tracked action, manual run, or scheduled integration run finishes with a failed status. Integrations usually do not need to call notification APIs directly.
+The Marketplace owns SMTP and webhook notification settings and automatically sends a failure alert when a tracked action, manual run action, or scheduled sync action finishes with a failed status. Integrations usually do not need to call notification APIs directly.
 
 If an integration intentionally disables action history and runs outside the tracked action flow, it can request the same Marketplace failure alert through:
 

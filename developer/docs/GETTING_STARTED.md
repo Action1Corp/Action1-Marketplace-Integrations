@@ -139,11 +139,11 @@ module.exports = {
 
 Set `history: false` on a manifest action only when it should not appear in run history.
 
-## 7. Implement Validation Or Run Compatibility Hooks
+## 7. Wire Validation, Manual Runs, And Schedules
 
-Existing Marketplace screens still support optional exported `validate` and `sync`/`runSync` handlers. Use these compatibility hooks when an integration needs the standard settings validation button, "Run Sync Now" button, or scheduler wiring.
+Use manifest actions for validation, manual operations, and scheduled jobs. A validation action should declare `kind: "validate"`. A sync or run action should declare `kind: "sync"` so Marketplace manual-run buttons and schedules can dispatch to the integration-owned handler.
 
-For new developer apps, prefer manifest actions for integration-owned operations. The Marketplace sends failure notifications automatically for failed tracked actions, manual runs, and scheduled runs.
+The Marketplace sends failure notifications automatically for failed tracked actions, manual run actions, and scheduled sync actions.
 
 ## 8. Test Locally
 

@@ -19,7 +19,7 @@ Use this checklist before merging an integration pull request.
 - Metadata is clear and customer-facing.
 - `category` is appropriate.
 - Runtime behavior is inferred from integration-owned files and exported handlers.
-- Scheduling is only exposed when the integration provides a compatible run handler.
+- Scheduling is only exposed when the integration declares a sync/run action.
 - Manifest actions have stable IDs, clear labels, and appropriate history/concurrency settings.
 - Required settings are marked `required`.
 - Sensitive settings use `type: "secret"`.
@@ -46,10 +46,9 @@ Use this checklist before merging an integration pull request.
 ## Handler Review
 
 - Manifest actions have matching exported action handlers.
-- Compatibility validation/run handlers exist only when the integration needs legacy Marketplace lifecycle hooks.
 - Handlers use `context` and Marketplace-provided request helpers.
 - Tracked action handlers use `request.run` for meaningful logs and processed counts.
-- Compatibility run handlers create, update, and complete/fail run history.
+- Untracked action handlers create, update, and complete/fail run history when they intentionally manage it directly.
 - Handlers catch or throw errors in a way that records meaningful failure details.
 - Vendor API calls have timeouts or bounded pagination.
 - Large API responses are not stored blindly unless needed.
