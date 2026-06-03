@@ -144,7 +144,7 @@ For settings-only, validation-only, or status-only integrations:
 - omit endpoint/CVE tables
 - keep only the vendor-specific schema needed by the integration
 
-Example: an Intune-style integration may only need settings and run history.
+Example: a status-only integration may only need settings and run history.
 
 ## Shared Marketplace Tables
 

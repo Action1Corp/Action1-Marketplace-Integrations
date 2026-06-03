@@ -42,7 +42,7 @@ export const views = {
 };
 ```
 
-For `/apps/qualys/dashboard`, the Marketplace asks the Qualys package for the `dashboard` view and renders the matching React component. The Marketplace does not render dashboard cards, table columns, or settings fields from `display.json`.
+For `/apps/acme-vm/dashboard`, the Marketplace asks the `acme-vm` package for the `dashboard` view and renders the matching React component. The Marketplace does not render dashboard cards, table columns, or settings fields from `display.json`.
 
 ## Screen Ownership
 

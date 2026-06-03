@@ -39,8 +39,8 @@ Example payload:
   "event": "integration.run.failed",
   "sentAt": "2026-05-19T18:25:43.511Z",
   "integration": {
-    "id": "tenable",
-    "name": "Tenable VM"
+    "id": "acme-vm",
+    "name": "Acme VM"
   },
   "run": {
     "id": 42,
