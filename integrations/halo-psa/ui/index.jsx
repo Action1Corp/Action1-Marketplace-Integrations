@@ -1,0 +1,11 @@
+import Dashboard from './Dashboard.jsx';
+import History from './History.jsx';
+import Mapping from './Mapping.jsx';
+import Settings from './Settings.jsx';
+
+export const views = {
+  dashboard: Dashboard,
+  history: History,
+  mapping: Mapping,
+  settings: Settings
+};

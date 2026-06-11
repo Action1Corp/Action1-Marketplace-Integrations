@@ -1,0 +1,257 @@
+[
+  {
+    "key": "HaloResourceServer",
+    "label": "HaloPSA Resource Server",
+    "type": "url",
+    "group": "HaloPSA Configuration",
+    "required": true,
+    "helpText": "Base HaloPSA resource server URL. Phase 3a keeps connection validation read-only."
+  },
+  {
+    "key": "HaloAuthorisationServer",
+    "label": "HaloPSA Authorisation Server",
+    "type": "url",
+    "group": "HaloPSA Configuration",
+    "required": true,
+    "helpText": "Base HaloPSA authorisation server URL used for OAuth token acquisition."
+  },
+  {
+    "key": "HaloClientId",
+    "label": "HaloPSA Client ID",
+    "type": "text",
+    "group": "HaloPSA Configuration",
+    "required": true,
+    "helpText": "HaloPSA OAuth client ID."
+  },
+  {
+    "key": "HaloClientSecret",
+    "label": "HaloPSA Client Secret",
+    "type": "secret",
+    "group": "HaloPSA Configuration",
+    "required": true,
+    "helpText": "HaloPSA OAuth client secret. The stored value remains masked after save."
+  },
+  {
+    "key": "HaloTeamId",
+    "label": "Halo Team ID",
+    "type": "text",
+    "group": "Ticket Routing",
+    "helpText": "Optional default Halo team ID. Phase 3b loads read-only Halo team options in the settings UI."
+  },
+  {
+    "key": "HaloTicketTypeId",
+    "label": "Halo Ticket Type ID",
+    "type": "text",
+    "group": "Ticket Routing",
+    "helpText": "Optional default Halo ticket type ID. Phase 3b loads read-only Halo ticket type options in the settings UI."
+  },
+  {
+    "key": "HaloCategory1Id",
+    "label": "Halo Category 1 ID",
+    "type": "text",
+    "group": "Ticket Routing",
+    "helpText": "Optional default Halo category ID. Category options refresh from HaloPSA without saving discovery data."
+  },
+  {
+    "key": "HaloNewStatusId",
+    "label": "Halo New Ticket Status ID",
+    "type": "text",
+    "group": "Ticket Routing",
+    "helpText": "Optional status ID to apply to newly created Halo tickets. Status options refresh from HaloPSA without changing saved settings."
+  },
+  {
+    "key": "HaloClosedStatusIds",
+    "label": "Halo Closed Status IDs",
+    "type": "text",
+    "group": "Ticket Routing",
+    "helpText": "Halo status IDs that should be treated as closed. Phase 3b adds a read-only multi-select helper while keeping Marketplace storage durable."
+  },
+  {
+    "key": "ExistingOpenTicketBehavior",
+    "label": "Existing Open Ticket Behavior",
+    "type": "select",
+    "group": "Lifecycle",
+    "defaultValue": "update_existing_open",
+    "options": [
+      {
+        "value": "update_existing_open",
+        "label": "Update existing open ticket"
+      },
+      {
+        "value": "skip_existing_open",
+        "label": "Skip existing open ticket"
+      }
+    ],
+    "helpText": "Choose whether HaloPSA should update or skip an already-open linked ticket."
+  },
+  {
+    "key": "CloseWhenSignalClears",
+    "label": "Close When Signal Clears",
+    "type": "checkbox",
+    "group": "Lifecycle",
+    "defaultValue": "true",
+    "helpText": "Allow future lifecycle logic to close linked tickets when the underlying signal clears."
+  },
+  {
+    "key": "CreateNewWhenLinkedClosed",
+    "label": "Create New When Linked Ticket Is Closed",
+    "type": "checkbox",
+    "group": "Lifecycle",
+    "defaultValue": "true",
+    "helpText": "Allow future lifecycle logic to create a new ticket when the linked Halo ticket is already closed."
+  },
+  {
+    "key": "OfflineEnabled",
+    "label": "Offline Signal Enabled",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "true"
+  },
+  {
+    "key": "OfflineThresholdDays",
+    "label": "Offline Threshold Days",
+    "type": "number",
+    "group": "Signal Filters",
+    "defaultValue": "7",
+    "min": 1,
+    "helpText": "Minimum number of days an endpoint must remain offline before it qualifies."
+  },
+  {
+    "key": "RebootRequiredEnabled",
+    "label": "Reboot Required Signal Enabled",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "true"
+  },
+  {
+    "key": "AutomationFailedEnabled",
+    "label": "Automation Failed Signal Enabled",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "true"
+  },
+  {
+    "key": "AutomationFailedLookbackHours",
+    "label": "Automation Failed Lookback Hours",
+    "type": "number",
+    "group": "Signal Filters",
+    "defaultValue": "24",
+    "min": 1
+  },
+  {
+    "key": "VulnerabilityEnabled",
+    "label": "Vulnerability Signal Enabled",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "true"
+  },
+  {
+    "key": "VulnerabilitySeverities",
+    "label": "Vulnerability Severities",
+    "type": "text",
+    "group": "Signal Filters",
+    "defaultValue": "CRITICAL,HIGH",
+    "helpText": "Comma-separated severity list. Multi-select discovery controls are deferred to Phase 3b."
+  },
+  {
+    "key": "VulnerabilityRemediationStatuses",
+    "label": "Vulnerability Remediation Statuses",
+    "type": "text",
+    "group": "Signal Filters",
+    "defaultValue": "OVERDUE,DUE_SOON",
+    "helpText": "Comma-separated remediation statuses. Phase 3a stores this as text until richer controls are added."
+  },
+  {
+    "key": "UpdateEnabled",
+    "label": "Update Signal Enabled",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "true"
+  },
+  {
+    "key": "UpdateSeverities",
+    "label": "Update Severities",
+    "type": "text",
+    "group": "Signal Filters",
+    "defaultValue": "CRITICAL,IMPORTANT",
+    "helpText": "Comma-separated severity list. Multi-select discovery controls are deferred to Phase 3b."
+  },
+  {
+    "key": "UpdateRemediationStatuses",
+    "label": "Update Remediation Statuses",
+    "type": "text",
+    "group": "Signal Filters",
+    "defaultValue": "OVERDUE,DUE_SOON",
+    "helpText": "Comma-separated remediation statuses. Phase 3a stores this as text until richer controls are added."
+  },
+  {
+    "key": "VulnerabilityTicketModel",
+    "label": "Vulnerability Ticket Model",
+    "type": "select",
+    "group": "Grouped Ticketing",
+    "defaultValue": "grouped",
+    "options": [
+      {
+        "value": "grouped",
+        "label": "Grouped"
+      },
+      {
+        "value": "endpoint",
+        "label": "Endpoint"
+      }
+    ]
+  },
+  {
+    "key": "UpdateTicketModel",
+    "label": "Update Ticket Model",
+    "type": "select",
+    "group": "Grouped Ticketing",
+    "defaultValue": "grouped",
+    "options": [
+      {
+        "value": "grouped",
+        "label": "Grouped"
+      },
+      {
+        "value": "endpoint",
+        "label": "Endpoint"
+      }
+    ]
+  },
+  {
+    "key": "AutomationFailedTicketModel",
+    "label": "Automation Failed Ticket Model",
+    "type": "select",
+    "group": "Grouped Ticketing",
+    "defaultValue": "grouped",
+    "options": [
+      {
+        "value": "grouped",
+        "label": "Grouped"
+      },
+      {
+        "value": "endpoint",
+        "label": "Endpoint"
+      }
+    ]
+  },
+  {
+    "key": "MaxImpactedEndpointsInGroupedTicket",
+    "label": "Max Impacted Endpoints In Grouped Ticket",
+    "type": "number",
+    "group": "Grouped Ticketing",
+    "defaultValue": "25",
+    "min": 1,
+    "max": 100,
+    "helpText": "Cap the number of impacted endpoints listed in grouped ticket content."
+  },
+  {
+    "key": "MaxOpenTicketsPerOrganization",
+    "label": "Max Open Tickets Per Organization",
+    "type": "number",
+    "group": "Operational Safeguards",
+    "defaultValue": "30",
+    "min": 1,
+    "helpText": "Safeguard limit for future lifecycle orchestration."
+  }
+]
