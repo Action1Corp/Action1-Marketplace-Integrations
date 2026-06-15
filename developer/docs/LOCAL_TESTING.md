@@ -1,6 +1,9 @@
 # Local Testing Guide
 
-This guide explains how to test integrations against a local Marketplace container.
+This guide explains how to test integrations against a local Marketplace environment. There are two local workflows:
+
+- Backend package validation with a Marketplace container and `INTEGRATIONS_DIR`.
+- Full custom UI development with Marketplace backend source, frontend source, PostgreSQL, `INTEGRATIONS_DIR`, and `INTEGRATION_UI_SOURCE`.
 
 ## Validate The Integration Repository
 
@@ -46,6 +49,30 @@ When the container starts, the Marketplace:
 
 Folders starting with `_` are ignored.
 
+This workflow validates backend-loaded integration behavior. It does not add new custom React screens to the published Marketplace frontend because that frontend is already built.
+
+## Run Full UI Development From Source
+
+Use the Marketplace host-source workflow when changing custom React views under an integration's `ui/` folder.
+
+The Marketplace backend must run with:
+
+```env
+INTEGRATIONS_DIR=/path/to/Action1-Marketplace-Integrations/integrations
+```
+
+The Marketplace frontend dev server must run with:
+
+```env
+INTEGRATION_UI_SOURCE=/path/to/Action1-Marketplace-Integrations/integrations
+```
+
+The Marketplace repository contains the full runbook:
+
+```text
+docs/host-source-development.md
+```
+
 ## Test Data
 
 For local development containers, the Marketplace can seed test settings and sample data when configured with:
@@ -75,19 +102,19 @@ After starting the Marketplace:
 
 Every integration must have a `ui/index.jsx` file. The Marketplace frontend must be built with integration source available so those views can be bundled.
 
-For local Marketplace builds, set `INTEGRATION_UI_SOURCE` to the folder that contains integration packages:
+From the Marketplace repository, set `INTEGRATION_UI_SOURCE` to the folder that contains integration packages:
 
 ```bash
-INTEGRATION_UI_SOURCE=/path/to/action1-marketplace-integrations-dev/integrations npm run build
+INTEGRATION_UI_SOURCE=/path/to/Action1-Marketplace-Integrations/integrations npm --prefix frontend run dev
 ```
 
-For the developer example package:
+From the Marketplace repository, use the developer example package with:
 
 ```bash
-INTEGRATION_UI_SOURCE=/path/to/action1-marketplace-integrations-dev/developer/examples npm run build
+INTEGRATION_UI_SOURCE=/path/to/Action1-Marketplace-Integrations/developer/examples npm --prefix frontend run dev
 ```
 
-For Docker builds, copy or check out the integrations repository into the Marketplace repo's `.integration-ui-build/` folder before building the image. The Dockerfile copies that folder into the frontend build stage. Backend integration code can still be mounted at runtime through `INTEGRATIONS_DIR`.
+For production Marketplace builds, the Marketplace build process bundles approved integrations before the Docker image is built. Backend integration code can still be mounted at runtime through `INTEGRATIONS_DIR` for backend package validation.
 
 ## Troubleshooting
 

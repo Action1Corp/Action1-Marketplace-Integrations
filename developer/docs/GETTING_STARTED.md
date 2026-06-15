@@ -8,7 +8,7 @@ Before you start, make sure you have:
 
 - Node.js installed locally.
 - Access to this integrations repository.
-- A local Marketplace container that can mount this repository during development.
+- Access to a local Marketplace development environment. Use a mounted Marketplace container for backend package validation, or the Marketplace host-source workflow for custom React UI development.
 - Vendor API credentials for the product you are integrating.
 
 Example local setup:
@@ -333,7 +333,19 @@ Run repository validation:
 npm test
 ```
 
-Mount the integrations repository into a Marketplace development container, then open the local Marketplace app.
+Choose the local workflow that matches what you are changing.
+
+Use the Marketplace backend package workflow when testing manifests, settings schemas, migrations, actions, handlers, and sync behavior. This mounts the integrations repository into a Marketplace development container through `INTEGRATIONS_DIR`.
+
+Use the Marketplace host-source workflow when testing custom React screens. Custom views under `ui/` are bundled by the Marketplace frontend through `INTEGRATION_UI_SOURCE`, so they require the Marketplace frontend dev server or a rebuilt Marketplace frontend.
+
+For full UI development, run the Marketplace backend, frontend, PostgreSQL, and this integrations repository together. See `LOCAL_TESTING.md` and the Marketplace repository guide:
+
+```text
+docs/host-source-development.md
+```
+
+After starting the Marketplace, open the local Marketplace app.
 
 Example checks:
 
