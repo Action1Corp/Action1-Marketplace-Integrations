@@ -973,7 +973,7 @@ function Settings({ integration }) {
   if (!meta) return <div style={{ padding: '2rem' }}>Loading settings...</div>;
 
   return (
-    <div style={{ maxWidth: 820 }}>
+    <div style={{ width: '100%', maxWidth: 820, margin: '0 auto' }}>
       <form onSubmit={save}>
         {Object.entries(grouped).map(([groupName, fields]) => {
           if (groupName === 'Ticket Routing') {

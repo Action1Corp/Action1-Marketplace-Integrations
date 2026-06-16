@@ -2,6 +2,7 @@ const { validate } = require('./validate');
 const { discover } = require('./discoverSettingsOptions');
 const {
   deleteHaloOrgClientMapping,
+  discoverAction1MappingOptions,
   discoverHaloMappingOptions,
   listHaloOrgClientMappings,
   saveHaloOrgClientMapping
@@ -29,6 +30,7 @@ async function sync(context, request = {}) {
 module.exports = {
   actions: {
     'delete-halo-org-client-mapping': deleteHaloOrgClientMapping,
+    'discover-action1-mapping-options': discoverAction1MappingOptions,
     'discover-halo-mapping-options': discoverHaloMappingOptions,
     'discover-halo-settings-options': discover,
     'list-halo-org-client-mappings': listHaloOrgClientMappings,

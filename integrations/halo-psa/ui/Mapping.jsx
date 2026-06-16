@@ -4,72 +4,373 @@ const ACTIONS = {
   list: 'list-halo-org-client-mappings',
   save: 'save-halo-org-client-mapping',
   remove: 'delete-halo-org-client-mapping',
+  discoverAction1: 'discover-action1-mapping-options',
   discover: 'discover-halo-mapping-options'
 };
 
-const EMPTY_DRAFT = {
+const EMPTY_ROW = {
   id: null,
   action1OrgId: '',
   action1OrgName: '',
   haloClientId: '',
-  haloClientName: '',
-  enabled: true
+  haloClientName: ''
 };
 
-function normalizeClientOptions(rows) {
+const styles = {
+  page: {
+    width: '100%',
+    maxWidth: 820,
+    margin: '0 auto',
+    display: 'grid',
+    gap: '1rem'
+  },
+  panel: {
+    padding: '1.25rem',
+    border: '1px solid var(--border-color)',
+    borderRadius: 10,
+    background: 'rgba(255, 255, 255, 0.82)'
+  },
+  section: {
+    padding: '0.35rem 0',
+    border: 'none',
+    borderRadius: 8,
+    background: 'transparent'
+  },
+  headingRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: '1rem',
+    flexWrap: 'wrap',
+    marginBottom: '1rem'
+  },
+  title: {
+    margin: 0,
+    fontSize: '1.5rem',
+    lineHeight: 1.2
+  },
+  description: {
+    margin: '0.35rem 0 0',
+    color: '#4B5563',
+    fontSize: '0.92rem',
+    lineHeight: 1.6,
+    maxWidth: 760
+  },
+  buttonRow: {
+    display: 'flex',
+    gap: '0.75rem',
+    flexWrap: 'wrap'
+  },
+  statsRow: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+    gap: '0.75rem'
+  },
+  statCard: {
+    padding: '0.85rem 0.9rem',
+    border: '1px solid var(--border-color)',
+    borderRadius: 8,
+    background: '#fff'
+  },
+  statLabel: {
+    margin: 0,
+    color: '#6B7280',
+    fontSize: '0.78rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em'
+  },
+  statValue: {
+    margin: '0.35rem 0 0',
+    fontSize: '1.2rem',
+    fontWeight: 700
+  },
+  statusMessage: {
+    margin: 0,
+    padding: '0.85rem 0.95rem',
+    borderRadius: 8,
+    fontSize: '0.92rem',
+    lineHeight: 1.5
+  },
+  input: {
+    width: '100%',
+    padding: '0.55rem 0.65rem',
+    border: '1px solid var(--border-color)',
+    borderRadius: 6,
+    background: '#fff'
+  },
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse'
+  },
+  tableHead: {
+    textAlign: 'left',
+    padding: '0.55rem 0.65rem',
+    borderBottom: '1px solid var(--border-color)',
+    color: '#4B5563',
+    fontSize: '0.82rem',
+    textTransform: 'uppercase',
+    letterSpacing: '0.03em'
+  },
+  tableCell: {
+    padding: '0.45rem 0.65rem',
+    borderBottom: '1px solid var(--border-color)',
+    verticalAlign: 'middle'
+  },
+  actionCell: {
+    padding: '0.45rem 0.65rem',
+    borderBottom: '1px solid var(--border-color)',
+    verticalAlign: 'middle',
+    whiteSpace: 'nowrap',
+    width: 1
+  },
+  tableButtonRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    marginTop: '0.9rem',
+    flexWrap: 'wrap'
+  },
+  tableFeedback: {
+    minHeight: '2.5rem',
+    display: 'flex',
+    alignItems: 'center',
+    flex: '1 1 240px'
+  },
+  technicalDetails: {
+    marginTop: '0.75rem'
+  },
+  technicalPre: {
+    margin: '0.65rem 0 0',
+    padding: '0.85rem',
+    borderRadius: 8,
+    background: 'rgba(17, 24, 39, 0.92)',
+    color: '#E5E7EB',
+    overflowX: 'auto',
+    fontSize: '0.78rem',
+    lineHeight: 1.55
+  }
+};
+
+function normalizeOptions(rows) {
   return (Array.isArray(rows) ? rows : [])
     .map((row) => {
       const id = String(row?.id || '').trim();
       const name = String(row?.name || '').trim();
+
       if (!id || !name) {
         return null;
       }
+
       return {
         value: id,
-        label: `${name} (${id})`,
+        label: name,
         name
       };
     })
     .filter(Boolean);
 }
 
+function ensureSelectedOption(options, value, name) {
+  const selectedValue = String(value || '').trim();
+  const selectedName = String(name || '').trim();
+
+  if (!selectedValue || !selectedName) {
+    return options;
+  }
+
+  if (options.some((row) => row.value === selectedValue)) {
+    return options;
+  }
+
+  return [
+    ...options,
+    {
+      value: selectedValue,
+      label: selectedName,
+      name: selectedName
+    }
+  ];
+}
+
+function rowsEquivalent(left, right) {
+  return (
+    String(left?.action1OrgId || '') === String(right?.action1OrgId || '') &&
+    String(left?.action1OrgName || '') === String(right?.action1OrgName || '') &&
+    String(left?.haloClientId || '') === String(right?.haloClientId || '') &&
+    String(left?.haloClientName || '') === String(right?.haloClientName || '')
+  );
+}
+
+function normalizeMappingRows(rows) {
+  return (Array.isArray(rows) ? rows : []).map((row) => ({
+    id: row?.id ?? null,
+    action1OrgId: String(row?.action1OrgId || ''),
+    action1OrgName: String(row?.action1OrgName || ''),
+    haloClientId: String(row?.haloClientId || ''),
+    haloClientName: String(row?.haloClientName || '')
+  }));
+}
+
+function mappingOptionsForRow(allOptions, rows, rowIndex, valueKey, nameKey) {
+  const normalized = normalizeOptions(allOptions);
+  const selectedInOtherRows = new Set(
+    rows
+      .filter((_, idx) => idx !== rowIndex)
+      .map((row) => String(row?.[valueKey] || '').trim())
+      .filter(Boolean)
+  );
+  const currentRow = rows[rowIndex] || EMPTY_ROW;
+  const currentValue = String(currentRow?.[valueKey] || '').trim();
+
+  const allowed = normalized.filter((option) => {
+    if (option.value === currentValue) {
+      return true;
+    }
+
+    return !selectedInOtherRows.has(option.value);
+  });
+
+  return ensureSelectedOption(allowed, currentRow?.[valueKey], currentRow?.[nameKey]);
+}
+
+function buildPersistRows(rows, action1Organizations, haloClients) {
+  const errors = [];
+  const persistRows = [];
+  const orgsById = new Map(normalizeOptions(action1Organizations).map((row) => [row.value, row.name]));
+  const clientsById = new Map(normalizeOptions(haloClients).map((row) => [row.value, row.name]));
+  const seenAction1 = new Set();
+  const seenClients = new Set();
+
+  for (const row of rows) {
+    const action1OrgId = String(row?.action1OrgId || '').trim();
+    const haloClientId = String(row?.haloClientId || '').trim();
+    const action1OrgName = String(orgsById.get(action1OrgId) || row?.action1OrgName || '').trim();
+    const haloClientName = String(clientsById.get(haloClientId) || row?.haloClientName || '').trim();
+
+    if (!action1OrgId && !haloClientId) {
+      continue;
+    }
+
+    if (!action1OrgId || !haloClientId) {
+      errors.push('Select both an Action1 organization and a HaloPSA client, or remove the incomplete row.');
+      continue;
+    }
+
+    if (seenAction1.has(action1OrgId)) {
+      errors.push('Each Action1 organization can only be mapped once. Remove duplicate mappings before saving.');
+    } else {
+      seenAction1.add(action1OrgId);
+    }
+
+    if (seenClients.has(haloClientId)) {
+      errors.push('Each HaloPSA client can only be mapped once. Remove duplicate mappings before saving.');
+    } else {
+      seenClients.add(haloClientId);
+    }
+
+    persistRows.push({
+      id: row?.id ?? null,
+      action1OrgId,
+      action1OrgName,
+      haloClientId,
+      haloClientName,
+      enabled: true
+    });
+  }
+
+  return {
+    errors: Array.from(new Set(errors)),
+    persistRows
+  };
+}
+
+function DiagnosticDetails({ diagnostics }) {
+  if (!diagnostics) {
+    return null;
+  }
+
+  return (
+    <details style={styles.technicalDetails}>
+      <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Technical details</summary>
+      <pre style={styles.technicalPre}>{JSON.stringify(diagnostics, null, 2)}</pre>
+    </details>
+  );
+}
+
 function Mapping({ integration }) {
-  const [mappings, setMappings] = useState([]);
+  const [savedMappings, setSavedMappings] = useState([]);
+  const [draftRows, setDraftRows] = useState([]);
+  const [action1Organizations, setAction1Organizations] = useState([]);
   const [haloClients, setHaloClients] = useState([]);
-  const [draft, setDraft] = useState(EMPTY_DRAFT);
   const [loading, setLoading] = useState(true);
   const [discovering, setDiscovering] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-  const [discoveryError, setDiscoveryError] = useState('');
+  const [pageError, setPageError] = useState('');
+  const [saveMessage, setSaveMessage] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [action1Error, setAction1Error] = useState('');
+  const [haloError, setHaloError] = useState('');
+  const [action1Diagnostics, setAction1Diagnostics] = useState(null);
+  const [haloDiagnostics, setHaloDiagnostics] = useState(null);
 
-  const loadMappings = async () => {
-    const response = await fetch(`/api/integrations/${integration}/actions/${ACTIONS.list}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({})
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || data?.ok === false) {
-      throw new Error(data?.message || 'Unable to load mappings.');
-    }
-    setMappings(Array.isArray(data?.mappings) ? data.mappings : []);
+  const syncMappings = (nextMappings) => {
+    const normalized = normalizeMappingRows(nextMappings);
+    setSavedMappings(normalized);
+    setDraftRows(normalized);
   };
 
-  const refreshMappings = async () => {
-    setMessage('');
-    setError('');
+  const invokeAction = async (actionId, body = {}) => {
+    const response = await fetch(`/api/integrations/${integration}/actions/${actionId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok || data?.ok === false) {
+      throw new Error(data?.message || `Unable to run ${actionId}.`);
+    }
+
+    return data;
+  };
+
+  const loadMappings = async () => {
+    const data = await invokeAction(ACTIONS.list, {});
+    syncMappings(data?.mappings);
+  };
+
+  const loadAction1Organizations = async () => {
+    setAction1Error('');
+    setAction1Diagnostics(null);
+
     try {
-      await loadMappings();
+      const response = await fetch(`/api/integrations/${integration}/actions/${ACTIONS.discoverAction1}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || data?.ok === false) {
+        setAction1Organizations([]);
+        setAction1Diagnostics(data?.diagnostics || null);
+        setAction1Error(data?.message || 'Unable to load Action1 organization options.');
+        return;
+      }
+
+      setAction1Organizations(Array.isArray(data?.action1Organizations) ? data.action1Organizations : []);
+      setAction1Diagnostics(null);
     } catch (nextError) {
-      setError(nextError?.message || 'Unable to load mappings.');
+      setAction1Organizations([]);
+      setAction1Error(nextError?.message || 'Unable to load Action1 organization options.');
     }
   };
 
   const loadHaloClients = async () => {
-    setDiscovering(true);
-    setDiscoveryError('');
+    setHaloError('');
+    setHaloDiagnostics(null);
+
     try {
       const response = await fetch(`/api/integrations/${integration}/actions/${ACTIONS.discover}`, {
         method: 'POST',
@@ -77,16 +378,26 @@ function Mapping({ integration }) {
         body: JSON.stringify({ settings: {} })
       });
       const data = await response.json().catch(() => ({}));
+
       if (!response.ok || data?.ok === false) {
-        throw new Error(data?.message || 'Unable to load Halo client options.');
+        setHaloClients([]);
+        setHaloDiagnostics(data?.diagnostics || null);
+        setHaloError(data?.message || 'Unable to load HaloPSA client options.');
+        return;
       }
+
       setHaloClients(Array.isArray(data?.haloClients) ? data.haloClients : []);
+      setHaloDiagnostics(null);
     } catch (nextError) {
       setHaloClients([]);
-      setDiscoveryError(nextError?.message || 'Unable to load Halo client options.');
-    } finally {
-      setDiscovering(false);
+      setHaloError(nextError?.message || 'Unable to load HaloPSA client options.');
     }
+  };
+
+  const refreshDiscovery = async () => {
+    setDiscovering(true);
+    await Promise.allSettled([loadAction1Organizations(), loadHaloClients()]);
+    setDiscovering(false);
   };
 
   useEffect(() => {
@@ -94,14 +405,16 @@ function Mapping({ integration }) {
 
     const load = async () => {
       setLoading(true);
-      setError('');
+      setPageError('');
+
       try {
-        await Promise.all([loadMappings(), loadHaloClients()]);
+        await loadMappings();
       } catch (nextError) {
         if (!cancelled) {
-          setError(nextError?.message || 'Unable to load mapping screen.');
+          setPageError(nextError?.message || 'Unable to load mapping screen.');
         }
       } finally {
+        await refreshDiscovery();
         if (!cancelled) {
           setLoading(false);
         }
@@ -109,236 +422,267 @@ function Mapping({ integration }) {
     };
 
     load();
+
     return () => {
       cancelled = true;
     };
   }, [integration]);
 
-  const clientOptions = normalizeClientOptions(haloClients);
-  const selectedClientExists = clientOptions.some((row) => row.value === draft.haloClientId);
-  const effectiveClientOptions = draft.haloClientId && draft.haloClientName && !selectedClientExists
-    ? [...clientOptions, { value: draft.haloClientId, label: `${draft.haloClientName} (${draft.haloClientId})`, name: draft.haloClientName }]
-    : clientOptions;
+  const updateRow = (rowIndex, valueKey, nameKey, nextValue, nextName) => {
+    setDraftRows((current) =>
+      current.map((row, idx) => {
+        if (idx !== rowIndex) {
+          return row;
+        }
 
-  const resetDraft = () => {
-    setDraft(EMPTY_DRAFT);
-    setMessage('');
-    setError('');
+        return {
+          ...row,
+          [valueKey]: nextValue,
+          [nameKey]: nextName
+        };
+      })
+    );
+    setSaveMessage('');
+    setSaveError('');
   };
 
-  const startEdit = (row) => {
-    setDraft({
-      id: row.id,
-      action1OrgId: row.action1OrgId || '',
-      action1OrgName: row.action1OrgName || '',
-      haloClientId: row.haloClientId || '',
-      haloClientName: row.haloClientName || '',
-      enabled: row.enabled !== false
-    });
-    setMessage('');
-    setError('');
+  const addMappingRow = () => {
+    setDraftRows((current) => current.concat({ ...EMPTY_ROW }));
+    setSaveMessage('');
+    setSaveError('');
   };
 
-  const saveDraft = async (event) => {
-    event.preventDefault();
+  const removeDraftRow = (rowIndex) => {
+    setDraftRows((current) => current.filter((_, idx) => idx !== rowIndex));
+    setSaveMessage('');
+    setSaveError('');
+  };
+
+  const saveMappings = async () => {
     setSaving(true);
-    setMessage('');
-    setError('');
+    setSaveMessage('');
+    setSaveError('');
 
     try {
-      const response = await fetch(`/api/integrations/${integration}/actions/${ACTIONS.save}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payload: draft })
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || data?.ok === false) {
-        throw new Error(data?.message || 'Unable to save mapping.');
+      const { errors, persistRows } = buildPersistRows(draftRows, action1Organizations, haloClients);
+
+      if (errors.length > 0) {
+        throw new Error(errors.join(' '));
       }
 
-      setMappings(Array.isArray(data?.mappings) ? data.mappings : []);
-      setDraft(EMPTY_DRAFT);
-      setMessage(data?.message || 'Mapping saved.');
+      const unchangedIds = new Set(
+        persistRows
+          .filter((row) => row.id !== null)
+          .filter((row) => savedMappings.some((savedRow) => savedRow.id === row.id && rowsEquivalent(savedRow, row)))
+          .map((row) => row.id)
+      );
+
+      const rowsToDelete = savedMappings.filter((row) => !unchangedIds.has(row.id));
+      for (const row of rowsToDelete) {
+        await invokeAction(ACTIONS.remove, { payload: { id: row.id } });
+      }
+
+      const rowsToCreate = persistRows.filter((row) => !(row.id !== null && unchangedIds.has(row.id)));
+      for (const row of rowsToCreate) {
+        await invokeAction(ACTIONS.save, {
+          payload: {
+            action1OrgId: row.action1OrgId,
+            action1OrgName: row.action1OrgName,
+            haloClientId: row.haloClientId,
+            haloClientName: row.haloClientName,
+            enabled: true
+          }
+        });
+      }
+
+      await loadMappings();
+      setSaveMessage('Mappings saved.');
     } catch (nextError) {
-      setError(nextError?.message || 'Unable to save mapping.');
+      setSaveError(nextError?.message || 'Unable to save mappings.');
     } finally {
       setSaving(false);
     }
   };
 
-  const deleteRow = async (row) => {
-    setMessage('');
-    setError('');
-    try {
-      const response = await fetch(`/api/integrations/${integration}/actions/${ACTIONS.remove}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payload: { id: row.id } })
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || data?.ok === false) {
-        throw new Error(data?.message || 'Unable to delete mapping.');
-      }
-      setMappings(Array.isArray(data?.mappings) ? data.mappings : []);
-      if (draft.id === row.id) {
-        setDraft(EMPTY_DRAFT);
-      }
-      setMessage(data?.message || 'Mapping deleted.');
-    } catch (nextError) {
-      setError(nextError?.message || 'Unable to delete mapping.');
-    }
-  };
-
   if (loading) {
-    return <div style={{ padding: '2rem' }}>Loading mapping screen...</div>;
+    return <div style={{ padding: '2rem' }}>Loading client mapping...</div>;
   }
 
   return (
-    <div style={{ maxWidth: 980 }}>
-      <div className="glass-panel">
-        <h3 style={{ marginTop: 0 }}>Action1 Organization To Halo Client Mapping</h3>
-        <p style={{ color: '#6B7280', fontSize: '0.88rem', lineHeight: 1.5 }}>
-          Mapping rows are stored in HaloPSA-owned database tables, not in Marketplace settings. Halo client options can be refreshed from HaloPSA when connection settings are configured. Action1 organization discovery is not wired yet, so Action1 organization values are entered manually in this slice.
-        </p>
-
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-          <button className="btn-secondary" type="button" onClick={refreshMappings}>
-            Refresh Mappings
-          </button>
-          <button className="btn-secondary" type="button" onClick={loadHaloClients} disabled={discovering}>
-            {discovering ? 'Refreshing Halo Clients...' : 'Refresh Halo Clients'}
-          </button>
+    <div style={styles.page}>
+      <div className="glass-panel" style={styles.panel}>
+        <div style={styles.headingRow}>
+          <div>
+            <h3 style={styles.title}>Client Mapping</h3>
+            <p style={styles.description}>Map Action1 organizations to HaloPSA clients.</p>
+          </div>
+          <div style={styles.buttonRow}>
+            <button className="btn-secondary" type="button" onClick={refreshDiscovery} disabled={discovering}>
+              {discovering ? 'Refreshing Discovery...' : 'Refresh Discovery'}
+            </button>
+          </div>
         </div>
 
-        {message && <div style={{ color: '#15803D', marginBottom: '0.75rem' }}>{message}</div>}
-        {error && <div style={{ color: '#DC2626', marginBottom: '0.75rem' }}>{error}</div>}
-        {discoveryError && <div style={{ color: '#B45309', marginBottom: '0.75rem' }}>{discoveryError}</div>}
-
-        <form onSubmit={saveDraft} style={{ display: 'grid', gap: '1rem', marginBottom: '1.5rem' }}>
-          <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 700 }}>Action1 Organization ID</label>
-              <input
-                type="text"
-                value={draft.action1OrgId}
-                onChange={(event) => setDraft((current) => ({ ...current, action1OrgId: event.target.value }))}
-                style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: 4 }}
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 700 }}>Action1 Organization Name</label>
-              <input
-                type="text"
-                value={draft.action1OrgName}
-                onChange={(event) => setDraft((current) => ({ ...current, action1OrgName: event.target.value }))}
-                style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: 4 }}
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 700 }}>Halo Client ID</label>
-              {effectiveClientOptions.length > 0 ? (
-                <select
-                  value={draft.haloClientId}
-                  onChange={(event) => {
-                    const nextId = event.target.value;
-                    const selected = effectiveClientOptions.find((row) => row.value === nextId);
-                    setDraft((current) => ({
-                      ...current,
-                      haloClientId: nextId,
-                      haloClientName: selected?.name || current.haloClientName
-                    }));
-                  }}
-                  style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: 4, background: '#fff' }}
-                >
-                  <option value="">Select...</option>
-                  {effectiveClientOptions.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type="text"
-                  value={draft.haloClientId}
-                  onChange={(event) => setDraft((current) => ({ ...current, haloClientId: event.target.value }))}
-                  style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: 4 }}
-                />
-              )}
-            </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 700 }}>Halo Client Name</label>
-              <input
-                type="text"
-                value={draft.haloClientName}
-                onChange={(event) => setDraft((current) => ({ ...current, haloClientName: event.target.value }))}
-                style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: 4 }}
-              />
-            </div>
+        <div style={styles.statsRow}>
+          <div style={styles.statCard}>
+            <p style={styles.statLabel}>Saved Mappings</p>
+            <p style={styles.statValue}>{savedMappings.length}</p>
           </div>
-
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontWeight: 500 }}>
-            <input
-              type="checkbox"
-              checked={draft.enabled}
-              onChange={(event) => setDraft((current) => ({ ...current, enabled: event.target.checked }))}
-            />
-            Mapping enabled
-          </label>
-
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <button className="btn-primary" type="submit" disabled={saving}>
-              {saving ? 'Saving...' : draft.id ? 'Update Mapping' : 'Create Mapping'}
-            </button>
-            <button className="btn-secondary" type="button" onClick={resetDraft}>
-              Clear Draft
-            </button>
+          <div style={styles.statCard}>
+            <p style={styles.statLabel}>Action1 Organizations</p>
+            <p style={styles.statValue}>{action1Organizations.length}</p>
           </div>
-        </form>
-
-        {mappings.length === 0 ? (
-          <div style={{ color: '#6B7280', fontSize: '0.9rem' }}>
-            No mappings have been saved yet.
+          <div style={styles.statCard}>
+            <p style={styles.statLabel}>HaloPSA Clients</p>
+            <p style={styles.statValue}>{haloClients.length}</p>
           </div>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
+        </div>
+      </div>
+
+      {pageError && (
+        <div style={{ ...styles.statusMessage, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C' }}>
+          {pageError}
+        </div>
+      )}
+      {action1Error && (
+        <div style={{ ...styles.statusMessage, background: '#FFFBEB', border: '1px solid #FDE68A', color: '#92400E' }}>
+          {action1Error}
+          {action1Diagnostics ? <DiagnosticDetails diagnostics={action1Diagnostics} /> : null}
+        </div>
+      )}
+      {haloError && (
+        <div style={{ ...styles.statusMessage, background: '#FFFBEB', border: '1px solid #FDE68A', color: '#92400E' }}>
+          {haloError}
+          {haloDiagnostics ? <DiagnosticDetails diagnostics={haloDiagnostics} /> : null}
+        </div>
+      )}
+
+      <div className="glass-panel" style={styles.panel}>
+        <div style={styles.headingRow}>
+          <div>
+            <h4 style={{ margin: 0 }}>Organization Mapping</h4>
+            <p style={styles.description}>
+              Choose the HaloPSA client that should receive tickets for each Action1 organization.
+            </p>
+          </div>
+        </div>
+
+        <div style={{ ...styles.section, overflowX: 'auto' }}>
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.tableHead}>Action1 Organization</th>
+                <th style={styles.tableHead}>HaloPSA Client</th>
+                <th style={styles.tableHead}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {draftRows.length === 0 ? (
                 <tr>
-                  <th style={{ textAlign: 'left', padding: '0.6rem', borderBottom: '1px solid var(--border-color)' }}>Action1 Org</th>
-                  <th style={{ textAlign: 'left', padding: '0.6rem', borderBottom: '1px solid var(--border-color)' }}>Halo Client</th>
-                  <th style={{ textAlign: 'left', padding: '0.6rem', borderBottom: '1px solid var(--border-color)' }}>Enabled</th>
-                  <th style={{ textAlign: 'left', padding: '0.6rem', borderBottom: '1px solid var(--border-color)' }}>Actions</th>
+                  <td style={styles.tableCell} colSpan={3}>No mappings added yet.</td>
                 </tr>
-              </thead>
-              <tbody>
-                {mappings.map((row) => (
-                  <tr key={row.id}>
-                    <td style={{ padding: '0.6rem', borderBottom: '1px solid var(--border-color)' }}>
-                      <strong>{row.action1OrgName}</strong>
-                      <div style={{ color: '#6B7280', fontSize: '0.82rem' }}>{row.action1OrgId}</div>
-                    </td>
-                    <td style={{ padding: '0.6rem', borderBottom: '1px solid var(--border-color)' }}>
-                      <strong>{row.haloClientName}</strong>
-                      <div style={{ color: '#6B7280', fontSize: '0.82rem' }}>{row.haloClientId}</div>
-                    </td>
-                    <td style={{ padding: '0.6rem', borderBottom: '1px solid var(--border-color)' }}>
-                      {row.enabled ? 'Enabled' : 'Disabled'}
-                    </td>
-                    <td style={{ padding: '0.6rem', borderBottom: '1px solid var(--border-color)' }}>
-                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <button className="btn-secondary" type="button" onClick={() => startEdit(row)}>
-                          Edit
+              ) : (
+                draftRows.map((row, rowIndex) => {
+                  const action1Options = mappingOptionsForRow(
+                    action1Organizations,
+                    draftRows,
+                    rowIndex,
+                    'action1OrgId',
+                    'action1OrgName'
+                  );
+                  const clientOptions = mappingOptionsForRow(
+                    haloClients,
+                    draftRows,
+                    rowIndex,
+                    'haloClientId',
+                    'haloClientName'
+                  );
+
+                  return (
+                    <tr key={row.id ?? `draft-${rowIndex}`}>
+                      <td style={styles.tableCell}>
+                        <select
+                          id={`map-org-${rowIndex}`}
+                          aria-label={`Action1 Organization row ${rowIndex + 1}`}
+                          data-map-org={rowIndex}
+                          value={row.action1OrgId}
+                          onChange={(event) => {
+                            const nextId = event.target.value;
+                            const selected = action1Options.find((option) => option.value === nextId);
+                            updateRow(rowIndex, 'action1OrgId', 'action1OrgName', nextId, selected?.name || '');
+                          }}
+                          style={styles.input}
+                          disabled={action1Options.length === 0 || Boolean(action1Error)}
+                        >
+                          <option value="">-- Select --</option>
+                          {action1Options.map((option) => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td style={styles.tableCell}>
+                        <select
+                          id={`map-client-${rowIndex}`}
+                          aria-label={`HaloPSA Client row ${rowIndex + 1}`}
+                          data-map-client={rowIndex}
+                          value={row.haloClientId}
+                          onChange={(event) => {
+                            const nextId = event.target.value;
+                            const selected = clientOptions.find((option) => option.value === nextId);
+                            updateRow(rowIndex, 'haloClientId', 'haloClientName', nextId, selected?.name || '');
+                          }}
+                          style={styles.input}
+                          disabled={clientOptions.length === 0 || Boolean(haloError)}
+                        >
+                          <option value="">-- Select --</option>
+                          {clientOptions.map((option) => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td style={styles.actionCell}>
+                        <button
+                          className="btn-secondary"
+                          type="button"
+                          data-map-remove={rowIndex}
+                          onClick={() => removeDraftRow(rowIndex)}
+                        >
+                          Remove
                         </button>
-                        <button className="btn-secondary" type="button" onClick={() => deleteRow(row)}>
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div style={styles.tableButtonRow}>
+          <button className="btn-secondary" type="button" onClick={addMappingRow}>
+            Add Mapping Row
+          </button>
+          <button
+            className="btn-primary"
+            type="button"
+            onClick={saveMappings}
+            disabled={saving || Boolean(action1Error) || Boolean(haloError)}
+          >
+            {saving ? 'Saving...' : 'Save Mappings'}
+          </button>
+          <div style={styles.tableFeedback} data-save-feedback>
+            {saveMessage && (
+              <div style={{ ...styles.statusMessage, width: '100%', background: '#F0FDF4', border: '1px solid #BBF7D0', color: '#166534' }}>
+                {saveMessage}
+              </div>
+            )}
+            {saveError && (
+              <div style={{ ...styles.statusMessage, width: '100%', background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C' }}>
+                {saveError}
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

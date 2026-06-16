@@ -21,7 +21,7 @@ qualys-out.txt
 
 _reference/
 
-
+*.patch
 
 # Local Marketplace validation
 docker-compose.marketplace.local.yml

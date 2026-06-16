@@ -41,10 +41,20 @@
       "history": false
     },
     {
+      "id": "discover-action1-mapping-options",
+      "kind": "action",
+      "label": "Discover Action1 Mapping Options",
+      "buttonLabel": "Refresh Action1 Organizations",
+      "runningLabel": "Refreshing...",
+      "description": "Loads read-only Action1 organization options for the Mapping screen.",
+      "placement": "mapping",
+      "history": false
+    },
+    {
       "id": "discover-halo-mapping-options",
       "kind": "action",
       "label": "Discover Halo Mapping Options",
-      "buttonLabel": "Refresh Halo Clients",
+      "buttonLabel": "Refresh HaloPSA Clients",
       "runningLabel": "Refreshing...",
       "description": "Loads read-only Halo client options for the Mapping screen.",
       "placement": "mapping",

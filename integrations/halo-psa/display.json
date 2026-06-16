@@ -14,7 +14,7 @@
     },
     {
       "id": "mapping",
-      "label": "Mapping",
+      "label": "Client Mapping",
       "path": "mapping",
       "icon": "FileText",
       "requiresWrite": true

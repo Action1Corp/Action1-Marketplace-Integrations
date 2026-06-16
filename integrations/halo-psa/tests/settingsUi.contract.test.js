@@ -103,6 +103,7 @@ function run() {
   assert(source.includes('LIGHT_RADIO_CARD_STYLE'), 'Settings.jsx should share a lighter radio-card style across settings sections for visual consistency');
   assert(source.includes("border: currentValue === option.value ? '1px solid #CBD5E1' : '1px solid var(--border-color)'"), 'Settings.jsx should use the lighter selected-radio treatment for Existing Open Ticket Behavior');
   assert(!source.includes("background: currentValue === option.value ? '#EFF6FF' : '#fff'"), 'Settings.jsx should not use the older heavier selected-radio background treatment for Existing Open Ticket Behavior');
+  assert(source.includes("width: '100%', maxWidth: 820, margin: '0 auto'"), 'Settings.jsx should use the same centered wrapper convention as Mapping');
   assert(source.includes('halo-psa-settings-bottom-spacer'), 'Settings.jsx should render an explicit bottom spacer before the shared Save Settings button');
   assert(source.includes("style={{ height: 32 }}"), 'Settings.jsx should give the explicit bottom spacer a visible fixed height');
 

@@ -131,6 +131,9 @@ async function testSuccessfulDiscoveryReturnsNormalizedOptions() {
     assert(result.ticketTypeDetail, 'ticket type detail should be returned when a ticket type is selected');
     assert.deepStrictEqual(result.ticketTypeDetail.allowedStatuses[0], { id: '4', name: 'New', isClosed: false }, 'detail statuses should be normalized');
     assert.deepStrictEqual(result.ticketTypeDetail.allowedCategories[0], { id: '18', name: 'Security' }, 'detail categories should be normalized');
+    const tokenCall = calls.find((call) => call.url.endsWith('/token'));
+    assert(tokenCall, 'settings discovery should request a Halo token');
+    assert(String(tokenCall.options?.body || '').includes('scope=all'), 'settings discovery should keep standalone Halo token scope=all behavior');
     assert(!calls.some((call) => call.url.includes('/Tickets')), 'discovery must not call ticket write endpoints');
     assert(calls.filter((call) => call.options?.method === 'GET').every((call) => !call.url.endsWith('/token')), 'resource discovery should stay read-only');
   });

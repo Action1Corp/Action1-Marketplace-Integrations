@@ -58,7 +58,7 @@ async function listMappings(context) {
   const rows = await context.db.all(
     `SELECT id, action1_org_id, action1_org_name, halo_client_id, halo_client_name, enabled, created_at, updated_at
        FROM ${MAPPINGS_TABLE}
-      ORDER BY action1_org_name COLLATE NOCASE ASC, id ASC`
+      ORDER BY LOWER(action1_org_name) ASC, action1_org_name ASC, id ASC`
   );
   return (Array.isArray(rows) ? rows : []).map(normalizeRow).filter(Boolean);
 }

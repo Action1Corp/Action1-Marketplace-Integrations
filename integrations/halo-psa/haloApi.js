@@ -48,20 +48,122 @@ function sanitizeMessage(message) {
   }
 
   return text
-    .replace(/bearer\s+[a-z0-9\-._~+/]+=*/gi, 'bearer [redacted]')
+    .replace(/bearer\s+\S+/gi, 'bearer [redacted]')
     .replace(/access_token["'\s:=]+[a-z0-9\-._~+/]+=*/gi, 'access_token=[redacted]')
-    .replace(/client_secret["'\s:=]+[^\s,;]+/gi, 'client_secret=[redacted]');
+    .replace(/refresh_token["'\s:=]+[a-z0-9\-._~+/]+=*/gi, 'refresh_token=[redacted]')
+    .replace(/id_token["'\s:=]+[a-z0-9\-._~+/]+=*/gi, 'id_token=[redacted]')
+    .replace(/authorization["'\s:=]+[^\r\n]+/gi, 'authorization=[redacted]')
+    .replace(/client_secret["'\s:=]+[^\s,;]+/gi, 'client_secret=[redacted]')
+    .replace(/cookie["'\s:=]+[^\r\n]+/gi, 'cookie=[redacted]')
+    .replace(/password["'\s:=]+[^\s,;]+/gi, 'password=[redacted]')
+    .replace(/secret["'\s:=]+[^\s,;]+/gi, 'secret=[redacted]');
 }
 
-async function readJsonSafe(response) {
-  if (!response || typeof response.json !== 'function') {
-    return {};
+class DiscoveryRequestError extends Error {
+  constructor(message, diagnostic = {}) {
+    super(message);
+    this.name = 'DiscoveryRequestError';
+    this.diagnostic = diagnostic;
+  }
+}
+
+function truncateExcerpt(value, maxLength = 1000) {
+  const sanitized = sanitizeMessage(String(value || '').replace(/\s+/g, ' ').trim());
+  if (!sanitized) {
+    return '';
+  }
+
+  return sanitized.length <= maxLength ? sanitized : `${sanitized.slice(0, maxLength - 3)}...`;
+}
+
+function resolveResponseContentType(response) {
+  if (!response?.headers || typeof response.headers.get !== 'function') {
+    return '';
+  }
+
+  return trimValue(response.headers.get('content-type'));
+}
+
+async function readResponseSafe(response) {
+  const contentType = resolveResponseContentType(response);
+
+  if (!response) {
+    return { data: {}, contentType, bodyExcerpt: '' };
+  }
+
+  if (typeof response.text === 'function') {
+    try {
+      const rawText = await response.text();
+      const bodyExcerpt = truncateExcerpt(rawText);
+      let data = {};
+
+      if (rawText && contentType.toLowerCase().includes('json')) {
+        try {
+          data = JSON.parse(rawText);
+        } catch {
+          data = {};
+        }
+      }
+
+      return { data, contentType, bodyExcerpt };
+    } catch {
+      return { data: {}, contentType, bodyExcerpt: '' };
+    }
+  }
+
+  if (typeof response.json === 'function') {
+    try {
+      const data = await response.json();
+      return {
+        data,
+        contentType,
+        bodyExcerpt: truncateExcerpt(JSON.stringify(data))
+      };
+    } catch {
+      return { data: {}, contentType, bodyExcerpt: '' };
+    }
+  }
+
+  return { data: {}, contentType, bodyExcerpt: '' };
+}
+
+function firstSanitizedString(input, keys) {
+  for (const key of keys) {
+    const value = input?.[key];
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return sanitizeMessage(String(value));
+    }
+  }
+
+  return '';
+}
+
+function splitPathAndQuery(path) {
+  const [requestPath, query = ''] = String(path || '').split('?');
+  return {
+    path: requestPath || '',
+    query
+  };
+}
+
+function buildSafeResponseSummary(payload) {
+  return {
+    errorCode: firstSanitizedString(payload, ['error_code', 'errorCode', 'code', 'error']),
+    errorMessage: firstSanitizedString(payload, ['error_description', 'errorDescription', 'message', 'error_message'])
+  };
+}
+
+function resolveResourceServer(settings) {
+  const normalized = trimValue(settings?.HaloPsaResourceServer);
+  if (!normalized) {
+    return '';
   }
 
   try {
-    return await response.json();
+    const url = new URL(normalized);
+    return `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
   } catch {
-    return {};
+    return normalized;
   }
 }
 
@@ -70,6 +172,7 @@ async function requestToken(settings) {
   params.append('grant_type', 'client_credentials');
   params.append('client_id', settings.HaloPsaClientId);
   params.append('client_secret', settings.HaloPsaClientSecret);
+  params.append('scope', 'all');
 
   const response = await fetch(`${settings.HaloPsaAuthorisationServer}/token`, {
     method: 'POST',
@@ -79,31 +182,98 @@ async function requestToken(settings) {
     body: params
   });
 
-  const data = await readJsonSafe(response);
+  const { data, contentType, bodyExcerpt } = await readResponseSafe(response);
 
   if (!response.ok) {
-    throw new Error(`HaloPSA token request failed (HTTP ${response.status}).`);
+    throw new DiscoveryRequestError('HaloPSA client discovery failed. Check HaloPSA client-read access and retry.', {
+      operation: 'discover-halo-clients',
+      resolvedResourceServer: resolveResourceServer(settings),
+      request: {
+        method: 'POST',
+        path: '/token',
+        query: ''
+      },
+      response: {
+        status: response.status,
+        contentType,
+        bodyExcerpt,
+        ...buildSafeResponseSummary(data)
+      }
+    });
   }
 
   if (!trimValue(data.access_token)) {
-    throw new Error('HaloPSA token response did not include an access token.');
+    throw new DiscoveryRequestError('HaloPSA client discovery failed. Check HaloPSA client-read access and retry.', {
+      operation: 'discover-halo-clients',
+      resolvedResourceServer: resolveResourceServer(settings),
+      request: {
+        method: 'POST',
+        path: '/token',
+        query: ''
+      },
+      response: {
+        status: response.status || 200,
+        contentType,
+        bodyExcerpt,
+        errorCode: 'missing_access_token',
+        errorMessage: 'HaloPSA token response did not include an access token.'
+      }
+    });
   }
 
-  return data.access_token;
+  return {
+    accessToken: data.access_token,
+    tokenType: trimValue(data.token_type) || 'Bearer'
+  };
 }
 
 async function requestReadOnlyJson(settings, accessToken, path) {
+  const tokenValue = typeof accessToken === 'string' ? accessToken : accessToken?.accessToken;
+  const tokenType = typeof accessToken === 'string' ? 'Bearer' : trimValue(accessToken?.tokenType) || 'Bearer';
   const response = await fetch(`${settings.HaloPsaResourceServer}${path}`, {
     method: 'GET',
     headers: {
-      Authorization: `Bearer ${accessToken}`,
+      Authorization: `${tokenType} ${tokenValue}`,
       Accept: 'application/json'
     }
   });
 
-  const data = await readJsonSafe(response);
+  const { data, contentType, bodyExcerpt } = await readResponseSafe(response);
   if (!response.ok) {
-    throw new Error(`HaloPSA read-only API request failed (HTTP ${response.status}).`);
+    const requestDetails = splitPathAndQuery(path);
+    const safeResponse = {
+      status: response.status,
+      contentType,
+      ...buildSafeResponseSummary(data)
+    };
+
+    if (bodyExcerpt) {
+      safeResponse.bodyExcerpt = bodyExcerpt;
+    }
+
+    if (path === '/Client') {
+      throw new DiscoveryRequestError('HaloPSA client discovery failed. Check HaloPSA client-read access and retry.', {
+        operation: 'discover-halo-clients',
+        resolvedResourceServer: resolveResourceServer(settings),
+        request: {
+          method: 'GET',
+          path: requestDetails.path,
+          query: requestDetails.query
+        },
+        response: safeResponse
+      });
+    }
+
+    throw new DiscoveryRequestError(`HaloPSA read-only API request failed (HTTP ${response.status}).`, {
+      operation: 'discover-halo-read-only',
+      resolvedResourceServer: resolveResourceServer(settings),
+      request: {
+        method: 'GET',
+        path: requestDetails.path,
+        query: requestDetails.query
+      },
+      response: safeResponse
+    });
   }
 
   return data;
@@ -260,12 +430,13 @@ async function discoverSettingsOptions(settings, accessToken, selectedTicketType
 }
 
 async function discoverHaloClients(settings, accessToken) {
-  const payload = await requestReadOnlyJson(settings, accessToken, '/Client?$top=200');
+  const payload = await requestReadOnlyJson(settings, accessToken, '/Client');
   return dedupeRows(toArray(payload).map(normalizeClient).filter(Boolean));
 }
 
 module.exports = {
   REQUIRED_SETTINGS,
+  DiscoveryRequestError,
   discoverHaloClients,
   discoverSettingsOptions,
   loadSettings,
@@ -274,5 +445,6 @@ module.exports = {
   requestReadOnlyCheck,
   requestToken,
   sanitizeMessage,
+  truncateExcerpt,
   trimValue
 };
