@@ -28,7 +28,7 @@ async function discover(context, request = {}) {
     const payload = await discoverSettingsOptions(
       settings,
       accessToken,
-      trimValue(request?.settings?.HaloTicketTypeId)
+      trimValue(request?.settings?.HaloPsaTicketTypeId)
     );
 
     return {

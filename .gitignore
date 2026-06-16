@@ -20,3 +20,8 @@ node.msi
 qualys-out.txt
 
 _reference/
+
+
+
+# Local Marketplace validation
+docker-compose.marketplace.local.yml

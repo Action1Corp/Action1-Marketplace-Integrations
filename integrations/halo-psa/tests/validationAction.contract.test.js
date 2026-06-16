@@ -76,19 +76,19 @@ async function testStoredSecretFallbackAndSuccessfulReadOnlyValidation() {
     const actions = await loadFreshActionsModule();
     const result = await actions['validate-configuration']({
       settings: createSettingsContext({
-        HaloClientSecret: 'stored-secret-value'
+        HaloPsaClientSecret: 'stored-secret-value'
       })
     }, {
       settings: {
-        HaloResourceServer: 'https://halo.example.com',
-        HaloAuthorisationServer: 'https://halo.example.com/auth',
-        HaloClientId: 'client-id-123',
-        ExistingOpenTicketBehavior: 'skip_existing_open',
-        CloseWhenSignalClears: 'false',
-        VulnerabilityTicketModel: 'grouped',
-        MaxOpenTicketsPerOrganization: '30',
+        HaloPsaResourceServer: 'https://halo.example.com',
+        HaloPsaAuthorisationServer: 'https://halo.example.com/auth',
+        HaloPsaClientId: 'client-id-123',
+        HaloPsaExistingOpenTicketBehavior: 'skip_existing_open',
+        HaloPsaCloseWhenSignalClears: 'false',
+        HaloPsaVulnerabilityTicketModel: 'grouped',
+        HaloPsaMaxOpenTicketsPerOrganization: '30',
         _secretModes: {
-          HaloClientSecret: 'stored'
+          HaloPsaClientSecret: 'stored'
         }
       }
     });
@@ -119,10 +119,10 @@ async function testFailedTokenAcquisitionReturnsSafeFailure() {
       settings: createSettingsContext()
     }, {
       settings: {
-        HaloResourceServer: 'https://halo.example.com',
-        HaloAuthorisationServer: 'https://halo.example.com/auth',
-        HaloClientId: 'client-id-123',
-        HaloClientSecret: 'stored-secret-value'
+        HaloPsaResourceServer: 'https://halo.example.com',
+        HaloPsaAuthorisationServer: 'https://halo.example.com/auth',
+        HaloPsaClientId: 'client-id-123',
+        HaloPsaClientSecret: 'stored-secret-value'
       }
     });
 
@@ -166,10 +166,10 @@ async function testFailedReadOnlyCallReturnsSafeFailureWithoutDbWrites() {
       }
     }, {
       settings: {
-        HaloResourceServer: 'https://halo.example.com',
-        HaloAuthorisationServer: 'https://halo.example.com/auth',
-        HaloClientId: 'client-id-123',
-        HaloClientSecret: 'stored-secret-value'
+        HaloPsaResourceServer: 'https://halo.example.com',
+        HaloPsaAuthorisationServer: 'https://halo.example.com/auth',
+        HaloPsaClientId: 'client-id-123',
+        HaloPsaClientSecret: 'stored-secret-value'
       }
     });
 

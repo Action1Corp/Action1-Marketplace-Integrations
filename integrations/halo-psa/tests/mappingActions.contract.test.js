@@ -254,15 +254,15 @@ async function testHaloClientDiscoveryIsReadOnlyAndSanitized() {
     const actions = await loadFreshActionsModule();
     const result = await actions['discover-halo-mapping-options']({
       settings: createSettingsContext({
-        HaloClientSecret: 'stored-secret-value'
+        HaloPsaClientSecret: 'stored-secret-value'
       })
     }, {
       settings: {
-        HaloResourceServer: 'https://halo.example.com',
-        HaloAuthorisationServer: 'https://halo.example.com/auth',
-        HaloClientId: 'client-id-123',
+        HaloPsaResourceServer: 'https://halo.example.com',
+        HaloPsaAuthorisationServer: 'https://halo.example.com/auth',
+        HaloPsaClientId: 'client-id-123',
         _secretModes: {
-          HaloClientSecret: 'stored'
+          HaloPsaClientSecret: 'stored'
         }
       }
     });
@@ -296,10 +296,10 @@ async function testHaloClientDiscoveryIsReadOnlyAndSanitized() {
       settings: createSettingsContext()
     }, {
       settings: {
-        HaloResourceServer: 'https://halo.example.com',
-        HaloAuthorisationServer: 'https://halo.example.com/auth',
-        HaloClientId: 'client-id-123',
-        HaloClientSecret: 'stored-secret-value'
+        HaloPsaResourceServer: 'https://halo.example.com',
+        HaloPsaAuthorisationServer: 'https://halo.example.com/auth',
+        HaloPsaClientId: 'client-id-123',
+        HaloPsaClientSecret: 'stored-secret-value'
       }
     });
 

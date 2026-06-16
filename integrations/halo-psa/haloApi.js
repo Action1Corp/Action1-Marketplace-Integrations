@@ -1,8 +1,8 @@
 const REQUIRED_SETTINGS = [
-  'HaloResourceServer',
-  'HaloAuthorisationServer',
-  'HaloClientId',
-  'HaloClientSecret'
+  'HaloPsaResourceServer',
+  'HaloPsaAuthorisationServer',
+  'HaloPsaClientId',
+  'HaloPsaClientSecret'
 ];
 
 function trimValue(value) {
@@ -68,10 +68,10 @@ async function readJsonSafe(response) {
 async function requestToken(settings) {
   const params = new URLSearchParams();
   params.append('grant_type', 'client_credentials');
-  params.append('client_id', settings.HaloClientId);
-  params.append('client_secret', settings.HaloClientSecret);
+  params.append('client_id', settings.HaloPsaClientId);
+  params.append('client_secret', settings.HaloPsaClientSecret);
 
-  const response = await fetch(`${settings.HaloAuthorisationServer}/token`, {
+  const response = await fetch(`${settings.HaloPsaAuthorisationServer}/token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded'
@@ -93,7 +93,7 @@ async function requestToken(settings) {
 }
 
 async function requestReadOnlyJson(settings, accessToken, path) {
-  const response = await fetch(`${settings.HaloResourceServer}${path}`, {
+  const response = await fetch(`${settings.HaloPsaResourceServer}${path}`, {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -121,8 +121,8 @@ async function loadSettings(context, request = {}) {
     settings[key] = await resolveSetting(context, requestSettings, key);
   }
 
-  settings.HaloResourceServer = normalizeResourceServer(settings.HaloResourceServer);
-  settings.HaloAuthorisationServer = normalizeAuthorisationServer(settings.HaloAuthorisationServer);
+  settings.HaloPsaResourceServer = normalizeResourceServer(settings.HaloPsaResourceServer);
+  settings.HaloPsaAuthorisationServer = normalizeAuthorisationServer(settings.HaloPsaAuthorisationServer);
   return settings;
 }
 
