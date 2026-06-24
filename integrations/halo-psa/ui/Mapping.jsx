@@ -22,7 +22,11 @@ const styles = {
     maxWidth: 820,
     margin: '0 auto',
     display: 'grid',
-    gap: '1rem'
+    gap: '0.5rem'
+  },
+  header: {
+    display: 'grid',
+    gap: '0.35rem'
   },
   panel: {
     padding: '1.25rem',
@@ -48,6 +52,12 @@ const styles = {
     margin: 0,
     fontSize: '1.5rem',
     lineHeight: 1.2
+  },
+  cardTitle: {
+    margin: 0,
+    fontSize: '1.125rem',
+    fontWeight: 600,
+    lineHeight: 1.25
   },
   description: {
     margin: '0.35rem 0 0',
@@ -510,12 +520,13 @@ function Mapping({ integration }) {
 
   return (
     <div style={styles.page}>
+      <div style={styles.header}>
+        <h1 className="page-title" style={styles.title}>Client Mapping</h1>
+        <p style={styles.description}>Map Action1 organizations to HaloPSA clients so tickets are created under the correct customer account.</p>
+      </div>
+
       <div className="glass-panel" style={styles.panel}>
         <div style={styles.headingRow}>
-          <div>
-            <h3 style={styles.title}>Client Mapping</h3>
-            <p style={styles.description}>Map Action1 organizations to HaloPSA clients.</p>
-          </div>
           <div style={styles.buttonRow}>
             <button className="btn-secondary" type="button" onClick={refreshDiscovery} disabled={discovering}>
               {discovering ? 'Refreshing Discovery...' : 'Refresh Discovery'}
@@ -560,9 +571,9 @@ function Mapping({ integration }) {
       <div className="glass-panel" style={styles.panel}>
         <div style={styles.headingRow}>
           <div>
-            <h4 style={{ margin: 0 }}>Organization Mapping</h4>
+            <h4 style={styles.cardTitle}>Organization Mapping</h4>
             <p style={styles.description}>
-              Choose the HaloPSA client that should receive tickets for each Action1 organization.
+              Choose the HaloPSA client for each Action1 organization.
             </p>
           </div>
         </div>

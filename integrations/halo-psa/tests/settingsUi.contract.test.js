@@ -45,8 +45,8 @@ function run() {
   assert(source.includes("setSavedSettingsSnapshot(settings);"), 'Settings.jsx should preserve a saved settings snapshot for cancel/revert behavior');
   assert(source.includes("setSettings(savedSettingsSnapshot);"), 'Settings.jsx should restore the saved connection values when canceling edits');
   assert(source.includes("validating ? 'Testing connection...' : 'Test Connection'"), 'Settings.jsx should expose standalone-style connection re-validation controls');
-  assert(source.includes('<h3>Ticket Routing &amp; Lifecycle</h3>'), 'Settings.jsx should render the combined Ticket Routing & Lifecycle section title');
-  assert(source.includes('<h3>Signal Filters</h3>'), 'Settings.jsx should render one visible Signal Filters section');
+  assert(source.includes('Ticket Routing &amp; Lifecycle'), 'Settings.jsx should render the combined Ticket Routing & Lifecycle section title');
+  assert(source.includes('Signal Filters'), 'Settings.jsx should render one visible Signal Filters section');
   assert(source.includes("if (groupName === 'Lifecycle') {\n            return null;"), 'Settings.jsx should suppress a separate visible Lifecycle section card');
   assert(source.includes("if (groupName === 'Grouped Ticketing' || groupName === 'Operational Safeguards') {\n            return null;"), 'Settings.jsx should suppress separate Grouped Ticketing and Operational Safeguards top-level sections');
   assert(!source.includes('Team (optional)'), 'Settings.jsx should not expose optional wording in the Team label');
@@ -90,6 +90,9 @@ function run() {
   assert(source.includes('deriveSharedSignalTicketModel'), 'Settings.jsx should derive the shared ticket-creation mode from the three HaloPsa ticket-model settings');
   assert(source.includes('setSharedSignalTicketMode'), 'Settings.jsx should write the shared ticket-creation mode back into the three HaloPsa ticket-model settings');
   assert(source.includes('renderCheckboxGroup'), 'Settings.jsx should render standalone-style checkbox groups for severity and remediation filters');
+  assert(source.includes('Object.prototype.hasOwnProperty.call(currentSettings, setting.key)'), 'Settings.jsx should preserve explicitly saved empty values instead of treating them as missing defaults');
+  assert(source.includes("nextSettings.HaloPsaVulnerabilityEnabled = hasSelectedCsvValues(nextSettings.HaloPsaVulnerabilitySeverities) ? 'true' : 'false';"), 'Settings.jsx should persist HaloPsaVulnerabilityEnabled as false when vulnerability filters are fully unchecked');
+  assert(source.includes("nextSettings.HaloPsaUpdateEnabled = hasSelectedCsvValues(nextSettings.HaloPsaUpdateSeverities) ? 'true' : 'false';"), 'Settings.jsx should persist HaloPsaUpdateEnabled as false when update filters are fully unchecked');
   assert(source.includes('SIGNAL_FILTER_CARD_STYLE'), 'Settings.jsx should define a shared signal-filter card layout style');
   assert(source.includes("gridTemplateRows: 'auto auto 1fr auto auto'"), 'Settings.jsx should use a shared grid layout to vertically align signal-filter remediation headings');
   assert(source.includes("alignItems: 'stretch'"), 'Settings.jsx should stretch the signal-filter card row for consistent internal alignment');
@@ -103,9 +106,19 @@ function run() {
   assert(source.includes('LIGHT_RADIO_CARD_STYLE'), 'Settings.jsx should share a lighter radio-card style across settings sections for visual consistency');
   assert(source.includes("border: currentValue === option.value ? '1px solid #CBD5E1' : '1px solid var(--border-color)'"), 'Settings.jsx should use the lighter selected-radio treatment for Existing Open Ticket Behavior');
   assert(!source.includes("background: currentValue === option.value ? '#EFF6FF' : '#fff'"), 'Settings.jsx should not use the older heavier selected-radio background treatment for Existing Open Ticket Behavior');
-  assert(source.includes("width: '100%', maxWidth: 820, margin: '0 auto'"), 'Settings.jsx should use the same centered wrapper convention as Mapping');
+  assert(source.includes('const pageStyles = {'), 'Settings.jsx should define a shared page-shell style object');
+  assert(source.includes("width: '100%'"), 'Settings.jsx should use the shared full-width page shell');
+  assert(source.includes("maxWidth: 820"), 'Settings.jsx should use the shared centered max-width page shell');
+  assert(source.includes("margin: '0 auto'"), 'Settings.jsx should center the page shell like Mapping and Sync');
+  assert(source.includes("display: 'grid',\n    gap: '0.5rem'"), 'Settings.jsx should use the shared page-shell grid spacing convention');
+  assert(source.includes("form: {\n    display: 'grid',\n    gap: '0.5rem'\n  }"), 'Settings.jsx should give top-level settings cards the same shared vertical gap inside the form shell');
+  assert(source.includes("cardTitle: {\n    margin: 0,\n    fontSize: '1.125rem'"), 'Settings.jsx should define the shared section-heading typography baseline');
+  assert(source.includes('<h1 className="page-title" style={pageStyles.title}>Settings</h1>'), 'Settings.jsx should render a page-level Settings title');
+  assert(source.includes('Configure the HaloPSA API connection, ticket routing, lifecycle behavior, and Action1 signal filters used by this integration.'), 'Settings.jsx should render the shared page-level Settings description');
+  assert(source.includes('HaloPSA API Configuration'), 'Settings.jsx should rename HaloPSA Configuration to HaloPSA API Configuration');
+  assert(!source.includes('>HaloPSA Configuration<'), 'Settings.jsx should not keep the older HaloPSA Configuration title');
   assert(source.includes('halo-psa-settings-bottom-spacer'), 'Settings.jsx should render an explicit bottom spacer before the shared Save Settings button');
-  assert(source.includes("style={{ height: 32 }}"), 'Settings.jsx should give the explicit bottom spacer a visible fixed height');
+  assert(source.includes("style={{ height: 12 }}"), 'Settings.jsx should tighten the bottom spacer before the shared Save Settings action');
 
   const teamIndex = source.indexOf("[teamField, ticketTypeField]");
   const statusIndex = source.indexOf("[newStatusField, categoryField]");
@@ -125,7 +138,7 @@ function run() {
   assert(collapsedConnectionIndex < changeSettingsIndex, 'Settings.jsx should place Change Settings inside the collapsed connection summary');
   assert(collapsedSummarySlice.includes("validating ? 'Testing connection...' : 'Test Connection'"), 'Settings.jsx should keep connection re-validation available from the collapsed summary');
 
-  const signalFiltersIndex = source.indexOf('<h3>Signal Filters</h3>');
+  const signalFiltersIndex = source.indexOf('Signal Filters');
   const ticketModeIndex = source.indexOf('Ticket creation mode');
   const signalFiltersBlockStart = source.indexOf('const renderSignalFiltersSection = (fields) => {');
   const signalFiltersBlockEnd = source.indexOf('const renderSettingControl = (setting) => {', signalFiltersBlockStart);

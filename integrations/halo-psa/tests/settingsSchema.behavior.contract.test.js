@@ -36,7 +36,8 @@ function run() {
     'HaloPsaUpdateTicketModel',
     'HaloPsaAutomationFailedTicketModel',
     'HaloPsaMaxImpactedEndpointsInGroupedTicket',
-    'HaloPsaMaxOpenTicketsPerOrganization'
+    'HaloPsaMaxOpenTicketsPerOrganization',
+    'HaloPsaDiagnosticLoggingEnabled'
   ];
 
   for (const key of connectionKeys) {
@@ -47,7 +48,7 @@ function run() {
     assert(byKey.has(key), `${key} should exist in HaloPSA behavior settings schema`);
   }
 
-  for (const groupName of ['HaloPSA Configuration', 'Ticket Routing', 'Lifecycle', 'Signal Filters']) {
+  for (const groupName of ['HaloPSA Configuration', 'Ticket Routing', 'Lifecycle', 'Signal Filters', 'Diagnostics']) {
     assert(groups.has(groupName), `${groupName} should be represented in the HaloPSA settings schema`);
   }
   assert.strictEqual(groups.has('Grouped Ticketing'), false, 'Grouped Ticketing should no longer be a separate settings schema group');
@@ -74,6 +75,7 @@ function run() {
   assert.strictEqual(byKey.get('HaloPsaMaxImpactedEndpointsInGroupedTicket').min, 1, 'HaloPsaMaxImpactedEndpointsInGroupedTicket should represent a minimum of 1');
   assert.strictEqual(byKey.get('HaloPsaMaxImpactedEndpointsInGroupedTicket').max, 100, 'HaloPsaMaxImpactedEndpointsInGroupedTicket should represent a maximum of 100');
   assert.strictEqual(byKey.get('HaloPsaMaxOpenTicketsPerOrganization').defaultValue, '30', 'HaloPsaMaxOpenTicketsPerOrganization should default to 30');
+  assert.strictEqual(byKey.get('HaloPsaDiagnosticLoggingEnabled').defaultValue, 'false', 'HaloPsaDiagnosticLoggingEnabled should default to disabled');
   assert.strictEqual(byKey.get('HaloPsaCloseWhenSignalClears').visible, false, 'HaloPsaCloseWhenSignalClears should remain hidden from the visible UI');
   assert.strictEqual(byKey.get('HaloPsaCreateNewWhenLinkedClosed').visible, false, 'HaloPsaCreateNewWhenLinkedClosed should remain hidden from the visible UI');
   assert.strictEqual(byKey.get('HaloPsaAutomationFailedLookbackHours').visible, false, 'HaloPsaAutomationFailedLookbackHours should remain hidden from the visible UI');

@@ -84,6 +84,41 @@ const SIGNAL_FILTER_CARD_STYLE = {
   display: 'grid',
   gridTemplateRows: 'auto auto 1fr auto auto'
 };
+const pageStyles = {
+  page: {
+    width: '100%',
+    maxWidth: 820,
+    margin: '0 auto',
+    display: 'grid',
+    gap: '0.5rem'
+  },
+  header: {
+    display: 'grid',
+    gap: '0.35rem'
+  },
+  form: {
+    display: 'grid',
+    gap: '0.5rem'
+  },
+  title: {
+    margin: 0,
+    fontSize: '1.5rem',
+    lineHeight: 1.2
+  },
+  description: {
+    margin: 0,
+    color: '#526173',
+    fontSize: '0.92rem',
+    lineHeight: 1.6,
+    maxWidth: 760
+  },
+  cardTitle: {
+    margin: 0,
+    fontSize: '1.125rem',
+    fontWeight: 600,
+    lineHeight: 1.25
+  }
+};
 
 function groupSettings(schema) {
   return schema.reduce((groups, setting) => {
@@ -99,9 +134,13 @@ function isChecked(value) {
 }
 
 function getEffectiveValue(setting, currentSettings) {
+  const hasCurrentValue = Boolean(
+    currentSettings &&
+    Object.prototype.hasOwnProperty.call(currentSettings, setting.key)
+  );
   const currentValue = currentSettings?.[setting.key];
   if (currentValue === SECRET_MASK) return currentValue;
-  if (currentValue !== undefined && currentValue !== null && currentValue !== '') return currentValue;
+  if (hasCurrentValue && currentValue !== undefined && currentValue !== null) return currentValue;
   if (setting.defaultValue !== undefined) return setting.defaultValue;
   return '';
 }
@@ -122,6 +161,10 @@ function parseCsvValues(value) {
     .split(',')
     .map((row) => row.trim())
     .filter(Boolean);
+}
+
+function hasSelectedCsvValues(value) {
+  return parseCsvValues(value).length > 0;
 }
 
 function getMissingValueLabel(settingKey) {
@@ -445,10 +488,20 @@ function Settings({ integration }) {
       const nextValues = new Set(parseCsvValues(current[settingKey]));
       if (checked) nextValues.add(optionValue);
       else nextValues.delete(optionValue);
-      return {
+      const nextSettings = {
         ...current,
         [settingKey]: Array.from(nextValues).join(',')
       };
+
+      if (settingKey === 'HaloPsaVulnerabilitySeverities') {
+        nextSettings.HaloPsaVulnerabilityEnabled = hasSelectedCsvValues(nextSettings.HaloPsaVulnerabilitySeverities) ? 'true' : 'false';
+      }
+
+      if (settingKey === 'HaloPsaUpdateSeverities') {
+        nextSettings.HaloPsaUpdateEnabled = hasSelectedCsvValues(nextSettings.HaloPsaUpdateSeverities) ? 'true' : 'false';
+      }
+
+      return nextSettings;
     });
   };
 
@@ -973,8 +1026,14 @@ function Settings({ integration }) {
   if (!meta) return <div style={{ padding: '2rem' }}>Loading settings...</div>;
 
   return (
-    <div style={{ width: '100%', maxWidth: 820, margin: '0 auto' }}>
-      <form onSubmit={save}>
+    <div style={pageStyles.page}>
+      <div style={pageStyles.header}>
+        <h1 className="page-title" style={pageStyles.title}>Settings</h1>
+        <p style={pageStyles.description}>
+          Configure the HaloPSA API connection, ticket routing, lifecycle behavior, and Action1 signal filters used by this integration.
+        </p>
+      </div>
+      <form onSubmit={save} style={pageStyles.form}>
         {Object.entries(grouped).map(([groupName, fields]) => {
           if (groupName === 'Ticket Routing') {
             const fieldsByKey = new Map(fields.map((setting) => [setting.key, setting]));
@@ -987,7 +1046,7 @@ function Settings({ integration }) {
 
             return (
               <div key={groupName} className="glass-panel">
-                <h3>Ticket Routing &amp; Lifecycle</h3>
+                <h3 style={pageStyles.cardTitle}>Ticket Routing &amp; Lifecycle</h3>
                 <p style={{ marginTop: 0, marginBottom: '0.9rem', color: 'var(--text-secondary, #526173)', lineHeight: 1.5 }}>
                   Select a HaloPSA ticket type for Action1-created tickets. If Team, Status, or Category are left blank, the connector will use the defaults configured in HaloPSA.
                 </p>
@@ -1046,7 +1105,7 @@ function Settings({ integration }) {
 
             return (
               <div key={groupName} className="glass-panel">
-                <h3>HaloPSA Configuration</h3>
+                <h3 style={pageStyles.cardTitle}>HaloPSA API Configuration</h3>
                 {connectionExpanded ? (
                   <>
                     <p style={{ marginTop: 0, marginBottom: '1rem', color: 'var(--text-secondary, #526173)', lineHeight: 1.5 }}>
@@ -1103,7 +1162,7 @@ function Settings({ integration }) {
 
           return (
             <div key={groupName} className="glass-panel">
-              <h3>{groupName}</h3>
+              <h3 style={pageStyles.cardTitle}>{groupName}</h3>
               {fields.map((setting) => renderField(setting))}
               {supportsValidation && groupName.toLowerCase().includes('configuration') && (
                 <button className="btn-primary" type="button" onClick={validate} disabled={validating}>
@@ -1121,7 +1180,7 @@ function Settings({ integration }) {
         <div
           className="halo-psa-settings-bottom-spacer"
           aria-hidden="true"
-          style={{ height: 32 }}
+          style={{ height: 12 }}
         />
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
           <button className="btn-primary" type="submit">Save Settings</button>

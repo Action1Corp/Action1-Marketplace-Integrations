@@ -20,8 +20,11 @@ node.msi
 qualys-out.txt
 
 _reference/
+docs/
 
 *.patch
 
 # Local Marketplace validation
 docker-compose.marketplace.local.yml
+.agents/
+integrations/halo-psa/.runtime-logs/

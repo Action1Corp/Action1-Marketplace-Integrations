@@ -250,5 +250,13 @@
     "defaultValue": "30",
     "min": 1,
     "helpText": "Limits how many connector-managed open tickets can exist per mapped organization at the same time. Additional qualifying candidates are skipped until existing tickets are resolved or closed."
+  },
+  {
+    "key": "HaloPsaDiagnosticLoggingEnabled",
+    "label": "Enable detailed diagnostic runtime logs",
+    "type": "checkbox",
+    "group": "Diagnostics",
+    "defaultValue": "false",
+    "helpText": "Keeps normal Marketplace run progress logging enabled and adds detailed sanitized support logs for troubleshooting HaloPSA sync issues."
   }
 ]

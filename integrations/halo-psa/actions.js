@@ -7,6 +7,7 @@ const {
   listHaloOrgClientMappings,
   saveHaloOrgClientMapping
 } = require('./mappingActions');
+const { runHaloPsaSync } = require('./syncAction');
 
 async function validateConfiguration(context, request = {}) {
   const run = request.run || null;
@@ -17,14 +18,7 @@ async function validateConfiguration(context, request = {}) {
 }
 
 async function sync(context, request = {}) {
-  const run = request.run || null;
-  await run?.appendLog('HaloPSA sync stub invoked. External API calls are not implemented yet.');
-  await run?.setAssetsProcessed(0);
-
-  return {
-    ok: false,
-    message: 'HaloPSA sync is not implemented yet.'
-  };
+  return runHaloPsaSync(context, request);
 }
 
 module.exports = {

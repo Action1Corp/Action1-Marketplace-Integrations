@@ -38,10 +38,13 @@ function run() {
   assert(mappingSource.includes("discoverAction1: 'discover-action1-mapping-options'"), 'Mapping.jsx should define the Action1 organization discovery action id');
   assert(mappingSource.includes("discover: 'discover-halo-mapping-options'"), 'Mapping.jsx should define the Halo client discovery action id');
   assert(mappingSource.includes('Client Mapping'), 'Mapping.jsx should use Client Mapping wording');
-  assert(mappingSource.includes('Map Action1 organizations to HaloPSA clients.'), 'Mapping.jsx should describe the operator-facing mapping purpose');
+  assert(mappingSource.includes('Map Action1 organizations to HaloPSA clients so tickets are created under the correct customer account.'), 'Mapping.jsx should render the page-level Client Mapping description');
   assert(mappingSource.includes('Organization Mapping'), 'Mapping.jsx should keep the mapping table section title');
-  assert(mappingSource.includes('Choose the HaloPSA client that should receive tickets for each Action1 organization.'), 'Mapping.jsx should use the non-redundant mapping table subtitle');
-  assert(!mappingSource.includes('Map Action1 organizations to HaloPSA clients so tickets are created under the correct customer account.'), 'Mapping.jsx should not keep the old duplicate mapping table subtitle');
+  assert(mappingSource.includes('Choose the HaloPSA client for each Action1 organization.'), 'Mapping.jsx should use the shortened non-redundant mapping table subtitle');
+  assert(mappingSource.includes("display: 'grid',\n    gap: '0.5rem'"), 'Mapping.jsx should use the shared page-shell grid spacing convention');
+  assert(mappingSource.includes("cardTitle: {\n    margin: 0,\n    fontSize: '1.125rem'"), 'Mapping.jsx should define the shared section-heading typography baseline');
+  assert(mappingSource.includes('<h1 className="page-title" style={styles.title}>Client Mapping</h1>'), 'Mapping.jsx should render a page-level Client Mapping title');
+  assert(!mappingSource.includes('Map Action1 organizations to HaloPSA clients.</p>'), 'Mapping.jsx should not keep the shorter old page-level description');
   assert(mappingSource.includes('Refresh Discovery'), 'Mapping.jsx should expose one shared discovery refresh action');
   assert(mappingSource.includes('Add Mapping Row'), 'Mapping.jsx should expose the standalone-style add-row action');
   assert(mappingSource.includes('Save Mappings'), 'Mapping.jsx should expose the standalone-style save action');

@@ -32,23 +32,10 @@ async function run() {
   assert(validateResult && typeof validateResult === 'object', 'validate-configuration should return an object');
   assert(Object.prototype.hasOwnProperty.call(validateResult, 'ok'), 'validate-configuration result should include ok');
 
-  const logs = [];
-  let processedCount = null;
-  const syncResult = await actions.sync({}, {
-    run: {
-      appendLog: async (message) => {
-        logs.push(message);
-      },
-      setAssetsProcessed: async (count) => {
-        processedCount = count;
-      }
-    }
-  });
-
-  assert(syncResult && typeof syncResult === 'object', 'sync should return an object');
-  assert.strictEqual(syncResult.ok, false, 'sync should remain a safe not-implemented stub');
-  assert.strictEqual(processedCount, 0, 'sync should report zero processed assets');
-  assert(logs.some(message => message.includes('not implemented yet')), 'sync should append a safe stub log message');
+  const syncAction = manifest.actions.find((action) => action.id === 'sync');
+  assert(syncAction, 'sync should be declared in manifest.json');
+  assert.strictEqual(syncAction.kind, 'sync', 'sync should remain manifest-declared as kind sync');
+  assert.notStrictEqual(syncAction.history, false, 'sync should remain tracked by Marketplace history');
 }
 
 run().catch((error) => {
