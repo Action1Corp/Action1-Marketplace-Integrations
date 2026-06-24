@@ -66,6 +66,23 @@ function qualifyVulnerability(items, filter) {
   if (!filter?.enabled || !Array.isArray(filter.severities) || filter.severities.length === 0) {
     return baseResult(SIGNAL_TYPES.VULNERABILITY, false, 'signal_disabled');
   }
+  const sortedMatched = filterQualifiedVulnerabilityItems(items, filter);
+  const qualifies = sortedMatched.length > 0;
+  return {
+    ...baseResult(SIGNAL_TYPES.VULNERABILITY, qualifies, qualifies ? 'vulnerability_match' : 'no_vulnerability_match', sortedMatched.length),
+    matchedItemsPreview: sortedMatched.slice(0, 10).map(toMinimalVulnerabilityPreview),
+    matchedItemsForGrouping: sortedMatched.map(toMinimalVulnerabilityPreview),
+    details: {
+      severityCounts: summarizeSeverityCounts(sortedMatched, normalizeVulnerabilitySeverity),
+      enabledSeverities: Array.isArray(filter?.severities) ? filter.severities.map((value) => String(value || '').toUpperCase()) : []
+    }
+  };
+}
+
+function filterQualifiedVulnerabilityItems(items, filter) {
+  if (!filter?.enabled || !Array.isArray(filter.severities) || filter.severities.length === 0) {
+    return [];
+  }
   const allowedSeverities = new Set(filter.severities.map((value) => String(value || '').toUpperCase()));
   const allowedRemediation = new Set((filter.remediationStatuses || []).map((value) => String(value || '').toUpperCase()));
   const matched = (Array.isArray(items) ? items : []).filter((item) => {
@@ -75,17 +92,7 @@ function qualifyVulnerability(items, filter) {
     const remediation = normalizeRemediationStatus(item);
     return remediation ? allowedRemediation.has(remediation) : false;
   });
-  const sortedMatched = sortVulnerabilityMatches(matched);
-  const qualifies = sortedMatched.length > 0;
-  return {
-    ...baseResult(SIGNAL_TYPES.VULNERABILITY, qualifies, qualifies ? 'vulnerability_match' : 'no_vulnerability_match', sortedMatched.length),
-    matchedItemsPreview: sortedMatched.slice(0, 10).map(toMinimalVulnerabilityPreview),
-    matchedItemsForGrouping: sortedMatched.map(toMinimalVulnerabilityPreview),
-    details: {
-      severityCounts: summarizeSeverityCounts(sortedMatched, normalizeVulnerabilitySeverity),
-      enabledSeverities: Array.from(allowedSeverities)
-    }
-  };
+  return sortVulnerabilityMatches(matched);
 }
 
 function qualifyUpdate(items, filter) {
@@ -333,6 +340,7 @@ function strAsc(a, b) {
 }
 
 module.exports = {
+  filterQualifiedVulnerabilityItems,
   normalizeRemediationStatus,
   normalizeUpdateSeverity,
   normalizeVulnerabilitySeverity,

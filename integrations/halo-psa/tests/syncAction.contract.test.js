@@ -6,6 +6,7 @@ const {
   createHaloAuthClient,
   requestToken
 } = require('../haloApi');
+const { __private: action1CollectionPrivate } = require('../action1Api');
 const { runHaloPsaSync } = require('../syncAction');
 
 function createSyncContext(overrides = {}) {
@@ -268,6 +269,202 @@ async function runDiscoveryAndRuntimeShareHaloTokenCacheTest() {
   assert.strictEqual(calls.filter((request) => String(request.url).endsWith('/token')).length, 1, 'discovery and runtime Halo requests should share one fresh token per auth context');
 }
 
+function runVulnerabilityFilterCombinationPlanningTest() {
+  const plan = action1CollectionPrivate.buildVulnerabilityServerFilterPlan({
+    severities: ['MEDIUM', 'LOW'],
+    remediationStatuses: ['OVERDUE']
+  });
+
+  assert.strictEqual(plan.strategy, 'server-filtered', 'medium+low+overdue should use server-filtered vulnerability collection');
+  assert.strictEqual(plan.requests.length, 2, 'medium+low+overdue should plan one request per score/remediation combination');
+  assert.deepStrictEqual(
+    plan.requests.map((row) => `${row.score}|${row.remediationStatus}`),
+    ['Medium|Overdue', 'Low|Overdue'],
+    'planned requests should use canonical Action1 filter values'
+  );
+}
+
+function runVulnerabilitySeverityOnlyPlanningTest() {
+  const plan = action1CollectionPrivate.buildVulnerabilityServerFilterPlan({
+    severities: ['CRITICAL', 'HIGH'],
+    remediationStatuses: []
+  });
+
+  assert.strictEqual(plan.strategy, 'server-filtered', 'severity-only vulnerability rules should still use server filtering');
+  assert.deepStrictEqual(
+    plan.requests.map((row) => row.score),
+    ['Critical', 'High'],
+    'severity-only planning should emit one request per severity'
+  );
+  assert.deepStrictEqual(
+    plan.requests.map((row) => row.remediationStatus),
+    ['', ''],
+    'severity-only planning should not emit remediation params'
+  );
+}
+
+function runVulnerabilityRemediationOnlyPlanningTest() {
+  const plan = action1CollectionPrivate.buildVulnerabilityServerFilterPlan({
+    severities: [],
+    remediationStatuses: ['OVERDUE']
+  });
+
+  assert.strictEqual(plan.strategy, 'server-filtered', 'remediation-only vulnerability rules should still use server filtering when planned directly');
+  assert.deepStrictEqual(
+    plan.requests.map((row) => row.remediationStatus),
+    ['Overdue'],
+    'remediation-only planning should emit one request per remediation status'
+  );
+  assert.deepStrictEqual(
+    plan.requests.map((row) => row.score),
+    [''],
+    'remediation-only planning should not emit score params'
+  );
+}
+
+function runVulnerabilityDueSoonPlanningTest() {
+  const mediumOnlyPlan = action1CollectionPrivate.buildVulnerabilityServerFilterPlan({
+    severities: ['MEDIUM'],
+    remediationStatuses: ['DUE_SOON']
+  });
+
+  assert.strictEqual(mediumOnlyPlan.strategy, 'server-filtered', 'medium+due soon should still use server-filtered vulnerability collection');
+  assert.deepStrictEqual(
+    mediumOnlyPlan.requests.map((row) => `${row.score}|${row.remediationStatus}`),
+    ['Medium|Due_soon'],
+    'due-soon planning should map the remediation query value to the Action1-specific Due_soon form'
+  );
+
+  const multiSeverityPlan = action1CollectionPrivate.buildVulnerabilityServerFilterPlan({
+    severities: ['CRITICAL', 'MEDIUM'],
+    remediationStatuses: ['DUE_SOON']
+  });
+  assert.deepStrictEqual(
+    multiSeverityPlan.requests.map((row) => `${row.score}|${row.remediationStatus}`),
+    ['Critical|Due_soon', 'Medium|Due_soon'],
+    'critical+medium+due soon should plan one filtered request per severity with the Due_soon remediation query value'
+  );
+
+  const dueSoonOnlyPlan = action1CollectionPrivate.buildVulnerabilityServerFilterPlan({
+    severities: [],
+    remediationStatuses: ['DUE_SOON']
+  });
+  assert.deepStrictEqual(
+    dueSoonOnlyPlan.requests.map((row) => row.remediationStatus),
+    ['Due_soon'],
+    'remediation-only due-soon planning should still emit the Action1-specific Due_soon query value'
+  );
+}
+
+function runVulnerabilityNoFilterPlanningFallbackTest() {
+  const plan = action1CollectionPrivate.buildVulnerabilityServerFilterPlan({
+    severities: [],
+    remediationStatuses: []
+  });
+
+  assert.strictEqual(plan.strategy, 'broad', 'missing usable vulnerability filters should fall back to the current broad fetch');
+  assert.strictEqual(plan.reason, 'no_usable_filters', 'broad fallback should record the no-filter reason');
+  assert.strictEqual(plan.requests.length, 0, 'broad fallback should not plan filtered requests');
+}
+
+function runVulnerabilityCombinationCapFallbackTest() {
+  const plan = action1CollectionPrivate.buildVulnerabilityServerFilterPlan(
+    {
+      severities: ['CRITICAL', 'HIGH', 'MEDIUM'],
+      remediationStatuses: ['OVERDUE', 'DUE_SOON']
+    },
+    { maxCombinations: 4 }
+  );
+
+  assert.strictEqual(plan.strategy, 'broad', 'planned vulnerability combinations beyond the cap should fall back to broad fetch');
+  assert.strictEqual(plan.reason, 'combination_cap_exceeded', 'cap fallback should be explicit');
+}
+
+function runVulnerabilityUnknownValuePlanningTest() {
+  const remediationOnlyPlan = action1CollectionPrivate.buildVulnerabilityServerFilterPlan({
+    severities: ['UNKNOWN'],
+    remediationStatuses: ['OVERDUE']
+  });
+  assert.strictEqual(remediationOnlyPlan.strategy, 'server-filtered', 'unknown severity values should be excluded while retaining known remediation filters');
+  assert.deepStrictEqual(
+    remediationOnlyPlan.requests.map((row) => `${row.score}|${row.remediationStatus}`),
+    ['|Overdue'],
+    'known vulnerability filters should survive unknown-value exclusion'
+  );
+
+  const broadFallbackPlan = action1CollectionPrivate.buildVulnerabilityServerFilterPlan({
+    severities: ['UNKNOWN'],
+    remediationStatuses: ['NOT_REAL']
+  });
+  assert.strictEqual(broadFallbackPlan.strategy, 'broad', 'unsupported vulnerability filter values should broad-fallback before any filtered request is attempted');
+  assert.strictEqual(broadFallbackPlan.reason, 'no_supported_filter_values', 'unsupported-value fallback should be explicit');
+}
+
+function runVulnerabilityFilterBreakdownHelperTest() {
+  const breakdown = action1CollectionPrivate.buildVulnerabilityFilterBreakdown(
+    { score: 'Critical', remediationStatus: 'Overdue' },
+    [
+      { cve_id: 'CVE-1' },
+      { cve_id: 'CVE-1' },
+      { cve_id: 'CVE-2' },
+      { cve_id: '' }
+    ],
+    { pagesFetched: 2, rawRowsFetched: 4 },
+    { sampleLimit: 2 }
+  );
+
+  assert.strictEqual(breakdown.pagesFetched, 2, 'per-filter breakdown should report fetched pages');
+  assert.strictEqual(breakdown.rawRowsFetched, 4, 'per-filter breakdown should report raw row counts');
+  assert.strictEqual(breakdown.uniqueCves, 2, 'per-filter breakdown should report unique canonical CVE count');
+  assert.strictEqual(breakdown.duplicateCvesWithinFilter, 1, 'per-filter breakdown should report duplicate CVEs within one filter response');
+  assert.strictEqual(breakdown.rowsMissingCanonicalCve, 1, 'per-filter breakdown should report rows without canonical CVE ids');
+  assert.deepStrictEqual(breakdown.sampleCves, ['CVE-1', 'CVE-2'], 'per-filter sample CVEs should be capped and preserve first-seen order');
+}
+
+function runVulnerabilityCrossFilterDuplicateDiagnosticsHelperTest() {
+  const zeroOverlap = action1CollectionPrivate.buildCrossFilterDuplicateDiagnostics(
+    [
+      action1CollectionPrivate.buildVulnerabilityFilterBreakdown(
+        { score: 'Critical', remediationStatus: 'Overdue' },
+        [{ cve_id: 'CVE-1' }, { cve_id: 'CVE-2' }],
+        { pagesFetched: 1, rawRowsFetched: 2 }
+      ),
+      action1CollectionPrivate.buildVulnerabilityFilterBreakdown(
+        { score: 'Critical', remediationStatus: 'Due_soon' },
+        [{ cve_id: 'CVE-3' }, { cve_id: 'CVE-4' }],
+        { pagesFetched: 1, rawRowsFetched: 2 }
+      )
+    ],
+    { sampleLimit: 5 }
+  );
+  assert.strictEqual(zeroOverlap.crossFilterDuplicateCves, 0, 'cross-filter diagnostics should report zero duplicate CVEs when responses do not overlap');
+  assert.strictEqual(zeroOverlap.crossFilterDuplicatePairs[0].duplicateCves, 0, 'cross-filter pair counts should stay zero when responses do not overlap');
+
+  const overlappingRows = Array.from({ length: 6 }, (_, index) => ({ cve_id: `CVE-${index + 1}` }));
+  const overlap = action1CollectionPrivate.buildCrossFilterDuplicateDiagnostics(
+    [
+      action1CollectionPrivate.buildVulnerabilityFilterBreakdown(
+        { score: 'Critical', remediationStatus: 'Overdue' },
+        overlappingRows,
+        { pagesFetched: 1, rawRowsFetched: 6 },
+        { sampleLimit: 5 }
+      ),
+      action1CollectionPrivate.buildVulnerabilityFilterBreakdown(
+        { score: 'Critical', remediationStatus: 'Due_soon' },
+        overlappingRows,
+        { pagesFetched: 1, rawRowsFetched: 6 },
+        { sampleLimit: 5 }
+      )
+    ],
+    { sampleLimit: 5 }
+  );
+  assert.strictEqual(overlap.crossFilterDuplicateCves, 6, 'cross-filter diagnostics should report duplicate CVEs that appear across filtered responses');
+  assert.strictEqual(overlap.crossFilterDuplicatePairs[0].duplicateCves, 6, 'cross-filter pair counts should reflect overlapping canonical CVEs');
+  assert.strictEqual(overlap.crossFilterDuplicatePairs[0].sampleCves.length, 5, 'cross-filter diagnostic samples should be capped');
+  assert.strictEqual(overlap.crossFilterDuplicatePairs[0].left, 'score=Critical remediation_status=Overdue', 'cross-filter diagnostics should label the left filter clearly');
+  assert.strictEqual(overlap.crossFilterDuplicatePairs[0].right, 'score=Critical remediation_status=Due_soon', 'cross-filter diagnostics should label the right filter clearly');
+}
+
 async function runMissingConfigFailsSafelyTest() {
   const logs = [];
   const context = createSyncContext();
@@ -429,6 +626,302 @@ async function runTrackedSyncHappyPathTest() {
     assert(fetchCalls.some((call) => call.url.endsWith('/api/Tickets')), 'sync should call the Halo ticket endpoint for lifecycle writes');
     assert.strictEqual(context.state.endpoint.length + context.state.grouped.length >= 1, true, 'successful writes should persist correlations in DB-backed stores');
     assert.strictEqual(context.state.watermarks.length >= 1, true, 'successful automation collection should persist watermarks in DB-backed storage');
+  });
+}
+
+async function runVulnerabilityServerFilteredCollectionOptimizationTest() {
+  const fetchCalls = [];
+  const runLogs = [];
+  const diagnosticLogs = [];
+  const context = createSyncContext({
+    mappings: [
+      {
+        id: 1,
+        action1OrgId: 'org-1',
+        action1OrgName: 'Org One',
+        haloClientId: 'client-1',
+        haloClientName: 'Client One'
+      }
+    ],
+    settings: {
+      HaloPsaOfflineEnabled: 'false',
+      HaloPsaRebootRequiredEnabled: 'false',
+      HaloPsaAutomationFailedEnabled: 'false',
+      HaloPsaVulnerabilityEnabled: 'true',
+      HaloPsaVulnerabilitySeverities: 'medium,low',
+      HaloPsaVulnerabilityRemediationStatuses: 'overdue',
+      HaloPsaUpdateEnabled: 'false',
+      HaloPsaUpdateSeverities: '',
+      HaloPsaDiagnosticLoggingEnabled: 'true'
+    }
+  });
+  context.logger = {
+    debug(message) {
+      diagnosticLogs.push(String(message));
+    },
+    info(message) {
+      diagnosticLogs.push(String(message));
+    },
+    warn(message) {
+      diagnosticLogs.push(String(message));
+    },
+    error(message) {
+      diagnosticLogs.push(String(message));
+    }
+  };
+
+  await withMockedFetch(async (url, options = {}) => {
+    fetchCalls.push({ url: String(url), options });
+    const textResponse = (payload, status = 200) => ({
+      ok: status >= 200 && status < 300,
+      status,
+      headers: { forEach(callback) { callback('application/json', 'content-type'); } },
+      text: async () => JSON.stringify(payload)
+    });
+    const urlText = String(url);
+    if (urlText.endsWith('/oauth2/token')) {
+      return textResponse({ access_token: 'action1-token', expires_in: 3600 });
+    }
+    if (urlText.includes('/endpoints/managed/org-1')) {
+      return textResponse({
+        items: [
+          { id: 'ep-1', name: 'Endpoint One', last_seen: '2026-06-01_00-00-00' },
+          { id: 'ep-2', name: 'Endpoint Two', last_seen: '2026-06-01_00-00-00' },
+          { id: 'ep-3', name: 'Endpoint Three', last_seen: '2026-06-01_00-00-00' }
+        ],
+        from: 0,
+        total_items: 3
+      });
+    }
+    if (urlText.includes('/vulnerabilities/org-1?') && urlText.includes('score=Medium') && urlText.includes('remediation_status=Overdue')) {
+      return textResponse({
+        items: [
+          { cve_id: 'CVE-MEDIUM-1', severity: 'Medium', remediation_status: 'Overdue' },
+          { cve_id: 'CVE-REJECT-HIGH', severity: 'High', remediation_status: 'Overdue' },
+          { cve_id: 'CVE-DUP-1', severity: 'Medium', remediation_status: 'Overdue' }
+        ],
+        from: 0,
+        total_items: 3
+      });
+    }
+    if (urlText.includes('/vulnerabilities/org-1?') && urlText.includes('score=Low') && urlText.includes('remediation_status=Overdue')) {
+      return textResponse({
+        items: [
+          { cve_id: 'CVE-LOW-1', severity: 'Low', remediation_status: 'Overdue' },
+          { cve_id: 'CVE-DUP-1', severity: 'Low', remediation_status: 'Overdue' }
+        ],
+        from: 0,
+        total_items: 2
+      });
+    }
+    if (urlText.includes('/vulnerabilities/org-1/CVE-MEDIUM-1/endpoints')) {
+      return textResponse({ items: [{ id: 'ep-1' }], from: 0, total_items: 1 });
+    }
+    if (urlText.includes('/vulnerabilities/org-1/CVE-LOW-1/endpoints')) {
+      return textResponse({ items: [{ id: 'ep-2' }], from: 0, total_items: 1 });
+    }
+    if (urlText.includes('/vulnerabilities/org-1/CVE-DUP-1/endpoints')) {
+      return textResponse({ items: [{ id: 'ep-3' }], from: 0, total_items: 1 });
+    }
+    if (urlText.endsWith('/auth/token')) {
+      return textResponse({ access_token: 'halo-token', token_type: 'Bearer', expires_in: 3600 });
+    }
+    if (urlText.includes('/api/Category')) {
+      return textResponse({ items: [] });
+    }
+    if (urlText.endsWith('/api/Tickets') && String(options.method || '').toUpperCase() === 'POST') {
+      return textResponse([{ id: `ticket-${fetchCalls.length}`, status_id: '3', status: 'Open', is_closed: false }]);
+    }
+    if (urlText.includes('/api/Tickets/')) {
+      return textResponse({ id: 'ticket-existing', status_id: '3', status: 'Open', is_closed: false });
+    }
+    throw new Error(`Unexpected fetch ${urlText}`);
+  }, async () => {
+    const result = await runHaloPsaSync(context, {
+      run: {
+        async appendLog(message) {
+          runLogs.push(message);
+        },
+        async setAssetsProcessed() {}
+      }
+    });
+
+    assert.strictEqual(result.ok, true, 'filtered vulnerability collection should still complete successfully');
+    assert.strictEqual(result.summary.bySignalType.VULNERABILITY, 3, 'qualified vulnerability CVEs should still produce the same downstream grouped candidates');
+    const vulnerabilityListUrls = fetchCalls
+      .map((call) => call.url)
+      .filter((url) => url.includes('/vulnerabilities/org-1?'));
+    assert.strictEqual(vulnerabilityListUrls.length, 2, 'medium+low+overdue should plan exactly two filtered top-level vulnerability requests');
+    assert(vulnerabilityListUrls.every((url) => url.includes('remediation_status=Overdue')), 'filtered vulnerability requests should include remediation_status');
+    assert(vulnerabilityListUrls.some((url) => url.includes('score=Medium')), 'filtered vulnerability requests should include the Medium score query');
+    assert(vulnerabilityListUrls.some((url) => url.includes('score=Low')), 'filtered vulnerability requests should include the Low score query');
+    assert(vulnerabilityListUrls.every((url) => url.includes('sortby=cve_id')), 'filtered vulnerability requests should include sortby=cve_id');
+
+    const endpointFanoutUrls = fetchCalls
+      .map((call) => call.url)
+      .filter((url) => url.includes('/vulnerabilities/org-1/') && url.includes('/endpoints'));
+    assert.strictEqual(endpointFanoutUrls.some((url) => url.includes('/CVE-REJECT-HIGH/endpoints')), false, 'server-returned rows that fail local qualification should not trigger endpoint fan-out');
+    assert.strictEqual(
+      endpointFanoutUrls.filter((url) => url.includes('/CVE-DUP-1/endpoints')).length,
+      1,
+      'duplicate top-level CVE rows should only trigger one endpoint fan-out request'
+    );
+    assert.strictEqual(endpointFanoutUrls.length, 3, 'endpoint fan-out should only happen for qualified, deduped CVEs');
+    assert.strictEqual(context.state.grouped.length, 3, 'downstream grouped vulnerability identity/correlation behavior should remain unchanged');
+    assert(diagnosticLogs.some((entry) => entry.includes('vulnerabilityFilterStrategy":"server-filtered')), 'detailed diagnostics should report the vulnerability filter strategy');
+    assert(diagnosticLogs.some((entry) => entry.includes('topLevelUniqueCvesAfterDedupe":"4"')), 'detailed diagnostics should add a clearer unique-CVE metric after dedupe');
+    assert(diagnosticLogs.some((entry) => entry.includes('crossFilterDuplicateCves":"1"')), 'detailed diagnostics should report cross-filter duplicate CVE counts');
+    assert(diagnosticLogs.some((entry) => entry.includes('serverFilterBreakdown":[{"score":"Medium","remediation_status":"Overdue","pagesFetched":"1","rawRowsFetched":"3","uniqueCves":"3","duplicateCvesWithinFilter":"0","rowsMissingCanonicalCve":"0","sampleCves":["CVE-MEDIUM-1","CVE-REJECT-HIGH","CVE-DUP-1"]},{"score":"Low","remediation_status":"Overdue","pagesFetched":"1","rawRowsFetched":"2","uniqueCves":"2","duplicateCvesWithinFilter":"0","rowsMissingCanonicalCve":"0","sampleCves":["CVE-LOW-1","CVE-DUP-1"]}]')), 'detailed diagnostics should report per-filter breakdown details');
+    assert(diagnosticLogs.some((entry) => entry.includes('crossFilterDuplicatePairs":[{"left":"score=Medium remediation_status=Overdue","right":"score=Low remediation_status=Overdue","duplicateCves":"1","sampleCves":["CVE-DUP-1"]}]')), 'detailed diagnostics should report overlapping filter pairs with capped CVE samples');
+    assert(diagnosticLogs.some((entry) => entry.includes('deepEndpointFetchesCompleted":"3"')), 'detailed diagnostics should report vulnerability endpoint fan-out counts');
+  });
+}
+
+async function runVulnerabilityDueSoonFilteredUrlMappingTest() {
+  const fetchCalls = [];
+  const context = createSyncContext({
+    mappings: [
+      {
+        id: 1,
+        action1OrgId: 'org-1',
+        action1OrgName: 'Org One',
+        haloClientId: 'client-1',
+        haloClientName: 'Client One'
+      }
+    ],
+    settings: {
+      HaloPsaOfflineEnabled: 'false',
+      HaloPsaRebootRequiredEnabled: 'false',
+      HaloPsaAutomationFailedEnabled: 'false',
+      HaloPsaVulnerabilityEnabled: 'true',
+      HaloPsaVulnerabilitySeverities: 'critical,medium',
+      HaloPsaVulnerabilityRemediationStatuses: 'due soon',
+      HaloPsaUpdateEnabled: 'false',
+      HaloPsaUpdateSeverities: ''
+    }
+  });
+
+  await withMockedFetch(async (url, options = {}) => {
+    fetchCalls.push({ url: String(url), options });
+    const textResponse = (payload, status = 200) => ({
+      ok: status >= 200 && status < 300,
+      status,
+      headers: { forEach(callback) { callback('application/json', 'content-type'); } },
+      text: async () => JSON.stringify(payload)
+    });
+    const urlText = String(url);
+    if (urlText.endsWith('/oauth2/token')) {
+      return textResponse({ access_token: 'action1-token', expires_in: 3600 });
+    }
+    if (urlText.includes('/endpoints/managed/org-1')) {
+      return textResponse({ items: [{ id: 'ep-1', name: 'Endpoint One', last_seen: '2026-06-01_00-00-00' }], from: 0, total_items: 1 });
+    }
+    if (urlText.includes('/vulnerabilities/org-1?') && urlText.includes('score=Critical') && urlText.includes('remediation_status=Due_soon')) {
+      return textResponse({ items: [], from: 0, total_items: 0 });
+    }
+    if (urlText.includes('/vulnerabilities/org-1?') && urlText.includes('score=Medium') && urlText.includes('remediation_status=Due_soon')) {
+      return textResponse({
+        items: [{ cve_id: 'CVE-DUE-SOON-1', severity: 'Medium', remediation_status: 'Due Soon' }],
+        from: 0,
+        total_items: 1
+      });
+    }
+    if (urlText.includes('/vulnerabilities/org-1/CVE-DUE-SOON-1/endpoints')) {
+      return textResponse({ items: [{ id: 'ep-1' }], from: 0, total_items: 1 });
+    }
+    if (urlText.endsWith('/auth/token')) {
+      return textResponse({ access_token: 'halo-token', token_type: 'Bearer', expires_in: 3600 });
+    }
+    if (urlText.includes('/api/Category')) {
+      return textResponse({ items: [] });
+    }
+    if (urlText.endsWith('/api/Tickets') && String(options.method || '').toUpperCase() === 'POST') {
+      return textResponse([{ id: `ticket-${fetchCalls.length}`, status_id: '3', status: 'Open', is_closed: false }]);
+    }
+    if (urlText.includes('/api/Tickets/')) {
+      return textResponse({ id: 'ticket-existing', status_id: '3', status: 'Open', is_closed: false });
+    }
+    throw new Error(`Unexpected fetch ${urlText}`);
+  }, async () => {
+    const result = await runHaloPsaSync(context, {
+      run: {
+        async appendLog() {},
+        async setAssetsProcessed() {}
+      }
+    });
+
+    assert.strictEqual(result.ok, true, 'due-soon filtered vulnerability collection should still complete successfully');
+    const vulnerabilityListUrls = fetchCalls
+      .map((call) => call.url)
+      .filter((url) => url.includes('/vulnerabilities/org-1?'));
+    assert.strictEqual(vulnerabilityListUrls.length, 2, 'critical+medium+due soon should plan exactly two filtered top-level vulnerability requests');
+    assert(vulnerabilityListUrls.every((url) => url.includes('remediation_status=Due_soon')), 'due-soon filtered vulnerability requests should use the Action1-specific Due_soon query value');
+    assert(vulnerabilityListUrls.every((url) => !url.includes('Due+Soon') && !url.includes('Due%20Soon') && !url.includes('Due Soon')), 'due-soon filtered vulnerability requests should not use space-encoded remediation query values');
+    assert(vulnerabilityListUrls.some((url) => url.includes('score=Critical')), 'due-soon filtered vulnerability requests should include the Critical score query');
+    assert(vulnerabilityListUrls.some((url) => url.includes('score=Medium')), 'due-soon filtered vulnerability requests should include the Medium score query');
+    const endpointFanoutUrls = fetchCalls
+      .map((call) => call.url)
+      .filter((url) => url.includes('/vulnerabilities/org-1/') && url.includes('/endpoints'));
+    assert.strictEqual(endpointFanoutUrls.length, 1, 'endpoint fan-out should still happen only for locally qualified due-soon CVEs');
+  });
+}
+
+async function runFilteredVulnerabilityRequestFailureDoesNotBroadFallbackTest() {
+  const fetchCalls = [];
+  const context = createSyncContext({
+    mappings: [
+      {
+        id: 1,
+        action1OrgId: 'org-1',
+        action1OrgName: 'Org One',
+        haloClientId: 'client-1',
+        haloClientName: 'Client One'
+      }
+    ],
+    settings: {
+      HaloPsaOfflineEnabled: 'false',
+      HaloPsaRebootRequiredEnabled: 'false',
+      HaloPsaAutomationFailedEnabled: 'false',
+      HaloPsaVulnerabilityEnabled: 'true',
+      HaloPsaVulnerabilitySeverities: 'high',
+      HaloPsaVulnerabilityRemediationStatuses: 'overdue',
+      HaloPsaUpdateEnabled: 'false',
+      HaloPsaUpdateSeverities: ''
+    }
+  });
+
+  await withMockedFetch(async (url) => {
+    fetchCalls.push(String(url));
+    const textResponse = (status, payload) => ({
+      ok: status >= 200 && status < 300,
+      status,
+      headers: { forEach(callback) { callback('application/json', 'content-type'); } },
+      text: async () => JSON.stringify(payload)
+    });
+    const urlText = String(url);
+    if (urlText.endsWith('/oauth2/token')) {
+      return textResponse(200, { access_token: 'action1-token', expires_in: 3600 });
+    }
+    if (urlText.includes('/endpoints/managed/org-1')) {
+      return textResponse(200, { items: [{ id: 'ep-1', name: 'Endpoint One', last_seen: '2026-06-01_00-00-00' }], from: 0, total_items: 1 });
+    }
+    if (urlText.includes('/vulnerabilities/org-1?') && urlText.includes('score=High') && urlText.includes('remediation_status=Overdue')) {
+      return textResponse(400, { error: 'invalid_filter' });
+    }
+    throw new Error(`Unexpected fetch ${urlText}`);
+  }, async () => {
+    const result = await runHaloPsaSync(context, {
+      run: {
+        async appendLog() {},
+        async setAssetsProcessed() {}
+      }
+    });
+
+    assert.strictEqual(result.ok, false, 'filtered vulnerability request failures should surface as sync failures');
+    assert.strictEqual(result.summary.failed, 1, 'filtered vulnerability request failures should count as collection failures');
+    assert.strictEqual(fetchCalls.some((url) => url.includes('/vulnerabilities/org-1?limit=') && !url.includes('score=')), false, 'filtered vulnerability request failures should not silently broad-fallback');
+    assert.strictEqual(fetchCalls.filter((url) => url.includes('/vulnerabilities/org-1?')).length, 1, 'filtered vulnerability request failures should stop at the attempted filtered request');
+    assert.strictEqual(fetchCalls.some((url) => url.includes('/vulnerabilities/org-1/CVE-')), false, 'failed filtered requests should not continue to endpoint fan-out');
   });
 }
 
@@ -864,9 +1357,21 @@ async function runClosedLinkedTicketCreatesReplacementAndLaterRunsUseItTest() {
 async function run() {
   await runHaloAuthTokenReuseAndRefreshTest();
   await runDiscoveryAndRuntimeShareHaloTokenCacheTest();
+  runVulnerabilityFilterCombinationPlanningTest();
+  runVulnerabilitySeverityOnlyPlanningTest();
+  runVulnerabilityRemediationOnlyPlanningTest();
+  runVulnerabilityDueSoonPlanningTest();
+  runVulnerabilityNoFilterPlanningFallbackTest();
+  runVulnerabilityCombinationCapFallbackTest();
+  runVulnerabilityUnknownValuePlanningTest();
+  runVulnerabilityFilterBreakdownHelperTest();
+  runVulnerabilityCrossFilterDuplicateDiagnosticsHelperTest();
   await runMissingConfigFailsSafelyTest();
   await runMissingAction1CredentialsFailsSafelyTest();
   await runTrackedSyncHappyPathTest();
+  await runVulnerabilityServerFilteredCollectionOptimizationTest();
+  await runVulnerabilityDueSoonFilteredUrlMappingTest();
+  await runFilteredVulnerabilityRequestFailureDoesNotBroadFallbackTest();
   await runAllSignalsDisabledNoOpTest();
   await runOfflineOnlyCollectionGatingTest();
   await runPreCandidateSignalNotQualifiedDoesNotInflateFinalSkippedTest();

@@ -1,7 +1,22 @@
 const ACTION1_BASE_URL = 'https://app.action1.com/api/3.0';
 const { LOG_EVENT_TYPES, emitLog } = require('./runtimeLogging');
 const { createSafeHttpClient, sleepMs } = require('./safeHttpClient');
+const { normalizeSignalRulesConfig } = require('./signalRulesConfig');
+const { filterQualifiedVulnerabilityItems } = require('./signalQualification');
 const { ensureUrl, joinUrl, toAbsoluteUrl } = require('./urlUtils');
+
+const ACTION1_VULNERABILITY_FILTER_COMBINATION_CAP = 8;
+const ACTION1_VULNERABILITY_SCORE_VALUES = Object.freeze({
+  CRITICAL: 'Critical',
+  HIGH: 'High',
+  MEDIUM: 'Medium',
+  LOW: 'Low'
+});
+const ACTION1_VULNERABILITY_REMEDIATION_VALUES = Object.freeze({
+  OVERDUE: 'Overdue',
+  DUE_SOON: 'Due_soon'
+});
+const VULNERABILITY_DIAGNOSTIC_SAMPLE_LIMIT = 5;
 
 function trimValue(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -320,21 +335,89 @@ function createAction1Client(opts = {}) {
     const listLimit = Number.isFinite(Number(opts.listLimit)) ? Math.max(1, Math.floor(Number(opts.listLimit))) : 200;
     const endpointLimit = Number.isFinite(Number(opts.endpointLimit)) ? Math.max(1, Math.floor(Number(opts.endpointLimit))) : 200;
     const pageLimit = Number.isFinite(Number(opts.pageLimit)) ? Math.max(1, Math.floor(Number(opts.pageLimit))) : 500;
+    const filter = normalizeVulnerabilityCollectionFilter(opts.filter);
+    const filterPlan = buildVulnerabilityServerFilterPlan(filter, {
+      maxCombinations: opts.maxFilterCombinations
+    });
+    const strategy = filterPlan.strategy;
+    let vulnerabilities = [];
+    const serverFilterBreakdown = [];
 
-    const vulnerabilities = await fetchPagedCollection({
+    if (strategy === 'server-filtered') {
+      for (const requestPlan of filterPlan.requests) {
+        const fetchMeta = { pagesFetched: 0, rawRowsFetched: 0 };
+        const filterRows = await fetchPagedCollection({
+          runId,
+          firstUrl: buildVulnerabilityTopLevelUrl(connection.baseUrl, orgId, listLimit, requestPlan),
+          pageLimit,
+          resolveAccessToken,
+          resourceName: `Action1 vulnerabilities org=${orgId} score=${requestPlan.score || 'any'} remediation=${requestPlan.remediationStatus || 'any'}`,
+          normalizeItem: (item) => item,
+          baseUrl: connection.baseUrl,
+          orgId: String(orgId),
+          abortSignal: opts.abortSignal || null,
+          meta: fetchMeta
+        });
+        vulnerabilities = vulnerabilities.concat(filterRows);
+        serverFilterBreakdown.push(buildVulnerabilityFilterBreakdown(requestPlan, filterRows, fetchMeta, {
+          sampleLimit: VULNERABILITY_DIAGNOSTIC_SAMPLE_LIMIT
+        }));
+      }
+    } else {
+      vulnerabilities = await fetchPagedCollection({
+        runId,
+        firstUrl: buildVulnerabilityTopLevelUrl(connection.baseUrl, orgId, listLimit),
+        pageLimit,
+        resolveAccessToken,
+        resourceName: `Action1 vulnerabilities org=${orgId}`,
+        normalizeItem: (item) => item,
+        baseUrl: connection.baseUrl,
+        orgId: String(orgId),
+        abortSignal: opts.abortSignal || null
+      });
+    }
+
+    const fetchedSummary = summarizeVulnerabilityTopLevelRows(vulnerabilities, {
+      sampleLimit: VULNERABILITY_DIAGNOSTIC_SAMPLE_LIMIT
+    });
+    const dedupedVulnerabilities = dedupeVulnerabilityRowsByCve(vulnerabilities);
+    const qualifiedVulnerabilities = filterQualifiedVulnerabilityItems(dedupedVulnerabilities, filter);
+    const topLevelRowsFetched = vulnerabilities.length;
+    const topLevelRowsDeduped = dedupedVulnerabilities.length;
+    const topLevelUniqueCvesAfterDedupe = dedupedVulnerabilities.length;
+    const topLevelRowsWithoutCanonicalCve = fetchedSummary.rowsMissingCanonicalCve;
+    const rowsAfterLocalQualification = qualifiedVulnerabilities.length;
+    const crossFilterDiagnostics = buildCrossFilterDuplicateDiagnostics(serverFilterBreakdown, {
+      sampleLimit: VULNERABILITY_DIAGNOSTIC_SAMPLE_LIMIT
+    });
+    let deepEndpointFetchesCompleted = 0;
+
+    await emitLog({
+      runLogger,
       runId,
-      firstUrl: joinUrl(connection.baseUrl, `/vulnerabilities/${encodeURIComponent(String(orgId))}?limit=${listLimit}&from=0`),
-      pageLimit,
-      resolveAccessToken,
-      resourceName: `Action1 vulnerabilities org=${orgId}`,
-      normalizeItem: (item) => item,
-      baseUrl: connection.baseUrl,
-      orgId: String(orgId),
-      abortSignal: opts.abortSignal || null
+      level: 'DEBUG',
+      eventType: LOG_EVENT_TYPES.DISCOVERY_FETCH,
+      message: 'Action1 vulnerability collection planned.',
+      context: {
+        orgId: String(orgId),
+        vulnerabilityFilterStrategy: strategy,
+        serverFilterRequestsPlanned: filterPlan.requests.length,
+        topLevelRowsFetched,
+        topLevelRowsDeduped,
+        topLevelUniqueCvesAfterDedupe,
+        topLevelRowsWithoutCanonicalCve,
+        rowsAfterLocalQualification,
+        rowsSkippedBeforeDeepFetch: Math.max(0, topLevelRowsDeduped - rowsAfterLocalQualification),
+        deepEndpointFetchesPlanned: rowsAfterLocalQualification,
+        deepEndpointFetchesCompleted,
+        serverFilterBreakdown: toPublicVulnerabilityFilterBreakdown(serverFilterBreakdown),
+        crossFilterDuplicateCves: crossFilterDiagnostics.crossFilterDuplicateCves,
+        crossFilterDuplicatePairs: crossFilterDiagnostics.crossFilterDuplicatePairs
+      }
     });
 
     const out = [];
-    for (const vuln of vulnerabilities) {
+    for (const vuln of qualifiedVulnerabilities) {
       const cveId = String(vuln?.cve_id || vuln?.id || '').trim();
       if (!cveId) continue;
       const endpointRows = await fetchPagedCollection({
@@ -348,6 +431,7 @@ function createAction1Client(opts = {}) {
         orgId: String(orgId),
         abortSignal: opts.abortSignal || null
       });
+      deepEndpointFetchesCompleted += 1;
 
       for (const endpointRow of endpointRows) {
         const endpointId = String(endpointRow?.id || endpointRow?.endpoint_id || '').trim();
@@ -368,6 +452,31 @@ function createAction1Client(opts = {}) {
         });
       }
     }
+
+    await emitLog({
+      runLogger,
+      runId,
+      level: 'DEBUG',
+      eventType: LOG_EVENT_TYPES.DISCOVERY_FETCH,
+      message: 'Action1 vulnerability collection completed.',
+      context: {
+        orgId: String(orgId),
+        vulnerabilityFilterStrategy: strategy,
+        serverFilterRequestsPlanned: filterPlan.requests.length,
+        topLevelRowsFetched,
+        topLevelRowsDeduped,
+        topLevelUniqueCvesAfterDedupe,
+        topLevelRowsWithoutCanonicalCve,
+        rowsAfterLocalQualification,
+        rowsSkippedBeforeDeepFetch: Math.max(0, topLevelRowsDeduped - rowsAfterLocalQualification),
+        deepEndpointFetchesPlanned: rowsAfterLocalQualification,
+        deepEndpointFetchesCompleted,
+        serverFilterBreakdown: toPublicVulnerabilityFilterBreakdown(serverFilterBreakdown),
+        crossFilterDuplicateCves: crossFilterDiagnostics.crossFilterDuplicateCves,
+        crossFilterDuplicatePairs: crossFilterDiagnostics.crossFilterDuplicatePairs
+      }
+    });
+
     return out;
   }
 
@@ -559,6 +668,9 @@ function createAction1Client(opts = {}) {
       const absolute = toAbsoluteUrl(input.baseUrl, nextUrl);
       if (seen.has(absolute)) throw new Error(`${input.resourceName} paging loop detected`);
       seen.add(absolute);
+      if (input.meta && typeof input.meta === 'object') {
+        input.meta.pagesFetched = Number(input.meta.pagesFetched || 0) + 1;
+      }
 
       const response = await requestAction1GetWithRateLimitRetry({
         runId: input.runId,
@@ -570,6 +682,9 @@ function createAction1Client(opts = {}) {
 
       const payload = response.data && typeof response.data === 'object' ? response.data : {};
       const pageItems = Array.isArray(payload.items) ? payload.items : [];
+      if (input.meta && typeof input.meta === 'object') {
+        input.meta.rawRowsFetched = Number(input.meta.rawRowsFetched || 0) + pageItems.length;
+      }
       for (const item of pageItems) rows.push(input.normalizeItem(item));
 
       nextUrl =
@@ -782,9 +897,233 @@ function asTrimmedString(value) {
   return String(value || '').trim();
 }
 
+function normalizeVulnerabilityCollectionFilter(filter) {
+  return normalizeSignalRulesConfig({
+    signalFilters: {
+      vulnerability: filter && typeof filter === 'object' ? filter : {}
+    }
+  }).signalFilters.vulnerability;
+}
+
+function buildVulnerabilityFilterBreakdown(requestPlan, rows, fetchMeta = {}, opts = {}) {
+  const summary = summarizeVulnerabilityTopLevelRows(rows, opts);
+  const rawRowsFetched = Number.isFinite(Number(fetchMeta.rawRowsFetched))
+    ? Number(fetchMeta.rawRowsFetched)
+    : Array.isArray(rows)
+    ? rows.length
+    : 0;
+  return {
+    score: String(requestPlan?.score || ''),
+    remediation_status: String(requestPlan?.remediationStatus || ''),
+    pagesFetched: Number(fetchMeta.pagesFetched || 0),
+    rawRowsFetched,
+    uniqueCves: summary.uniqueCves,
+    duplicateCvesWithinFilter: summary.duplicateCvesWithinFilter,
+    rowsMissingCanonicalCve: summary.rowsMissingCanonicalCve,
+    sampleCves: summary.sampleCves,
+    cveSet: summary.cveSet
+  };
+}
+
+function summarizeVulnerabilityTopLevelRows(rows, opts = {}) {
+  const sampleLimit = Number.isFinite(Number(opts.sampleLimit)) ? Math.max(1, Math.floor(Number(opts.sampleLimit))) : VULNERABILITY_DIAGNOSTIC_SAMPLE_LIMIT;
+  const cveSet = new Set();
+  const sampleCves = [];
+  let rowsMissingCanonicalCve = 0;
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const cveId = canonicalVulnerabilityCveId(row);
+    if (!cveId) {
+      rowsMissingCanonicalCve += 1;
+      continue;
+    }
+    if (!cveSet.has(cveId) && sampleCves.length < sampleLimit) {
+      sampleCves.push(cveId);
+    }
+    cveSet.add(cveId);
+  }
+  const rawRowsFetched = Array.isArray(rows) ? rows.length : 0;
+  return {
+    rawRowsFetched,
+    uniqueCves: cveSet.size,
+    duplicateCvesWithinFilter: Math.max(0, rawRowsFetched - rowsMissingCanonicalCve - cveSet.size),
+    rowsMissingCanonicalCve,
+    sampleCves,
+    cveSet
+  };
+}
+
+function buildCrossFilterDuplicateDiagnostics(filterBreakdown, opts = {}) {
+  const sampleLimit = Number.isFinite(Number(opts.sampleLimit)) ? Math.max(1, Math.floor(Number(opts.sampleLimit))) : VULNERABILITY_DIAGNOSTIC_SAMPLE_LIMIT;
+  const cveFilterCounts = new Map();
+  const crossFilterDuplicatePairs = [];
+  const rows = Array.isArray(filterBreakdown) ? filterBreakdown : [];
+
+  for (let index = 0; index < rows.length; index += 1) {
+    const left = rows[index];
+    const leftSet = left?.cveSet instanceof Set ? left.cveSet : new Set();
+    for (const cveId of leftSet) {
+      cveFilterCounts.set(cveId, Number(cveFilterCounts.get(cveId) || 0) + 1);
+    }
+    for (let inner = index + 1; inner < rows.length; inner += 1) {
+      const right = rows[inner];
+      const rightSet = right?.cveSet instanceof Set ? right.cveSet : new Set();
+      const sampleCves = [];
+      let duplicateCves = 0;
+      for (const cveId of leftSet) {
+        if (!rightSet.has(cveId)) continue;
+        duplicateCves += 1;
+        if (sampleCves.length < sampleLimit) sampleCves.push(cveId);
+      }
+      crossFilterDuplicatePairs.push({
+        left: describeVulnerabilityFilter(left),
+        right: describeVulnerabilityFilter(right),
+        duplicateCves,
+        sampleCves
+      });
+    }
+  }
+
+  let crossFilterDuplicateCves = 0;
+  for (const count of cveFilterCounts.values()) {
+    if (count > 1) crossFilterDuplicateCves += 1;
+  }
+
+  return {
+    crossFilterDuplicateCves,
+    crossFilterDuplicatePairs
+  };
+}
+
+function describeVulnerabilityFilter(row) {
+  const parts = [];
+  if (row?.score) parts.push(`score=${row.score}`);
+  if (row?.remediation_status) parts.push(`remediation_status=${row.remediation_status}`);
+  return parts.length > 0 ? parts.join(' ') : 'broad';
+}
+
+function toPublicVulnerabilityFilterBreakdown(rows) {
+  return (Array.isArray(rows) ? rows : []).map((row) => ({
+    score: row.score,
+    remediation_status: row.remediation_status,
+    pagesFetched: row.pagesFetched,
+    rawRowsFetched: row.rawRowsFetched,
+    uniqueCves: row.uniqueCves,
+    duplicateCvesWithinFilter: row.duplicateCvesWithinFilter,
+    rowsMissingCanonicalCve: row.rowsMissingCanonicalCve,
+    sampleCves: Array.isArray(row.sampleCves) ? row.sampleCves.slice() : []
+  }));
+}
+
+function buildVulnerabilityServerFilterPlan(filter, opts = {}) {
+  const severities = mapSupportedValues(filter?.severities, ACTION1_VULNERABILITY_SCORE_VALUES);
+  const remediationStatuses = mapSupportedValues(filter?.remediationStatuses, ACTION1_VULNERABILITY_REMEDIATION_VALUES);
+  const maxCombinations = Number.isFinite(Number(opts.maxCombinations))
+    ? Math.max(1, Math.floor(Number(opts.maxCombinations)))
+    : ACTION1_VULNERABILITY_FILTER_COMBINATION_CAP;
+
+  if (severities.length === 0 && remediationStatuses.length === 0) {
+    return {
+      strategy: 'broad',
+      reason: hasAnyFilterValues(filter) ? 'no_supported_filter_values' : 'no_usable_filters',
+      requests: []
+    };
+  }
+
+  const requests = [];
+  if (severities.length > 0 && remediationStatuses.length > 0) {
+    for (const score of severities) {
+      for (const remediationStatus of remediationStatuses) {
+        requests.push({ score, remediationStatus });
+      }
+    }
+  } else if (severities.length > 0) {
+    for (const score of severities) requests.push({ score, remediationStatus: '' });
+  } else {
+    for (const remediationStatus of remediationStatuses) requests.push({ score: '', remediationStatus });
+  }
+
+  if (requests.length > maxCombinations) {
+    return {
+      strategy: 'broad',
+      reason: 'combination_cap_exceeded',
+      requests: []
+    };
+  }
+
+  return {
+    strategy: 'server-filtered',
+    reason: '',
+    requests
+  };
+}
+
+function buildVulnerabilityTopLevelUrl(baseUrl, orgId, listLimit, requestPlan = null) {
+  const url = new URL(joinUrl(baseUrl, `/vulnerabilities/${encodeURIComponent(String(orgId))}`));
+  url.searchParams.set('limit', String(listLimit));
+  url.searchParams.set('from', '0');
+  if (requestPlan?.score) {
+    url.searchParams.set('score', requestPlan.score);
+  }
+  if (requestPlan?.remediationStatus) {
+    url.searchParams.set('remediation_status', requestPlan.remediationStatus);
+  }
+  if (requestPlan?.score || requestPlan?.remediationStatus) {
+    url.searchParams.set('sortby', 'cve_id');
+  }
+  return url.toString();
+}
+
+function dedupeVulnerabilityRowsByCve(rows) {
+  const out = [];
+  const seen = new Set();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const cveId = canonicalVulnerabilityCveId(row);
+    if (!cveId || seen.has(cveId)) continue;
+    seen.add(cveId);
+    out.push(row);
+  }
+  return out;
+}
+
+function canonicalVulnerabilityCveId(row) {
+  return String(row?.cve_id || row?.cveId || row?.id || '').trim();
+}
+
+function mapSupportedValues(values, supportedMap) {
+  const out = [];
+  const seen = new Set();
+  for (const value of Array.isArray(values) ? values : []) {
+    const normalized = String(value || '').trim().toUpperCase();
+    const mapped = supportedMap[normalized];
+    if (!mapped || seen.has(mapped)) continue;
+    seen.add(mapped);
+    out.push(mapped);
+  }
+  return out;
+}
+
+function hasAnyFilterValues(filter) {
+  return (
+    (Array.isArray(filter?.severities) && filter.severities.some((value) => String(value || '').trim())) ||
+    (Array.isArray(filter?.remediationStatuses) && filter.remediationStatuses.some((value) => String(value || '').trim()))
+  );
+}
+
 module.exports = {
   ACTION1_BASE_URL,
   DiscoveryRequestError,
+  __private: {
+    buildCrossFilterDuplicateDiagnostics,
+    buildVulnerabilityFilterBreakdown,
+    buildVulnerabilityServerFilterPlan,
+    buildVulnerabilityTopLevelUrl,
+    canonicalVulnerabilityCveId,
+    dedupeVulnerabilityRowsByCve,
+    describeVulnerabilityFilter,
+    normalizeVulnerabilityCollectionFilter,
+    summarizeVulnerabilityTopLevelRows,
+    toPublicVulnerabilityFilterBreakdown
+  },
   createAction1Client,
   discoverAction1Organizations,
   loadAction1Credentials,

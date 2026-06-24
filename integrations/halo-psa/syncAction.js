@@ -293,7 +293,11 @@ async function collectMarketplaceDatasets(input) {
 
       if (executionPlan.collectVulnerability) {
         await orgLogger.debug('Fetching Action1 vulnerabilities.');
-        vulnerabilities = await action1Client.listVulnerabilityFindingsByOrg(action1OrgId, { context, runId: `sync-vuln-${action1OrgId}` });
+        vulnerabilities = await action1Client.listVulnerabilityFindingsByOrg(action1OrgId, {
+          context,
+          runId: `sync-vuln-${action1OrgId}`,
+          filter: runtimeConfig.signalFilters?.vulnerability
+        });
         await orgLogger.debug('Action1 vulnerabilities collected.', {
           rows: Array.isArray(vulnerabilities) ? vulnerabilities.length : 0
         });
