@@ -465,6 +465,103 @@ function runVulnerabilityCrossFilterDuplicateDiagnosticsHelperTest() {
   assert.strictEqual(overlap.crossFilterDuplicatePairs[0].right, 'score=Critical remediation_status=Due_soon', 'cross-filter diagnostics should label the right filter clearly');
 }
 
+function runUpdateSeverityOnlyPlanningTest() {
+  const plan = action1CollectionPrivate.buildUpdateServerFilterPlan({
+    severities: ['CRITICAL', 'MODERATE'],
+    remediationStatuses: ['OVERDUE']
+  });
+
+  assert.strictEqual(plan.strategy, 'server-filtered', 'supported update severities should use server-filtered update collection');
+  assert.deepStrictEqual(
+    plan.requests.map((row) => row.securitySeverity),
+    ['Critical', 'Moderate'],
+    'update planning should emit one request per supported severity using canonical Action1 values'
+  );
+}
+
+function runUpdateNoFilterPlanningFallbackTest() {
+  const plan = action1CollectionPrivate.buildUpdateServerFilterPlan({
+    severities: [],
+    remediationStatuses: ['OVERDUE']
+  });
+
+  assert.strictEqual(plan.strategy, 'broad', 'remediation-only update rules should preserve the current broad top-level collection');
+  assert.strictEqual(plan.reason, 'no_usable_structured_filters', 'remediation-only update fallback should be explicit');
+  assert.strictEqual(plan.requests.length, 0, 'broad update fallback should not plan filtered requests');
+}
+
+function runUpdateUnknownValuePlanningFallbackTest() {
+  const plan = action1CollectionPrivate.buildUpdateServerFilterPlan({
+    severities: ['NOT_REAL'],
+    remediationStatuses: ['OVERDUE']
+  });
+
+  assert.strictEqual(plan.strategy, 'broad', 'unsupported update severity values should broad-fallback before any filtered request is attempted');
+  assert.strictEqual(plan.reason, 'no_supported_filter_values', 'unsupported update-value fallback should be explicit');
+}
+
+function runUpdateTopLevelUrlPlanningTest() {
+  const filteredUrl = action1CollectionPrivate.buildUpdateTopLevelUrl('https://example.action1.test/api/3.0', 'org-1', 50, {
+    securitySeverity: 'Important'
+  });
+  const broadUrl = action1CollectionPrivate.buildUpdateTopLevelUrl('https://example.action1.test/api/3.0', 'org-1', 50);
+
+  assert(filteredUrl.includes('/updates/org-1?'), 'filtered update URL should target the top-level updates endpoint');
+  assert(filteredUrl.includes('fields=*'), 'filtered update URL should preserve fields=*');
+  assert(filteredUrl.includes('limit=50'), 'filtered update URL should preserve the current list limit');
+  assert(filteredUrl.includes('from=0'), 'filtered update URL should preserve the current paging start');
+  assert(filteredUrl.includes('security_severity=Important'), 'filtered update URL should use the exact validated Action1 query value');
+  assert.strictEqual(filteredUrl.includes('filter='), false, 'filtered update URL should not use the generic filter parameter');
+  assert.strictEqual(filteredUrl.includes('update_sla_status='), false, 'filtered update URL should not use a structured update_sla_status parameter');
+  assert.strictEqual(broadUrl.includes('security_severity='), false, 'broad update URL should not emit a severity filter');
+}
+
+function runUpdateFilterBreakdownHelperTest() {
+  const breakdown = action1CollectionPrivate.buildUpdateFilterBreakdown(
+    { securitySeverity: 'Important' },
+    [
+      { packageId: 'pkg-1', versionId: 'ver-1' },
+      { packageId: 'pkg-1', versionId: 'ver-1' },
+      { packageId: 'pkg-2', versionId: 'ver-2' },
+      { packageId: '', versionId: 'ver-3' }
+    ],
+    { pagesFetched: 2, rawRowsFetched: 4 },
+    { sampleLimit: 2 }
+  );
+
+  assert.strictEqual(breakdown.pagesFetched, 2, 'per-filter update breakdown should report fetched pages');
+  assert.strictEqual(breakdown.rawRowsFetched, 4, 'per-filter update breakdown should report raw row counts');
+  assert.strictEqual(breakdown.uniquePackageVersionKeys, 2, 'per-filter update breakdown should report unique package/version keys');
+  assert.strictEqual(breakdown.duplicatePackageVersionKeysWithinFilter, 1, 'per-filter update breakdown should report duplicate package/version keys within one filter response');
+  assert.strictEqual(breakdown.rowsMissingPackageVersionKey, 1, 'per-filter update breakdown should report rows without package/version keys');
+  assert.deepStrictEqual(breakdown.sampleUpdateKeys, ['pkg-1:ver-1', 'pkg-2:ver-2'], 'per-filter update key samples should be capped and preserve first-seen order');
+}
+
+function runUpdateCrossFilterDuplicateDiagnosticsHelperTest() {
+  const overlap = action1CollectionPrivate.buildUpdateCrossFilterDuplicateDiagnostics(
+    [
+      action1CollectionPrivate.buildUpdateFilterBreakdown(
+        { securitySeverity: 'Critical' },
+        [{ packageId: 'pkg-1', versionId: 'ver-1' }, { packageId: 'pkg-2', versionId: 'ver-2' }],
+        { pagesFetched: 1, rawRowsFetched: 2 }
+      ),
+      action1CollectionPrivate.buildUpdateFilterBreakdown(
+        { securitySeverity: 'Important' },
+        [{ packageId: 'pkg-2', versionId: 'ver-2' }, { packageId: 'pkg-3', versionId: 'ver-3' }],
+        { pagesFetched: 1, rawRowsFetched: 2 }
+      )
+    ],
+    { sampleLimit: 5 }
+  );
+
+  assert.strictEqual(overlap.crossFilterDuplicateKeys, 1, 'update cross-filter diagnostics should report duplicate package/version keys');
+  assert.strictEqual(overlap.crossFilterDuplicatePairs.length, 1, 'update cross-filter diagnostics should report one filter pair');
+  assert.strictEqual(overlap.crossFilterDuplicatePairs[0].duplicateKeys, 1, 'update cross-filter pair counts should reflect overlap size');
+  assert.deepStrictEqual(overlap.crossFilterDuplicatePairs[0].sampleUpdateKeys, ['pkg-2:ver-2'], 'update cross-filter pair samples should be capped and preserve first-seen order');
+  assert.strictEqual(overlap.crossFilterDuplicatePairs[0].left, 'security_severity=Critical', 'update cross-filter diagnostics should label the left filter clearly');
+  assert.strictEqual(overlap.crossFilterDuplicatePairs[0].right, 'security_severity=Important', 'update cross-filter diagnostics should label the right filter clearly');
+}
+
 async function runMissingConfigFailsSafelyTest() {
   const logs = [];
   const context = createSyncContext();
@@ -863,6 +960,332 @@ async function runVulnerabilityDueSoonFilteredUrlMappingTest() {
       .map((call) => call.url)
       .filter((url) => url.includes('/vulnerabilities/org-1/') && url.includes('/endpoints'));
     assert.strictEqual(endpointFanoutUrls.length, 1, 'endpoint fan-out should still happen only for locally qualified due-soon CVEs');
+  });
+}
+
+async function runUpdateBroadCollectionFallbackWithoutSupportedSeverityFilterTest() {
+  const fetchCalls = [];
+  const context = createSyncContext({
+    mappings: [
+      {
+        id: 1,
+        action1OrgId: 'org-1',
+        action1OrgName: 'Org One',
+        haloClientId: 'client-1',
+        haloClientName: 'Client One'
+      }
+    ],
+    settings: {
+      HaloPsaOfflineEnabled: 'false',
+      HaloPsaRebootRequiredEnabled: 'false',
+      HaloPsaAutomationFailedEnabled: 'false',
+      HaloPsaVulnerabilityEnabled: 'false',
+      HaloPsaVulnerabilitySeverities: '',
+      HaloPsaUpdateEnabled: 'true',
+      HaloPsaUpdateSeverities: 'not_real',
+      HaloPsaUpdateRemediationStatuses: 'overdue'
+    }
+  });
+
+  await withMockedFetch(async (url, options = {}) => {
+    fetchCalls.push({ url: String(url), options });
+    const textResponse = (payload, status = 200) => ({
+      ok: status >= 200 && status < 300,
+      status,
+      headers: { forEach(callback) { callback('application/json', 'content-type'); } },
+      text: async () => JSON.stringify(payload)
+    });
+    const urlText = String(url);
+    if (urlText.endsWith('/oauth2/token')) {
+      return textResponse({ access_token: 'action1-token', expires_in: 3600 });
+    }
+    if (urlText.includes('/endpoints/managed/org-1')) {
+      return textResponse({ items: [{ id: 'ep-1', name: 'Endpoint One', last_seen: '2026-06-01_00-00-00' }], from: 0, total_items: 1 });
+    }
+    if (urlText.includes('/updates/org-1?')) {
+      return textResponse({ items: [{ packageId: 'pkg-1', versionId: 'ver-1', security_severity: 'Important', update_sla_status: 'Overdue' }], from: 0, total_items: 1 });
+    }
+    if (urlText.includes('/updates/org-1/pkg-1/versions/ver-1/endpoints')) {
+      return textResponse({ items: [{ id: 'ep-1' }], from: 0, total_items: 1 });
+    }
+    if (urlText.endsWith('/auth/token')) {
+      return textResponse({ access_token: 'halo-token', token_type: 'Bearer' });
+    }
+    if (urlText.includes('/api/Category')) {
+      return textResponse({ items: [] });
+    }
+    if (urlText.endsWith('/api/Tickets') && String(options.method || '').toUpperCase() === 'POST') {
+      return textResponse([{ id: `ticket-${fetchCalls.length}`, status_id: '3', status: 'Open', is_closed: false }]);
+    }
+    if (urlText.includes('/api/Tickets/')) {
+      return textResponse({ id: 'ticket-existing', status_id: '3', status: 'Open', is_closed: false });
+    }
+    throw new Error(`Unexpected fetch ${urlText}`);
+  }, async () => {
+    const result = await runHaloPsaSync(context, {
+      run: {
+        async appendLog() {},
+        async setAssetsProcessed() {}
+      }
+    });
+
+    assert.strictEqual(result.ok, true, 'broad update fallback should still complete successfully');
+    const updateListUrls = fetchCalls.map((call) => call.url).filter((url) => url.includes('/updates/org-1?'));
+    assert.strictEqual(updateListUrls.length, 1, 'broad update fallback should preserve one broad top-level request');
+    assert(updateListUrls[0].includes('fields=*'), 'broad update request should preserve fields=*');
+    assert(updateListUrls[0].includes('limit=50'), 'broad update request should preserve limit=50');
+    assert(updateListUrls[0].includes('from=0'), 'broad update request should preserve from=0');
+    assert.strictEqual(updateListUrls[0].includes('security_severity='), false, 'broad update fallback should not emit security_severity');
+    assert.strictEqual(updateListUrls[0].includes('filter='), false, 'broad update fallback should not emit the generic filter param');
+    assert.strictEqual(updateListUrls[0].includes('update_sla_status='), false, 'broad update fallback should not emit update_sla_status');
+  });
+}
+
+async function runUpdateServerFilteredCollectionOptimizationTest() {
+  const fetchCalls = [];
+  const runLogs = [];
+  const diagnosticLogs = [];
+  const context = createSyncContext({
+    mappings: [
+      {
+        id: 1,
+        action1OrgId: 'org-1',
+        action1OrgName: 'Org One',
+        haloClientId: 'client-1',
+        haloClientName: 'Client One'
+      }
+    ],
+    settings: {
+      HaloPsaOfflineEnabled: 'false',
+      HaloPsaRebootRequiredEnabled: 'false',
+      HaloPsaAutomationFailedEnabled: 'false',
+      HaloPsaVulnerabilityEnabled: 'false',
+      HaloPsaVulnerabilitySeverities: '',
+      HaloPsaUpdateEnabled: 'true',
+      HaloPsaUpdateSeverities: 'critical,important,moderate,low,unspecified',
+      HaloPsaUpdateRemediationStatuses: 'overdue',
+      HaloPsaDiagnosticLoggingEnabled: 'true'
+    }
+  });
+  context.logger = {
+    debug(message) {
+      diagnosticLogs.push(String(message));
+    },
+    info(message) {
+      diagnosticLogs.push(String(message));
+    },
+    warn(message) {
+      diagnosticLogs.push(String(message));
+    },
+    error(message) {
+      diagnosticLogs.push(String(message));
+    }
+  };
+
+  await withMockedFetch(async (url, options = {}) => {
+    fetchCalls.push({ url: String(url), options });
+    const textResponse = (payload, status = 200) => ({
+      ok: status >= 200 && status < 300,
+      status,
+      headers: { forEach(callback) { callback('application/json', 'content-type'); } },
+      text: async () => JSON.stringify(payload)
+    });
+    const urlText = String(url);
+    if (urlText.endsWith('/oauth2/token')) {
+      return textResponse({ access_token: 'action1-token', expires_in: 3600 });
+    }
+    if (urlText.includes('/endpoints/managed/org-1')) {
+      return textResponse({
+        items: [
+          { id: 'ep-1', name: 'Endpoint One', last_seen: '2026-06-01_00-00-00' },
+          { id: 'ep-2', name: 'Endpoint Two', last_seen: '2026-06-01_00-00-00' },
+          { id: 'ep-3', name: 'Endpoint Three', last_seen: '2026-06-01_00-00-00' }
+        ],
+        from: 0,
+        total_items: 3
+      });
+    }
+    if (urlText.includes('/updates/org-1?') && urlText.includes('security_severity=Critical')) {
+      return textResponse({
+        items: [
+          { packageId: 'pkg-critical', versionId: 'ver-1', security_severity: 'Critical', update_sla_status: 'Overdue' }
+        ],
+        from: 0,
+        total_items: 1
+      });
+    }
+    if (urlText.includes('/updates/org-1?') && urlText.includes('security_severity=Important')) {
+      return textResponse({
+        items: [
+          { packageId: 'pkg-important', versionId: 'ver-1', security_severity: 'Important', update_sla_status: 'Overdue' },
+          { packageId: 'pkg-duplicate', versionId: 'ver-1', security_severity: 'Important', update_sla_status: 'Overdue' }
+        ],
+        from: 0,
+        total_items: 2
+      });
+    }
+    if (urlText.includes('/updates/org-1?') && urlText.includes('security_severity=Moderate')) {
+      return textResponse({
+        items: [
+          { packageId: 'pkg-moderate', versionId: 'ver-1', security_severity: 'Moderate', update_sla_status: 'Overdue' },
+          { packageId: 'pkg-reject-sla', versionId: 'ver-1', security_severity: 'Moderate', update_sla_status: 'Due soon' },
+          { packageId: 'pkg-duplicate', versionId: 'ver-1', security_severity: 'Moderate', update_sla_status: 'Overdue' }
+        ],
+        from: 0,
+        total_items: 3
+      });
+    }
+    if (urlText.includes('/updates/org-1?') && urlText.includes('security_severity=Low')) {
+      return textResponse({
+        items: [
+          { packageId: 'pkg-reject-low', versionId: 'ver-1', security_severity: 'Low', update_sla_status: 'Due soon' }
+        ],
+        from: 0,
+        total_items: 1
+      });
+    }
+    if (urlText.includes('/updates/org-1?') && urlText.includes('security_severity=Unspecified')) {
+      return textResponse({
+        items: [
+          { packageId: 'pkg-unspecified', versionId: 'ver-1', security_severity: 'Unspecified', update_sla_status: 'Overdue' },
+          { packageId: 'pkg-missing-key', versionId: '', security_severity: 'Unspecified', update_sla_status: 'Overdue' }
+        ],
+        from: 0,
+        total_items: 2
+      });
+    }
+    if (urlText.includes('/updates/org-1/pkg-critical/versions/ver-1/endpoints')) {
+      return textResponse({ items: [{ id: 'ep-1' }], from: 0, total_items: 1 });
+    }
+    if (urlText.includes('/updates/org-1/pkg-important/versions/ver-1/endpoints')) {
+      return textResponse({ items: [{ id: 'ep-1' }], from: 0, total_items: 1 });
+    }
+    if (urlText.includes('/updates/org-1/pkg-moderate/versions/ver-1/endpoints')) {
+      return textResponse({ items: [{ id: 'ep-2' }], from: 0, total_items: 1 });
+    }
+    if (urlText.includes('/updates/org-1/pkg-duplicate/versions/ver-1/endpoints')) {
+      return textResponse({ items: [{ id: 'ep-3' }], from: 0, total_items: 1 });
+    }
+    if (urlText.includes('/updates/org-1/pkg-unspecified/versions/ver-1/endpoints')) {
+      return textResponse({ items: [{ id: 'ep-2' }], from: 0, total_items: 1 });
+    }
+    if (urlText.endsWith('/auth/token')) {
+      return textResponse({ access_token: 'halo-token', token_type: 'Bearer', expires_in: 3600 });
+    }
+    if (urlText.includes('/api/Category')) {
+      return textResponse({ items: [] });
+    }
+    if (urlText.endsWith('/api/Tickets') && String(options.method || '').toUpperCase() === 'POST') {
+      return textResponse([{ id: `ticket-${fetchCalls.length}`, status_id: '3', status: 'Open', is_closed: false }]);
+    }
+    if (urlText.includes('/api/Tickets/')) {
+      return textResponse({ id: 'ticket-existing', status_id: '3', status: 'Open', is_closed: false });
+    }
+    throw new Error(`Unexpected fetch ${urlText}`);
+  }, async () => {
+    const result = await runHaloPsaSync(context, {
+      run: {
+        async appendLog(message) {
+          runLogs.push(message);
+        },
+        async setAssetsProcessed() {}
+      }
+    });
+
+    assert.strictEqual(result.ok, true, 'filtered update collection should still complete successfully');
+    assert.strictEqual(result.summary.bySignalType.UPDATE, 5, 'qualified updates should still produce the same downstream grouped candidates');
+    const updateListUrls = fetchCalls.map((call) => call.url).filter((url) => url.includes('/updates/org-1?'));
+    assert.strictEqual(updateListUrls.length, 5, 'configured update severities should plan one top-level request per supported severity');
+    assert(updateListUrls.every((url) => url.includes('fields=*')), 'filtered update requests should include fields=*');
+    assert(updateListUrls.every((url) => url.includes('limit=50')), 'filtered update requests should preserve limit=50');
+    assert(updateListUrls.every((url) => url.includes('from=0')), 'filtered update requests should preserve from=0');
+    assert(updateListUrls.some((url) => url.includes('security_severity=Critical')), 'filtered update requests should include the Critical query value');
+    assert(updateListUrls.some((url) => url.includes('security_severity=Important')), 'filtered update requests should include the Important query value');
+    assert(updateListUrls.some((url) => url.includes('security_severity=Moderate')), 'filtered update requests should include the Moderate query value');
+    assert(updateListUrls.some((url) => url.includes('security_severity=Low')), 'filtered update requests should include the Low query value');
+    assert(updateListUrls.some((url) => url.includes('security_severity=Unspecified')), 'filtered update requests should include the Unspecified query value');
+    assert(updateListUrls.every((url) => !url.includes('filter=')), 'filtered update requests should not use the generic filter parameter');
+    assert(updateListUrls.every((url) => !url.includes('update_sla_status=')), 'filtered update requests should not send SLA/remediation server-side filtering');
+
+    const endpointFanoutUrls = fetchCalls
+      .map((call) => call.url)
+      .filter((url) => url.includes('/updates/org-1/') && url.includes('/versions/') && url.includes('/endpoints'));
+    assert.strictEqual(endpointFanoutUrls.some((url) => url.includes('/pkg-reject-sla/versions/ver-1/endpoints')), false, 'top-level rows that fail local remediation qualification should not trigger endpoint fan-out');
+    assert.strictEqual(endpointFanoutUrls.some((url) => url.includes('/pkg-reject-low/versions/ver-1/endpoints')), false, 'top-level rows that fail local remediation qualification should not trigger endpoint fan-out');
+    assert.strictEqual(
+      endpointFanoutUrls.filter((url) => url.includes('/pkg-duplicate/versions/ver-1/endpoints')).length,
+      1,
+      'duplicate top-level package/version rows should trigger only one endpoint fan-out request'
+    );
+    assert.strictEqual(endpointFanoutUrls.length, 5, 'endpoint fan-out should only happen for qualified, deduped package/version rows');
+    assert.strictEqual(context.state.grouped.length, 5, 'downstream grouped update identity/correlation behavior should remain unchanged');
+    assert(diagnosticLogs.some((entry) => entry.includes('updateFilterStrategy":"server-filtered')), 'detailed diagnostics should report the update filter strategy');
+    assert(diagnosticLogs.some((entry) => entry.includes('updateTopLevelUniquePackageVersionKeysAfterDedupe":"7"')), 'detailed diagnostics should report unique package/version keys after dedupe');
+    assert(diagnosticLogs.some((entry) => entry.includes('updateRowsSkippedBeforeDeepFetch":"2"')), 'detailed diagnostics should report rows skipped before deep fetch');
+    assert(diagnosticLogs.some((entry) => entry.includes('updateCrossFilterDuplicateKeys":"1"')), 'detailed diagnostics should report cross-filter duplicate update keys');
+    assert(diagnosticLogs.some((entry) => entry.includes('updateServerFilterBreakdown":[{"security_severity":"Critical","pagesFetched":"1","rawRowsFetched":"1","uniquePackageVersionKeys":"1","duplicatePackageVersionKeysWithinFilter":"0","rowsMissingPackageVersionKey":"0","sampleUpdateKeys":["pkg-critical:ver-1"]},{"security_severity":"Important","pagesFetched":"1","rawRowsFetched":"2","uniquePackageVersionKeys":"2","duplicatePackageVersionKeysWithinFilter":"0","rowsMissingPackageVersionKey":"0","sampleUpdateKeys":["pkg-important:ver-1","pkg-duplicate:ver-1"]},{"security_severity":"Moderate","pagesFetched":"1","rawRowsFetched":"3","uniquePackageVersionKeys":"3","duplicatePackageVersionKeysWithinFilter":"0","rowsMissingPackageVersionKey":"0","sampleUpdateKeys":["pkg-moderate:ver-1","pkg-reject-sla:ver-1","pkg-duplicate:ver-1"]},{"security_severity":"Low","pagesFetched":"1","rawRowsFetched":"1","uniquePackageVersionKeys":"1","duplicatePackageVersionKeysWithinFilter":"0","rowsMissingPackageVersionKey":"0","sampleUpdateKeys":["pkg-reject-low:ver-1"]},{"security_severity":"Unspecified","pagesFetched":"1","rawRowsFetched":"2","uniquePackageVersionKeys":"1","duplicatePackageVersionKeysWithinFilter":"0","rowsMissingPackageVersionKey":"1","sampleUpdateKeys":["pkg-unspecified:ver-1"]}]')), 'detailed diagnostics should report per-filter update breakdown details');
+    assert(diagnosticLogs.some((entry) => entry.includes('updateCrossFilterDuplicatePairs')), 'detailed diagnostics should report overlapping update filter pairs');
+    assert(diagnosticLogs.some((entry) => entry.includes('"left":"security_severity=Important"') && entry.includes('"right":"security_severity=Moderate"') && entry.includes('"duplicateKeys":"1"') && entry.includes('"sampleUpdateKeys":["pkg-duplicate:ver-1"]')), 'detailed diagnostics should report the overlapping Important/Moderate update pair with capped key samples');
+    assert(diagnosticLogs.some((entry) => entry.includes('updateDeepEndpointFetchesCompleted":"5"')), 'detailed diagnostics should report update endpoint fan-out counts');
+  });
+}
+
+async function runFilteredUpdateRequestFailureDoesNotBroadFallbackTest() {
+  const fetchCalls = [];
+  const context = createSyncContext({
+    mappings: [
+      {
+        id: 1,
+        action1OrgId: 'org-1',
+        action1OrgName: 'Org One',
+        haloClientId: 'client-1',
+        haloClientName: 'Client One'
+      }
+    ],
+    settings: {
+      HaloPsaOfflineEnabled: 'false',
+      HaloPsaRebootRequiredEnabled: 'false',
+      HaloPsaAutomationFailedEnabled: 'false',
+      HaloPsaVulnerabilityEnabled: 'false',
+      HaloPsaVulnerabilitySeverities: '',
+      HaloPsaUpdateEnabled: 'true',
+      HaloPsaUpdateSeverities: 'important',
+      HaloPsaUpdateRemediationStatuses: 'overdue'
+    }
+  });
+
+  await withMockedFetch(async (url) => {
+    fetchCalls.push(String(url));
+    const textResponse = (status, payload) => ({
+      ok: status >= 200 && status < 300,
+      status,
+      headers: { forEach(callback) { callback('application/json', 'content-type'); } },
+      text: async () => JSON.stringify(payload)
+    });
+    const urlText = String(url);
+    if (urlText.endsWith('/oauth2/token')) {
+      return textResponse(200, { access_token: 'action1-token', expires_in: 3600 });
+    }
+    if (urlText.includes('/endpoints/managed/org-1')) {
+      return textResponse(200, { items: [{ id: 'ep-1', name: 'Endpoint One', last_seen: '2026-06-01_00-00-00' }], from: 0, total_items: 1 });
+    }
+    if (urlText.includes('/updates/org-1?') && urlText.includes('security_severity=Important')) {
+      return textResponse(400, { error: 'invalid_filter' });
+    }
+    throw new Error(`Unexpected fetch ${urlText}`);
+  }, async () => {
+    const result = await runHaloPsaSync(context, {
+      run: {
+        async appendLog() {},
+        async setAssetsProcessed() {}
+      }
+    });
+
+    assert.strictEqual(result.ok, false, 'filtered update request failures should surface as sync failures');
+    assert.strictEqual(result.summary.failed, 1, 'filtered update request failures should count as collection failures');
+    assert.strictEqual(fetchCalls.some((url) => url.includes('/updates/org-1?limit=') && !url.includes('security_severity=')), false, 'filtered update request failures should not silently broad-fallback');
+    assert.strictEqual(fetchCalls.filter((url) => url.includes('/updates/org-1?')).length, 1, 'filtered update request failures should stop at the attempted filtered request');
+    assert.strictEqual(fetchCalls.some((url) => url.includes('/versions/') && url.includes('/endpoints')), false, 'failed filtered update requests should not continue to endpoint fan-out');
   });
 }
 
@@ -1366,11 +1789,20 @@ async function run() {
   runVulnerabilityUnknownValuePlanningTest();
   runVulnerabilityFilterBreakdownHelperTest();
   runVulnerabilityCrossFilterDuplicateDiagnosticsHelperTest();
+  runUpdateSeverityOnlyPlanningTest();
+  runUpdateNoFilterPlanningFallbackTest();
+  runUpdateUnknownValuePlanningFallbackTest();
+  runUpdateTopLevelUrlPlanningTest();
+  runUpdateFilterBreakdownHelperTest();
+  runUpdateCrossFilterDuplicateDiagnosticsHelperTest();
   await runMissingConfigFailsSafelyTest();
   await runMissingAction1CredentialsFailsSafelyTest();
   await runTrackedSyncHappyPathTest();
   await runVulnerabilityServerFilteredCollectionOptimizationTest();
   await runVulnerabilityDueSoonFilteredUrlMappingTest();
+  await runUpdateBroadCollectionFallbackWithoutSupportedSeverityFilterTest();
+  await runUpdateServerFilteredCollectionOptimizationTest();
+  await runFilteredUpdateRequestFailureDoesNotBroadFallbackTest();
   await runFilteredVulnerabilityRequestFailureDoesNotBroadFallbackTest();
   await runAllSignalsDisabledNoOpTest();
   await runOfflineOnlyCollectionGatingTest();

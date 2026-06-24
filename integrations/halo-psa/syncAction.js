@@ -307,7 +307,11 @@ async function collectMarketplaceDatasets(input) {
 
       if (executionPlan.collectUpdate) {
         await orgLogger.debug('Fetching Action1 missing updates.');
-        updates = await action1Client.listMissingUpdatesByOrg(action1OrgId, { context, runId: `sync-updates-${action1OrgId}` });
+        updates = await action1Client.listMissingUpdatesByOrg(action1OrgId, {
+          context,
+          runId: `sync-updates-${action1OrgId}`,
+          filter: runtimeConfig.signalFilters?.update
+        });
         await orgLogger.debug('Action1 missing updates collected.', {
           rows: Array.isArray(updates) ? updates.length : 0
         });

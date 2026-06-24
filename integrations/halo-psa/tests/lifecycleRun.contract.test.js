@@ -1,7 +1,13 @@
 const assert = require('assert');
 
 const { createLifecycleRunService } = require('../lifecycleRunService');
-const { EXISTING_OPEN_TICKET_BEHAVIOR, buildHaloCreateTicketPayload, buildTicketContentFromCandidate, hashPayload } = require('../lifecycle');
+const {
+  EXISTING_OPEN_TICKET_BEHAVIOR,
+  buildHaloCreateTicketPayload,
+  buildGroupedTicketContentFromCandidate,
+  buildTicketContentFromCandidate,
+  hashPayload
+} = require('../lifecycle');
 
 function baseCandidate() {
   return {
@@ -156,6 +162,47 @@ function groupedCandidateForSignal(signalType) {
         endpoint: { id: 'ep-1', name: 'BoxOne', lastSeenAt: '2026-06-18T10:15:00Z' }
       }]
     }
+  };
+}
+
+function endpointUpdateCandidate(overrides = {}) {
+  return {
+    identity: {
+      orgLinkId: 'map-1',
+      endpointId: 'endpoint-1',
+      signalType: 'UPDATE',
+      key: 'map-1|endpoint-1|UPDATE'
+    },
+    routing: {
+      action1OrgId: 'e1f36170-ae17-11f0-94b4-4bdbbcb1d790',
+      action1OrgName: 'SF Office',
+      haloClientId: '12',
+      ticketTypeId: '35',
+      category1Id: 'cat-1'
+    },
+    signal: {
+      type: 'UPDATE',
+      reason: 'matched',
+      matchedCount: 1,
+      matchedItemsPreview: [{
+        id: 'package-1:1.0.0',
+        packageId: 'package-1',
+        packageName: '2023-10 Update for Windows 11 for x64-based Systems (KB4023057)',
+        version: '1.0.0',
+        severity: 'CRITICAL',
+        severityLabel: 'Critical',
+        remediationStatus: 'DUE_SOON',
+        remediationDeadline: '2026-06-30'
+      }]
+    },
+    endpoint: {
+      id: 'endpoint-1',
+      name: 'BoxOne',
+      lastSeenAt: '2026-06-18T10:15:00Z',
+      os: 'Windows 11',
+      platform: 'x64'
+    },
+    ...overrides
   };
 }
 
@@ -568,6 +615,71 @@ async function runGroupedUpdatePayloadPreservesHtmlFieldTest() {
   }
 }
 
+async function runEndpointUpdatePayloadFormatsFriendlySlaAndUsesUpdatesConsoleLinkTest() {
+  const candidate = endpointUpdateCandidate();
+  const rendered = buildTicketContentFromCandidate({
+    candidate,
+    action1BaseUrl: 'https://app.action1.com/api/3.0'
+  });
+
+  assert.ok(rendered.details.includes('SLA Due Soon'), 'endpoint UPDATE details should render a user-friendly Due Soon label');
+  assert.ok(!rendered.details.includes('DUE_SOON'), 'endpoint UPDATE details should not leak the normalized DUE_SOON enum');
+  assert.ok(rendered.details.includes('Action1 update:'), 'endpoint UPDATE details should point to the update console');
+  assert.ok(rendered.details.includes('/console/updates?'), 'endpoint UPDATE details should use the main Action1 updates console URL');
+  assert.ok(!rendered.details.includes('/console/updates/package-1~1.0.0/endpoints'), 'endpoint UPDATE details should not use the old package-version endpoints URL');
+  assert.ok(rendered.details.includes('limit=200'), 'endpoint UPDATE details should preserve the updates console page size');
+  assert.ok(rendered.details.includes('from=0'), 'endpoint UPDATE details should preserve the updates console offset');
+  assert.ok(rendered.details.includes('only_latest=yes'), 'endpoint UPDATE details should target latest updates');
+  assert.ok(rendered.details.includes('update_type=Regular+Updates%2CCritical+-+Non-Security%2CDefinition+Updates%2CFeature+Updates%2CSecurity+Updates%2CService+Packs%2CTools%2CUpdate+Rollups%2CUpgrades%2CUnknown'), 'endpoint UPDATE details should preserve the full Action1 update_type filter list');
+  assert.ok(rendered.details.includes('org=e1f36170-ae17-11f0-94b4-4bdbbcb1d790'), 'endpoint UPDATE details should include the Action1 org id exactly once');
+  assert.ok(!rendered.details.includes('org=e1f36170-ae17-11f0-94b4-4bdbbcb1d7900'), 'endpoint UPDATE details should not append an extra character to the org id');
+  assert.ok(rendered.details.includes('ent=no'), 'endpoint UPDATE details should preserve ent=no');
+  assert.ok(rendered.details.includes('filter=2023-10%2520Update%2520for%2520Windows%252011%2520for%2520x64-based%2520Systems%2520%28KB4023057%29'), 'endpoint UPDATE details should double-encode the update name filter the way the Action1 console expects');
+  assert.ok(!rendered.details.includes('filter=BoxOne'), 'endpoint UPDATE details should not keep using the endpoint name as the filter');
+}
+
+async function runGroupedUpdatePayloadFormatsFriendlySlaAndUsesUpdatesConsoleLinkTest() {
+  const candidate = groupedCandidateForSignal('UPDATE');
+  candidate.grouped.issueMetadata.packageName = '2023-10 Update for Windows 11 for x64-based Systems (KB4023057)';
+  candidate.grouped.issueMetadata.remediationStatus = 'DUE_SOON';
+
+  const rendered = buildGroupedTicketContentFromCandidate({
+    candidate,
+    action1BaseUrl: 'https://app.action1.com/api/3.0'
+  });
+
+  assert.ok(rendered.details.includes('SLA status: Due Soon'), 'grouped UPDATE details should render a user-friendly Due Soon label');
+  assert.ok(!rendered.details.includes('SLA status: DUE_SOON'), 'grouped UPDATE details should not leak the normalized DUE_SOON enum');
+  assert.ok(rendered.details.includes('/console/updates?'), 'grouped UPDATE details should use the main Action1 updates console URL');
+  assert.ok(rendered.problemUrl.includes('/console/updates?'), 'grouped UPDATE problem URL should use the main Action1 updates console URL');
+  assert.ok(rendered.problemUrl.includes('filter=2023-10%2520Update%2520for%2520Windows%252011%2520for%2520x64-based%2520Systems%2520%28KB4023057%29'), 'grouped UPDATE problem URL should double-encode the update name filter');
+}
+
+async function runGroupedUpdatePayloadFormatsOverdueFriendlyLabelTest() {
+  const candidate = groupedCandidateForSignal('UPDATE');
+  candidate.grouped.issueMetadata.remediationStatus = 'OVERDUE';
+
+  const rendered = buildGroupedTicketContentFromCandidate({
+    candidate,
+    action1BaseUrl: 'https://app.action1.com/api/3.0'
+  });
+
+  assert.ok(rendered.details.includes('SLA status: Overdue'), 'grouped UPDATE details should render Overdue as a user-friendly label');
+}
+
+async function runGroupedVulnerabilityPayloadFormatsFriendlyRemediationStatusTest() {
+  const candidate = groupedCandidateForSignal('VULNERABILITY');
+  candidate.grouped.issueMetadata.remediationStatus = 'DUE_SOON';
+
+  const rendered = buildGroupedTicketContentFromCandidate({
+    candidate,
+    action1BaseUrl: 'https://app.action1.com/api/3.0'
+  });
+
+  assert.ok(rendered.details.includes('Remediation status: Due Soon'), 'grouped vulnerability details should render a user-friendly Due Soon label');
+  assert.ok(!rendered.details.includes('Remediation status: DUE_SOON'), 'grouped vulnerability details should not leak the normalized DUE_SOON enum');
+}
+
 async function runMissingLinkedTicketRecreatesInsteadOfSkippingTest() {
   const { service, calls } = createHarness({
     correlation: {
@@ -729,6 +841,10 @@ async function run() {
   await runGroupedCreatePayloadUsesHtmlFieldForEverySignalTest();
   await runGroupedClosedLinkedTicketCreatesReplacementTest();
   await runGroupedUpdatePayloadPreservesHtmlFieldTest();
+  await runEndpointUpdatePayloadFormatsFriendlySlaAndUsesUpdatesConsoleLinkTest();
+  await runGroupedUpdatePayloadFormatsFriendlySlaAndUsesUpdatesConsoleLinkTest();
+  await runGroupedUpdatePayloadFormatsOverdueFriendlyLabelTest();
+  await runGroupedVulnerabilityPayloadFormatsFriendlyRemediationStatusTest();
   await runMissingLinkedTicketRecreatesInsteadOfSkippingTest();
   await runMissingLinkedTicketReplacementIsUsedOnLaterRunsTest();
   await runGroupedMissingLinkedTicketRecreatesInsteadOfSkippingTest();

@@ -21,7 +21,7 @@ qualys-out.txt
 
 _reference/
 docs/
-
+integrations/jira-cloud/
 *.patch
 
 # Local Marketplace validation

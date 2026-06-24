@@ -2,7 +2,7 @@ const ACTION1_BASE_URL = 'https://app.action1.com/api/3.0';
 const { LOG_EVENT_TYPES, emitLog } = require('./runtimeLogging');
 const { createSafeHttpClient, sleepMs } = require('./safeHttpClient');
 const { normalizeSignalRulesConfig } = require('./signalRulesConfig');
-const { filterQualifiedVulnerabilityItems } = require('./signalQualification');
+const { filterQualifiedVulnerabilityItems, normalizeRemediationStatus, normalizeUpdateSeverity } = require('./signalQualification');
 const { ensureUrl, joinUrl, toAbsoluteUrl } = require('./urlUtils');
 
 const ACTION1_VULNERABILITY_FILTER_COMBINATION_CAP = 8;
@@ -16,7 +16,15 @@ const ACTION1_VULNERABILITY_REMEDIATION_VALUES = Object.freeze({
   OVERDUE: 'Overdue',
   DUE_SOON: 'Due_soon'
 });
+const ACTION1_UPDATE_SECURITY_SEVERITY_VALUES = Object.freeze({
+  CRITICAL: 'Critical',
+  IMPORTANT: 'Important',
+  MODERATE: 'Moderate',
+  LOW: 'Low',
+  UNSPECIFIED: 'Unspecified'
+});
 const VULNERABILITY_DIAGNOSTIC_SAMPLE_LIMIT = 5;
+const UPDATE_DIAGNOSTIC_SAMPLE_LIMIT = 5;
 
 function trimValue(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -488,59 +496,146 @@ function createAction1Client(opts = {}) {
     const listLimit = Number.isFinite(Number(opts.listLimit)) ? Math.max(1, Math.floor(Number(opts.listLimit))) : 50;
     const endpointLimit = Number.isFinite(Number(opts.endpointLimit)) ? Math.max(1, Math.floor(Number(opts.endpointLimit))) : 200;
     const pageLimit = Number.isFinite(Number(opts.pageLimit)) ? Math.max(1, Math.floor(Number(opts.pageLimit))) : 500;
+    const filter = normalizeUpdateCollectionFilter(opts.filter);
+    const filterPlan = buildUpdateServerFilterPlan(filter);
+    const strategy = filterPlan.strategy;
+    let updates = [];
+    const serverFilterBreakdown = [];
 
-    const updates = await fetchPagedCollection({
-      runId,
-      firstUrl: joinUrl(connection.baseUrl, `/updates/${encodeURIComponent(String(orgId))}?fields=*&limit=${listLimit}&from=0`),
-      pageLimit,
-      resolveAccessToken,
-      resourceName: `Action1 updates org=${orgId}`,
-      normalizeItem: (item) => item,
-      baseUrl: connection.baseUrl,
-      orgId: String(orgId),
-      abortSignal: opts.abortSignal || null
-    });
-
-    const out = [];
-    for (const updateItem of updates) {
-      const versionDescriptors = extractUpdateVersionDescriptors(updateItem);
-      for (const version of versionDescriptors) {
-        const endpointRows = await fetchPagedCollection({
+    if (strategy === 'server-filtered') {
+      for (const requestPlan of filterPlan.requests) {
+        const fetchMeta = { pagesFetched: 0, rawRowsFetched: 0 };
+        const filterRows = await fetchPagedCollection({
           runId,
-          firstUrl: joinUrl(connection.baseUrl, `/updates/${encodeURIComponent(String(orgId))}/${encodeURIComponent(version.packageId)}/versions/${encodeURIComponent(version.versionId)}/endpoints?limit=${endpointLimit}&from=0`),
+          firstUrl: buildUpdateTopLevelUrl(connection.baseUrl, orgId, listLimit, requestPlan),
           pageLimit,
           resolveAccessToken,
-          resourceName: `Action1 update endpoints org=${orgId} package=${version.packageId} version=${version.versionId}`,
+          resourceName: `Action1 updates org=${orgId} severity=${requestPlan.securitySeverity || 'any'}`,
           normalizeItem: (item) => item,
           baseUrl: connection.baseUrl,
           orgId: String(orgId),
-          abortSignal: opts.abortSignal || null
+          abortSignal: opts.abortSignal || null,
+          meta: fetchMeta
         });
-        for (const endpointRow of endpointRows) {
-          const endpointId = String(endpointRow?.id || endpointRow?.endpoint_id || '').trim();
-          if (!endpointId) continue;
-          out.push({
-            endpointId,
-            packageId: version.packageId,
-            versionId: version.versionId,
-            id: `${version.packageId}:${version.versionId}`,
-            security_severity: version.securitySeverity,
-            severity: version.severity,
-            update_sla_status: version.updateSlaStatus,
-            update_sla_deadline: version.updateSlaDeadline,
-            security_CVE: version.securityCve,
-            package_name: version.packageName,
-            version_name: version.versionName,
-            vendor: version.vendor,
-            update_type: version.updateType,
-            classification: version.classification,
-            slaStatus: version.slaStatus,
-            remediation_status: version.remediationStatus,
-            remediationStatus: version.remediationStatus
-          });
-        }
+        updates = updates.concat(filterRows);
+        serverFilterBreakdown.push(buildUpdateFilterBreakdown(requestPlan, filterRows, fetchMeta, {
+          sampleLimit: UPDATE_DIAGNOSTIC_SAMPLE_LIMIT
+        }));
+      }
+    } else {
+      updates = await fetchPagedCollection({
+        runId,
+        firstUrl: buildUpdateTopLevelUrl(connection.baseUrl, orgId, listLimit),
+        pageLimit,
+        resolveAccessToken,
+        resourceName: `Action1 updates org=${orgId}`,
+        normalizeItem: (item) => item,
+        baseUrl: connection.baseUrl,
+        orgId: String(orgId),
+        abortSignal: opts.abortSignal || null
+      });
+    }
+
+    const topLevelRowsFetched = updates.length;
+    const extractedVersionDescriptors = [];
+    for (const updateItem of updates) {
+      extractedVersionDescriptors.push(...extractUpdateVersionDescriptors(updateItem));
+    }
+    const topLevelUniquePackageVersionKeysAfterDedupe = dedupeUpdateVersionDescriptors(extractedVersionDescriptors);
+    const rowsAfterLocalQualification = filterQualifiedUpdateVersionDescriptors(topLevelUniquePackageVersionKeysAfterDedupe, filter);
+    const topLevelRowsWithoutPackageVersionKey = summarizeUpdateTopLevelRows(updates, {
+      sampleLimit: UPDATE_DIAGNOSTIC_SAMPLE_LIMIT
+    }).rowsMissingPackageVersionKey;
+    const updateCrossFilterDiagnostics = buildUpdateCrossFilterDuplicateDiagnostics(serverFilterBreakdown, {
+      sampleLimit: UPDATE_DIAGNOSTIC_SAMPLE_LIMIT
+    });
+    let deepEndpointFetchesCompleted = 0;
+
+    await emitLog({
+      runLogger,
+      runId,
+      level: 'DEBUG',
+      eventType: LOG_EVENT_TYPES.DISCOVERY_FETCH,
+      message: 'Action1 update collection planned.',
+      context: {
+        orgId: String(orgId),
+        updateFilterStrategy: strategy,
+        updateServerFilterRequestsPlanned: filterPlan.requests.length,
+        updateTopLevelRowsFetched: topLevelRowsFetched,
+        updateTopLevelUniquePackageVersionKeysAfterDedupe: topLevelUniquePackageVersionKeysAfterDedupe.length,
+        updateTopLevelRowsWithoutPackageVersionKey: topLevelRowsWithoutPackageVersionKey,
+        updateRowsAfterLocalQualification: rowsAfterLocalQualification.length,
+        updateRowsSkippedBeforeDeepFetch: Math.max(0, topLevelUniquePackageVersionKeysAfterDedupe.length - rowsAfterLocalQualification.length),
+        updateDeepEndpointFetchesPlanned: rowsAfterLocalQualification.length,
+        updateDeepEndpointFetchesCompleted: deepEndpointFetchesCompleted,
+        updateServerFilterBreakdown: toPublicUpdateFilterBreakdown(serverFilterBreakdown),
+        updateCrossFilterDuplicateKeys: updateCrossFilterDiagnostics.crossFilterDuplicateKeys,
+        updateCrossFilterDuplicatePairs: updateCrossFilterDiagnostics.crossFilterDuplicatePairs
+      }
+    });
+
+    const out = [];
+    for (const version of rowsAfterLocalQualification) {
+      const endpointRows = await fetchPagedCollection({
+        runId,
+        firstUrl: joinUrl(connection.baseUrl, `/updates/${encodeURIComponent(String(orgId))}/${encodeURIComponent(version.packageId)}/versions/${encodeURIComponent(version.versionId)}/endpoints?limit=${endpointLimit}&from=0`),
+        pageLimit,
+        resolveAccessToken,
+        resourceName: `Action1 update endpoints org=${orgId} package=${version.packageId} version=${version.versionId}`,
+        normalizeItem: (item) => item,
+        baseUrl: connection.baseUrl,
+        orgId: String(orgId),
+        abortSignal: opts.abortSignal || null
+      });
+      deepEndpointFetchesCompleted += 1;
+      for (const endpointRow of endpointRows) {
+        const endpointId = String(endpointRow?.id || endpointRow?.endpoint_id || '').trim();
+        if (!endpointId) continue;
+        out.push({
+          endpointId,
+          packageId: version.packageId,
+          versionId: version.versionId,
+          id: `${version.packageId}:${version.versionId}`,
+          security_severity: version.securitySeverity,
+          severity: version.severity,
+          update_sla_status: version.updateSlaStatus,
+          update_sla_deadline: version.updateSlaDeadline,
+          security_CVE: version.securityCve,
+          package_name: version.packageName,
+          version_name: version.versionName,
+          vendor: version.vendor,
+          update_type: version.updateType,
+          classification: version.classification,
+          slaStatus: version.slaStatus,
+          remediation_status: version.remediationStatus,
+          remediationStatus: version.remediationStatus
+        });
       }
     }
+
+    await emitLog({
+      runLogger,
+      runId,
+      level: 'DEBUG',
+      eventType: LOG_EVENT_TYPES.DISCOVERY_FETCH,
+      message: 'Action1 update collection completed.',
+      context: {
+        orgId: String(orgId),
+        updateFilterStrategy: strategy,
+        updateServerFilterRequestsPlanned: filterPlan.requests.length,
+        updateTopLevelRowsFetched: topLevelRowsFetched,
+        updateTopLevelUniquePackageVersionKeysAfterDedupe: topLevelUniquePackageVersionKeysAfterDedupe.length,
+        updateTopLevelRowsWithoutPackageVersionKey: topLevelRowsWithoutPackageVersionKey,
+        updateRowsAfterLocalQualification: rowsAfterLocalQualification.length,
+        updateRowsSkippedBeforeDeepFetch: Math.max(0, topLevelUniquePackageVersionKeysAfterDedupe.length - rowsAfterLocalQualification.length),
+        updateDeepEndpointFetchesPlanned: rowsAfterLocalQualification.length,
+        updateDeepEndpointFetchesCompleted: deepEndpointFetchesCompleted,
+        updateServerFilterBreakdown: toPublicUpdateFilterBreakdown(serverFilterBreakdown),
+        updateCrossFilterDuplicateKeys: updateCrossFilterDiagnostics.crossFilterDuplicateKeys,
+        updateCrossFilterDuplicatePairs: updateCrossFilterDiagnostics.crossFilterDuplicatePairs
+      }
+    });
+
     return out;
   }
 
@@ -952,6 +1047,193 @@ function summarizeVulnerabilityTopLevelRows(rows, opts = {}) {
   };
 }
 
+function normalizeUpdateCollectionFilter(filter) {
+  return normalizeSignalRulesConfig({
+    signalFilters: {
+      update: filter && typeof filter === 'object' ? filter : {}
+    }
+  }).signalFilters.update;
+}
+
+function summarizeUpdateTopLevelRows(rows, opts = {}) {
+  const sampleLimit = Number.isFinite(Number(opts.sampleLimit)) ? Math.max(1, Math.floor(Number(opts.sampleLimit))) : UPDATE_DIAGNOSTIC_SAMPLE_LIMIT;
+  const keySet = new Set();
+  const sampleUpdateKeys = [];
+  let extractedDescriptorCount = 0;
+  let rowsMissingPackageVersionKey = 0;
+
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const descriptors = extractUpdateVersionDescriptors(row);
+    if (descriptors.length === 0) {
+      rowsMissingPackageVersionKey += 1;
+      continue;
+    }
+    extractedDescriptorCount += descriptors.length;
+    for (const descriptor of descriptors) {
+      const key = canonicalUpdatePackageVersionKey(descriptor);
+      if (!key || keySet.has(key)) continue;
+      keySet.add(key);
+      if (sampleUpdateKeys.length < sampleLimit) sampleUpdateKeys.push(key);
+    }
+  }
+
+  return {
+    uniquePackageVersionKeys: keySet.size,
+    duplicatePackageVersionKeysWithinFilter: Math.max(0, extractedDescriptorCount - keySet.size),
+    rowsMissingPackageVersionKey,
+    sampleUpdateKeys,
+    updateKeySet: keySet
+  };
+}
+
+function buildUpdateFilterBreakdown(requestPlan, rows, fetchMeta = {}, opts = {}) {
+  const summary = summarizeUpdateTopLevelRows(rows, opts);
+  const rawRowsFetched = Number.isFinite(Number(fetchMeta.rawRowsFetched))
+    ? Number(fetchMeta.rawRowsFetched)
+    : Array.isArray(rows)
+    ? rows.length
+    : 0;
+  return {
+    security_severity: String(requestPlan?.securitySeverity || ''),
+    pagesFetched: Number(fetchMeta.pagesFetched || 0),
+    rawRowsFetched,
+    uniquePackageVersionKeys: summary.uniquePackageVersionKeys,
+    duplicatePackageVersionKeysWithinFilter: summary.duplicatePackageVersionKeysWithinFilter,
+    rowsMissingPackageVersionKey: summary.rowsMissingPackageVersionKey,
+    sampleUpdateKeys: summary.sampleUpdateKeys,
+    updateKeySet: summary.updateKeySet
+  };
+}
+
+function buildUpdateCrossFilterDuplicateDiagnostics(filterBreakdown, opts = {}) {
+  const sampleLimit = Number.isFinite(Number(opts.sampleLimit)) ? Math.max(1, Math.floor(Number(opts.sampleLimit))) : UPDATE_DIAGNOSTIC_SAMPLE_LIMIT;
+  const rows = Array.isArray(filterBreakdown) ? filterBreakdown : [];
+  const keyFilterCounts = new Map();
+  const crossFilterDuplicatePairs = [];
+
+  for (let leftIndex = 0; leftIndex < rows.length; leftIndex += 1) {
+    const left = rows[leftIndex];
+    const leftSet = left?.updateKeySet instanceof Set ? left.updateKeySet : new Set();
+    for (const key of leftSet) {
+      keyFilterCounts.set(key, Number(keyFilterCounts.get(key) || 0) + 1);
+    }
+    for (let rightIndex = leftIndex + 1; rightIndex < rows.length; rightIndex += 1) {
+      const right = rows[rightIndex];
+      const rightSet = right?.updateKeySet instanceof Set ? right.updateKeySet : new Set();
+      let duplicateKeys = 0;
+      const sampleUpdateKeys = [];
+      for (const key of leftSet) {
+        if (!rightSet.has(key)) continue;
+        duplicateKeys += 1;
+        if (sampleUpdateKeys.length < sampleLimit) sampleUpdateKeys.push(key);
+      }
+      crossFilterDuplicatePairs.push({
+        left: describeUpdateFilter(left),
+        right: describeUpdateFilter(right),
+        duplicateKeys,
+        sampleUpdateKeys
+      });
+    }
+  }
+
+  let crossFilterDuplicateKeys = 0;
+  for (const count of keyFilterCounts.values()) {
+    if (count > 1) crossFilterDuplicateKeys += 1;
+  }
+
+  return {
+    crossFilterDuplicateKeys,
+    crossFilterDuplicatePairs
+  };
+}
+
+function describeUpdateFilter(row) {
+  const parts = [];
+  if (row?.security_severity) parts.push(`security_severity=${row.security_severity}`);
+  return parts.length > 0 ? parts.join(' ') : 'broad';
+}
+
+function toPublicUpdateFilterBreakdown(rows) {
+  return (Array.isArray(rows) ? rows : []).map((row) => ({
+    security_severity: row.security_severity,
+    pagesFetched: row.pagesFetched,
+    rawRowsFetched: row.rawRowsFetched,
+    uniquePackageVersionKeys: row.uniquePackageVersionKeys,
+    duplicatePackageVersionKeysWithinFilter: row.duplicatePackageVersionKeysWithinFilter,
+    rowsMissingPackageVersionKey: row.rowsMissingPackageVersionKey,
+    sampleUpdateKeys: Array.isArray(row.sampleUpdateKeys) ? row.sampleUpdateKeys.slice() : []
+  }));
+}
+
+function buildUpdateServerFilterPlan(filter) {
+  const severities = mapSupportedValues(filter?.severities, ACTION1_UPDATE_SECURITY_SEVERITY_VALUES);
+  const rawSeverities = Array.isArray(filter?.severities) ? filter.severities.filter((value) => String(value || '').trim()) : [];
+
+  if (severities.length === 0) {
+    return {
+      strategy: 'broad',
+      reason: rawSeverities.length > 0 ? 'no_supported_filter_values' : 'no_usable_structured_filters',
+      requests: []
+    };
+  }
+
+  return {
+    strategy: 'server-filtered',
+    reason: '',
+    requests: severities.map((securitySeverity) => ({ securitySeverity }))
+  };
+}
+
+function buildUpdateTopLevelUrl(baseUrl, orgId, listLimit, requestPlan = null) {
+  const url = new URL(joinUrl(baseUrl, `/updates/${encodeURIComponent(String(orgId))}`));
+  url.searchParams.set('fields', '*');
+  url.searchParams.set('limit', String(listLimit));
+  url.searchParams.set('from', '0');
+  if (requestPlan?.securitySeverity) {
+    url.searchParams.set('security_severity', requestPlan.securitySeverity);
+  }
+  return url.toString();
+}
+
+function dedupeUpdateVersionDescriptors(rows) {
+  const out = [];
+  const seen = new Set();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const key = canonicalUpdatePackageVersionKey(row);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+  }
+  return out;
+}
+
+function canonicalUpdatePackageVersionKey(row) {
+  const packageId = asTrimmedString(row?.packageId);
+  const versionId = asTrimmedString(row?.versionId);
+  return packageId && versionId ? `${packageId}:${versionId}` : '';
+}
+
+function filterQualifiedUpdateVersionDescriptors(rows, filter) {
+  if (!filter?.enabled || !Array.isArray(filter.severities) || filter.severities.length === 0) return [];
+  const allowedSeverities = new Set(filter.severities.map((value) => String(value || '').toUpperCase()));
+  const allowedRemediation = new Set((filter.remediationStatuses || []).map((value) => String(value || '').toUpperCase()));
+  return (Array.isArray(rows) ? rows : []).filter((row) => {
+    const severity = normalizeUpdateSeverity({
+      severity: row?.severity,
+      security_severity: row?.securitySeverity
+    });
+    if (!severity || !allowedSeverities.has(severity)) return false;
+    if (allowedRemediation.size === 0) return true;
+    const remediation = normalizeRemediationStatus({
+      remediationStatus: row?.remediationStatus,
+      remediation_status: row?.remediationStatus,
+      slaStatus: row?.slaStatus,
+      update_sla_status: row?.updateSlaStatus
+    });
+    return remediation ? allowedRemediation.has(remediation) : false;
+  });
+}
+
 function buildCrossFilterDuplicateDiagnostics(filterBreakdown, opts = {}) {
   const sampleLimit = Number.isFinite(Number(opts.sampleLimit)) ? Math.max(1, Math.floor(Number(opts.sampleLimit))) : VULNERABILITY_DIAGNOSTIC_SAMPLE_LIMIT;
   const cveFilterCounts = new Map();
@@ -1114,14 +1396,24 @@ module.exports = {
   DiscoveryRequestError,
   __private: {
     buildCrossFilterDuplicateDiagnostics,
+    buildUpdateCrossFilterDuplicateDiagnostics,
+    buildUpdateFilterBreakdown,
+    buildUpdateServerFilterPlan,
+    buildUpdateTopLevelUrl,
     buildVulnerabilityFilterBreakdown,
     buildVulnerabilityServerFilterPlan,
     buildVulnerabilityTopLevelUrl,
     canonicalVulnerabilityCveId,
+    canonicalUpdatePackageVersionKey,
+    dedupeUpdateVersionDescriptors,
     dedupeVulnerabilityRowsByCve,
+    describeUpdateFilter,
     describeVulnerabilityFilter,
+    normalizeUpdateCollectionFilter,
     normalizeVulnerabilityCollectionFilter,
+    summarizeUpdateTopLevelRows,
     summarizeVulnerabilityTopLevelRows,
+    toPublicUpdateFilterBreakdown,
     toPublicVulnerabilityFilterBreakdown
   },
   createAction1Client,

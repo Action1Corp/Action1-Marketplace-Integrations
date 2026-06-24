@@ -1,3 +1,6 @@
+const { buildAction1EndpointUrl, buildAction1UpdatesConsoleUrl, getOrigin } = require('./action1ConsoleUrls');
+const { formatRemediationStatusLabel } = require('./statusLabelFormatter');
+
 function buildGroupedTicketContentFromCandidate(input = {}) {
   const candidate = input?.candidate && typeof input.candidate === 'object' ? input.candidate : {};
   const signalType = asTrimmedString(candidate?.signal?.type).toUpperCase();
@@ -62,7 +65,7 @@ function appendSignalDetails(lines, signalType, issueMetadata) {
   if (signalType === 'VULNERABILITY') {
     pushField(lines, 'CVE', issueMetadata.cveId || issueMetadata.id);
     pushField(lines, 'CVSS', issueMetadata.cvssScore);
-    pushField(lines, 'Remediation status', issueMetadata.remediationStatus);
+    pushField(lines, 'Remediation status', formatRemediationStatusLabel(issueMetadata.remediationStatus));
     pushField(lines, 'Deadline', issueMetadata.remediationDeadline || issueMetadata.deadline);
     return;
   }
@@ -71,7 +74,7 @@ function appendSignalDetails(lines, signalType, issueMetadata) {
     pushField(lines, 'Vendor', issueMetadata.vendor);
     pushField(lines, 'Version', issueMetadata.version || issueMetadata.versionName);
     pushField(lines, 'Security severity', issueMetadata.severityLabel || issueMetadata.severity);
-    pushField(lines, 'SLA status', issueMetadata.slaStatus || issueMetadata.remediationStatus);
+    pushField(lines, 'SLA status', formatRemediationStatusLabel(issueMetadata.slaStatus || issueMetadata.remediationStatus));
     pushField(lines, 'SLA deadline', issueMetadata.slaDeadline || issueMetadata.remediationDeadline);
     return;
   }
@@ -95,42 +98,26 @@ function appendEndpointTable(lines, signalType, visible) {
 
 function buildGroupedProblemUrl(input) {
   const signalType = asTrimmedString(input?.signalType).toUpperCase();
-  const origin = getOrigin(input?.action1BaseUrl);
-  const org = asTrimmedString(input?.action1OrgId);
   const issue = input?.issueMetadata && typeof input.issueMetadata === 'object' ? input.issueMetadata : {};
+  const org = asTrimmedString(input?.action1OrgId);
+  const origin = getOrigin(input?.action1BaseUrl);
   if (!origin || !org) return '';
   if (signalType === 'VULNERABILITY') {
     const cveId = asTrimmedString(issue.cveId || issue.id);
     return cveId ? `${origin}/console/vulnerabilities/${encodeURIComponent(cveId)}/affected_endpoints?org=${encodeURIComponent(org)}` : '';
   }
   if (signalType === 'UPDATE') {
-    const packageId = asTrimmedString(issue.packageId);
-    const versionSegment = asTrimmedString(issue.version || issue.versionName || issue.versionId);
-    return packageId && versionSegment ? `${origin}/console/updates/${encodeURIComponent(packageId)}~${encodeURIComponent(versionSegment)}/endpoints?limit=50&from=0&only_latest=no&org=${encodeURIComponent(org)}` : '';
+    return buildAction1UpdatesConsoleUrl(
+      input?.action1BaseUrl,
+      org,
+      issue.packageName || issue.displayName || issue.id
+    );
   }
   if (signalType === 'AUTOMATION_FAILED') {
     const automationInstanceId = asTrimmedString(issue.automationInstanceId || issue.instanceId);
     return automationInstanceId ? `${origin}/console/automations/history/${encodeURIComponent(automationInstanceId)}/details?limit=50&from=0&org=${encodeURIComponent(org)}` : '';
   }
   return '';
-}
-
-function buildAction1EndpointUrl(apiBaseUrl, orgId, endpointId, endpointName) {
-  const origin = getOrigin(apiBaseUrl);
-  const org = asTrimmedString(orgId);
-  const endpoint = asTrimmedString(endpointId);
-  const filterValue = asTrimmedString(endpointName) || endpoint;
-  if (!origin || !org || !filterValue) return '';
-  return `${origin}/console/endpoints?limit=20&from=0&org=${encodeURIComponent(org)}&filter=${encodeURIComponent(filterValue)}`;
-}
-
-function getOrigin(baseUrl) {
-  try {
-    const u = new URL(String(baseUrl || ''));
-    return `${u.protocol}//${u.host}`;
-  } catch {
-    return '';
-  }
 }
 
 function deriveProblemName(signalType, candidate, issueMetadata) {
@@ -229,14 +216,14 @@ function appendSignalDetailsHtml(out, signalType, issueMetadata) {
   if (signalType === 'VULNERABILITY') {
     pairs.push(['CVE', issueMetadata.cveId || issueMetadata.id]);
     pairs.push(['CVSS', issueMetadata.cvssScore]);
-    pairs.push(['Remediation status', issueMetadata.remediationStatus]);
+    pairs.push(['Remediation status', formatRemediationStatusLabel(issueMetadata.remediationStatus)]);
     pairs.push(['Deadline', issueMetadata.remediationDeadline || issueMetadata.deadline]);
   } else if (signalType === 'UPDATE') {
     pairs.push(['Update', issueMetadata.packageName || issueMetadata.displayName || issueMetadata.id]);
     pairs.push(['Vendor', issueMetadata.vendor]);
     pairs.push(['Version', issueMetadata.version || issueMetadata.versionName]);
     pairs.push(['Security severity', issueMetadata.severityLabel || issueMetadata.severity]);
-    pairs.push(['SLA status', issueMetadata.slaStatus || issueMetadata.remediationStatus]);
+    pairs.push(['SLA status', formatRemediationStatusLabel(issueMetadata.slaStatus || issueMetadata.remediationStatus)]);
     pairs.push(['SLA deadline', issueMetadata.slaDeadline || issueMetadata.remediationDeadline]);
   } else if (signalType === 'AUTOMATION_FAILED') {
     pairs.push(['Automation', issueMetadata.automationName || issueMetadata.instanceName]);

@@ -1,3 +1,6 @@
+const { buildAction1EndpointUrl, buildAction1UpdatesConsoleUrl } = require('./action1ConsoleUrls');
+const { formatRemediationStatusLabel } = require('./statusLabelFormatter');
+
 const SIGNAL_TITLES = Object.freeze({
   OFFLINE: 'Endpoint offline',
   REBOOT_REQUIRED: 'Reboot required',
@@ -13,16 +16,21 @@ function buildTicketContentFromCandidate(input = {}) {
   const signalType = asTrimmedString(candidate?.signal?.type).toUpperCase() || 'UNKNOWN';
   const endpointName = asTrimmedString(candidate?.endpoint?.name) || asTrimmedString(candidate?.endpoint?.id) || 'Unknown Endpoint';
   const signalTitle = SIGNAL_TITLES[signalType] || signalType;
-  const action1Url = buildAction1EndpointUrl(input.action1BaseUrl, candidate?.routing?.action1OrgId, candidate?.endpoint?.id, candidate?.endpoint?.name);
   const detailsLines = [];
   const matches = Array.isArray(candidate?.signal?.matchedItemsPreview) ? candidate.signal.matchedItemsPreview : [];
   const matchedCount = Number(candidate?.signal?.matchedCount || 0);
+  const primaryUpdateName = signalType === 'UPDATE' ? derivePrimaryUpdateName(matches) : '';
+  const action1Url = signalType === 'UPDATE'
+    ? buildAction1UpdatesConsoleUrl(input.action1BaseUrl, candidate?.routing?.action1OrgId, primaryUpdateName) ||
+      buildAction1EndpointUrl(input.action1BaseUrl, candidate?.routing?.action1OrgId, candidate?.endpoint?.id, candidate?.endpoint?.name)
+    : buildAction1EndpointUrl(input.action1BaseUrl, candidate?.routing?.action1OrgId, candidate?.endpoint?.id, candidate?.endpoint?.name);
+  const action1Label = signalType === 'UPDATE' ? 'Action1 update:' : 'Action1 endpoint:';
 
   detailsLines.push(`Endpoint: ${endpointName}`);
   if (candidate?.endpoint?.os || candidate?.endpoint?.platform) detailsLines.push(`Platform details: OS ${orDash(candidate?.endpoint?.os)} | Platform ${orDash(candidate?.endpoint?.platform)}`);
   detailsLines.push(`Last seen: ${formatDateTimeMinute(candidate?.endpoint?.lastSeenAt) || '-'}`);
   if (action1Url) {
-    detailsLines.push('Action1 endpoint:');
+    detailsLines.push(action1Label);
     detailsLines.push(action1Url);
     detailsLines.push('');
   }
@@ -75,9 +83,9 @@ function appendSignalSpecificSections(lines, signalType, candidate, matches, mat
 
   const visible = sortTopItems(signalType, matches).slice(0, TOP_ITEM_LIMIT);
   if (signalType === 'VULNERABILITY') {
-    for (const row of visible) lines.push(`- ${orDash(row?.id || row?.cveId)} | CVSS ${orDash(row?.cvssScore)} | status ${orDash(toRemediationLabel(row?.remediationStatus))} | published ${formatDateOnly(row?.publishedDate)} | deadline ${formatDateOnly(row?.remediationDeadline)}`);
+    for (const row of visible) lines.push(`- ${orDash(row?.id || row?.cveId)} | CVSS ${orDash(row?.cvssScore)} | status ${orDash(formatRemediationStatusLabel(row?.remediationStatus))} | published ${formatDateOnly(row?.publishedDate)} | deadline ${formatDateOnly(row?.remediationDeadline)}`);
   } else if (signalType === 'UPDATE') {
-    for (const row of visible) lines.push(`- ${orDash(toFriendlyPackageName(row?.packageName || row?.displayName || row?.id))} | version ${orDash(row?.version || deriveVersionFromIdentifier(row?.id))} | severity ${orDash(row?.severityLabel || row?.severity)} | SLA ${orDash(row?.remediationStatusLabel || toRemediationLabel(row?.remediationStatus))} | deadline ${formatDateOnly(row?.remediationDeadline)}${formatCvePreview(row?.securityCve)}`);
+    for (const row of visible) lines.push(`- ${orDash(toFriendlyPackageName(row?.packageName || row?.displayName || row?.id))} | version ${orDash(row?.version || deriveVersionFromIdentifier(row?.id))} | severity ${orDash(row?.severityLabel || row?.severity)} | SLA ${orDash(row?.remediationStatusLabel || formatRemediationStatusLabel(row?.remediationStatus))} | deadline ${formatDateOnly(row?.remediationDeadline)}${formatCvePreview(row?.securityCve)}`);
   } else if (signalType === 'AUTOMATION_FAILED') {
     for (const row of visible) lines.push(`- ${orDash(row?.instanceName || row?.description || 'Automation')} | ${formatDateTimeMinute(row?.failureTime)} | status ${orDash(row?.status)} | action ${orDash(row?.actionName)} | completion ${orDash(row?.percentCompleted)}% | ${orDash(row?.description)}`);
   }
@@ -91,24 +99,6 @@ function buildWhySection(signalType) {
   if (signalType === 'UPDATE') return 'This endpoint has missing updates that match the configured severity and remediation filters.';
   if (signalType === 'AUTOMATION_FAILED') return 'Action1 detected one or more recent automation failures for this endpoint within the lookback window.';
   return 'This endpoint matched the configured Action1 signal conditions.';
-}
-
-function buildAction1EndpointUrl(apiBaseUrl, orgId, endpointId, endpointName) {
-  const origin = getOrigin(apiBaseUrl);
-  const org = asTrimmedString(orgId);
-  const endpoint = asTrimmedString(endpointId);
-  const filterValue = asTrimmedString(endpointName) || endpoint;
-  if (!origin || !org || !filterValue) return '';
-  return `${origin}/console/endpoints?limit=20&from=0&org=${encodeURIComponent(org)}&filter=${encodeURIComponent(filterValue)}`;
-}
-
-function getOrigin(baseUrl) {
-  try {
-    const u = new URL(String(baseUrl || ''));
-    return `${u.protocol}//${u.host}`;
-  } catch {
-    return '';
-  }
 }
 
 function summarizeBy(rows, keyFn) {
@@ -248,11 +238,10 @@ function deriveVersionFromIdentifier(id) {
   return m ? m[1] : '';
 }
 
-function toRemediationLabel(value) {
-  const v = String(value || '').toUpperCase();
-  if (v === 'OVERDUE') return 'Overdue';
-  if (v === 'DUE_SOON') return 'Due soon';
-  return asTrimmedString(value);
+function derivePrimaryUpdateName(matches) {
+  const primary = sortTopItems('UPDATE', matches)[0];
+  if (!primary) return '';
+  return toFriendlyPackageName(primary?.packageName || primary?.displayName || primary?.id);
 }
 
 function asTrimmedString(value) {
@@ -279,7 +268,7 @@ function buildDetailsHtml(lines) {
       continue;
     }
     if (line.startsWith('http://') || line.startsWith('https://')) {
-      out.push(`<a href="${escapeHtml(line)}">Open endpoint in Action1</a><br>`);
+      out.push(`<a href="${escapeHtml(line)}">Open in Action1</a><br>`);
       continue;
     }
     const labelMatch = line.match(/^([^:]+:)\s*(.*)$/);
