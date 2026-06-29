@@ -1,0 +1,219 @@
+[
+  {
+    "key": "JiraCloudSiteUrl",
+    "label": "Jira Site URL",
+    "type": "url",
+    "group": "Jira Cloud Configuration",
+    "required": true,
+    "helpText": "Base Jira Cloud site URL used for direct Jira REST API v3 validation and issue operations."
+  },
+  {
+    "key": "JiraCloudUserEmail",
+    "label": "Atlassian Account Email",
+    "type": "text",
+    "group": "Jira Cloud Configuration",
+    "required": true,
+    "helpText": "Atlassian account email used with the Jira Cloud API token for HTTP Basic authentication."
+  },
+  {
+    "key": "JiraCloudApiToken",
+    "label": "Atlassian API Token",
+    "type": "secret",
+    "group": "Jira Cloud Configuration",
+    "required": true,
+    "helpText": "Atlassian API token. The stored value remains masked after save."
+  },
+  {
+    "key": "JiraCloudExistingOpenIssueBehavior",
+    "label": "Existing Open Issue Behavior",
+    "type": "select",
+    "group": "Operational Safeguards",
+    "defaultValue": "update_existing_open",
+    "options": [
+      {
+        "value": "update_existing_open",
+        "label": "Update existing open issue"
+      },
+      {
+        "value": "skip_existing_open",
+        "label": "Skip existing open issue"
+      }
+    ]
+  },
+  {
+    "key": "JiraCloudCloseWhenSignalClears",
+    "label": "Close When Signal Clears",
+    "type": "checkbox",
+    "group": "Operational Safeguards",
+    "defaultValue": "false",
+    "visible": false
+  },
+  {
+    "key": "JiraCloudCreateNewWhenLinkedCompleted",
+    "label": "Create New When Linked Issue Is Completed",
+    "type": "checkbox",
+    "group": "Operational Safeguards",
+    "defaultValue": "true",
+    "visible": false
+  },
+  {
+    "key": "JiraCloudOfflineEnabled",
+    "label": "Create issue after endpoint is offline for at least (days)",
+    "type": "checkbox",
+    "group": "Action1 Signals",
+    "defaultValue": "true"
+  },
+  {
+    "key": "JiraCloudOfflineThresholdDays",
+    "label": "Offline Threshold Days",
+    "type": "number",
+    "group": "Action1 Signals",
+    "defaultValue": "7",
+    "min": 1
+  },
+  {
+    "key": "JiraCloudRebootRequiredEnabled",
+    "label": "Create issue for reboot required endpoints",
+    "type": "checkbox",
+    "group": "Action1 Signals",
+    "defaultValue": "true"
+  },
+  {
+    "key": "JiraCloudAutomationFailedEnabled",
+    "label": "Create issue for automation failures",
+    "type": "checkbox",
+    "group": "Action1 Signals",
+    "defaultValue": "true"
+  },
+  {
+    "key": "JiraCloudAutomationFailedLookbackHours",
+    "label": "Automation Failed Lookback Hours",
+    "type": "number",
+    "group": "Action1 Signals",
+    "defaultValue": "24",
+    "min": 1,
+    "visible": false
+  },
+  {
+    "key": "JiraCloudVulnerabilityEnabled",
+    "label": "Vulnerability Signal Enabled",
+    "type": "checkbox",
+    "group": "Action1 Signals",
+    "defaultValue": "true",
+    "visible": false
+  },
+  {
+    "key": "JiraCloudVulnerabilitySeverities",
+    "label": "Vulnerability Severity",
+    "type": "text",
+    "group": "Action1 Signals",
+    "defaultValue": "CRITICAL,HIGH"
+  },
+  {
+    "key": "JiraCloudVulnerabilityRemediationStatuses",
+    "label": "Vulnerability Remediation Status",
+    "type": "text",
+    "group": "Action1 Signals",
+    "defaultValue": "OVERDUE,DUE_SOON"
+  },
+  {
+    "key": "JiraCloudUpdateEnabled",
+    "label": "Update Signal Enabled",
+    "type": "checkbox",
+    "group": "Action1 Signals",
+    "defaultValue": "true",
+    "visible": false
+  },
+  {
+    "key": "JiraCloudUpdateSeverities",
+    "label": "Missing Updates Severity",
+    "type": "text",
+    "group": "Action1 Signals",
+    "defaultValue": "CRITICAL,IMPORTANT"
+  },
+  {
+    "key": "JiraCloudUpdateRemediationStatuses",
+    "label": "Missing Updates Remediation Status",
+    "type": "text",
+    "group": "Action1 Signals",
+    "defaultValue": "OVERDUE,DUE_SOON"
+  },
+  {
+    "key": "JiraCloudVulnerabilityTicketModel",
+    "label": "Vulnerability Ticket Model",
+    "type": "select",
+    "group": "Ticket Model",
+    "defaultValue": "grouped",
+    "options": [
+      {
+        "value": "grouped",
+        "label": "Grouped"
+      },
+      {
+        "value": "endpoint",
+        "label": "Endpoint"
+      }
+    ]
+  },
+  {
+    "key": "JiraCloudUpdateTicketModel",
+    "label": "Update Ticket Model",
+    "type": "select",
+    "group": "Ticket Model",
+    "defaultValue": "grouped",
+    "options": [
+      {
+        "value": "grouped",
+        "label": "Grouped"
+      },
+      {
+        "value": "endpoint",
+        "label": "Endpoint"
+      }
+    ]
+  },
+  {
+    "key": "JiraCloudAutomationFailedTicketModel",
+    "label": "Automation Failed Ticket Model",
+    "type": "select",
+    "group": "Ticket Model",
+    "defaultValue": "grouped",
+    "options": [
+      {
+        "value": "grouped",
+        "label": "Grouped"
+      },
+      {
+        "value": "endpoint",
+        "label": "Endpoint"
+      }
+    ]
+  },
+  {
+    "key": "JiraCloudMaxImpactedEndpointsInGroupedTicket",
+    "label": "Max endpoints shown in each grouped issue",
+    "type": "number",
+    "group": "Ticket Model",
+    "defaultValue": "25",
+    "min": 1,
+    "max": 100,
+    "helpText": "When more endpoints are affected, the Jira issue shows this many endpoints and links back to Action1 for the full list."
+  },
+  {
+    "key": "JiraCloudMaxOpenTicketsPerOrganization",
+    "label": "Max Open Issues Per Organization",
+    "type": "number",
+    "group": "Operational Safeguards",
+    "defaultValue": "30",
+    "min": 1,
+    "helpText": "Limits how many connector-managed open Jira issues can exist per mapped organization at the same time. Additional qualifying candidates are skipped until existing linked issues are completed or resolved."
+  },
+  {
+    "key": "JiraCloudDiagnosticLoggingEnabled",
+    "label": "Enable detailed diagnostic runtime logs",
+    "type": "checkbox",
+    "group": "Diagnostics",
+    "defaultValue": "false",
+    "helpText": "Keeps normal Marketplace run progress logging enabled and adds detailed sanitized support logs for troubleshooting Jira sync issues."
+  }
+]

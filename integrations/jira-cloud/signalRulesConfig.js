@@ -1,0 +1,158 @@
+const { EXISTING_OPEN_ISSUE_BEHAVIOR } = require('./lifecycle');
+const { REMEDIATION_STATUSES, UPDATE_SEVERITIES, VULNERABILITY_SEVERITIES } = require('./signals');
+
+const VULNERABILITY_SEVERITY_ALIASES = Object.freeze({
+  CRITICAL: 'CRITICAL',
+  HIGH: 'HIGH',
+  MEDIUM: 'MEDIUM',
+  MODERATE: 'MEDIUM',
+  LOW: 'LOW'
+});
+
+const UPDATE_SEVERITY_ALIASES = Object.freeze({
+  CRITICAL: 'CRITICAL',
+  IMPORTANT: 'IMPORTANT',
+  HIGH: 'IMPORTANT',
+  MODERATE: 'MODERATE',
+  MEDIUM: 'MODERATE',
+  LOW: 'LOW',
+  UNSPECIFIED: 'UNSPECIFIED',
+  OTHER: 'UNSPECIFIED'
+});
+
+const REMEDIATION_STATUS_ALIASES = Object.freeze({
+  OVERDUE: 'OVERDUE',
+  DUE_SOON: 'DUE_SOON',
+  'DUE SOON': 'DUE_SOON'
+});
+
+function normalizeSignalRulesConfig(config) {
+  const src = config && typeof config === 'object' ? config : {};
+  const lifecycle = src.lifecycle && typeof src.lifecycle === 'object' ? src.lifecycle : {};
+  const signalFilters = src.signalFilters && typeof src.signalFilters === 'object' ? src.signalFilters : {};
+  const vuln = signalFilters.vulnerability && typeof signalFilters.vulnerability === 'object' ? signalFilters.vulnerability : {};
+  const update = signalFilters.update && typeof signalFilters.update === 'object' ? signalFilters.update : {};
+  const operationalSafeguards = src.operationalSafeguards && typeof src.operationalSafeguards === 'object' ? src.operationalSafeguards : {};
+
+  const vulnerabilitySeverities = normalizeStringSet(vuln.severities, VULNERABILITY_SEVERITY_ALIASES, VULNERABILITY_SEVERITIES);
+  const vulnerabilityRemediationStatuses = normalizeStringSet(vuln.remediationStatuses, REMEDIATION_STATUS_ALIASES, REMEDIATION_STATUSES);
+  const updateSeverities = normalizeStringSet(update.severities, UPDATE_SEVERITY_ALIASES, UPDATE_SEVERITIES);
+  const updateRemediationStatuses = normalizeStringSet(update.remediationStatuses, REMEDIATION_STATUS_ALIASES, REMEDIATION_STATUSES);
+  const existingOpenIssueBehavior =
+    String(lifecycle.existingOpenIssueBehavior || '').trim() === EXISTING_OPEN_ISSUE_BEHAVIOR.SKIP_EXISTING_OPEN
+      ? EXISTING_OPEN_ISSUE_BEHAVIOR.SKIP_EXISTING_OPEN
+      : EXISTING_OPEN_ISSUE_BEHAVIOR.UPDATE_EXISTING_OPEN;
+
+  return {
+    schemaVersion: Number(src.schemaVersion || 1),
+    connections: src.connections && typeof src.connections === 'object' ? src.connections : {},
+    lifecycle: {
+      existingOpenIssueBehavior,
+      closeWhenSignalClears: lifecycle.closeWhenSignalClears === undefined ? false : Boolean(lifecycle.closeWhenSignalClears),
+      createNewWhenLinkedClosed: lifecycle.createNewWhenLinkedClosed === undefined ? true : Boolean(lifecycle.createNewWhenLinkedClosed),
+      reopenClosedTickets: false
+    },
+    signalFilters: {
+      offline: {
+        enabled: signalFilters.offline?.enabled === undefined ? true : Boolean(signalFilters.offline.enabled),
+        thresholdDays: toPositiveInt(signalFilters.offline?.thresholdDays, 7)
+      },
+      rebootRequired: {
+        enabled: signalFilters.rebootRequired?.enabled === undefined ? true : Boolean(signalFilters.rebootRequired.enabled)
+      },
+      automationFailed: {
+        enabled: signalFilters.automationFailed?.enabled === undefined ? true : Boolean(signalFilters.automationFailed.enabled),
+        lookbackHours: toPositiveInt(signalFilters.automationFailed?.lookbackHours, 24)
+      },
+      vulnerability: {
+        enabled: vulnerabilitySeverities.length > 0,
+        severities: vulnerabilitySeverities,
+        remediationStatuses: vulnerabilityRemediationStatuses
+      },
+      update: {
+        enabled: updateSeverities.length > 0,
+        severities: updateSeverities,
+        remediationStatuses: updateRemediationStatuses
+      }
+    },
+    vulnerabilities: {
+      ticketModel: normalizeTicketModel(src.vulnerabilities?.ticketModel)
+    },
+    updates: {
+      ticketModel: normalizeTicketModel(src.updates?.ticketModel)
+    },
+    automationFailed: {
+      ticketModel: normalizeTicketModel(src.automationFailed?.ticketModel)
+    },
+    maxImpactedEndpointsInGroupedTicket: toPositiveInt(src.maxImpactedEndpointsInGroupedTicket, 25),
+    operationalSafeguards: {
+      enableDebugLogging: Boolean(operationalSafeguards.enableDebugLogging),
+      maxOpenTicketsPerOrganization: toPositiveInt(operationalSafeguards.maxOpenTicketsPerOrganization, 30)
+    },
+    orgProjectMappings: normalizeOrgProjectMappings(src.orgProjectMappings)
+  };
+}
+
+function validateSignalRulesConfigForCandidates(normalizedConfig) {
+  const cfg = normalizedConfig && typeof normalizedConfig === 'object' ? normalizedConfig : normalizeSignalRulesConfig({});
+  const errors = [];
+  const behavior = String(cfg.lifecycle?.existingOpenIssueBehavior || '');
+  if (
+    behavior !== EXISTING_OPEN_ISSUE_BEHAVIOR.UPDATE_EXISTING_OPEN &&
+    behavior !== EXISTING_OPEN_ISSUE_BEHAVIOR.SKIP_EXISTING_OPEN
+  ) {
+    errors.push({ code: 'missing_existing_open_behavior', message: 'Existing Open Issue Behavior is required for lifecycle context' });
+  }
+  return errors;
+}
+
+function normalizeOrgProjectMappings(rows) {
+  if (!Array.isArray(rows)) return [];
+  return rows.map((row) => ({
+    mappingId: asTrimmedString(row?.mappingId),
+    action1OrgId: asTrimmedString(row?.action1OrgId),
+    action1OrgName: asTrimmedString(row?.action1OrgName),
+    jiraProjectId: asTrimmedString(row?.jiraProjectId),
+    jiraProjectKey: asTrimmedString(row?.jiraProjectKey),
+    jiraProjectName: asTrimmedString(row?.jiraProjectName),
+    jiraIssueTypeId: asTrimmedString(row?.jiraIssueTypeId),
+    jiraIssueTypeName: asTrimmedString(row?.jiraIssueTypeName)
+  }));
+}
+
+function normalizeStringSet(value, aliasMap, allowed) {
+  if (!Array.isArray(value)) return [];
+  const allowedSet = new Set(allowed);
+  const seen = new Set();
+  const out = [];
+  for (const item of value) {
+    const raw = String(item || '').trim().toUpperCase();
+    if (!raw) continue;
+    const normalized = aliasMap[raw] || raw;
+    if (!allowedSet.has(normalized) || seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out;
+}
+
+function normalizeTicketModel(value) {
+  return String(value || '').trim().toLowerCase() === 'endpoint' ? 'endpoint' : 'grouped';
+}
+
+function asTrimmedString(value) {
+  return String(value || '').trim();
+}
+
+function toPositiveInt(value, fallback) {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+}
+
+module.exports = {
+  REMEDIATION_STATUS_ALIASES,
+  UPDATE_SEVERITY_ALIASES,
+  VULNERABILITY_SEVERITY_ALIASES,
+  normalizeSignalRulesConfig,
+  validateSignalRulesConfigForCandidates
+};

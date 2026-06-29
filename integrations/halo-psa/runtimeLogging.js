@@ -26,6 +26,7 @@ const LOG_EVENT_TYPES = Object.freeze({
 const DEFAULT_MAX_FILE_BYTES = 5 * 1024 * 1024;
 const DEFAULT_MAX_BACKUPS = 4;
 const DEFAULT_FILE_NAME = 'halo-psa-runtime.log';
+const DEFAULT_PACKAGE_LOG_DIR = path.resolve(__dirname, '.runtime-logs');
 const LEVEL_PRIORITY = Object.freeze({
   [LOG_LEVELS.DEBUG]: 10,
   [LOG_LEVELS.INFO]: 20,
@@ -141,7 +142,19 @@ function resolveDiagnosticLogDir(options = {}) {
   if (String(env.DATA_DIR || '').trim()) {
     return path.resolve(String(env.DATA_DIR).trim(), 'halo-psa-logs');
   }
-  return path.resolve(process.cwd(), 'integrations', 'halo-psa', '.runtime-logs');
+  return path.resolve(String(options.packageDir || DEFAULT_PACKAGE_LOG_DIR));
+}
+
+function resolveDiagnosticLogFilePath(options = {}) {
+  const fileName = String(options.fileName || DEFAULT_FILE_NAME);
+  return path.join(
+    resolveDiagnosticLogDir({
+      env: options.env,
+      logDir: options.logDir,
+      packageDir: options.packageDir
+    }),
+    fileName
+  );
 }
 
 function resolveInitialState(options = {}) {
@@ -174,7 +187,8 @@ function resolveInitialState(options = {}) {
       ? Math.max(1, Math.floor(Number(options.maxBackups)))
       : DEFAULT_MAX_BACKUPS,
     fileName: String(options.fileName || DEFAULT_FILE_NAME),
-    fileFailureReported: false
+    fileFailureReported: false,
+    diagnosticFileEnabledReported: false
   };
 }
 
@@ -319,7 +333,7 @@ async function emitRunLine(state, line) {
 
 function formatConsoleLine(line) {
   const suffix = line.context && Object.keys(line.context).length > 0 ? ` ${JSON.stringify(line.context)}` : '';
-  return `[halo-psa][${line.level}] ${line.message}${suffix}`;
+  return `${line.timestamp} [halo-psa][${line.level}] ${line.message}${suffix}`;
 }
 
 async function emitConsoleLine(state, line) {
@@ -361,37 +375,71 @@ async function emitDiagnosticFileLine(state, line) {
   }
 
   try {
-    const filePath = path.join(state.logDir, state.fileName);
-    const text = `${line.timestamp} [${line.level}] ${line.message} ${JSON.stringify({
-      runId: line.runId,
-      integrationId: line.integrationId,
-      eventType: line.eventType,
-      context: line.context
-    })}\n`;
-    await rotateFileIfNeeded(state.fileSystem, filePath, Buffer.byteLength(text, 'utf8'), state.maxFileBytes, state.maxBackups);
-    await state.fileSystem.mkdir(path.dirname(filePath), { recursive: true });
-    await state.fileSystem.appendFile(filePath, text, 'utf8');
+    await reportDiagnosticFileEnabled(state, line);
+    await appendDiagnosticFileLine(state, line);
   } catch (error) {
-    if (state.fileFailureReported) {
-      return;
-    }
-    state.fileFailureReported = true;
-    await emitConsoleLine(state, buildLine({
-      state,
-      bindings: {},
-      level: LOG_LEVELS.WARN,
-      event: {
-        runId: line.runId,
-        eventType: LOG_EVENT_TYPES.PARTIAL_FAILURE,
-        level: LOG_LEVELS.WARN,
-        message: 'Diagnostic file logging is unavailable.',
-        context: {
-          reason: sanitizeText(error?.message || 'file_logging_failed'),
-          logDir: state.logDir
-        }
-      }
-    }));
+    await emitDiagnosticFileFailure(state, line, error);
   }
+}
+
+async function reportDiagnosticFileEnabled(state, line) {
+  if (state.diagnosticFileEnabledReported) {
+    return;
+  }
+
+  state.diagnosticFileEnabledReported = true;
+  const enabledLine = buildLine({
+    state,
+    bindings: {},
+    level: LOG_LEVELS.INFO,
+    event: {
+      runId: line.runId,
+      eventType: LOG_EVENT_TYPES.PHASE,
+      level: LOG_LEVELS.INFO,
+      timestamp: line.timestamp,
+      message: 'HaloPSA diagnostic file logging enabled',
+      context: {
+        filePath: getDiagnosticFilePath(state)
+      }
+    }
+  });
+
+  await emitConsoleLine(state, enabledLine);
+  await appendDiagnosticFileLine(state, enabledLine);
+}
+
+async function appendDiagnosticFileLine(state, line) {
+  const filePath = getDiagnosticFilePath(state);
+  const text = `${formatConsoleLine(line)}\n`;
+  await state.fileSystem.mkdir(path.dirname(filePath), { recursive: true });
+  await rotateFileIfNeeded(state.fileSystem, filePath, Buffer.byteLength(text, 'utf8'), state.maxFileBytes, state.maxBackups);
+  await state.fileSystem.appendFile(filePath, text, 'utf8');
+}
+
+async function emitDiagnosticFileFailure(state, line, error) {
+  if (state.fileFailureReported) {
+    return;
+  }
+  state.fileFailureReported = true;
+  await emitConsoleLine(state, buildLine({
+    state,
+    bindings: {},
+    level: LOG_LEVELS.WARN,
+    event: {
+      runId: line.runId,
+      eventType: LOG_EVENT_TYPES.PARTIAL_FAILURE,
+      level: LOG_LEVELS.WARN,
+      message: 'HaloPSA diagnostic file logging unavailable',
+      context: {
+        filePath: getDiagnosticFilePath(state),
+        reason: sanitizeText(error?.message || 'file_logging_failed')
+      }
+    }
+  }));
+}
+
+function getDiagnosticFilePath(state) {
+  return path.join(state.logDir, state.fileName);
 }
 
 async function rotateFileIfNeeded(fileSystem, filePath, incomingBytes, maxFileBytes, maxBackups) {
@@ -426,6 +474,7 @@ module.exports = {
   createMarketplaceRunLogger,
   emitLog,
   resolveDiagnosticLogDir,
+  resolveDiagnosticLogFilePath,
   sanitizeText,
   sanitizeValue
 };

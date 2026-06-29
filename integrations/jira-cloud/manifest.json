@@ -1,0 +1,93 @@
+{
+  "id": "jira-cloud",
+  "name": "Jira Cloud",
+  "vendor": "Action1",
+  "version": "1.0.0",
+  "marketplaceApiVersion": "1.0",
+  "minimumMarketplaceVersion": "1.0.0",
+  "description": "Track Action1 security and operational findings in Jira automatically.",
+  "category": "ITSM",
+  "icon_color": "#2E8CEB",
+  "entry": "index.js",
+  "actions": [
+    {
+      "id": "validate-configuration",
+      "kind": "validate",
+      "label": "Validate Configuration",
+      "buttonLabel": "Validate",
+      "runningLabel": "Validating...",
+      "description": "Validates Jira Cloud connectivity and required configuration.",
+      "placement": "settings",
+      "history": false
+    },
+    {
+      "id": "list-jira-org-project-mappings",
+      "kind": "action",
+      "label": "List Jira Org Project Mappings",
+      "buttonLabel": "Refresh Mappings",
+      "runningLabel": "Refreshing...",
+      "description": "Loads Action1 organization to Jira project and issue type mappings from Jira-owned storage.",
+      "placement": "mapping",
+      "history": false
+    },
+    {
+      "id": "save-jira-org-project-mapping",
+      "kind": "action",
+      "label": "Save Jira Org Project Mapping",
+      "buttonLabel": "Save Mapping",
+      "runningLabel": "Saving...",
+      "description": "Creates or updates a Jira org-to-project-and-issue-type mapping row.",
+      "placement": "mapping",
+      "history": false
+    },
+    {
+      "id": "delete-jira-org-project-mapping",
+      "kind": "action",
+      "label": "Delete Jira Org Project Mapping",
+      "buttonLabel": "Delete Mapping",
+      "runningLabel": "Deleting...",
+      "description": "Deletes a Jira org-to-project-and-issue-type mapping row.",
+      "placement": "mapping",
+      "history": false
+    },
+    {
+      "id": "discover-action1-mapping-options",
+      "kind": "action",
+      "label": "Discover Action1 Mapping Options",
+      "buttonLabel": "Refresh Action1 Organizations",
+      "runningLabel": "Refreshing...",
+      "description": "Loads read-only Action1 organization options for the Mapping screen.",
+      "placement": "mapping",
+      "history": false
+    },
+    {
+      "id": "discover-jira-project-mapping-options",
+      "kind": "action",
+      "label": "Discover Jira Project Mapping Options",
+      "buttonLabel": "Refresh Jira Projects",
+      "runningLabel": "Refreshing...",
+      "description": "Loads read-only Jira project options for the Mapping screen.",
+      "placement": "mapping",
+      "history": false
+    },
+    {
+      "id": "discover-jira-issue-type-mapping-options",
+      "kind": "action",
+      "label": "Discover Jira Issue Type Mapping Options",
+      "buttonLabel": "Refresh Jira Issue Types",
+      "runningLabel": "Refreshing...",
+      "description": "Loads read-only Jira issue type options for a selected Jira project.",
+      "placement": "mapping",
+      "history": false
+    },
+    {
+      "id": "sync",
+      "kind": "sync",
+      "label": "Sync",
+      "buttonLabel": "Run Sync",
+      "runningLabel": "Syncing...",
+      "description": "Runs Jira candidate preparation plus Jira MVP create/get/update/no-op lifecycle orchestration.",
+      "placement": "dashboard"
+    }
+  ]
+}

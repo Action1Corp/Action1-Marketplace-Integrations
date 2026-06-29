@@ -1,4 +1,8 @@
 const assert = require('assert');
+const fs = require('fs');
+const fsp = require('fs/promises');
+const os = require('os');
+const path = require('path');
 
 const originalFetch = global.fetch;
 const {
@@ -724,6 +728,108 @@ async function runTrackedSyncHappyPathTest() {
     assert.strictEqual(context.state.endpoint.length + context.state.grouped.length >= 1, true, 'successful writes should persist correlations in DB-backed stores');
     assert.strictEqual(context.state.watermarks.length >= 1, true, 'successful automation collection should persist watermarks in DB-backed storage');
   });
+}
+
+async function runDiagnosticFileWriteFailureDoesNotFailSyncTest() {
+  const fetchCalls = [];
+  const warningLogs = [];
+  const context = createSyncContext({
+    mappings: [
+      {
+        id: 1,
+        action1OrgId: 'org-1',
+        action1OrgName: 'Org One',
+        haloClientId: 'client-1',
+        haloClientName: 'Client One'
+      }
+    ],
+    settings: {
+      HaloPsaOfflineEnabled: 'true',
+      HaloPsaOfflineThresholdDays: '7',
+      HaloPsaRebootRequiredEnabled: 'false',
+      HaloPsaAutomationFailedEnabled: 'false',
+      HaloPsaVulnerabilityEnabled: 'false',
+      HaloPsaVulnerabilitySeverities: '',
+      HaloPsaUpdateEnabled: 'false',
+      HaloPsaUpdateSeverities: '',
+      HaloPsaDiagnosticLoggingEnabled: 'true'
+    }
+  });
+  context.logger = {
+    info() {},
+    debug() {},
+    error() {},
+    warn(message) {
+      warningLogs.push(String(message));
+    }
+  };
+
+  const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'halo-psa-sync-log-failure-'));
+  const blockingPath = path.join(tempDir, 'blocked-path.txt');
+  fs.writeFileSync(blockingPath, 'not a directory');
+  const originalLogDir = process.env.HALO_PSA_LOG_DIR;
+  const originalDataDir = process.env.DATA_DIR;
+  process.env.HALO_PSA_LOG_DIR = blockingPath;
+  delete process.env.DATA_DIR;
+
+  try {
+    await withMockedFetch(async (url, options = {}) => {
+      fetchCalls.push({ url: String(url), options });
+      const textResponse = (payload) => ({
+        ok: true,
+        status: 200,
+        headers: { forEach(callback) { callback('application/json', 'content-type'); } },
+        text: async () => JSON.stringify(payload)
+      });
+      const urlText = String(url);
+      if (urlText.endsWith('/oauth2/token')) {
+        return textResponse({ access_token: 'action1-token', expires_in: 3600 });
+      }
+      if (urlText.includes('/endpoints/managed/org-1')) {
+        return textResponse({
+          items: [{ id: 'ep-1', name: 'Endpoint One', last_seen: '2026-06-01_00-00-00', reboot_required: 'no' }],
+          from: 0,
+          total_items: 1
+        });
+      }
+      if (urlText.endsWith('/auth/token')) {
+        return textResponse({ access_token: 'halo-token', token_type: 'Bearer', expires_in: 3600 });
+      }
+      if (urlText.includes('/api/Tickets')) {
+        return textResponse([{ id: 'ticket-1', status_id: '3', status: 'Open', is_closed: false }]);
+      }
+      throw new Error(`Unexpected fetch ${urlText}`);
+    }, async () => {
+      const result = await runHaloPsaSync(context, {
+        run: {
+          async appendLog() {},
+          async setAssetsProcessed() {}
+        }
+      });
+
+      assert.strictEqual(result.ok, true, 'sync should still succeed when diagnostic file writes fail');
+      assert.strictEqual(result.summary.created, 1, 'offline-only sync fixture should still create the expected ticket');
+      const warningMatches = warningLogs.filter((entry) => entry.includes('diagnostic file logging'));
+      assert.strictEqual(warningMatches.length, 1, 'diagnostic file write failures during sync should warn once');
+      assert.strictEqual(
+        warningMatches[0].includes('"filePath"') && warningMatches[0].includes('halo-psa-runtime.log'),
+        true,
+        'sync warning should include the resolved diagnostic file path'
+      );
+      assert.strictEqual(/(ENOTDIR|EEXIST|EPERM|not a directory)/i.test(warningMatches[0]), true, 'sync warning should include a safe filesystem error');
+    });
+  } finally {
+    if (originalLogDir === undefined) {
+      delete process.env.HALO_PSA_LOG_DIR;
+    } else {
+      process.env.HALO_PSA_LOG_DIR = originalLogDir;
+    }
+    if (originalDataDir === undefined) {
+      delete process.env.DATA_DIR;
+    } else {
+      process.env.DATA_DIR = originalDataDir;
+    }
+  }
 }
 
 async function runVulnerabilityServerFilteredCollectionOptimizationTest() {
@@ -1798,6 +1904,7 @@ async function run() {
   await runMissingConfigFailsSafelyTest();
   await runMissingAction1CredentialsFailsSafelyTest();
   await runTrackedSyncHappyPathTest();
+  await runDiagnosticFileWriteFailureDoesNotFailSyncTest();
   await runVulnerabilityServerFilteredCollectionOptimizationTest();
   await runVulnerabilityDueSoonFilteredUrlMappingTest();
   await runUpdateBroadCollectionFallbackWithoutSupportedSeverityFilterTest();

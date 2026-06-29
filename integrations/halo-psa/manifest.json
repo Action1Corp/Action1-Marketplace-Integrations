@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "marketplaceApiVersion": "1.0",
   "minimumMarketplaceVersion": "1.0.0",
-  "description": "Creates and manages HaloPSA tickets from Action1 security and operational signals.",
+  "description": "Track Action1 security and operational findings in HaloPSA and HaloITSM automatically.",
   "category": "PSA",
   "icon_color": "#F26A21",
   "entry": "index.js",
