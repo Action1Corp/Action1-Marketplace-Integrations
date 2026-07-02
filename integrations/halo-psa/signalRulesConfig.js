@@ -66,7 +66,9 @@ function normalizeSignalRulesConfig(config) {
         thresholdDays: toPositiveInt(signalFilters.offline?.thresholdDays, 7)
       },
       rebootRequired: {
-        enabled: signalFilters.rebootRequired?.enabled === undefined ? true : Boolean(signalFilters.rebootRequired.enabled)
+        enabled: signalFilters.rebootRequired?.enabled === undefined ? true : Boolean(signalFilters.rebootRequired.enabled),
+        ageThresholdEnabled: signalFilters.rebootRequired?.ageThresholdEnabled === undefined ? false : Boolean(signalFilters.rebootRequired.ageThresholdEnabled),
+        ageThresholdDays: toPositiveInt(signalFilters.rebootRequired?.ageThresholdDays, 30)
       },
       automationFailed: {
         enabled: signalFilters.automationFailed?.enabled === undefined ? true : Boolean(signalFilters.automationFailed.enabled),

@@ -900,6 +900,7 @@ function normalizeEndpoint(item) {
     id: String(item?.id || item?.endpoint_id || ''),
     name: String(item?.name || item?.endpoint_name || ''),
     lastSeenAt: item?.last_seen ? String(item.last_seen) : undefined,
+    lastBootTime: item?.last_boot_time ? String(item.last_boot_time) : item?.lastBootTime ? String(item.lastBootTime) : undefined,
     rebootRequired: toOptionalBoolean(rebootRaw)
   };
 }

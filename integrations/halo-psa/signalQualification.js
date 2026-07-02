@@ -18,7 +18,7 @@ function qualifyEndpointSignals(input) {
 
   const results = [
     qualifyOffline(endpoint, normalizedConfig.signalFilters.offline, nowDate),
-    qualifyRebootRequired(endpoint, normalizedConfig.signalFilters.rebootRequired),
+    qualifyRebootRequired(endpoint, normalizedConfig.signalFilters.rebootRequired, nowDate),
     qualifyAutomationFailed(signals.automationFailed, normalizedConfig.signalFilters.automationFailed),
     qualifyVulnerability(signals.vulnerabilities, normalizedConfig.signalFilters.vulnerability),
     qualifyUpdate(signals.updates, normalizedConfig.signalFilters.update)
@@ -42,13 +42,39 @@ function qualifyOffline(endpoint, filter, now) {
   };
 }
 
-function qualifyRebootRequired(endpoint, filter) {
+function qualifyRebootRequired(endpoint, filter, now = new Date()) {
   if (!filter?.enabled) return baseResult(SIGNAL_TYPES.REBOOT_REQUIRED, false, 'signal_disabled');
   const raw = endpoint?.rebootRequired !== undefined ? endpoint.rebootRequired : endpoint?.reboot_required;
-  const qualifies = isTrueLike(raw);
+  const rebootRequired = isTrueLike(raw);
+  if (!rebootRequired) {
+    return {
+      ...baseResult(SIGNAL_TYPES.REBOOT_REQUIRED, false, 'reboot_not_required', 0),
+      matchedItemsPreview: []
+    };
+  }
+
+  if (!filter?.ageThresholdEnabled) {
+    return {
+      ...baseResult(SIGNAL_TYPES.REBOOT_REQUIRED, true, 'reboot_required', 1),
+      matchedItemsPreview: [{ rebootRequired: true }]
+    };
+  }
+
+  const lastBootTime = parseAction1DateTime(endpoint?.lastBootTime || endpoint?.last_boot_time);
+  if (!lastBootTime) {
+    return {
+      ...baseResult(SIGNAL_TYPES.REBOOT_REQUIRED, false, 'missing_last_boot_time', 0),
+      details: { thresholdDays: Number(filter.ageThresholdDays || 0) }
+    };
+  }
+
+  const rebootAgeDays = Math.floor((now.getTime() - lastBootTime.getTime()) / DAY_MS);
+  const thresholdDays = Number(filter.ageThresholdDays || 0);
+  const qualifies = Number.isFinite(rebootAgeDays) && rebootAgeDays >= thresholdDays;
   return {
-    ...baseResult(SIGNAL_TYPES.REBOOT_REQUIRED, qualifies, qualifies ? 'reboot_required' : 'reboot_not_required', qualifies ? 1 : 0),
-    matchedItemsPreview: qualifies ? [{ rebootRequired: true }] : []
+    ...baseResult(SIGNAL_TYPES.REBOOT_REQUIRED, qualifies, qualifies ? 'reboot_required_age_threshold_met' : 'reboot_required_age_threshold_not_met', qualifies ? 1 : 0),
+    details: { thresholdDays, rebootAgeDays },
+    matchedItemsPreview: qualifies ? [{ rebootRequired: true, rebootAgeDays }] : []
   };
 }
 

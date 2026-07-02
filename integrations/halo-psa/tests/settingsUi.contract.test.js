@@ -79,6 +79,15 @@ function run() {
   assert(source.includes('Choose which Action1 endpoint signals should create or maintain HaloPSA tickets.'), 'Settings.jsx should use the standalone-style Signal Filters section copy');
   assert(source.includes('Create ticket after endpoint is offline for at least (days)'), 'Settings.jsx should expose the standalone-style offline signal control label');
   assert(source.includes('Create ticket for reboot required endpoints'), 'Settings.jsx should expose the standalone-style reboot-required signal control label');
+  assert(source.includes('HaloPsaRebootRequiredAgeThresholdEnabled'), 'Settings.jsx should reference the reboot-required age-threshold toggle key');
+  assert(source.includes('HaloPsaRebootRequiredAgeThresholdDays'), 'Settings.jsx should reference the reboot-required age-threshold days key');
+  assert(source.includes('Require last boot at least'), 'Settings.jsx should expose the shorter reboot-required age-threshold control label');
+  assert(source.includes('days ago'), 'Settings.jsx should render the reboot-required age-threshold row so it reads naturally with the days input');
+  assert(source.includes('Use this to avoid creating or maintaining reboot-required tickets for endpoints rebooted more recently than the threshold.'), 'Settings.jsx should explain the reboot-required age threshold with helper copy');
+  assert(source.includes("disabled={!isRebootRequiredEnabled}"), 'Settings.jsx should disable the reboot-required age-threshold checkbox when the parent reboot-required toggle is disabled');
+  assert(source.includes("disabled={!isRebootRequiredEnabled || !isRebootAgeThresholdEnabled}"), 'Settings.jsx should disable the reboot-required age-threshold days input when either the parent toggle or the threshold toggle is disabled');
+  assert(source.includes("marginLeft: '1.85rem'"), 'Settings.jsx should visually indent the reboot-required age-threshold row beneath the parent reboot-required toggle');
+  assert(source.includes("color: 'var(--text-secondary, #526173)'"), 'Settings.jsx should use secondary text styling for the nested reboot-required age-threshold row');
   assert(source.includes('Create ticket for automation failures'), 'Settings.jsx should expose the standalone-style automation-failed signal control label');
   assert(source.includes('<h4 style={{ margin: \'0 0 0.8rem\' }}>Vulnerabilities</h4>'), 'Settings.jsx should render the Vulnerabilities signal-filter column');
   assert(source.includes('<h4 style={{ margin: \'0 0 0.8rem\' }}>Missing Updates</h4>'), 'Settings.jsx should render the Missing Updates signal-filter column');

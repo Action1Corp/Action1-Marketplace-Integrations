@@ -122,6 +122,22 @@
     "defaultValue": "true"
   },
   {
+    "key": "HaloPsaRebootRequiredAgeThresholdEnabled",
+    "label": "Only qualify reboot required when last boot is at least (days)",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "false",
+    "helpText": "Use this to avoid creating or maintaining reboot-required tickets for endpoints rebooted more recently than the threshold."
+  },
+  {
+    "key": "HaloPsaRebootRequiredAgeThresholdDays",
+    "label": "Reboot Required Age Threshold Days",
+    "type": "number",
+    "group": "Signal Filters",
+    "defaultValue": "30",
+    "min": 1
+  },
+  {
     "key": "HaloPsaAutomationFailedEnabled",
     "label": "Create ticket for automation failures",
     "type": "checkbox",

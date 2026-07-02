@@ -24,6 +24,8 @@ function run() {
     'HaloPsaOfflineEnabled',
     'HaloPsaOfflineThresholdDays',
     'HaloPsaRebootRequiredEnabled',
+    'HaloPsaRebootRequiredAgeThresholdEnabled',
+    'HaloPsaRebootRequiredAgeThresholdDays',
     'HaloPsaAutomationFailedEnabled',
     'HaloPsaAutomationFailedLookbackHours',
     'HaloPsaVulnerabilityEnabled',
@@ -60,6 +62,9 @@ function run() {
   assert.strictEqual(byKey.get('HaloPsaOfflineEnabled').defaultValue, 'true', 'HaloPsaOfflineEnabled should default to true');
   assert.strictEqual(byKey.get('HaloPsaOfflineThresholdDays').defaultValue, '7', 'HaloPsaOfflineThresholdDays should default to 7');
   assert.strictEqual(byKey.get('HaloPsaRebootRequiredEnabled').defaultValue, 'true', 'HaloPsaRebootRequiredEnabled should default to true');
+  assert.strictEqual(byKey.get('HaloPsaRebootRequiredAgeThresholdEnabled').defaultValue, 'false', 'HaloPsaRebootRequiredAgeThresholdEnabled should default to disabled');
+  assert.strictEqual(byKey.get('HaloPsaRebootRequiredAgeThresholdDays').defaultValue, '30', 'HaloPsaRebootRequiredAgeThresholdDays should default to 30');
+  assert.strictEqual(byKey.get('HaloPsaRebootRequiredAgeThresholdDays').min, 1, 'HaloPsaRebootRequiredAgeThresholdDays should represent a minimum of 1');
   assert.strictEqual(byKey.get('HaloPsaAutomationFailedEnabled').defaultValue, 'true', 'HaloPsaAutomationFailedEnabled should default to true');
   assert.strictEqual(byKey.get('HaloPsaAutomationFailedLookbackHours').defaultValue, '24', 'HaloPsaAutomationFailedLookbackHours should default to 24');
   assert.strictEqual(byKey.get('HaloPsaVulnerabilityEnabled').defaultValue, 'true', 'HaloPsaVulnerabilityEnabled should default to true');
@@ -86,6 +91,8 @@ function run() {
   assert.strictEqual(byKey.get('HaloPsaAutomationFailedTicketModel').group, 'Signal Filters', 'HaloPsaAutomationFailedTicketModel should now live under Signal Filters');
   assert.strictEqual(byKey.get('HaloPsaMaxImpactedEndpointsInGroupedTicket').group, 'Signal Filters', 'HaloPsaMaxImpactedEndpointsInGroupedTicket should now live under Signal Filters');
   assert.strictEqual(byKey.get('HaloPsaMaxOpenTicketsPerOrganization').group, 'Signal Filters', 'HaloPsaMaxOpenTicketsPerOrganization should now live under Signal Filters');
+  assert.strictEqual(byKey.get('HaloPsaRebootRequiredAgeThresholdEnabled').group, 'Signal Filters', 'HaloPsaRebootRequiredAgeThresholdEnabled should live under Signal Filters');
+  assert.strictEqual(byKey.get('HaloPsaRebootRequiredAgeThresholdDays').group, 'Signal Filters', 'HaloPsaRebootRequiredAgeThresholdDays should live under Signal Filters');
 
   assert.strictEqual(byKey.has('HaloTenant'), false, 'HaloTenant should not exist in HaloPSA settings schema');
   assert(settingsSchema.every((row) => String(row.key || '').startsWith('HaloPsa')), 'every HaloPSA durable settings key should start with HaloPsa');

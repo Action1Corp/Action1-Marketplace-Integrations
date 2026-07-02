@@ -83,6 +83,7 @@ function normalizeEndpointRecord(endpoint) {
   const id = asTrimmedString(row.id || row.endpoint_id || row.endpointId);
   const name = asTrimmedString(row.name || row.endpoint_name || row.endpointName);
   const lastSeenAt = asTrimmedString(row.lastSeenAt || row.last_seen || row.lastSeen);
+  const lastBootTime = asTrimmedString(row.lastBootTime || row.last_boot_time || row.lastBoot || row.last_boot);
   const rebootRaw = row.rebootRequired !== undefined ? row.rebootRequired : row.reboot_required !== undefined ? row.reboot_required : row.reboot;
   const rebootRequired = toOptionalBoolean(rebootRaw);
   const os = asTrimmedString(row.os || row.OS || row.operatingSystem || row.operating_system);
@@ -91,6 +92,7 @@ function normalizeEndpointRecord(endpoint) {
   const out = { id };
   if (name) out.name = name;
   if (lastSeenAt) out.lastSeenAt = lastSeenAt;
+  if (lastBootTime) out.lastBootTime = lastBootTime;
   if (rebootRequired !== undefined) out.rebootRequired = rebootRequired;
   if (os) out.os = os;
   if (platform) out.platform = platform;

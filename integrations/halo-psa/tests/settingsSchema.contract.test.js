@@ -26,6 +26,8 @@ function run() {
   assert.strictEqual(byKey.get('HaloPsaNewStatusId').label, 'New PSA Ticket Status', 'HaloPsaNewStatusId should use the standalone-style New PSA Ticket Status label');
   assert.strictEqual(byKey.get('HaloPsaCategory1Id').label, 'Category', 'HaloPsaCategory1Id should use the standalone-style Category label');
   assert.strictEqual(byKey.get('HaloPsaClosedStatusIds').label, 'Complete / Closed Statuses', 'HaloPsaClosedStatusIds should use the standalone-style closed statuses label');
+  assert.strictEqual(byKey.get('HaloPsaRebootRequiredAgeThresholdEnabled').label, 'Only qualify reboot required when last boot is at least (days)', 'HaloPsaRebootRequiredAgeThresholdEnabled should use the threshold toggle label');
+  assert.strictEqual(byKey.get('HaloPsaRebootRequiredAgeThresholdDays').label, 'Reboot Required Age Threshold Days', 'HaloPsaRebootRequiredAgeThresholdDays should use the numeric threshold label');
 
   const action1Keys = settingsSchema
     .map((row) => String(row.key || ''))
@@ -89,6 +91,9 @@ function run() {
   ]) {
     assert.strictEqual(byKey.get(key).visible, false, `${key} should remain durable but hidden from the visible operator UI`);
   }
+
+  assert.strictEqual(byKey.get('HaloPsaRebootRequiredAgeThresholdDays').type, 'number', 'HaloPsaRebootRequiredAgeThresholdDays should be a numeric setting');
+  assert.strictEqual(byKey.get('HaloPsaRebootRequiredAgeThresholdDays').min, 1, 'HaloPsaRebootRequiredAgeThresholdDays should require a minimum of 1 day');
 }
 
 try {

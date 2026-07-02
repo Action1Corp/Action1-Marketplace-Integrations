@@ -134,7 +134,9 @@ function buildRuntimeConfig(input = {}) {
         thresholdDays: parsePositiveInteger(settings.HaloPsaOfflineThresholdDays, 7)
       },
       rebootRequired: {
-        enabled: parseBoolean(settings.HaloPsaRebootRequiredEnabled, true)
+        enabled: parseBoolean(settings.HaloPsaRebootRequiredEnabled, true),
+        ageThresholdEnabled: parseBoolean(settings.HaloPsaRebootRequiredAgeThresholdEnabled, false),
+        ageThresholdDays: parsePositiveInteger(settings.HaloPsaRebootRequiredAgeThresholdDays, 30)
       },
       automationFailed: {
         enabled: parseBoolean(settings.HaloPsaAutomationFailedEnabled, true),

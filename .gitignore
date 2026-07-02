@@ -19,9 +19,10 @@ frontend/dist/
 node.msi
 qualys-out.txt
 
+openspec/
 _reference/
 docs/
-
+.codex/
 *.patch
 
 # Local Marketplace validation

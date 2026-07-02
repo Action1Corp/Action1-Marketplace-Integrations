@@ -26,6 +26,8 @@ function buildSettings(overrides = {}) {
     HaloPsaOfflineEnabled: 'true',
     HaloPsaOfflineThresholdDays: '15',
     HaloPsaRebootRequiredEnabled: 'false',
+    HaloPsaRebootRequiredAgeThresholdEnabled: 'true',
+    HaloPsaRebootRequiredAgeThresholdDays: '30',
     HaloPsaAutomationFailedEnabled: 'true',
     HaloPsaAutomationFailedLookbackHours: '36',
     HaloPsaVulnerabilityEnabled: 'false',
@@ -107,6 +109,8 @@ async function runBuildRuntimeConfigTest() {
   assert.strictEqual(runtimeConfig.lifecycle.reopenClosedTickets, false);
   assert.strictEqual(runtimeConfig.signalFilters.offline.enabled, true, 'runtime config should preserve explicit offline enabled');
   assert.strictEqual(runtimeConfig.signalFilters.rebootRequired.enabled, false, 'runtime config should preserve explicit false for reboot required enabled');
+  assert.strictEqual(runtimeConfig.signalFilters.rebootRequired.ageThresholdEnabled, true, 'runtime config should preserve explicit reboot-required age threshold enabled');
+  assert.strictEqual(runtimeConfig.signalFilters.rebootRequired.ageThresholdDays, 30, 'runtime config should normalize reboot-required age threshold days');
   assert.strictEqual(runtimeConfig.signalFilters.automationFailed.enabled, true, 'runtime config should preserve explicit automation failed enabled');
   assert.strictEqual(runtimeConfig.signalFilters.vulnerability.enabled, false, 'runtime config should preserve explicit false for vulnerability enabled');
   assert.deepStrictEqual(runtimeConfig.signalFilters.vulnerability.severities, ['CRITICAL', 'HIGH']);
@@ -182,6 +186,8 @@ async function runCoreSignalBooleanNormalizationTest() {
     settings: buildSettings({
       HaloPsaOfflineEnabled: 'false',
       HaloPsaRebootRequiredEnabled: 'false',
+      HaloPsaRebootRequiredAgeThresholdEnabled: 'false',
+      HaloPsaRebootRequiredAgeThresholdDays: '0',
       HaloPsaAutomationFailedEnabled: 'false'
     }),
     mappings: []
@@ -189,6 +195,8 @@ async function runCoreSignalBooleanNormalizationTest() {
 
   assert.strictEqual(runtimeConfig.signalFilters.offline.enabled, false, 'string false should remain false for offline enabled');
   assert.strictEqual(runtimeConfig.signalFilters.rebootRequired.enabled, false, 'string false should remain false for reboot required enabled');
+  assert.strictEqual(runtimeConfig.signalFilters.rebootRequired.ageThresholdEnabled, false, 'string false should remain false for reboot age threshold enabled');
+  assert.strictEqual(runtimeConfig.signalFilters.rebootRequired.ageThresholdDays, 30, 'invalid reboot age threshold days should fall back to default');
   assert.strictEqual(runtimeConfig.signalFilters.automationFailed.enabled, false, 'string false should remain false for automation failed enabled');
 }
 

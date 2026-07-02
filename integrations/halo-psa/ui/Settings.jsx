@@ -33,7 +33,8 @@ const INLINE_TOOLTIP_KEYS = new Set([
   'HaloPsaNewStatusId',
   'HaloPsaCategory1Id',
   'HaloPsaClosedStatusIds',
-  'HaloPsaExistingOpenTicketBehavior'
+  'HaloPsaExistingOpenTicketBehavior',
+  'HaloPsaRebootRequiredAgeThresholdEnabled'
 ]);
 const ROUTING_LAYOUT_ORDER = [
   'HaloPsaTeamId',
@@ -52,6 +53,8 @@ const SIGNAL_FILTER_SETTING_KEYS = [
   'HaloPsaOfflineEnabled',
   'HaloPsaOfflineThresholdDays',
   'HaloPsaRebootRequiredEnabled',
+  'HaloPsaRebootRequiredAgeThresholdEnabled',
+  'HaloPsaRebootRequiredAgeThresholdDays',
   'HaloPsaAutomationFailedEnabled',
   'HaloPsaVulnerabilitySeverities',
   'HaloPsaVulnerabilityRemediationStatuses',
@@ -67,6 +70,7 @@ const VULNERABILITY_SEVERITY_OPTIONS = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
 const VULNERABILITY_REMEDIATION_OPTIONS = ['OVERDUE', 'DUE_SOON'];
 const UPDATE_SEVERITY_OPTIONS = ['CRITICAL', 'IMPORTANT', 'MODERATE', 'LOW', 'UNSPECIFIED'];
 const UPDATE_REMEDIATION_OPTIONS = ['OVERDUE', 'DUE_SOON'];
+const REBOOT_REQUIRED_AGE_THRESHOLD_HELP_TEXT = 'Use this to avoid creating or maintaining reboot-required tickets for endpoints rebooted more recently than the threshold.';
 const LIGHT_RADIO_CARD_STYLE = {
   display: 'flex',
   gap: '0.7rem',
@@ -763,6 +767,12 @@ function Settings({ integration }) {
     const groupedModeSelected = sharedTicketMode === 'grouped';
     const maxEndpointsSetting = fieldsByKey.get('HaloPsaMaxImpactedEndpointsInGroupedTicket');
     const maxOpenTicketsSetting = fieldsByKey.get('HaloPsaMaxOpenTicketsPerOrganization');
+    const rebootAgeThresholdSetting = fieldsByKey.get('HaloPsaRebootRequiredAgeThresholdEnabled');
+    const rebootAgeThresholdDaysSetting = fieldsByKey.get('HaloPsaRebootRequiredAgeThresholdDays');
+    const isRebootRequiredEnabled = isChecked(getEffectiveValue({ key: 'HaloPsaRebootRequiredEnabled' }, settings));
+    const isRebootAgeThresholdEnabled = rebootAgeThresholdSetting
+      ? isChecked(getEffectiveValue(rebootAgeThresholdSetting, settings))
+      : false;
 
     return (
       <div className="glass-panel">
@@ -793,11 +803,58 @@ function Settings({ integration }) {
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.55rem', fontWeight: 500 }}>
             <input
               type="checkbox"
-              checked={isChecked(getEffectiveValue({ key: 'HaloPsaRebootRequiredEnabled' }, settings))}
+              checked={isRebootRequiredEnabled}
               onChange={(event) => setSettings((current) => ({ ...current, HaloPsaRebootRequiredEnabled: event.target.checked ? 'true' : 'false' }))}
             />
             <span>Create ticket for reboot required endpoints</span>
           </label>
+
+          {rebootAgeThresholdSetting && rebootAgeThresholdDaysSetting && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.85rem',
+                flexWrap: 'wrap',
+                marginLeft: '1.85rem',
+                color: 'var(--text-secondary, #526173)'
+              }}
+            >
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.55rem', fontWeight: 500 }}>
+                <input
+                  type="checkbox"
+                  checked={isRebootAgeThresholdEnabled}
+                  disabled={!isRebootRequiredEnabled}
+                  onChange={(event) => setSettings((current) => ({
+                    ...current,
+                    [rebootAgeThresholdSetting.key]: event.target.checked ? 'true' : 'false'
+                  }))}
+                />
+                <span>
+                  Require last boot at least
+                  <InfoTip text={REBOOT_REQUIRED_AGE_THRESHOLD_HELP_TEXT} />
+                </span>
+              </label>
+              <input
+                type="number"
+                min={rebootAgeThresholdDaysSetting.min}
+                disabled={!isRebootRequiredEnabled || !isRebootAgeThresholdEnabled}
+                value={getEffectiveValue(rebootAgeThresholdDaysSetting, settings)}
+                onChange={(event) => setSettings((current) => ({
+                  ...current,
+                  [rebootAgeThresholdDaysSetting.key]: event.target.value
+                }))}
+                style={{
+                  width: 92,
+                  padding: '0.55rem 0.65rem',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 6,
+                  background: isRebootRequiredEnabled && isRebootAgeThresholdEnabled ? '#fff' : '#F8FAFC'
+                }}
+              />
+              <span>days ago</span>
+            </div>
+          )}
 
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.55rem', fontWeight: 500 }}>
             <input
