@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "publishedAt": "2026-07-06T19:57:09.317Z",
+  "publishedAt": "2026-07-06T20:53:59.762Z",
   "integrations": [
     {
       "id": "crowdstrike",
@@ -8,13 +8,13 @@
       "vendor": "CrowdStrike",
       "description": "Correlate CrowdStrike exposure data with Action1 endpoint and patch context.",
       "category": "EDR / XDR",
-      "latestVersion": "1.0.0",
+      "latestVersion": "1.0.1",
       "minimumMarketplaceVersion": "1.0.0",
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-1/action1-integration-crowdstrike-1.0.0.tgz",
-        "sha256": "c59e500d4b2c9b1a1f887149526a4cafca9b07c60fa94dde8d3cced167a3f101",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-2/action1-integration-crowdstrike-1.0.1.tgz",
+        "sha256": "315ef54235cb118458d68d4c48552962ea5e7d84f252c1770c879c27b26fbd2d",
         "signatureUrl": ""
       }
     },
@@ -24,13 +24,13 @@
       "vendor": "Microsoft",
       "description": "Correlate Microsoft Defender vulnerabilities with Action1 endpoint and patch context.",
       "category": "EDR / XDR",
-      "latestVersion": "1.0.0",
+      "latestVersion": "1.0.1",
       "minimumMarketplaceVersion": "1.0.0",
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-1/action1-integration-defender-1.0.0.tgz",
-        "sha256": "7c23b09da444468fd0b4ace6437afed0a844b86e7abb3e89a50658f311ad9c66",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-2/action1-integration-defender-1.0.1.tgz",
+        "sha256": "3c346fc85f5fb96a8d2f9883b3350ef1e0b7880deef7a913c771fcdf7b1eb262",
         "signatureUrl": ""
       }
     },
@@ -40,13 +40,13 @@
       "vendor": "Microsoft",
       "description": "Sync Intune managed devices and compliance status with Action1.",
       "category": "Endpoint Management",
-      "latestVersion": "1.0.0",
+      "latestVersion": "1.0.1",
       "minimumMarketplaceVersion": "1.0.0",
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-1/action1-integration-intune-1.0.0.tgz",
-        "sha256": "4e6a5bf197cd04ec3691e7276c05ee13d92310ff6016d036c9a2b57e15943f20",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-2/action1-integration-intune-1.0.1.tgz",
+        "sha256": "d6c7dceda4d214aa3f088e2505fbfa452861ba0e564890bd0f62def83e6ff054",
         "signatureUrl": ""
       }
     },
@@ -56,13 +56,13 @@
       "vendor": "Qualys",
       "description": "Correlate Qualys VMDR findings with Action1 endpoint and patch context.",
       "category": "Vulnerability Management",
-      "latestVersion": "1.0.0",
+      "latestVersion": "1.0.1",
       "minimumMarketplaceVersion": "1.0.0",
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-1/action1-integration-qualys-1.0.0.tgz",
-        "sha256": "7cf79844d0f9fde63e534c157090dd35ef9b765a5ef8df89e697eaabf34960e3",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-2/action1-integration-qualys-1.0.1.tgz",
+        "sha256": "4731a660c6b8cdaa31a80c6cdc3c86df1afb4b6bc66cb894651c498fd7a23adc",
         "signatureUrl": ""
       }
     },
@@ -72,13 +72,13 @@
       "vendor": "Rapid7",
       "description": "Correlate Rapid7 InsightVM exposure data with Action1 endpoint and patch context.",
       "category": "Vulnerability Management",
-      "latestVersion": "1.0.0",
+      "latestVersion": "1.0.1",
       "minimumMarketplaceVersion": "1.0.0",
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-1/action1-integration-rapid7-1.0.0.tgz",
-        "sha256": "8be7d0dce0f91aed487ede226008384376fb0c1eab81d542258c0a178ecbe112",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-2/action1-integration-rapid7-1.0.1.tgz",
+        "sha256": "1adc2899580f83c66fa5cd006bcfa9337f234fd48800c210405307f19358bed6",
         "signatureUrl": ""
       }
     },
@@ -88,13 +88,13 @@
       "vendor": "Tenable",
       "description": "Correlate Tenable vulnerability data with Action1 endpoint and patch context.",
       "category": "Vulnerability Management",
-      "latestVersion": "1.0.0",
+      "latestVersion": "1.0.1",
       "minimumMarketplaceVersion": "1.0.0",
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-1/action1-integration-tenable-1.0.0.tgz",
-        "sha256": "45b723fc82b5bf0877de74a5e4c74da323875b77f77d55b59d5f7a1ec676e209",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-2/action1-integration-tenable-1.0.1.tgz",
+        "sha256": "ccab379cb131ac4683029d4e829d7ce70ea0860479f21ccbaf4d78208766f34c",
         "signatureUrl": ""
       }
     }
