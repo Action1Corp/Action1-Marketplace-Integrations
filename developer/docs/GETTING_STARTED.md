@@ -8,7 +8,7 @@ Before you start, make sure you have:
 
 - Node.js installed locally.
 - Access to this integrations repository.
-- A local Marketplace container that can mount this repository during development.
+- Access to a local Marketplace development environment. Use a mounted Marketplace container for backend package validation, or the Marketplace host-source workflow for custom React UI development.
 - Vendor API credentials for the product you are integrating.
 
 Example local setup:
@@ -333,7 +333,15 @@ Run repository validation:
 npm test
 ```
 
-Mount the integrations repository into a Marketplace development container, then open the local Marketplace app.
+Choose the local workflow that matches what you are changing.
+
+Use the package workflow when testing manifests, settings schemas, migrations, actions, handlers, sync behavior, and custom React views:
+
+```bash
+npm run package:all
+```
+
+Then serve the generated `dist/integrations` folder with the Marketplace repo's local catalog server and install the package from the Marketplace UI. See `LOCAL_TESTING.md` for the full local package testing workflow.
 
 Example checks:
 
@@ -351,6 +359,7 @@ Before opening a pull request:
 
 ```bash
 npm test
+npm run package:all
 ```
 
 Review the package with `REVIEW_CHECKLIST.md`.

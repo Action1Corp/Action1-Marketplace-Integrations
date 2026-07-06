@@ -4,8 +4,22 @@
   "private": true,
   "scripts": {
     "create-integration": "node scripts/create-integration.js",
+    "package:integration": "node scripts/package-integration.js",
+    "package:all": "node scripts/package-all-integrations.js",
+    "catalog": "node scripts/generate-catalog.js",
     "test": "node scripts/validate-manifests.js && node tests/validate-contract.js",
     "test:manifests": "node scripts/validate-manifests.js",
     "test:contract": "node tests/validate-contract.js"
+  },
+  "dependencies": {
+    "lucide-react": "^0.364.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.22.3",
+    "recharts": "^2.12.3"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "vite": "^5.2.0"
   }
 }

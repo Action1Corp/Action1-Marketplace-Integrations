@@ -1,6 +1,6 @@
 # Action1 Marketplace Integrations
 
-This private repository contains integration packages for the Action1 Integration Marketplace. The Marketplace host loads these packages at startup and uses their manifests, navigation definitions, React views, handlers, and migrations to render integration-specific screens and run integration-owned behavior.
+This private repository contains downloadable integration packages for the Action1 Integration Marketplace. Packages are built as immutable `.tgz` artifacts, published to GitHub Releases, listed in the integration catalog, and installed by Marketplace admins at runtime.
 
 The goal is to let integration developers build and maintain vendor integrations without changing the Marketplace application itself.
 
@@ -17,6 +17,8 @@ integrations/
       index.jsx
       settingsSchema.json
       view components
+    ui-dist/
+      remote.js
     migrations/
       001_create_schema.sql
     README.md
@@ -99,6 +101,7 @@ Before opening a pull request:
 
 ```bash
 npm test
+npm run package:all
 ```
 
 ## Reference Docs

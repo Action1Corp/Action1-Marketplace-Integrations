@@ -1,6 +1,9 @@
 # Local Testing Guide
 
-This guide explains how to test integrations against a local Marketplace container.
+This guide explains how to test integrations against a local Marketplace environment. There are two local workflows:
+
+- Repository validation and package building with `npm test` and `npm run package:all`.
+- Runtime installation testing with a local package catalog and a Marketplace container.
 
 ## Validate The Integration Repository
 
@@ -18,6 +21,34 @@ This checks:
 - migration naming
 - standard table requirements
 - handler exports
+
+## Build Downloadable Packages
+
+From the integrations repository root:
+
+```bash
+npm run package:all
+```
+
+This writes package artifacts under `dist/integrations/`. Each package includes backend handlers, migrations, settings schema, and compiled `ui-dist/remote.js`.
+
+## Run Marketplace With A Local Package Catalog
+
+From the Marketplace repository, serve the package directory:
+
+```bash
+node scripts/serve-local-integration-catalog.js ../action1-marketplace-integrations-dev/dist/integrations
+```
+
+Run the Marketplace container with:
+
+```env
+INTEGRATION_CATALOG_URL=http://host.docker.internal:4199/catalog.json
+INTEGRATION_PACKAGE_ALLOWED_HOSTS=host.docker.internal
+INTEGRATION_PACKAGE_ALLOW_INSECURE_HTTP=true
+```
+
+`INTEGRATION_PACKAGE_ALLOW_INSECURE_HTTP=true` is only for local testing.
 
 ## Run Marketplace With A Mounted Integrations Repo
 
@@ -46,6 +77,8 @@ When the container starts, the Marketplace:
 
 Folders starting with `_` are ignored.
 
+This workflow is useful for backend iteration only. Downloadable-package testing should use the local package catalog so the Marketplace exercises the same install, checksum, extract, and remote UI load path used in production.
+
 ## Test Data
 
 For local development containers, the Marketplace can seed test settings and sample data when configured with:
@@ -70,24 +103,6 @@ After starting the Marketplace:
 8. Open History and confirm run logs appear.
 9. Open Dashboard, Endpoints, and Vulnerabilities if those views are defined.
 10. Confirm a failed run shows a failure state and triggers configured Marketplace notifications.
-
-## Test Integration-Owned UI
-
-Every integration must have a `ui/index.jsx` file. The Marketplace frontend must be built with integration source available so those views can be bundled.
-
-For local Marketplace builds, set `INTEGRATION_UI_SOURCE` to the folder that contains integration packages:
-
-```bash
-INTEGRATION_UI_SOURCE=/path/to/action1-marketplace-integrations-dev/integrations npm run build
-```
-
-For the developer example package:
-
-```bash
-INTEGRATION_UI_SOURCE=/path/to/action1-marketplace-integrations-dev/developer/examples npm run build
-```
-
-For Docker builds, copy or check out the integrations repository into the Marketplace repo's `.integration-ui-build/` folder before building the image. The Dockerfile copies that folder into the frontend build stage. Backend integration code can still be mounted at runtime through `INTEGRATIONS_DIR`.
 
 ## Troubleshooting
 
