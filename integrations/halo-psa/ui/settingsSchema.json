@@ -123,7 +123,7 @@
   },
   {
     "key": "HaloPsaRebootRequiredAgeThresholdEnabled",
-    "label": "Only qualify reboot required when last boot is at least (days)",
+    "label": "Require last boot at least",
     "type": "checkbox",
     "group": "Signal Filters",
     "defaultValue": "false",
@@ -131,7 +131,7 @@
   },
   {
     "key": "HaloPsaRebootRequiredAgeThresholdDays",
-    "label": "Reboot Required Age Threshold Days",
+    "label": "days ago",
     "type": "number",
     "group": "Signal Filters",
     "defaultValue": "30",

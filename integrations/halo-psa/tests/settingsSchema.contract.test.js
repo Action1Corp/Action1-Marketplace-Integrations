@@ -26,8 +26,9 @@ function run() {
   assert.strictEqual(byKey.get('HaloPsaNewStatusId').label, 'New PSA Ticket Status', 'HaloPsaNewStatusId should use the standalone-style New PSA Ticket Status label');
   assert.strictEqual(byKey.get('HaloPsaCategory1Id').label, 'Category', 'HaloPsaCategory1Id should use the standalone-style Category label');
   assert.strictEqual(byKey.get('HaloPsaClosedStatusIds').label, 'Complete / Closed Statuses', 'HaloPsaClosedStatusIds should use the standalone-style closed statuses label');
-  assert.strictEqual(byKey.get('HaloPsaRebootRequiredAgeThresholdEnabled').label, 'Only qualify reboot required when last boot is at least (days)', 'HaloPsaRebootRequiredAgeThresholdEnabled should use the threshold toggle label');
-  assert.strictEqual(byKey.get('HaloPsaRebootRequiredAgeThresholdDays').label, 'Reboot Required Age Threshold Days', 'HaloPsaRebootRequiredAgeThresholdDays should use the numeric threshold label');
+  assert.strictEqual(byKey.get('HaloPsaRebootRequiredAgeThresholdEnabled').label, 'Require last boot at least', 'HaloPsaRebootRequiredAgeThresholdEnabled should use the shorter threshold toggle label');
+  assert.strictEqual(byKey.get('HaloPsaRebootRequiredAgeThresholdEnabled').helpText, 'Use this to avoid creating or maintaining reboot-required tickets for endpoints rebooted more recently than the threshold.', 'HaloPsaRebootRequiredAgeThresholdEnabled should preserve the reboot age threshold helper copy');
+  assert.strictEqual(byKey.get('HaloPsaRebootRequiredAgeThresholdDays').label, 'days ago', 'HaloPsaRebootRequiredAgeThresholdDays should use the operator-facing suffix label');
 
   const action1Keys = settingsSchema
     .map((row) => String(row.key || ''))

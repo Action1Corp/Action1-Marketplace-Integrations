@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import settingsSchema from './settingsSchema.json';
+import {
+  getEffectiveSettingValue as resolveEffectiveSettingValue,
+  serializeSettingValue as resolveSerializedSettingValue
+} from './settingsValueHelpers';
 
 const SECRET_MASK = '***';
 const CONNECTION_SETTING_KEYS = [
@@ -116,19 +120,19 @@ function getEffectiveValue(setting, currentSettings) {
     currentSettings &&
     Object.prototype.hasOwnProperty.call(currentSettings, setting.key)
   );
-  const currentValue = currentSettings?.[setting.key];
-  if (currentValue === SECRET_MASK) return currentValue;
-  if (hasCurrentValue && currentValue !== undefined && currentValue !== null) return currentValue;
-  if (setting.defaultValue !== undefined) return setting.defaultValue;
-  return '';
+
+  return resolveEffectiveSettingValue(setting, currentSettings, {
+    hasCurrentValue,
+    secretMask: SECRET_MASK,
+    settingsSchema
+  });
 }
 
 function serializeSettingValue(setting, currentSettings) {
-  const value = getEffectiveValue(setting, currentSettings);
-  if (setting.type === 'checkbox') {
-    return isChecked(value) ? 'true' : 'false';
-  }
-  return value ?? '';
+  return resolveSerializedSettingValue(setting, currentSettings, {
+    secretMask: SECRET_MASK,
+    settingsSchema
+  });
 }
 
 function parseCsvValues(value) {
