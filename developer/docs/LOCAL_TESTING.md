@@ -2,8 +2,8 @@
 
 This guide explains how to test integrations against a local Marketplace environment. There are two local workflows:
 
-- Backend package validation with a Marketplace container and `INTEGRATIONS_DIR`.
-- Full custom UI development with Marketplace backend source, frontend source, PostgreSQL, `INTEGRATIONS_DIR`, and `INTEGRATION_UI_SOURCE`.
+- Repository validation and package building with `npm test` and `npm run package:all`.
+- Runtime installation testing with a local package catalog and a Marketplace container.
 
 ## Validate The Integration Repository
 
@@ -21,6 +21,34 @@ This checks:
 - migration naming
 - standard table requirements
 - handler exports
+
+## Build Downloadable Packages
+
+From the integrations repository root:
+
+```bash
+npm run package:all
+```
+
+This writes package artifacts under `dist/integrations/`. Each package includes backend handlers, migrations, settings schema, and compiled `ui-dist/remote.js`.
+
+## Run Marketplace With A Local Package Catalog
+
+From the Marketplace repository, serve the package directory:
+
+```bash
+node scripts/serve-local-integration-catalog.js ../action1-marketplace-integrations-dev/dist/integrations
+```
+
+Run the Marketplace container with:
+
+```env
+INTEGRATION_CATALOG_URL=http://host.docker.internal:4199/catalog.json
+INTEGRATION_PACKAGE_ALLOWED_HOSTS=host.docker.internal
+INTEGRATION_PACKAGE_ALLOW_INSECURE_HTTP=true
+```
+
+`INTEGRATION_PACKAGE_ALLOW_INSECURE_HTTP=true` is only for local testing.
 
 ## Run Marketplace With A Mounted Integrations Repo
 
@@ -49,29 +77,7 @@ When the container starts, the Marketplace:
 
 Folders starting with `_` are ignored.
 
-This workflow validates backend-loaded integration behavior. It does not add new custom React screens to the published Marketplace frontend because that frontend is already built.
-
-## Run Full UI Development From Source
-
-Use the Marketplace host-source workflow when changing custom React views under an integration's `ui/` folder.
-
-The Marketplace backend must run with:
-
-```env
-INTEGRATIONS_DIR=/path/to/Action1-Marketplace-Integrations/integrations
-```
-
-The Marketplace frontend dev server must run with:
-
-```env
-INTEGRATION_UI_SOURCE=/path/to/Action1-Marketplace-Integrations/integrations
-```
-
-The Marketplace repository contains the full runbook:
-
-```text
-docs/host-source-development.md
-```
+This workflow is useful for backend iteration only. Downloadable-package testing should use the local package catalog so the Marketplace exercises the same install, checksum, extract, and remote UI load path used in production.
 
 ## Test Data
 
@@ -97,24 +103,6 @@ After starting the Marketplace:
 8. Open History and confirm run logs appear.
 9. Open Dashboard, Endpoints, and Vulnerabilities if those views are defined.
 10. Confirm a failed run shows a failure state and triggers configured Marketplace notifications.
-
-## Test Integration-Owned UI
-
-Every integration must have a `ui/index.jsx` file. The Marketplace frontend must be built with integration source available so those views can be bundled.
-
-From the Marketplace repository, set `INTEGRATION_UI_SOURCE` to the folder that contains integration packages:
-
-```bash
-INTEGRATION_UI_SOURCE=/path/to/Action1-Marketplace-Integrations/integrations npm --prefix frontend run dev
-```
-
-From the Marketplace repository, use the developer example package with:
-
-```bash
-INTEGRATION_UI_SOURCE=/path/to/Action1-Marketplace-Integrations/developer/examples npm --prefix frontend run dev
-```
-
-For production Marketplace builds, the Marketplace build process bundles approved integrations before the Docker image is built. Backend integration code can still be mounted at runtime through `INTEGRATIONS_DIR` for backend package validation.
 
 ## Troubleshooting
 

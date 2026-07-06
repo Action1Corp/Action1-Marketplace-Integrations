@@ -14,7 +14,7 @@ function Dashboard({ integration }) {
         {[
           ['View source', 'ui/Dashboard.jsx'],
           ['Screen owner', 'Hello Integration'],
-          ['Render model', 'Build-time bundled']
+          ['Render model', 'Downloaded package']
         ].map(([label, value]) => (
           <div key={label} className="glass-panel" style={{ margin: 0 }}>
             <div style={{ fontSize: '0.75rem', color: '#6B7280', fontWeight: 800, textTransform: 'uppercase' }}>{label}</div>

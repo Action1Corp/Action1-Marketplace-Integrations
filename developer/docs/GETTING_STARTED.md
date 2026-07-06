@@ -335,17 +335,13 @@ npm test
 
 Choose the local workflow that matches what you are changing.
 
-Use the Marketplace backend package workflow when testing manifests, settings schemas, migrations, actions, handlers, and sync behavior. This mounts the integrations repository into a Marketplace development container through `INTEGRATIONS_DIR`.
+Use the package workflow when testing manifests, settings schemas, migrations, actions, handlers, sync behavior, and custom React views:
 
-Use the Marketplace host-source workflow when testing custom React screens. Custom views under `ui/` are bundled by the Marketplace frontend through `INTEGRATION_UI_SOURCE`, so they require the Marketplace frontend dev server or a rebuilt Marketplace frontend.
-
-For full UI development, run the Marketplace backend, frontend, PostgreSQL, and this integrations repository together. See `LOCAL_TESTING.md` and the Marketplace repository guide:
-
-```text
-docs/host-source-development.md
+```bash
+npm run package:all
 ```
 
-After starting the Marketplace, open the local Marketplace app.
+Then serve the generated `dist/integrations` folder with the Marketplace repo's local catalog server and install the package from the Marketplace UI. See `LOCAL_TESTING.md` for the full local package testing workflow.
 
 Example checks:
 
@@ -363,6 +359,7 @@ Before opening a pull request:
 
 ```bash
 npm test
+npm run package:all
 ```
 
 Review the package with `REVIEW_CHECKLIST.md`.

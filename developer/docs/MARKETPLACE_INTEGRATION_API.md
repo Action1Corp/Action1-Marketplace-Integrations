@@ -285,7 +285,7 @@ The integration owns the labels, columns, metrics, and React views for every scr
 
 ## Integration-Owned React Views
 
-Every integration screen is rendered by integration-owned React. Each integration must provide a `ui/index.jsx` file that exports a `views` map. These views are bundled into the Marketplace frontend at image build time.
+Every integration screen is rendered by integration-owned React. Each integration must provide a `ui/index.jsx` file that exports a `views` map. The package build compiles those views into `ui-dist/remote.js`, and the Marketplace loads that remote bundle after the integration is installed from the catalog.
 
 ```jsx
 import Dashboard from './Dashboard.jsx';
@@ -319,7 +319,7 @@ await fetch(`/api/integrations/${integration}/actions/my-action`, {
 
 The Marketplace still owns authentication, authorization, routing, shell layout, backend runtime context, scheduler, settings storage, and notification services.
 
-Shared UI helpers can live in the integrations repository for common patterns, but they are still integration-owned code bundled from the integrations repository.
+Shared UI helpers can live in the integrations repository for common patterns, but they are still integration-owned code compiled into the downloadable package.
 
 ## Scaffolding And Validation
 
