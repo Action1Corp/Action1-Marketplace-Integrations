@@ -1,0 +1,93 @@
+{
+  "id": "halo-psa",
+  "name": "HaloPSA",
+  "vendor": "Action1",
+  "version": "1.0.0",
+  "marketplaceApiVersion": "1.0",
+  "minimumMarketplaceVersion": "1.0.0",
+  "description": "Track Action1 security and operational findings in HaloPSA and HaloITSM automatically.",
+  "category": "PSA",
+  "icon_color": "#F26A21",
+  "entry": "index.js",
+  "actions": [
+    {
+      "id": "list-halo-org-client-mappings",
+      "kind": "action",
+      "label": "List Halo Org Client Mappings",
+      "buttonLabel": "Refresh Mappings",
+      "runningLabel": "Refreshing...",
+      "description": "Loads Action1 organization to Halo client mappings from HaloPSA-owned storage.",
+      "placement": "mapping",
+      "history": false
+    },
+    {
+      "id": "save-halo-org-client-mapping",
+      "kind": "action",
+      "label": "Save Halo Org Client Mapping",
+      "buttonLabel": "Save Mapping",
+      "runningLabel": "Saving...",
+      "description": "Creates or updates a HaloPSA org-to-client mapping row.",
+      "placement": "mapping",
+      "history": false
+    },
+    {
+      "id": "delete-halo-org-client-mapping",
+      "kind": "action",
+      "label": "Delete Halo Org Client Mapping",
+      "buttonLabel": "Delete Mapping",
+      "runningLabel": "Deleting...",
+      "description": "Deletes a HaloPSA org-to-client mapping row.",
+      "placement": "mapping",
+      "history": false
+    },
+    {
+      "id": "discover-action1-mapping-options",
+      "kind": "action",
+      "label": "Discover Action1 Mapping Options",
+      "buttonLabel": "Refresh Action1 Organizations",
+      "runningLabel": "Refreshing...",
+      "description": "Loads read-only Action1 organization options for the Mapping screen.",
+      "placement": "mapping",
+      "history": false
+    },
+    {
+      "id": "discover-halo-mapping-options",
+      "kind": "action",
+      "label": "Discover Halo Mapping Options",
+      "buttonLabel": "Refresh HaloPSA Clients",
+      "runningLabel": "Refreshing...",
+      "description": "Loads read-only Halo client options for the Mapping screen.",
+      "placement": "mapping",
+      "history": false
+    },
+    {
+      "id": "discover-halo-settings-options",
+      "kind": "action",
+      "label": "Discover HaloPSA Settings Options",
+      "buttonLabel": "Refresh Halo Options",
+      "runningLabel": "Refreshing...",
+      "description": "Loads read-only HaloPSA ticket routing options for the settings UI.",
+      "placement": "settings",
+      "history": false
+    },
+    {
+      "id": "validate-configuration",
+      "kind": "validate",
+      "label": "Validate Configuration",
+      "buttonLabel": "Validate",
+      "runningLabel": "Validating...",
+      "description": "Validates HaloPSA connectivity and required configuration.",
+      "placement": "settings",
+      "history": false
+    },
+    {
+      "id": "sync",
+      "kind": "sync",
+      "label": "Sync",
+      "buttonLabel": "Run Sync",
+      "runningLabel": "Syncing...",
+      "description": "Collects Action1 signals and synchronizes HaloPSA tickets.",
+      "placement": "dashboard"
+    }
+  ]
+}

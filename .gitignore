@@ -18,3 +18,15 @@ frontend/node_modules/
 frontend/dist/
 node.msi
 qualys-out.txt
+
+openspec/
+_reference/
+docs/
+.codex/
+*.patch
+
+# Local Marketplace validation
+docker-compose.marketplace.local.yml
+.agents/
+integrations/halo-psa/.runtime-logs/
+integrations/jira-cloud/.runtime-logs/

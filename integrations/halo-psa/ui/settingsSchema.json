@@ -1,0 +1,278 @@
+[
+  {
+    "key": "HaloPsaResourceServer",
+    "label": "HaloPSA Resource Server",
+    "type": "url",
+    "group": "HaloPSA Configuration",
+    "required": true,
+    "helpText": "Base HaloPSA resource server URL used for read-only validation and HaloPSA API access."
+  },
+  {
+    "key": "HaloPsaAuthorisationServer",
+    "label": "HaloPSA Authorisation Server",
+    "type": "url",
+    "group": "HaloPSA Configuration",
+    "required": true,
+    "helpText": "Base HaloPSA authorisation server URL used for OAuth token acquisition."
+  },
+  {
+    "key": "HaloPsaClientId",
+    "label": "HaloPSA Client ID",
+    "type": "text",
+    "group": "HaloPSA Configuration",
+    "required": true,
+    "helpText": "HaloPSA OAuth client ID."
+  },
+  {
+    "key": "HaloPsaClientSecret",
+    "label": "HaloPSA Client Secret",
+    "type": "secret",
+    "group": "HaloPSA Configuration",
+    "required": true,
+    "helpText": "HaloPSA OAuth client secret. The stored value remains masked after save."
+  },
+  {
+    "key": "HaloPsaTeamId",
+    "label": "Team",
+    "type": "text",
+    "group": "Ticket Routing",
+    "helpText": "Optional. Leave blank to use the default team configured in HaloPSA for the selected ticket type."
+  },
+  {
+    "key": "HaloPsaTicketTypeId",
+    "label": "Ticket Type",
+    "type": "text",
+    "group": "Ticket Routing",
+    "helpText": "Required. Select the HaloPSA ticket type to use for Action1-created tickets."
+  },
+  {
+    "key": "HaloPsaCategory1Id",
+    "label": "Category",
+    "type": "text",
+    "group": "Ticket Routing",
+    "helpText": "Optional. Leave blank to use the default category configured in HaloPSA. In this connector version, this field maps to HaloPSA Category 1 when set."
+  },
+  {
+    "key": "HaloPsaNewStatusId",
+    "label": "New PSA Ticket Status",
+    "type": "text",
+    "group": "Ticket Routing",
+    "helpText": "Optional. Leave blank to use the default opening status or workflow behavior configured in HaloPSA."
+  },
+  {
+    "key": "HaloPsaClosedStatusIds",
+    "label": "Complete / Closed Statuses",
+    "type": "text",
+    "group": "Ticket Routing",
+    "helpText": "Required. Select the HaloPSA statuses that should be treated as complete or closed by the connector. If a linked ticket is in one of these statuses, the connector will not reopen it."
+  },
+  {
+    "key": "HaloPsaExistingOpenTicketBehavior",
+    "label": "Existing Open Ticket Behavior",
+    "type": "select",
+    "group": "Lifecycle",
+    "defaultValue": "update_existing_open",
+    "options": [
+      {
+        "value": "update_existing_open",
+        "label": "Update existing open ticket"
+      },
+      {
+        "value": "skip_existing_open",
+        "label": "Skip existing open ticket"
+      }
+    ]
+  },
+  {
+    "key": "HaloPsaCloseWhenSignalClears",
+    "label": "Close When Signal Clears",
+    "type": "checkbox",
+    "group": "Lifecycle",
+    "defaultValue": "true",
+    "visible": false
+  },
+  {
+    "key": "HaloPsaCreateNewWhenLinkedClosed",
+    "label": "Create New When Linked Ticket Is Closed",
+    "type": "checkbox",
+    "group": "Lifecycle",
+    "defaultValue": "true",
+    "visible": false
+  },
+  {
+    "key": "HaloPsaOfflineEnabled",
+    "label": "Create ticket after endpoint is offline for at least (days)",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "true"
+  },
+  {
+    "key": "HaloPsaOfflineThresholdDays",
+    "label": "Offline Threshold Days",
+    "type": "number",
+    "group": "Signal Filters",
+    "defaultValue": "7",
+    "min": 1
+  },
+  {
+    "key": "HaloPsaRebootRequiredEnabled",
+    "label": "Create ticket for reboot required endpoints",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "true"
+  },
+  {
+    "key": "HaloPsaRebootRequiredAgeThresholdEnabled",
+    "label": "Require last boot at least",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "false",
+    "helpText": "Use this to avoid creating or maintaining reboot-required tickets for endpoints rebooted more recently than the threshold."
+  },
+  {
+    "key": "HaloPsaRebootRequiredAgeThresholdDays",
+    "label": "days ago",
+    "type": "number",
+    "group": "Signal Filters",
+    "defaultValue": "30",
+    "min": 1
+  },
+  {
+    "key": "HaloPsaAutomationFailedEnabled",
+    "label": "Create ticket for automation failures",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "true"
+  },
+  {
+    "key": "HaloPsaAutomationFailedLookbackHours",
+    "label": "Automation Failed Lookback Hours",
+    "type": "number",
+    "group": "Signal Filters",
+    "defaultValue": "24",
+    "min": 1,
+    "visible": false
+  },
+  {
+    "key": "HaloPsaVulnerabilityEnabled",
+    "label": "Vulnerability Signal Enabled",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "true",
+    "visible": false
+  },
+  {
+    "key": "HaloPsaVulnerabilitySeverities",
+    "label": "Vulnerability Severity",
+    "type": "text",
+    "group": "Signal Filters",
+    "defaultValue": "CRITICAL,HIGH"
+  },
+  {
+    "key": "HaloPsaVulnerabilityRemediationStatuses",
+    "label": "Vulnerability Remediation Status",
+    "type": "text",
+    "group": "Signal Filters",
+    "defaultValue": "OVERDUE,DUE_SOON"
+  },
+  {
+    "key": "HaloPsaUpdateEnabled",
+    "label": "Update Signal Enabled",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "true",
+    "visible": false
+  },
+  {
+    "key": "HaloPsaUpdateSeverities",
+    "label": "Missing Updates Severity",
+    "type": "text",
+    "group": "Signal Filters",
+    "defaultValue": "CRITICAL,IMPORTANT"
+  },
+  {
+    "key": "HaloPsaUpdateRemediationStatuses",
+    "label": "Missing Updates Remediation Status",
+    "type": "text",
+    "group": "Signal Filters",
+    "defaultValue": "OVERDUE,DUE_SOON"
+  },
+  {
+    "key": "HaloPsaVulnerabilityTicketModel",
+    "label": "Vulnerability Ticket Model",
+    "type": "select",
+    "group": "Signal Filters",
+    "defaultValue": "grouped",
+    "options": [
+      {
+        "value": "grouped",
+        "label": "Grouped"
+      },
+      {
+        "value": "endpoint",
+        "label": "Endpoint"
+      }
+    ]
+  },
+  {
+    "key": "HaloPsaUpdateTicketModel",
+    "label": "Update Ticket Model",
+    "type": "select",
+    "group": "Signal Filters",
+    "defaultValue": "grouped",
+    "options": [
+      {
+        "value": "grouped",
+        "label": "Grouped"
+      },
+      {
+        "value": "endpoint",
+        "label": "Endpoint"
+      }
+    ]
+  },
+  {
+    "key": "HaloPsaAutomationFailedTicketModel",
+    "label": "Automation Failed Ticket Model",
+    "type": "select",
+    "group": "Signal Filters",
+    "defaultValue": "grouped",
+    "options": [
+      {
+        "value": "grouped",
+        "label": "Grouped"
+      },
+      {
+        "value": "endpoint",
+        "label": "Endpoint"
+      }
+    ]
+  },
+  {
+    "key": "HaloPsaMaxImpactedEndpointsInGroupedTicket",
+    "label": "Max endpoints shown in each grouped ticket",
+    "type": "number",
+    "group": "Signal Filters",
+    "defaultValue": "25",
+    "min": 1,
+    "max": 100,
+    "helpText": "When more endpoints are affected, the ticket shows this many endpoints and links back to Action1 for the full list."
+  },
+  {
+    "key": "HaloPsaMaxOpenTicketsPerOrganization",
+    "label": "Max Open Tickets Per Organization",
+    "type": "number",
+    "group": "Signal Filters",
+    "defaultValue": "30",
+    "min": 1,
+    "helpText": "Limits how many connector-managed open tickets can exist per mapped organization at the same time. Additional qualifying candidates are skipped until existing tickets are resolved or closed."
+  },
+  {
+    "key": "HaloPsaDiagnosticLoggingEnabled",
+    "label": "Enable detailed diagnostic runtime logs",
+    "type": "checkbox",
+    "group": "Diagnostics",
+    "defaultValue": "false",
+    "helpText": "Keeps normal Marketplace run progress logging enabled and adds detailed sanitized support logs for troubleshooting HaloPSA sync issues."
+  }
+]
