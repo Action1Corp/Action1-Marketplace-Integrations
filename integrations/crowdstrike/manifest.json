@@ -2,7 +2,7 @@
   "id": "crowdstrike",
   "name": "CrowdStrike Falcon",
   "vendor": "CrowdStrike",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "marketplaceApiVersion": "1.0",
   "minimumMarketplaceVersion": "1.0.0",
   "description": "Correlate CrowdStrike exposure data with Action1 endpoint and patch context.",

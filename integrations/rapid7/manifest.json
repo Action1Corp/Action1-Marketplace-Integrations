@@ -2,7 +2,7 @@
   "id": "rapid7",
   "name": "Rapid7 InsightVM",
   "vendor": "Rapid7",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "marketplaceApiVersion": "1.0",
   "minimumMarketplaceVersion": "1.0.0",
   "description": "Correlate Rapid7 InsightVM exposure data with Action1 endpoint and patch context.",

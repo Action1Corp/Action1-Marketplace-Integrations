@@ -108,7 +108,7 @@ function Settings({ integration }) {
                   <select
                     value={settings[setting.key] || setting.defaultValue || ''}
                     onChange={event => setSettings(current => ({ ...current, [setting.key]: event.target.value }))}
-                    style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: 4, background: '#fff' }}
+                    style={{ width: '100%', padding: '0.6rem', border: '1px solid #D1D5DB', borderRadius: 4, background: '#fff', color: '#111827', boxSizing: 'border-box' }}
                   >
                     <option value="">Select...</option>
                     {(setting.options || []).map(option => {
@@ -132,7 +132,7 @@ function Settings({ integration }) {
                     value={settings[setting.key] || ''}
                     onFocus={() => { if (settings[setting.key] === SECRET_MASK) setSettings(current => ({ ...current, [setting.key]: '' })); }}
                     onChange={event => setSettings(current => ({ ...current, [setting.key]: event.target.value }))}
-                    style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: 4 }}
+                    style={{ width: '100%', padding: '0.6rem', border: '1px solid #D1D5DB', borderRadius: 4, background: '#fff', color: '#111827', boxSizing: 'border-box' }}
                   />
                 )}
                 {storedSecrets[setting.key] && <div style={{ marginTop: '0.3rem', fontSize: '0.78rem', color: '#6B7280' }}>A secret value is stored. Keep *** to leave it unchanged.</div>}
@@ -164,7 +164,7 @@ function Settings({ integration }) {
                 </button>
               ))}
             </div>
-            <input type="time" value={scheduleUi.time} onChange={e => updateSchedule({ enabled: true, time: e.target.value })} />
+            <input type="time" value={scheduleUi.time} onChange={e => updateSchedule({ enabled: true, time: e.target.value })} style={{ padding: '0.6rem', border: '1px solid #D1D5DB', borderRadius: 4, background: '#fff', color: '#111827' }} />
           </div>
         )}
         <button className="btn-primary" type="submit">Save Settings</button>
