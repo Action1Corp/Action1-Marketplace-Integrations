@@ -18,13 +18,13 @@ frontend/node_modules/
 frontend/dist/
 node.msi
 qualys-out.txt
-
+blueprints/*
 openspec/
 _reference/
 docs/
 .codex/
 *.patch
-
+.npm-cache/
 # Local Marketplace validation
 docker-compose.marketplace.local.yml
 .agents/

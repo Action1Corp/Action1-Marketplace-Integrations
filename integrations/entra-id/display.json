@@ -1,0 +1,30 @@
+{
+  "navigation": [
+    {
+      "id": "dashboard",
+      "label": "Dashboard",
+      "path": "dashboard",
+      "icon": "Activity"
+    },
+    {
+      "id": "history",
+      "label": "History",
+      "path": "history",
+      "icon": "History"
+    },
+    {
+      "id": "mapping",
+      "label": "Organization Mapping",
+      "path": "mapping",
+      "icon": "Map",
+      "requiresWrite": true
+    },
+    {
+      "id": "settings",
+      "label": "Settings",
+      "path": "settings",
+      "icon": "Settings",
+      "requiresWrite": true
+    }
+  ]
+}

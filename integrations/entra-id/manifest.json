@@ -1,0 +1,54 @@
+{
+  "id": "entra-id",
+  "name": "Microsoft Entra Device Groups Sync",
+  "vendor": "Action1",
+  "version": "1.0.0",
+  "marketplaceApiVersion": "1.0",
+  "minimumMarketplaceVersion": "1.0.0",
+  "description": "Sync Microsoft Entra device group membership and ownership data into Action1 endpoint custom attributes.",
+  "category": "Identity",
+  "icon_color": "#2E8CEB",
+  "entry": "index.js",
+  "actions": [
+    {
+      "id": "list-entra-org-mappings",
+      "kind": "action",
+      "label": "List Entra Org Mappings",
+      "buttonLabel": "Refresh Mappings",
+      "runningLabel": "Refreshing...",
+      "description": "Loads Action1 organization mappings for the configured Microsoft Entra tenant.",
+      "placement": "mapping",
+      "history": false
+    },
+    {
+      "id": "save-entra-org-mapping",
+      "kind": "action",
+      "label": "Save Entra Org Mapping",
+      "buttonLabel": "Save Mapping",
+      "runningLabel": "Saving...",
+      "description": "Creates or updates an Action1 organization mapping row for the configured Microsoft Entra tenant.",
+      "placement": "mapping",
+      "history": false
+    },
+    {
+      "id": "delete-entra-org-mapping",
+      "kind": "action",
+      "label": "Delete Entra Org Mapping",
+      "buttonLabel": "Delete Mapping",
+      "runningLabel": "Deleting...",
+      "description": "Deletes an Action1 organization mapping row for the configured Microsoft Entra tenant.",
+      "placement": "mapping",
+      "history": false
+    },
+    {
+      "id": "discover-action1-mapping-options",
+      "kind": "action",
+      "label": "Discover Action1 Mapping Options",
+      "buttonLabel": "Refresh Action1 Organizations",
+      "runningLabel": "Refreshing...",
+      "description": "Loads read-only Action1 organization options for the Mapping screen.",
+      "placement": "mapping",
+      "history": false
+    }
+  ]
+}

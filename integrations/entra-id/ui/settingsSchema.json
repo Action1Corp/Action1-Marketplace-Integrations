@@ -1,0 +1,44 @@
+[
+  {
+    "key": "EntraTenantId",
+    "label": "Entra Tenant ID",
+    "type": "text",
+    "group": "Entra Configuration",
+    "required": true,
+    "helpText": "Microsoft Entra tenant ID."
+  },
+  {
+    "key": "EntraClientId",
+    "label": "Entra Client ID",
+    "type": "text",
+    "group": "Entra Configuration",
+    "required": true,
+    "helpText": "Microsoft Entra application client ID."
+  },
+  {
+    "key": "EntraClientSecret",
+    "label": "Entra Client Secret",
+    "type": "secret",
+    "group": "Entra Configuration",
+    "required": true,
+    "helpText": "Microsoft Entra application client secret. The saved value remains masked."
+  },
+  {
+    "key": "EntraGroupsCustomAttributeName",
+    "label": "Entra Groups custom attribute name",
+    "type": "text",
+    "group": "Action1 Custom Attributes",
+    "required": true,
+    "defaultValue": "Entra Groups",
+    "helpText": "Stores Microsoft Entra group membership."
+  },
+  {
+    "key": "EntraDeviceOwnershipCustomAttributeName",
+    "label": "Entra Device Ownership custom attribute name",
+    "type": "text",
+    "group": "Action1 Custom Attributes",
+    "required": true,
+    "defaultValue": "Entra Device Ownership",
+    "helpText": "Stores Microsoft Entra device ownership."
+  }
+]
