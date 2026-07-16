@@ -66,6 +66,7 @@ function run() {
   assert(mappingSource.includes("maxWidth: 820"), 'Mapping.jsx should use the same max-width convention as Settings');
   assert(mappingSource.includes("margin: '0 auto'"), 'Mapping.jsx should center the mapping page like Settings');
   assert(mappingSource.includes("verticalAlign: 'middle'"), 'Mapping.jsx should keep table rows vertically aligned for compact scanning');
+  assert(mappingSource.includes("fontWeight: 400"), 'Mapping.jsx should render mapping summary values with normal font weight');
   assert(mappingSource.includes('const rowsToDelete = savedMappings.filter'), 'Mapping.jsx should remove deleted rows during save');
   assert(mappingSource.includes('const rowsToSave = persistRows.filter'), 'Mapping.jsx should persist changed/new rows during save');
   assert(mappingSource.includes('Loading mappings...'), 'Mapping.jsx should render the loading mappings state');

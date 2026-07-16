@@ -2,7 +2,7 @@
   "navigation": [
     {
       "id": "dashboard",
-      "label": "Dashboard",
+      "label": "Sync",
       "path": "dashboard",
       "icon": "Activity"
     },

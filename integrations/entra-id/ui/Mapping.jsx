@@ -90,7 +90,7 @@ const styles = {
   statValue: {
     margin: '0.35rem 0 0',
     fontSize: '1.2rem',
-    fontWeight: 700
+    fontWeight: 400
   },
   statusMessage: {
     margin: 0,

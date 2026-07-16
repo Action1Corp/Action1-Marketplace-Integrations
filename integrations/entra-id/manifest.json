@@ -49,6 +49,16 @@
       "description": "Loads read-only Action1 organization options for the Mapping screen.",
       "placement": "mapping",
       "history": false
+    },
+    {
+      "id": "sync",
+      "kind": "sync",
+      "label": "Run Entra Sync",
+      "buttonLabel": "Run Sync",
+      "runningLabel": "Syncing...",
+      "description": "Runs the Marketplace-tracked Microsoft Entra device groups synchronization workflow.",
+      "placement": "dashboard",
+      "history": true
     }
   ]
 }

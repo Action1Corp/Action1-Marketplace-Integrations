@@ -175,6 +175,25 @@ export function getAttributeDefaultMappings(settingsSchema = []) {
   ];
 }
 
+export function resolveAttributeMappings(settingsSchema = [], settings = {}) {
+  const defaults = getDefaultSettings(settingsSchema);
+  const savedGroupAttribute = String(settings.EntraGroupsCustomAttributeName ?? '').trim();
+  const savedOwnershipAttribute = String(settings.EntraDeviceOwnershipCustomAttributeName ?? '').trim();
+
+  return [
+    {
+      entraProperty: 'memberOf',
+      action1CustomAttribute: savedGroupAttribute || defaults.EntraGroupsCustomAttributeName,
+      source: savedGroupAttribute ? 'saved' : 'default'
+    },
+    {
+      entraProperty: 'deviceOwnership',
+      action1CustomAttribute: savedOwnershipAttribute || defaults.EntraDeviceOwnershipCustomAttributeName,
+      source: savedOwnershipAttribute ? 'saved' : 'default'
+    }
+  ];
+}
+
 export function getConnectionSummary(settings = {}) {
   return [
     'Connection settings are configured.',

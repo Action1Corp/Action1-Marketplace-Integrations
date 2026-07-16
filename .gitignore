@@ -28,5 +28,5 @@ docs/
 # Local Marketplace validation
 docker-compose.marketplace.local.yml
 .agents/
-integrations/halo-psa/.runtime-logs/
-integrations/jira-cloud/.runtime-logs/
+
+.runtime-logs/
