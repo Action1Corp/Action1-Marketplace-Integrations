@@ -9,10 +9,10 @@ function run() {
   assert(source.includes('<h1 className="page-title" style={pageStyles.title}>Settings</h1>'), 'Settings.jsx should render a page-level Settings title');
   assert(source.includes('Set up Microsoft Entra credentials and choose the Action1 custom attributes used for synced device data.'), 'Settings.jsx should render the exact approved page subtitle');
 
-  assert(source.includes('Entra Configuration'), 'Settings.jsx should render the Entra Configuration section');
+  assert(source.includes('Entra Connection'), 'Settings.jsx should render the Entra Connection section');
   assert(source.includes('Action1 Custom Attributes'), 'Settings.jsx should render the Action1 Custom Attributes section');
   assert(!source.includes('Diagnostics'), 'Settings.jsx should not render a Diagnostics section in this MVP slice');
-  assert(source.includes('Enter the Microsoft Entra tenant and application credentials used to read device and group membership data.'), 'Settings.jsx should render the exact approved Entra Configuration intro');
+  assert(source.includes('Enter the Microsoft Entra directory and application credentials used to read device and group membership data.'), 'Settings.jsx should render the exact approved Entra Configuration intro');
   assert(source.includes('Create these custom attributes in every mapped Action1 organization before running sync. Names are case-sensitive.'), 'Settings.jsx should render the exact approved Action1 Custom Attributes intro');
 
   assert(source.includes('connectionEditing'), 'Settings.jsx should manage Entra connection edit/collapse state');
@@ -27,12 +27,13 @@ function run() {
 
   assert(source.includes('Saved (leave unchanged)'), 'Settings.jsx should preserve masked secret placeholder behavior when editing a configured connection');
   assert(source.includes("from '../settingsResolver.mjs'"), 'Settings.jsx should import the shared settings resolver module through the ESM runtime path');
-  assert(!source.includes('validate-configuration'), 'Settings.jsx should not call a validate action in this local-validation-only slice');
-  assert(!source.includes('supportsValidation'), 'Settings.jsx should not wire Marketplace validate metadata in this slice');
-  assert(!source.includes('validatingConnection'), 'Settings.jsx should not track a validate-in-progress state in this slice');
-  assert(!source.includes('Validate Connection'), 'Settings.jsx should not describe lightweight validation as a real connection test');
-  assert(!source.includes('Validate Settings'), 'Settings.jsx should not render a Validate Settings action in this slice');
-  assert(!source.includes('Test Connection'), 'Settings.jsx should not render a Test Connection action before real Entra API/client validation exists');
+  assert(source.includes('validate-configuration'), 'Settings.jsx should call the Marketplace validate action for Test Connection');
+  assert(source.includes('supportsValidation'), 'Settings.jsx should wire Marketplace validate metadata');
+  assert(source.includes('validatingConnection'), 'Settings.jsx should track a validate-in-progress state');
+  assert(source.includes('Test Connection'), 'Settings.jsx should render the Entra Test Connection action');
+  assert(source.includes('buildValidationRequestSettings'), 'Settings.jsx should build a validate payload without persisting settings');
+  assert(source.includes('testConnection(savedConnectionSettings)'), 'collapsed-state Test Connection should validate the saved snapshot');
+  assert(source.includes('testConnection(connectionSettings)'), 'editing-state Test Connection should validate the current unsaved form values');
   assert(!source.includes('Save Settings</button>'), 'Settings.jsx should not keep the old global Save Settings action');
   assert(!source.includes('Validate Configuration'), 'Settings.jsx should not keep the old global Validate Configuration label');
   assert(!source.includes('Change Settings'), 'Settings.jsx should not render a separate Change Settings action');
@@ -49,8 +50,16 @@ function run() {
   assert(!source.includes('Entra Tenant ID:'), 'Settings.jsx should use the concise configured-summary tenant label through the shared resolver');
   assert(!source.includes('Entra Client ID:'), 'Settings.jsx should not show client ID in the configured summary');
   assert(!source.includes('Entra Client Secret: Saved (masked)'), 'Settings.jsx should not show client secret text in the configured summary');
-  assert(source.includes('className="btn-primary" type="button" onClick={() => setConnectionEditing(true)}>Edit</button>'), 'collapsed Edit should use the primary button styling');
+  assert(source.includes('className="btn-primary" type="button" onClick={() => {'), 'collapsed Edit should use the primary button styling');
+  assert(source.includes('}}>Edit</button>'), 'collapsed summary should still render an Edit action');
   assert(source.includes('setConnectionValidationResult({'), 'Settings.jsx should keep connection save validation local to the card');
+  assert(source.includes('Save Connection Settings</button>'), 'editing mode should keep Save Connection Settings first');
+  assert(source.includes("{validatingConnection ? 'Testing connection...' : 'Test Connection'}"), 'Test Connection should show a running label while validation is in progress');
+  assert(source.includes("setConnectionValidationResult(null);"), 'editing connection values should clear stale validation feedback');
+  assert(source.includes('setConnectionSettings(savedConnectionSettings);'), 'reopening the collapsed connection summary should restore the saved settings snapshot before editing');
+  assert(source.includes(') : renderConnectionSummary()}'), 'Settings.jsx should keep a compact collapsed summary branch');
+  assert(source.includes('{connectionValidationResult ? ('), 'validation feedback should render regardless of whether the card is collapsed or expanded');
+  assert(source.includes('finally {'), 'connection validation should always exit the loading state in a finally block');
 
   assert(!source.includes('Action1ApiKey'), 'Settings.jsx should not render Action1 credential controls');
   assert(!source.includes('Action1ApiSecret'), 'Settings.jsx should not render Action1 credential controls');

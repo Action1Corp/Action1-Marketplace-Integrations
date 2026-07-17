@@ -206,6 +206,97 @@ async function getAccessToken(tenant, logger) {
   return tokenMeta.accessToken;
 }
 
+async function createGraphAuthorizedGet(tenant, logger) {
+  let tokenState = await acquireAccessTokenMeta(tenant, logger);
+
+  async function ensureValidTokenForEndpoint(endpoint) {
+    if (isTokenNearExpiry(tokenState.expiresAtMs)) {
+      logger?.info?.(
+        `[entra] Graph token nearing expiry; refreshing proactively tenant=${tenant.tenantId} endpoint=${endpoint} remainingSec=${secondsUntil(
+          tokenState.expiresAtMs
+        )}`
+      );
+      tokenState = await acquireAccessTokenMeta(tenant, logger);
+    }
+    return tokenState.accessToken;
+  }
+
+  async function graphGetWithAuth(url, endpoint) {
+    async function getWithTransportRetry(headers) {
+      for (let attempt = 1; attempt <= GRAPH_TRANSPORT_MAX_ATTEMPTS; attempt += 1) {
+        try {
+          const data = await getJson(url, headers);
+          if (attempt > 1) {
+            logger?.info?.(
+              `[entra] Graph transport retry succeeded endpoint=${endpoint} attempt=${attempt}/${GRAPH_TRANSPORT_MAX_ATTEMPTS}`
+            );
+          }
+          return data;
+        } catch (err) {
+          if (!isTransportFetchError(err)) throw err;
+
+          const errName = err?.name || "Error";
+          const errMessage = err?.message || String(err);
+
+          if (attempt >= GRAPH_TRANSPORT_MAX_ATTEMPTS) {
+            logger?.info?.(
+              `[entra] Graph transport retries exhausted endpoint=${endpoint} attempts=${GRAPH_TRANSPORT_MAX_ATTEMPTS} err=${errName}: ${errMessage}`
+            );
+            const wrapped = new Error(
+              `${errMessage} (endpoint=${endpoint} url=${sanitizeUrl(url)} code=${err?.code || "unknown"})`
+            );
+            wrapped.code = "ENTRA_TRANSPORT_ERROR";
+            wrapped.transportCode = err?.code || "unknown";
+            wrapped.endpoint = endpoint;
+            wrapped.url = sanitizeUrl(url);
+            wrapped.cause = err;
+            throw wrapped;
+          }
+
+          logger?.info?.(
+            `[entra] Graph transport error; retrying request attempt ${attempt}/${GRAPH_TRANSPORT_MAX_ATTEMPTS} endpoint=${endpoint} err=${errName}: ${errMessage}`
+          );
+          await sleep(transportBackoffMs(attempt));
+        }
+      }
+    }
+
+    try {
+      const token = await ensureValidTokenForEndpoint(endpoint);
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      };
+      return await getWithTransportRetry(headers);
+    } catch (err) {
+      if (err?.status !== 401) throw err;
+
+      logger?.info?.(
+        `[entra] Graph 401 received; forcing token refresh and retrying once tenant=${tenant.tenantId} endpoint=${endpoint}`
+      );
+
+      tokenState = await acquireAccessTokenMeta(tenant, logger);
+      const retryHeaders = {
+        Authorization: `Bearer ${tokenState.accessToken}`,
+        "Content-Type": "application/json",
+      };
+
+      try {
+        return await getWithTransportRetry(retryHeaders);
+      } catch (retryErr) {
+        logger?.info?.(
+          `[entra] Graph retry after token refresh failed tenant=${tenant.tenantId} endpoint=${endpoint} status=${
+            retryErr?.status ?? "unknown"
+          }`
+        );
+        throw retryErr;
+      }
+    }
+  }
+
+  return graphGetWithAuth;
+}
+
 /**
  * Get devices (paging @odata.nextLink)
  * NOTE: returns ALL properties returned by Graph unless you use $select.
@@ -329,92 +420,7 @@ async function listDeviceGroups(tenant, deviceId, logger) {
  */
 async function listDevicesWithGroups(tenant, logger) {
   const tAll = nowMs();
-  let tokenState = await acquireAccessTokenMeta(tenant, logger);
-
-  async function ensureValidTokenForEndpoint(endpoint) {
-    if (isTokenNearExpiry(tokenState.expiresAtMs)) {
-      logger?.info?.(
-        `[entra] Graph token nearing expiry; refreshing proactively tenant=${tenant.tenantId} endpoint=${endpoint} remainingSec=${secondsUntil(
-          tokenState.expiresAtMs
-        )}`
-      );
-      tokenState = await acquireAccessTokenMeta(tenant, logger);
-    }
-    return tokenState.accessToken;
-  }
-
-  async function graphGetWithAuth(url, endpoint) {
-    async function getWithTransportRetry(headers) {
-      for (let attempt = 1; attempt <= GRAPH_TRANSPORT_MAX_ATTEMPTS; attempt += 1) {
-        try {
-          const data = await getJson(url, headers);
-          if (attempt > 1) {
-            logger?.info?.(
-              `[entra] Graph transport retry succeeded endpoint=${endpoint} attempt=${attempt}/${GRAPH_TRANSPORT_MAX_ATTEMPTS}`
-            );
-          }
-          return data;
-        } catch (err) {
-          if (!isTransportFetchError(err)) throw err;
-
-          const errName = err?.name || "Error";
-          const errMessage = err?.message || String(err);
-
-          if (attempt >= GRAPH_TRANSPORT_MAX_ATTEMPTS) {
-            logger?.info?.(
-              `[entra] Graph transport retries exhausted endpoint=${endpoint} attempts=${GRAPH_TRANSPORT_MAX_ATTEMPTS} err=${errName}: ${errMessage}`
-            );
-            const wrapped = new Error(
-              `${errMessage} (endpoint=${endpoint} url=${sanitizeUrl(url)} code=${err?.code || "unknown"})`
-            );
-            wrapped.code = "ENTRA_TRANSPORT_ERROR";
-            wrapped.transportCode = err?.code || "unknown";
-            wrapped.endpoint = endpoint;
-            wrapped.url = sanitizeUrl(url);
-            wrapped.cause = err;
-            throw wrapped;
-          }
-
-          logger?.info?.(
-            `[entra] Graph transport error; retrying request attempt ${attempt}/${GRAPH_TRANSPORT_MAX_ATTEMPTS} endpoint=${endpoint} err=${errName}: ${errMessage}`
-          );
-          await sleep(transportBackoffMs(attempt));
-        }
-      }
-    }
-
-    try {
-      const token = await ensureValidTokenForEndpoint(endpoint);
-      const headers = {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      };
-      return await getWithTransportRetry(headers);
-    } catch (err) {
-      if (err?.status !== 401) throw err;
-
-      logger?.info?.(
-        `[entra] Graph 401 received; forcing token refresh and retrying once tenant=${tenant.tenantId} endpoint=${endpoint}`
-      );
-
-      tokenState = await acquireAccessTokenMeta(tenant, logger);
-      const retryHeaders = {
-        Authorization: `Bearer ${tokenState.accessToken}`,
-        "Content-Type": "application/json",
-      };
-
-      try {
-        return await getWithTransportRetry(retryHeaders);
-      } catch (retryErr) {
-        logger?.info?.(
-          `[entra] Graph retry after token refresh failed tenant=${tenant.tenantId} endpoint=${endpoint} status=${
-            retryErr?.status ?? "unknown"
-          }`
-        );
-        throw retryErr;
-      }
-    }
-  }
+  const graphGetWithAuth = await createGraphAuthorizedGet(tenant, logger);
 
   const select = [
     "id",
@@ -553,10 +559,18 @@ async function listDevicesWithGroups(tenant, logger) {
   return result;
 }
 
+async function validateGraphConnection(tenant, logger) {
+  const graphGetWithAuth = await createGraphAuthorizedGet(tenant, logger);
+  const url = `${GRAPH_DEVICES_URL}?$top=1&$select=id`;
+  await graphGetWithAuth(url, "devices_validation");
+  return { ok: true };
+}
+
 export {
   getAccessToken,
   listDevices,
   listDeviceGroups,
   listDeviceGroupsByToken,
   listDevicesWithGroups,
+  validateGraphConnection,
 };

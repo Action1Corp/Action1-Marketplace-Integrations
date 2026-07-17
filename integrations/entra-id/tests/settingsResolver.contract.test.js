@@ -78,6 +78,20 @@ async function run() {
   );
   assert.strictEqual(connectionValidationPayload._secretModes.EntraClientSecret, 'stored', 'stored secret placeholders should be represented through the shared secret-mode contract');
 
+  const blankStoredSecretValidationPayload = resolver.buildValidationRequestSettings(connectionSchema, {
+    EntraTenantId: 'tenant-id-123',
+    EntraClientId: 'client-id-123',
+    EntraClientSecret: ''
+  }, {
+    sensitiveKeys: new Set(['EntraClientSecret']),
+    secretMask: resolver.SECRET_MASK,
+    storedSecrets: {
+      EntraClientSecret: true
+    }
+  });
+  assert.strictEqual(blankStoredSecretValidationPayload.EntraClientSecret, undefined, 'blank secret fields should not overwrite an existing stored secret during Test Connection');
+  assert.strictEqual(blankStoredSecretValidationPayload._secretModes.EntraClientSecret, 'stored', 'blank secret fields should still resolve through the stored-secret marker when a saved secret exists');
+
   const connectionSavePayload = resolver.buildSavePayload(connectionSchema, 'entra-id', {
     EntraTenantId: 'tenant-id-123',
     EntraClientId: 'client-id-123',
@@ -123,8 +137,8 @@ async function run() {
   });
   assert.deepStrictEqual(
     connectionSummary,
-    ['Connection settings are configured.', 'Tenant ID: tenant-id-123'],
-    'configured summary should only expose the approved tenant-only copy'
+    ['Connection settings are configured.', 'Directory ID: tenant-id-123'],
+    'configured summary should only expose the approved directory-only copy'
   );
 
   assert.deepStrictEqual(
@@ -148,6 +162,41 @@ async function run() {
     ['EntraGroupsCustomAttributeName'],
     'attribute-setting validation should stay separate from connection validation'
   );
+
+  const requestResolvedFromStored = await resolver.resolveRequestSettings(connectionSchema, {
+    settings: {
+      async get(key) {
+        if (key === 'EntraClientSecret') {
+          return 'stored-secret-value';
+        }
+        if (key === 'EntraTenantId') {
+          return 'stored-tenant-id';
+        }
+        if (key === 'EntraClientId') {
+          return 'stored-client-id';
+        }
+        return '';
+      }
+    }
+  }, {
+    EntraTenantId: 'tenant-id-123',
+    EntraClientId: 'client-id-123',
+    EntraClientSecret: ''
+  });
+  assert.strictEqual(requestResolvedFromStored.EntraClientSecret, 'stored-secret-value', 'blank secret requests should fall back to the stored secret for validation');
+
+  const requestResolvedFromUnsavedValue = await resolver.resolveRequestSettings(connectionSchema, {
+    settings: {
+      async get() {
+        return 'stored-secret-value';
+      }
+    }
+  }, {
+    EntraTenantId: 'tenant-id-123',
+    EntraClientId: 'client-id-123',
+    EntraClientSecret: 'unsaved-secret-value'
+  });
+  assert.strictEqual(requestResolvedFromUnsavedValue.EntraClientSecret, 'unsaved-secret-value', 'unsaved entered secrets should override the stored secret for validation only');
 }
 
 run().catch((error) => {

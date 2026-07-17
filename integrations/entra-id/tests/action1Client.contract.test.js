@@ -12,8 +12,108 @@ async function loadModule() {
 async function run() {
   const action1Client = await loadModule();
 
+  await runTokenReuseBeforeExpiryTest(action1Client);
+  await runTokenRefreshAfterExpiryTest(action1Client);
   await runRateLimitRetryTest(action1Client);
   await run401RefreshRetryTest(action1Client);
+}
+
+async function runTokenReuseBeforeExpiryTest(action1Client) {
+  const originalFetch = global.fetch;
+  const requests = [];
+
+  global.fetch = async (url, options = {}) => {
+    requests.push({
+      url: String(url),
+      method: options.method || 'GET',
+      authorization: options.headers?.Authorization || options.headers?.authorization || null
+    });
+
+    if (String(url).endsWith('/oauth2/token')) {
+      return jsonResponse(200, {
+        access_token: 'cached-action1-token',
+        expires_in: 3600
+      });
+    }
+
+    return jsonResponse(200, {
+      items: [{ id: 'ep-1', name: 'Endpoint One' }]
+    });
+  };
+
+  try {
+    const action1Config = {
+      apiBaseUrl: 'https://app.action1.test/api/3.0',
+      clientId: 'cache-client',
+      clientSecret: 'cache-secret'
+    };
+
+    await action1Client.listOrganizations(action1Config, null, silentLogger());
+    await action1Client.listOrganizations(action1Config, null, silentLogger());
+
+    assert.strictEqual(
+      requests.filter((entry) => entry.url.endsWith('/oauth2/token')).length,
+      1,
+      'Action1 OAuth tokens should be reused before expiry when cached state is still valid'
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+}
+
+async function runTokenRefreshAfterExpiryTest(action1Client) {
+  const originalFetch = global.fetch;
+  const originalDateNow = Date.now;
+  const requests = [];
+  let now = 1_000_000;
+  let endpointCalls = 0;
+  let tokenCalls = 0;
+
+  Date.now = () => now;
+  global.fetch = async (url, options = {}) => {
+    requests.push({
+      url: String(url),
+      method: options.method || 'GET',
+      authorization: options.headers?.Authorization || options.headers?.authorization || null
+    });
+
+    if (String(url).endsWith('/oauth2/token')) {
+      tokenCalls += 1;
+      return jsonResponse(200, {
+        access_token: tokenCalls === 1 ? 'first-action1-token' : 'second-action1-token',
+        expires_in: 3600
+      });
+    }
+
+    endpointCalls += 1;
+    if (endpointCalls === 1) {
+      now += 3_500_000;
+    }
+
+    return jsonResponse(200, {
+      items: [{ id: 'ep-1', name: 'Endpoint One' }]
+    });
+  };
+
+  try {
+    const action1Config = {
+      apiBaseUrl: 'https://app.action1.test/api/3.0',
+      clientId: 'expiry-client',
+      clientSecret: 'expiry-secret'
+    };
+
+    await action1Client.listOrganizations(action1Config, null, silentLogger());
+    await action1Client.listOrganizations(action1Config, null, silentLogger());
+
+    assert.strictEqual(
+      tokenCalls,
+      2,
+      'Action1 OAuth tokens should be reacquired after the cached token reaches the refresh window'
+    );
+  } finally {
+    global.fetch = originalFetch;
+    Date.now = originalDateNow;
+  }
 }
 
 async function runRateLimitRetryTest(action1Client) {

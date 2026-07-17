@@ -22,6 +22,7 @@ async function run() {
   await runDiagnosticFileEnablementAnnouncementTest();
   await runDiagnosticDirectoryCreatedIfMissingTest();
   await runFileWriteFailureDoesNotCrashTest();
+  await runRunCorrelationTest();
   await runRotationTest();
 }
 
@@ -340,6 +341,24 @@ async function runRotationTest() {
   }
 
   assert.strictEqual(fs.existsSync(path.join(tempDir, 'entra-id-runtime.log.1')), true, 'diagnostic log rotation should keep at least one backup file');
+}
+
+async function runRunCorrelationTest() {
+  const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'entra-id-logs-run-id-'));
+  const logger = createMarketplaceRunLogger({
+    diagnosticLoggingEnabled: true,
+    logDir: tempDir,
+    integrationId: 'entra-id'
+  });
+
+  await logger.emit({
+    runId: 'run-123',
+    level: LOG_LEVELS.INFO,
+    message: 'Correlated runtime line.'
+  });
+
+  const text = await fsp.readFile(path.join(tempDir, 'entra-id-runtime.log'), 'utf8');
+  assert.strictEqual(text.includes('run-123'), true, 'runtime file logs should include the Marketplace run id for support correlation');
 }
 
 run().catch((error) => {

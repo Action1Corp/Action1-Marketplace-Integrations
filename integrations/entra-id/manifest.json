@@ -11,6 +11,16 @@
   "entry": "index.js",
   "actions": [
     {
+      "id": "validate-configuration",
+      "kind": "validate",
+      "label": "Validate Entra Connection",
+      "buttonLabel": "Validate",
+      "runningLabel": "Validating...",
+      "description": "Validates Microsoft Entra connectivity and required Microsoft Graph read access.",
+      "placement": "settings",
+      "history": false
+    },
+    {
       "id": "list-entra-org-mappings",
       "kind": "action",
       "label": "List Entra Org Mappings",

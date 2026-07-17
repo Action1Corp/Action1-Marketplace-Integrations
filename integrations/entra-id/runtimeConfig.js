@@ -12,6 +12,7 @@ const SENSITIVE_RUNTIME_SETTING_KEYS = new Set(
     .map((field) => String(field.key || '').trim())
     .filter(Boolean)
 );
+let settingsResolverModulePromise = null;
 
 function scheduleKey(integration) {
   return `CronSchedule_${integration}`;
@@ -66,6 +67,15 @@ async function loadResolvedAttributeMappings(loadedSettings) {
     : [];
 }
 
+async function loadSettingsResolverModule() {
+  if (!settingsResolverModulePromise) {
+    const moduleUrl = pathToFileURL(path.join(__dirname, 'settingsResolver.mjs')).href;
+    settingsResolverModulePromise = import(moduleUrl);
+  }
+
+  return settingsResolverModulePromise;
+}
+
 async function loadMappings(context) {
   const rows = await context.db.all(
     `SELECT id, action1_org_id, action1_org_name
@@ -86,7 +96,7 @@ function getSetting(settings, key) {
   return String(settings?.[key] || '').trim();
 }
 
-async function readRuntimeSettings(context) {
+async function readRuntimeSettings(context, options = {}) {
   const out = {};
   const canGet = context?.settings && typeof context.settings.get === 'function';
   let loadedSettings = {};
@@ -113,17 +123,34 @@ async function readRuntimeSettings(context) {
     out[key] = fromAll ?? '';
   }
 
-  return out;
+  if (options.applyDefaults === false) {
+    return out;
+  }
+
+  const settingsResolver = await loadSettingsResolverModule();
+  return typeof settingsResolver.resolveEffectiveSettings === 'function'
+    ? settingsResolver.resolveEffectiveSettings(settingsSchema, out, {
+      storedSecrets: {},
+      secretMask: settingsResolver.SECRET_MASK
+    })
+    : out;
 }
 
 async function loadSyncRuntimeConfig(context, options = {}) {
   const integrationId = options.integrationId || 'entra-id';
-  const loadedSettings = await readRuntimeSettings(context);
+  const rawLoadedSettings = await readRuntimeSettings(context, { applyDefaults: false });
+  const settingsResolver = await loadSettingsResolverModule();
+  const loadedSettings = typeof settingsResolver.resolveEffectiveSettings === 'function'
+    ? settingsResolver.resolveEffectiveSettings(settingsSchema, rawLoadedSettings, {
+      storedSecrets: {},
+      secretMask: settingsResolver.SECRET_MASK
+    })
+    : rawLoadedSettings;
   const action1Credentials = typeof context?.action1?.getCredentials === 'function'
     ? await context.action1.getCredentials()
     : {};
   const orgMappings = await loadMappings(context);
-  const resolvedAttributeMappings = await loadResolvedAttributeMappings(loadedSettings);
+  const resolvedAttributeMappings = await loadResolvedAttributeMappings(rawLoadedSettings);
 
   const tenantId = getSetting(loadedSettings, 'EntraTenantId');
   const clientId = getSetting(loadedSettings, 'EntraClientId');

@@ -3,7 +3,10 @@ const manifest = require('../manifest.json');
 
 function run() {
   const validateAction = manifest.actions.find((action) => action.id === 'validate-configuration');
-  assert.strictEqual(validateAction, undefined, 'this settings-validation slice should not expose a premature validate/test action before real Entra API/client wiring exists');
+  assert(validateAction, 'manifest should expose the Entra validate-configuration action');
+  assert.strictEqual(validateAction.kind, 'validate');
+  assert.strictEqual(validateAction.placement, 'settings');
+  assert.strictEqual(validateAction.history, false);
 }
 
 try {

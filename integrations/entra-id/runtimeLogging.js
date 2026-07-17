@@ -314,7 +314,8 @@ function shouldEmitDebug(line) {
 
 function formatRunLine(line) {
   const suffix = line.context && Object.keys(line.context).length > 0 ? ` ${JSON.stringify(line.context)}` : '';
-  return `[${line.level}] ${line.message}${suffix}`;
+  const runSegment = line.runId && line.runId !== 'system' ? ` [run:${line.runId}]` : '';
+  return `[${line.level}]${runSegment} ${line.message}${suffix}`;
 }
 
 async function emitRunLine(state, line) {
@@ -332,7 +333,8 @@ async function emitRunLine(state, line) {
 
 function formatConsoleLine(line) {
   const suffix = line.context && Object.keys(line.context).length > 0 ? ` ${JSON.stringify(line.context)}` : '';
-  return `${line.timestamp} [entra-id][${line.level}] ${line.message}${suffix}`;
+  const runSegment = line.runId && line.runId !== 'system' ? `[run:${line.runId}]` : '';
+  return `${line.timestamp} [entra-id][${line.level}]${runSegment} ${line.message}${suffix}`;
 }
 
 async function emitConsoleLine(state, line) {

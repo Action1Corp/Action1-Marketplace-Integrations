@@ -6,6 +6,7 @@ import {
   SECRET_MASK,
   buildLoadedSettingsState,
   buildSavePayload,
+  buildValidationRequestSettings,
   getConnectionSummary,
   getDisplayedSettingValue,
   getSettingsGroup,
@@ -55,6 +56,7 @@ const pageStyles = {
 };
 
 function Settings({ integration }) {
+  const [meta, setMeta] = useState(null);
   const [connectionSettings, setConnectionSettings] = useState({});
   const [savedConnectionSettings, setSavedConnectionSettings] = useState({});
   const [attributeSettings, setAttributeSettings] = useState({});
@@ -63,6 +65,7 @@ function Settings({ integration }) {
   const [connectionMessage, setConnectionMessage] = useState('');
   const [attributeMessage, setAttributeMessage] = useState('');
   const [connectionValidationResult, setConnectionValidationResult] = useState(null);
+  const [validatingConnection, setValidatingConnection] = useState(false);
   const [storedSecrets, setStoredSecrets] = useState({});
 
   const groupedSettings = useMemo(() => groupSettings(settingsSchema), []);
@@ -77,13 +80,16 @@ function Settings({ integration }) {
     storedSecrets,
     secretMask: SECRET_MASK
   });
+  const supportsValidation = Boolean(meta?.operations?.validate);
 
   useEffect(() => {
     let cancelled = false;
 
-    fetch('/api/settings')
-      .then((response) => response.json())
-      .then((data) => {
+    Promise.all([
+      fetch(`/api/marketplace/${integration}`).then((response) => response.json()),
+      fetch('/api/settings').then((response) => response.json())
+    ])
+      .then(([nextMeta, data]) => {
         if (cancelled) return;
 
         const nextStoredSecrets = data.storedSecrets || {};
@@ -96,6 +102,7 @@ function Settings({ integration }) {
           }
         );
 
+        setMeta(nextMeta);
         setConnectionSettings(nextState.connectionSettings);
         setSavedConnectionSettings(nextState.connectionSettings);
         setAttributeSettings(nextState.attributeSettings);
@@ -105,6 +112,7 @@ function Settings({ integration }) {
       })
       .catch(() => {
         if (cancelled) return;
+        setMeta(null);
         const nextState = buildLoadedSettingsState(settingsSchema, {}, {
           storedSecrets: {},
           secretMask: SECRET_MASK
@@ -121,6 +129,12 @@ function Settings({ integration }) {
       cancelled = true;
     };
   }, [attributeSchema, connectionSchema, integration]);
+
+  const updateConnectionSettings = (updater) => {
+    setConnectionSettings((current) => (typeof updater === 'function' ? updater(current) : updater));
+    setConnectionValidationResult(null);
+    setConnectionMessage('');
+  };
 
   const saveConnectionSettings = async () => {
     const missing = missingRequiredSettings(connectionSchema, connectionSettings, {
@@ -163,8 +177,8 @@ function Settings({ integration }) {
     setSavedConnectionSettings(nextConnectionSettings);
     setConnectionSettings(nextConnectionSettings);
     setConnectionMessage('Connection settings saved successfully.');
-    setConnectionValidationResult({ ok: true, message: 'Configuration values are present.' });
-        setConnectionEditing(false);
+    setConnectionValidationResult(null);
+    setConnectionEditing(false);
   };
 
   const saveAttributeSettings = async () => {
@@ -193,6 +207,46 @@ function Settings({ integration }) {
     setConnectionMessage('');
     setConnectionValidationResult(null);
     setConnectionEditing(false);
+  };
+
+  const testConnection = async (settingsSnapshot = connectionSettings) => {
+    if (validatingConnection || !supportsValidation) {
+      return;
+    }
+
+    setValidatingConnection(true);
+    setConnectionValidationResult(null);
+    setConnectionMessage('');
+
+    try {
+      const payload = buildValidationRequestSettings(connectionSchema, settingsSnapshot, {
+        sensitiveKeys: sensitiveSettings,
+        secretMask: SECRET_MASK,
+        storedSecrets
+      });
+
+      const response = await fetch(`/api/integrations/${integration}/actions/validate-configuration`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: payload })
+      });
+      const data = await response.json();
+      if (!data || typeof data !== 'object') {
+        throw new Error('Malformed validation response.');
+      }
+
+      setConnectionValidationResult({
+        ok: data.ok !== false,
+        message: String(data.message || 'Microsoft Entra connection failed: Unexpected validation response.')
+      });
+    } catch {
+      setConnectionValidationResult({
+        ok: false,
+        message: 'Microsoft Entra connection failed: Unable to validate Microsoft Graph access.'
+      });
+    } finally {
+      setValidatingConnection(false);
+    }
   };
 
   const renderField = (setting, values, onChange) => (
@@ -231,7 +285,17 @@ function Settings({ integration }) {
         </p>
       ))}
       <div>
-        <button className="btn-primary" type="button" onClick={() => setConnectionEditing(true)}>Edit</button>
+        <button className="btn-primary" type="button" onClick={() => {
+          setConnectionSettings(savedConnectionSettings);
+          setConnectionEditing(true);
+          setConnectionValidationResult(null);
+          setConnectionMessage('');
+        }}>Edit</button>
+        {supportsValidation ? (
+          <button className="btn-secondary" type="button" onClick={() => testConnection(savedConnectionSettings)} disabled={validatingConnection} style={{ marginLeft: '0.6rem' }}>
+            {validatingConnection ? 'Testing connection...' : 'Test Connection'}
+          </button>
+        ) : null}
       </div>
     </div>
   );
@@ -267,31 +331,36 @@ function Settings({ integration }) {
           <div style={{ display: 'grid', gap: '0.3rem' }}>
             <h2 style={pageStyles.cardTitle}>Entra Connection</h2>
             <p style={{ margin: 0, color: '#526173', fontSize: '0.9rem', lineHeight: 1.55 }}>
-              Enter the Microsoft Entra tenant and application credentials used to read device and group membership data.
+              Enter the Microsoft Entra directory and application credentials used to read device and group membership data.
             </p>
           </div>
 
           {connectionEditing ? (
             <>
               <div style={{ display: 'grid', gap: '0.75rem' }}>
-                {groupedSettings['Entra Configuration'].map((setting) => renderField(setting, connectionSettings, setConnectionSettings))}
+                {groupedSettings['Entra Configuration'].map((setting) => renderField(setting, connectionSettings, updateConnectionSettings))}
               </div>
-
-              {connectionValidationResult ? (
-                <p style={{ margin: 0, color: connectionValidationResult.ok ? '#166534' : '#B42318' }}>{connectionValidationResult.message}</p>
-              ) : null}
-              {connectionMessage ? (
-                <p style={{ margin: 0, color: connectionMessage.includes('successfully') ? '#166534' : '#B42318' }}>{connectionMessage}</p>
-              ) : null}
 
               <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
                 <button className="btn-primary" type="button" onClick={saveConnectionSettings}>Save Connection Settings</button>
+                {supportsValidation ? (
+                  <button className="btn-secondary" type="button" onClick={() => testConnection(connectionSettings)} disabled={validatingConnection}>
+                    {validatingConnection ? 'Testing connection...' : 'Test Connection'}
+                  </button>
+                ) : null}
                 {connectionConfigured && connectionEditing ? (
                   <button className="btn-secondary" type="button" onClick={cancelConnectionEdit}>Cancel</button>
                 ) : null}
               </div>
             </>
           ) : renderConnectionSummary()}
+
+          {connectionValidationResult ? (
+            <p style={{ margin: 0, color: connectionValidationResult.ok ? '#166534' : '#B42318' }}>{connectionValidationResult.message}</p>
+          ) : null}
+          {connectionMessage ? (
+            <p style={{ margin: 0, color: connectionMessage.includes('successfully') ? '#166534' : '#B42318' }}>{connectionMessage}</p>
+          ) : null}
         </section>
 
         <section className="glass-panel" style={pageStyles.card}>

@@ -145,6 +145,33 @@ async function run() {
   assert.strictEqual(resolvedSettings.EntraClientId, 'client-1', 'runtimeConfig should preserve the Entra client id loaded through all()');
   assert.strictEqual(resolvedSettings.EntraClientSecret, 'stored-secret', 'runtimeConfig should recover stored Entra client secrets through per-key get()');
 
+  const cleanHostDefaultSettings = await readRuntimeSettings({
+    settings: {
+      async all() {
+        return {
+          EntraTenantId: '',
+          EntraClientId: '',
+          EntraClientSecret: '',
+          EntraGroupsCustomAttributeName: '',
+          EntraDeviceOwnershipCustomAttributeName: ''
+        };
+      },
+      async get() {
+        return '';
+      }
+    }
+  });
+  assert.strictEqual(
+    cleanHostDefaultSettings.EntraGroupsCustomAttributeName,
+    'Entra Groups',
+    'runtimeConfig should hydrate the Entra Groups default when the clean host returns an empty string'
+  );
+  assert.strictEqual(
+    cleanHostDefaultSettings.EntraDeviceOwnershipCustomAttributeName,
+    'Entra Device Ownership',
+    'runtimeConfig should hydrate the Entra Device Ownership default when the clean host returns an empty string'
+  );
+
   const runtimeConfigWithStoredSecret = await loadSyncRuntimeConfig({
     ...secretFallbackContext,
     action1: {

@@ -24,10 +24,12 @@ function run() {
   assert(groups.has('Action1 Custom Attributes'), 'Action1 Custom Attributes group should exist');
   assert.strictEqual(groups.has('Diagnostics'), false, 'Diagnostics should not be added in this MVP settings slice');
 
-  assert.strictEqual(byKey.get('EntraTenantId').label, 'Entra Tenant ID');
-  assert.strictEqual(byKey.get('EntraClientId').label, 'Entra Client ID');
+  assert.strictEqual(byKey.get('EntraTenantId').label, 'Entra Directory ID');
+  assert.strictEqual(byKey.get('EntraClientId').label, 'Entra Application Client ID');
   assert.strictEqual(byKey.get('EntraClientSecret').label, 'Entra Client Secret');
   assert.strictEqual(byKey.get('EntraClientSecret').type, 'secret');
+  assert.strictEqual(byKey.get('EntraTenantId').helpText, 'Microsoft Entra directory ID.');
+  assert.strictEqual(byKey.get('EntraClientId').helpText, 'Microsoft Entra application (client) ID.');
   assert.strictEqual(
     byKey.get('EntraClientSecret').helpText,
     'Microsoft Entra application client secret. The saved value remains masked.'

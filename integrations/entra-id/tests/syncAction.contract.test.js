@@ -165,13 +165,49 @@ async function run() {
       }
     }
   }, {
+    trigger: 'scheduled'
+  });
+
+  assert.strictEqual(scheduledResult.summary.trigger, 'scheduled', 'sync handler should preserve the scheduled trigger delivered through the Marketplace request boundary');
+  assert.strictEqual(scheduledResult.summary.finalStatus, 'Success', 'completed syncs without endpoint failures should report Success');
+
+  const manualPayloadResult = await actions.sync({
+    _entraSyncRunner: async () => ({ results: [] }),
+    settings: {
+      async all() {
+        return {
+          EntraTenantId: 'tenant-1',
+          EntraClientId: 'client-1',
+          EntraClientSecret: 'client-secret'
+        };
+      }
+    },
+    action1: {
+      async getCredentials() {
+        return {
+          apiKey: 'action1-client-id',
+          apiSecret: 'action1-client-secret'
+        };
+      }
+    },
+    db: {
+      async all() {
+        return [
+          {
+            id: 1,
+            action1_org_id: 'org-1',
+            action1_org_name: 'Org One'
+          }
+        ];
+      }
+    }
+  }, {
     payload: {
-      trigger: 'scheduled'
+      trigger: 'manual'
     }
   });
 
-  assert.strictEqual(scheduledResult.summary.trigger, 'scheduled', 'sync handler should preserve the scheduled trigger for shared action parity');
-  assert.strictEqual(scheduledResult.summary.finalStatus, 'Success', 'completed syncs without endpoint failures should report Success');
+  assert.strictEqual(manualPayloadResult.summary.trigger, 'manual', 'manual dashboard runs should continue to preserve the explicit payload trigger');
 
   const readinessLogs = [];
   const readinessResult = await actions.sync({

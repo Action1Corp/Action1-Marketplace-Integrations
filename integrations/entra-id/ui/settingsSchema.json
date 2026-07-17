@@ -1,19 +1,19 @@
 [
   {
     "key": "EntraTenantId",
-    "label": "Entra Tenant ID",
+    "label": "Entra Directory ID",
     "type": "text",
     "group": "Entra Configuration",
     "required": true,
-    "helpText": "Microsoft Entra tenant ID."
+    "helpText": "Microsoft Entra directory ID."
   },
   {
     "key": "EntraClientId",
-    "label": "Entra Client ID",
+    "label": "Entra Application Client ID",
     "type": "text",
     "group": "Entra Configuration",
     "required": true,
-    "helpText": "Microsoft Entra application client ID."
+    "helpText": "Microsoft Entra application (client) ID."
   },
   {
     "key": "EntraClientSecret",

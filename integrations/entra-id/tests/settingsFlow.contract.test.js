@@ -111,6 +111,20 @@ async function run() {
   assert.strictEqual(storedSecretPayload.EntraClientSecret, undefined, 'stored secret placeholders should not be echoed into the validation payload');
   assert.strictEqual(storedSecretPayload._secretModes.EntraClientSecret, 'stored', 'stored secrets should be represented through _secretModes');
 
+  const blankStoredSecretPayload = buildValidationRequestSettings(connectionSchema, {
+    EntraTenantId: 'tenant-id-123',
+    EntraClientId: 'client-id-123',
+    EntraClientSecret: ''
+  }, {
+    sensitiveKeys: new Set(['EntraClientSecret']),
+    secretMask: '***',
+    storedSecrets: {
+      EntraClientSecret: true
+    }
+  });
+  assert.strictEqual(blankStoredSecretPayload.EntraClientSecret, undefined, 'blank edit-state secrets should not be sent as empty credentials when a stored secret exists');
+  assert.strictEqual(blankStoredSecretPayload._secretModes.EntraClientSecret, 'stored', 'blank edit-state secrets should still request the saved secret for Test Connection');
+
   const storedSecretSavePayload = buildSavePayload(connectionSchema, 'entra-id', {
     EntraTenantId: 'tenant-id-123',
     EntraClientId: 'client-id-123',

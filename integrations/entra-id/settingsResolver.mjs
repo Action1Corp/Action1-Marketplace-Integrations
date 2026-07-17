@@ -29,6 +29,18 @@ export function getDefaultSettings(settingsSchema = []) {
   return defaults;
 }
 
+function shouldUseSchemaDefault(setting = {}, value) {
+  if (setting.defaultValue === undefined) {
+    return false;
+  }
+
+  if (value === undefined || value === null) {
+    return true;
+  }
+
+  return typeof value === 'string' && value.trim() === '';
+}
+
 export function resolveEffectiveSettings(settingsSchema = [], loadedSettings = {}, options = {}) {
   const storedSecrets = options.storedSecrets || {};
   const secretMask = options.secretMask || SECRET_MASK;
@@ -37,7 +49,7 @@ export function resolveEffectiveSettings(settingsSchema = [], loadedSettings = {
   for (const setting of settingsSchema) {
     const currentValue = effectiveSettings[setting.key];
 
-    if ((currentValue === undefined || currentValue === null) && setting.defaultValue !== undefined) {
+    if (shouldUseSchemaDefault(setting, currentValue)) {
       effectiveSettings[setting.key] = setting.defaultValue;
     }
 
@@ -84,11 +96,19 @@ export function isConnectionConfigured(settingsSchema = [], settings = {}, optio
 
 export function getDisplayedSettingValue(setting, settings = {}) {
   const currentValue = settings[setting.key];
-  if ((currentValue === undefined || currentValue === null) && setting.defaultValue !== undefined) {
+  if (shouldUseSchemaDefault(setting, currentValue)) {
     return setting.defaultValue;
   }
 
   return currentValue ?? '';
+}
+
+function isStoredSecretMarker(setting = {}, value, storedSecrets = {}, secretMask = SECRET_MASK) {
+  if (!(setting.type === 'secret' || setting.sensitive)) {
+    return false;
+  }
+
+  return String(value ?? '') === secretMask && Boolean(storedSecrets[setting.key]);
 }
 
 export function buildValidationRequestSettings(settingsSchema = [], settings = {}, options = {}) {
@@ -100,7 +120,12 @@ export function buildValidationRequestSettings(settingsSchema = [], settings = {
   for (const setting of settingsSchema) {
     const value = settings[setting.key];
 
-    if (sensitiveKeys.has(setting.key) && value === secretMask && storedSecrets[setting.key]) {
+    if (sensitiveKeys.has(setting.key) && isStoredSecretMarker(setting, value, storedSecrets, secretMask)) {
+      payload._secretModes[setting.key] = 'stored';
+      continue;
+    }
+
+    if (sensitiveKeys.has(setting.key) && !String(value ?? '').trim() && storedSecrets[setting.key]) {
       payload._secretModes[setting.key] = 'stored';
       continue;
     }
@@ -197,7 +222,7 @@ export function resolveAttributeMappings(settingsSchema = [], settings = {}) {
 export function getConnectionSummary(settings = {}) {
   return [
     'Connection settings are configured.',
-    `Tenant ID: ${settings.EntraTenantId || ''}`
+    `Directory ID: ${settings.EntraTenantId || ''}`
   ];
 }
 
@@ -207,14 +232,36 @@ export async function resolveRequestSettings(settingsSchema = [], context, reque
   for (const setting of settingsSchema) {
     const key = setting.key;
     const secretMode = requestSettings?._secretModes?.[key];
+    const requestValue = requestSettings?.[key];
 
     if (secretMode === 'stored' && context?.settings?.get) {
       resolved[key] = await context.settings.get(key);
       continue;
     }
 
+    if (isStoredSecretMarker(setting, requestValue, { [key]: true }, SECRET_MASK) && context?.settings?.get) {
+      const storedValue = await context.settings.get(key);
+      if (String(storedValue ?? '').trim()) {
+        resolved[key] = storedValue;
+        continue;
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(requestSettings, key) && String(requestValue ?? '').trim()) {
+      resolved[key] = requestValue;
+      continue;
+    }
+
+    if (context?.settings?.get) {
+      const storedValue = await context.settings.get(key);
+      if (String(storedValue ?? '').trim()) {
+        resolved[key] = storedValue;
+        continue;
+      }
+    }
+
     if (Object.prototype.hasOwnProperty.call(requestSettings, key)) {
-      resolved[key] = requestSettings[key];
+      resolved[key] = requestValue;
       continue;
     }
 

@@ -266,7 +266,8 @@ function safeDetailsString(payload) {
 
 async function runEntraSync(context, request = {}) {
   const run = request.run || null;
-  const trigger = String(request?.payload?.trigger || 'manual').trim().toLowerCase() === 'scheduled'
+  const requestedTrigger = request?.trigger ?? request?.payload?.trigger ?? 'manual';
+  const trigger = String(requestedTrigger).trim().toLowerCase() === 'scheduled'
     ? 'scheduled'
     : 'manual';
   const runId = String(run?.id || '');

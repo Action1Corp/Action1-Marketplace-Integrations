@@ -20,6 +20,7 @@ async function run() {
   assert.strictEqual(typeof entraClient.listDevices, 'function');
   assert.strictEqual(typeof entraClient.listDeviceGroups, 'function');
   assert.strictEqual(typeof entraClient.listDevicesWithGroups, 'function');
+  assert.strictEqual(typeof entraClient.validateGraphConnection, 'function');
 
   assert.strictEqual(typeof syncEngine.runSync, 'function');
 }
