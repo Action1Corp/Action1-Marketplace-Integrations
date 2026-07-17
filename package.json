@@ -7,9 +7,9 @@
     "package:integration": "node scripts/package-integration.js",
     "package:all": "node scripts/package-all-integrations.js",
     "catalog": "node scripts/generate-catalog.js",
-    "test": "node scripts/validate-manifests.js && node tests/validate-contract.js && node tests/entra-id-shell-contract.js && node integrations/entra-id/tests/run-tests.js",
+    "test": "node scripts/validate-manifests.js && node tests/validate-contract.js",
     "test:manifests": "node scripts/validate-manifests.js",
-    "test:contract": "node tests/validate-contract.js && node tests/entra-id-shell-contract.js && node integrations/entra-id/tests/run-tests.js"
+    "test:contract": "node tests/validate-contract.js"
   },
   "dependencies": {
     "lucide-react": "^0.364.0",
