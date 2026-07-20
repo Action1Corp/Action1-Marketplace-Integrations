@@ -10,7 +10,7 @@
       "category": "EDR / XDR",
       "latestVersion": "1.0.1",
       "minimumMarketplaceVersion": "1.0.0",
-      "status": "production",
+      "status": "disabled",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
         "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-4/action1-integration-crowdstrike-1.0.1.tgz",
