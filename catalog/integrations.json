@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "publishedAt": "2026-07-17T21:04:22.302Z",
+  "publishedAt": "2026-07-20T20:34:12.304Z",
   "integrations": [
     {
       "id": "crowdstrike",
@@ -10,11 +10,11 @@
       "category": "EDR / XDR",
       "latestVersion": "1.0.1",
       "minimumMarketplaceVersion": "1.0.0",
-      "status": "disabled",
+      "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-4/action1-integration-crowdstrike-1.0.1.tgz",
-        "sha256": "54b35e53150dc7e00c0e412be29fe39d587a617df8b182e174cd0a59e250bb0b",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-5/action1-integration-crowdstrike-1.0.1.tgz",
+        "sha256": "b1315fdf32d7a801e1209d150101c13f14db19cc46b696880ca413567be52019",
         "signatureUrl": ""
       }
     },
@@ -29,8 +29,8 @@
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-4/action1-integration-defender-1.0.1.tgz",
-        "sha256": "9c1925365e186c6eca0642300f1c6f74f8b6cd2d9f78c1b41d5c2ce880fa7bb3",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-5/action1-integration-defender-1.0.1.tgz",
+        "sha256": "780c1cc86a87cad1bd1ac2144f85d74d7d6e546bbc04d7bb7e75946bf1a5b6ce",
         "signatureUrl": ""
       }
     },
@@ -45,8 +45,8 @@
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-4/action1-integration-entra-id-1.0.0.tgz",
-        "sha256": "8c078f31ab9341beaba4afd40880a258876d9d781956f31fc9fd0ab19fcfc6cd",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-5/action1-integration-entra-id-1.0.0.tgz",
+        "sha256": "88761c3d3900869c4027b03d84db0b8a9d17facf376e6e245ca9ff4958ca81b8",
         "signatureUrl": ""
       }
     },
@@ -61,8 +61,8 @@
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-4/action1-integration-halo-psa-1.0.0.tgz",
-        "sha256": "1b6409e33204f06bdc8fcca265758d19665ef3247ec99a35a718cb1283e16281",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-5/action1-integration-halo-psa-1.0.0.tgz",
+        "sha256": "76beb3fb71d3bc6bc60f9a521079b792c12cf187a48b662bc5a1855fa59912c2",
         "signatureUrl": ""
       }
     },
@@ -77,8 +77,8 @@
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-4/action1-integration-intune-1.0.1.tgz",
-        "sha256": "5eda1e6b6da0f91ce630cc889791efb0fae0f7b7d1087c6e58edbc264a95dd3e",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-5/action1-integration-intune-1.0.1.tgz",
+        "sha256": "a529bfaebc7901fff666f5f2d33af047da27cd19214d61db16a390ef7085be56",
         "signatureUrl": ""
       }
     },
@@ -93,8 +93,8 @@
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-4/action1-integration-jira-cloud-1.0.0.tgz",
-        "sha256": "514a908d472bda0329c6e9869ef5995b0054cf1b76fc09b345035cc08e1f4e22",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-5/action1-integration-jira-cloud-1.0.0.tgz",
+        "sha256": "5df985da65187b52070d005bc473c268e37b4173ebfda1592e8208f9f6437fe1",
         "signatureUrl": ""
       }
     },
@@ -109,8 +109,8 @@
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-4/action1-integration-qualys-1.0.1.tgz",
-        "sha256": "8f5a46f53384a14e9a65f01c5aa3ba2e310f7c0ecd1d723a21839ea37d1f6539",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-5/action1-integration-qualys-1.0.1.tgz",
+        "sha256": "6cb77d2fc53ce7eb3a5b15f78580ebc111bea794eef10a11a76eac3910fbb90f",
         "signatureUrl": ""
       }
     },
@@ -125,8 +125,8 @@
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-4/action1-integration-rapid7-1.0.1.tgz",
-        "sha256": "41db672ba1586d70fb2810f3d66b8b6d91f72862b1f219409823fc1ab000a539",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-5/action1-integration-rapid7-1.0.1.tgz",
+        "sha256": "c4419d91479c0af320b559fd95773405af89bd59ecf04e080d958e2fd46f93a0",
         "signatureUrl": ""
       }
     },
@@ -141,8 +141,8 @@
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-4/action1-integration-tenable-1.0.1.tgz",
-        "sha256": "1fed371a3855f1ea6faae40f28f19896746e48f05dcdd23b7926bfeb85c7714d",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-5/action1-integration-tenable-1.0.1.tgz",
+        "sha256": "db156f539954a48e6072d4c6367944b4668c7ad1974feb195930b25d148e7dab",
         "signatureUrl": ""
       }
     }
