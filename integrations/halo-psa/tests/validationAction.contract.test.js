@@ -2,6 +2,30 @@ const assert = require('assert');
 
 const originalFetch = global.fetch;
 
+function jsonResponse(status, payload, headers = {}) {
+  const normalizedHeaders = {
+    'content-type': 'application/json',
+    ...headers
+  };
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: {
+      get(name) {
+        return normalizedHeaders[String(name).toLowerCase()] || null;
+      },
+      forEach(callback) {
+        for (const [key, value] of Object.entries(normalizedHeaders)) {
+          callback(value, key);
+        }
+      }
+    },
+    async text() {
+      return JSON.stringify(payload);
+    }
+  };
+}
+
 function createSettingsContext(stored = {}) {
   return {
     values: { ...stored },
@@ -58,17 +82,11 @@ async function testStoredSecretFallbackAndSuccessfulReadOnlyValidation() {
     calls.push({ url: String(url), options });
 
     if (String(url).endsWith('/token')) {
-      return {
-        ok: true,
-        json: async () => ({ access_token: 'halo-token', token_type: 'Bearer' })
-      };
+      return jsonResponse(200, { access_token: 'halo-token', token_type: 'Bearer' });
     }
 
     if (String(url).includes('/api/Team?$top=1')) {
-      return {
-        ok: true,
-        json: async () => ([])
-      };
+      return jsonResponse(200, []);
     }
 
     throw new Error(`Unexpected URL ${url}`);
@@ -107,11 +125,10 @@ async function testFailedTokenAcquisitionReturnsSafeFailure() {
   await withMockedFetch(async (url) => {
     assert(String(url).endsWith('/token'), 'token failure test should only call token endpoint');
     return {
-      ok: false,
-      status: 401,
-      json: async () => ({
+      ...jsonResponse(401, {
         error_description: 'invalid client secret stored-secret-value'
-      })
+      }),
+      ok: false
     };
   }, async () => {
     const actions = await loadFreshActionsModule();
@@ -137,19 +154,15 @@ async function testFailedReadOnlyCallReturnsSafeFailureWithoutDbWrites() {
   let dbWriteTouched = false;
   await withMockedFetch(async (url) => {
     if (String(url).endsWith('/token')) {
-      return {
-        ok: true,
-        json: async () => ({ access_token: 'halo-token', token_type: 'Bearer' })
-      };
+      return jsonResponse(200, { access_token: 'halo-token', token_type: 'Bearer' });
     }
 
     if (String(url).includes('/api/Team?$top=1')) {
       return {
-        ok: false,
-        status: 403,
-        json: async () => ({
+        ...jsonResponse(403, {
           error: 'read forbidden for bearer halo-token'
-        })
+        }),
+        ok: false
       };
     }
 

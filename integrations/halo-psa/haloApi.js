@@ -10,6 +10,8 @@ const { ensureUrl, joinUrl } = require('./urlUtils');
 
 const HALO_TOKEN_REUSE_SAFETY_MARGIN_MS = 60 * 1000;
 const HALO_FALLBACK_TOKEN_LIFETIME_SECONDS = 3600;
+const HALO_CLIENT_DISCOVERY_PAGE_SIZE = 50;
+const HALO_CLIENT_DISCOVERY_MAX_PAGES = 50;
 const sharedHaloTokenCache = new Map();
 
 function trimValue(value) {
@@ -322,7 +324,7 @@ async function requestReadOnlyJson(settings, accessToken, path, opts = {}) {
       safeResponse.bodyExcerpt = bodyExcerpt;
     }
 
-    if (path === '/Client') {
+    if (requestDetails.path === '/Client') {
       throw new DiscoveryRequestError('HaloPSA client discovery failed. Check HaloPSA client-read access and retry.', {
         operation: 'discover-halo-clients',
         resolvedResourceServer: resolveResourceServer(settings),
@@ -362,7 +364,7 @@ async function requestReadOnlyJson(settings, accessToken, path, opts = {}) {
       safeResponse.bodyExcerpt = bodyExcerpt;
     }
 
-    if (path === '/Client') {
+    if (requestDetails.path === '/Client') {
       throw new DiscoveryRequestError('HaloPSA client discovery failed. Check HaloPSA client-read access and retry.', {
         operation: 'discover-halo-clients',
         resolvedResourceServer: resolveResourceServer(settings),
@@ -488,6 +490,106 @@ function dedupeRows(rows) {
   return out;
 }
 
+function buildClientDiscoveryPath(pageNo, pageSize) {
+  return `/Client?pageinate=true&page_no=${pageNo}&page_size=${pageSize}`;
+}
+
+function createClientPaginationDiagnostic(settings, path, errorCode, errorMessage, pagination = {}) {
+  const requestDetails = splitPathAndQuery(path);
+  const safePagination = {};
+
+  for (const [key, value] of Object.entries(pagination || {})) {
+    if (value === undefined || value === null || value === '') continue;
+    safePagination[key] = value;
+  }
+
+  const diagnostic = {
+    operation: 'discover-halo-clients',
+    resolvedResourceServer: resolveResourceServer(settings),
+    request: {
+      method: 'GET',
+      path: requestDetails.path,
+      query: requestDetails.query
+    },
+    response: {
+      status: null,
+      contentType: '',
+      errorCode,
+      errorMessage
+    }
+  };
+
+  if (Object.keys(safePagination).length > 0) {
+    diagnostic.response.bodyExcerpt = truncateExcerpt(JSON.stringify(safePagination));
+  }
+
+  return diagnostic;
+}
+
+function throwClientPaginationError(settings, path, errorCode, errorMessage, pagination = {}) {
+  throw new DiscoveryRequestError(
+    `Halo client pagination ${errorMessage}`,
+    createClientPaginationDiagnostic(settings, path, errorCode, errorMessage, pagination)
+  );
+}
+
+function parsePaginatedClientPayload(settings, path, payload, expectedPageNo, expectedPageSize) {
+  const pageNo = Number(payload?.page_no);
+  const pageSize = Number(payload?.page_size);
+  const recordCount = Number(payload?.record_count);
+  const rawClients = payload?.clients;
+
+  if (!Number.isInteger(pageNo) || pageNo < 1) {
+    throwClientPaginationError(settings, path, 'halo_client_pagination_invalid', 'metadata invalid: unexpected page_no', {
+      pageNo,
+      expectedPageNo
+    });
+  }
+
+  if (!Number.isInteger(pageSize) || pageSize < 1) {
+    throwClientPaginationError(settings, path, 'halo_client_pagination_invalid', 'metadata invalid: unexpected page_size', {
+      pageSize,
+      expectedPageSize
+    });
+  }
+
+  if (pageSize !== expectedPageSize) {
+    throwClientPaginationError(settings, path, 'halo_client_pagination_invalid', 'metadata invalid: unexpected page_size', {
+      pageSize,
+      expectedPageSize
+    });
+  }
+
+  if (!Number.isInteger(recordCount) || recordCount < 0) {
+    throwClientPaginationError(settings, path, 'halo_client_pagination_invalid', 'metadata invalid: unexpected record_count', {
+      recordCount
+    });
+  }
+
+  if (!Array.isArray(rawClients)) {
+    throwClientPaginationError(settings, path, 'halo_client_pagination_invalid', 'metadata invalid: clients array missing', {
+      recordCount,
+      pageNo,
+      pageSize
+    });
+  }
+
+  if (recordCount === 0 && rawClients.length > 0) {
+    throwClientPaginationError(settings, path, 'halo_client_pagination_invalid', 'metadata invalid: record_count=0 with returned rows', {
+      recordCount,
+      pageNo,
+      rowsReturned: rawClients.length
+    });
+  }
+
+  return {
+    pageNo,
+    pageSize,
+    recordCount,
+    rawClients
+  };
+}
+
 function extractAllowedStatuses(payload) {
   const raw = [
     ...toArray(payload?.allowed_status),
@@ -541,8 +643,107 @@ async function discoverSettingsOptions(settings, accessToken, selectedTicketType
 }
 
 async function discoverHaloClients(settings, accessToken) {
-  const payload = await requestReadOnlyJson(settings, accessToken, '/Client');
-  return dedupeRows(toArray(payload).map(normalizeClient).filter(Boolean));
+  const clients = [];
+  const seenClientIds = new Set();
+  const seenPageNumbers = new Set();
+  let expectedRecordCount = null;
+
+  for (let pageNo = 1; pageNo <= HALO_CLIENT_DISCOVERY_MAX_PAGES; pageNo += 1) {
+    const path = buildClientDiscoveryPath(pageNo, HALO_CLIENT_DISCOVERY_PAGE_SIZE);
+    const payload = await requestReadOnlyJson(settings, accessToken, path);
+    const page = parsePaginatedClientPayload(settings, path, payload, pageNo, HALO_CLIENT_DISCOVERY_PAGE_SIZE);
+
+    if (seenPageNumbers.has(page.pageNo)) {
+      throwClientPaginationError(settings, path, 'halo_client_pagination_repeated_page', 'repeated page before completion', {
+        pageNo: page.pageNo,
+        pagesFetched: seenPageNumbers.size,
+        recordCount: expectedRecordCount,
+        uniqueCollected: clients.length
+      });
+    }
+    seenPageNumbers.add(page.pageNo);
+
+    if (page.pageNo !== pageNo) {
+      throwClientPaginationError(settings, path, 'halo_client_pagination_invalid', 'metadata invalid: unexpected page_no', {
+        pageNo: page.pageNo,
+        expectedPageNo: pageNo,
+        pagesFetched: seenPageNumbers.size - 1
+      });
+    }
+
+    if (expectedRecordCount === null) {
+      expectedRecordCount = page.recordCount;
+    } else if (page.recordCount !== expectedRecordCount) {
+      throwClientPaginationError(settings, path, 'halo_client_pagination_invalid', 'metadata invalid: unexpected record_count', {
+        expectedRecordCount,
+        recordCount: page.recordCount,
+        pageNo: page.pageNo
+      });
+    }
+
+    if (expectedRecordCount === 0) {
+      return [];
+    }
+
+    if (page.rawClients.length === 0) {
+      throwClientPaginationError(settings, path, 'halo_client_pagination_incomplete', `ended before reaching record_count ${expectedRecordCount}`, {
+        pageNo: page.pageNo,
+        pagesFetched: seenPageNumbers.size,
+        recordCount: expectedRecordCount,
+        uniqueCollected: clients.length
+      });
+    }
+
+    let addedThisPage = 0;
+    for (const rawClient of page.rawClients) {
+      const normalized = normalizeClient(rawClient);
+      if (!normalized?.id || !normalized?.name) {
+        continue;
+      }
+
+      if (seenClientIds.has(normalized.id)) {
+        continue;
+      }
+
+      seenClientIds.add(normalized.id);
+      clients.push(normalized);
+      addedThisPage += 1;
+    }
+
+    if (clients.length > expectedRecordCount) {
+      throwClientPaginationError(settings, path, 'halo_client_pagination_invalid', 'metadata invalid: collected more rows than record_count', {
+        pageNo: page.pageNo,
+        recordCount: expectedRecordCount,
+        uniqueCollected: clients.length
+      });
+    }
+
+    if (addedThisPage === 0) {
+      throwClientPaginationError(settings, path, 'halo_client_pagination_no_progress', 'made no progress before completion', {
+        pageNo: page.pageNo,
+        pagesFetched: seenPageNumbers.size,
+        recordCount: expectedRecordCount,
+        uniqueCollected: clients.length
+      });
+    }
+
+    if (clients.length === expectedRecordCount) {
+      return clients;
+    }
+  }
+
+  throwClientPaginationError(
+    settings,
+    buildClientDiscoveryPath(HALO_CLIENT_DISCOVERY_MAX_PAGES, HALO_CLIENT_DISCOVERY_PAGE_SIZE),
+    'halo_client_pagination_limit',
+    `paging exceeded limit of ${HALO_CLIENT_DISCOVERY_MAX_PAGES} pages before completion`,
+    {
+      maxPages: HALO_CLIENT_DISCOVERY_MAX_PAGES,
+      pageSize: HALO_CLIENT_DISCOVERY_PAGE_SIZE,
+      recordCount: expectedRecordCount,
+      uniqueCollected: clients.length
+    }
+  );
 }
 
 function createHaloAuthClient(opts = {}) {

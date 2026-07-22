@@ -31,7 +31,7 @@ function run() {
   assert(indexSource.includes("import Mapping from './Mapping.jsx';"), 'ui/index.jsx should import Mapping.jsx');
   assert(indexSource.includes('mapping: Mapping'), 'ui/index.jsx should export the mapping view');
 
-  const mappingSource = fs.readFileSync(path.join(__dirname, '..', 'ui', 'Mapping.jsx'), 'utf8');
+  const mappingSource = fs.readFileSync(path.join(__dirname, '..', 'ui', 'Mapping.jsx'), 'utf8').replace(/\r\n/g, '\n');
   assert(mappingSource.includes("list: 'list-halo-org-client-mappings'"), 'Mapping.jsx should define the mapping list action id');
   assert(mappingSource.includes("save: 'save-halo-org-client-mapping'"), 'Mapping.jsx should define the mapping save action id');
   assert(mappingSource.includes("remove: 'delete-halo-org-client-mapping'"), 'Mapping.jsx should define the mapping delete action id');

@@ -30,3 +30,4 @@ docker-compose.marketplace.local.yml
 .agents/
 
 .runtime-logs/
+integrations/halo-psa/.runtime-logs/

@@ -22,7 +22,7 @@ The HaloPSA connection section now follows a compact configured-state pattern: w
 
 The Signal Filters area now follows the standalone connector more closely: core endpoint signal toggles, vulnerability/update severity and remediation filters, the shared ticket-creation-mode control, grouped-ticket endpoint limit, and the max-open-ticket safeguard now appear in one visible `Signal Filters` section, while internal/default-only controls stay hidden from operators.
 
-The `Client Mapping` screen now follows the standalone connector more closely: one row-based mapping table lets operators refresh discovery, add mapping rows, choose Action1 organizations and HaloPSA clients from dropdowns, remove rows directly, and save DB-backed mappings that continue to live in `halo_psa_org_client_mappings`. IDs stay hidden from the main UI, mappings remain active by existence instead of an `Enabled` toggle, and sanitized discovery diagnostics still appear in temporary `Technical details` sections when discovery fails.
+The `Client Mapping` screen now follows the standalone connector more closely: one row-based mapping table lets operators refresh discovery, add mapping rows, choose Action1 organizations and HaloPSA clients from dropdowns, remove rows directly, and save DB-backed mappings that continue to live in `halo_psa_org_client_mappings`. IDs stay hidden from the main UI, mappings remain active by existence instead of an `Enabled` toggle, sanitized discovery diagnostics still appear in temporary `Technical details` sections when discovery fails, and Halo client discovery now walks paginated `/Client` results with bounded safety checks so multi-page tenants are not truncated at the first Halo response page.
 
 ## Next Steps
 

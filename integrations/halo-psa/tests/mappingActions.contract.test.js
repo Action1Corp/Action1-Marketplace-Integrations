@@ -4,6 +4,30 @@ const path = require('path');
 
 const originalFetch = global.fetch;
 
+function jsonResponse(status, payload, headers = {}) {
+  const normalizedHeaders = {
+    'content-type': 'application/json',
+    ...headers
+  };
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: {
+      get(name) {
+        return normalizedHeaders[String(name).toLowerCase()] || null;
+      },
+      forEach(callback) {
+        for (const [key, value] of Object.entries(normalizedHeaders)) {
+          callback(value, key);
+        }
+      }
+    },
+    async text() {
+      return JSON.stringify(payload);
+    }
+  };
+}
+
 function createMappingDbContext(initialRows = []) {
   const state = {
     rows: initialRows.map((row, index) => ({
@@ -284,21 +308,15 @@ async function testAction1OrganizationDiscoveryUsesMarketplaceCredentials() {
   await withMockedFetch(async (url, options = {}) => {
     fetchCalls.push({ url: String(url), options });
     if (String(url).endsWith('/oauth2/token')) {
-      return {
-        ok: true,
-        json: async () => ({ access_token: 'action1-token', expires_in: 3600 })
-      };
+      return jsonResponse(200, { access_token: 'action1-token', expires_in: 3600 });
     }
     if (String(url).endsWith('/organizations')) {
-      return {
-        ok: true,
-        json: async () => ({
-          organizations: [
-            { id: 'org-1', name: 'Alpha Org' },
-            { org_id: 'org-2', org_name: 'Beta Org' }
-          ]
-        })
-      };
+      return jsonResponse(200, {
+        organizations: [
+          { id: 'org-1', name: 'Alpha Org' },
+          { org_id: 'org-2', org_name: 'Beta Org' }
+        ]
+      });
     }
     throw new Error(`Unexpected URL ${url}`);
   }, async () => {
@@ -357,12 +375,11 @@ async function testAction1OrganizationDiscoveryFailsSafely() {
     await withMockedFetch(async (url) => {
       if (String(url).endsWith('/oauth2/token')) {
         return {
-          ok: false,
-          status: 401,
-          json: async () => ({
+          ...jsonResponse(401, {
             error: 'invalid_client',
             error_description: 'client_secret stored-secret-value'
-          })
+          }),
+          ok: false
         };
       }
       throw new Error(`Unexpected URL ${url}`);
@@ -395,18 +412,20 @@ async function testAction1OrganizationDiscoveryFailsSafely() {
     await withMockedFetch(async (url) => {
       if (String(url).endsWith('/oauth2/token')) {
         return {
-          ok: true,
-          json: async () => ({ access_token: 'action1-token', expires_in: 3600 })
+          ...jsonResponse(200, { access_token: 'action1-token', expires_in: 3600 }),
+          ok: true
         };
       }
       if (String(url).endsWith('/organizations')) {
         return {
           ok: false,
           status: 403,
-          json: async () => ({
-            error: 'forbidden',
-            message: 'bearer action1-token'
-          })
+          async text() {
+            return JSON.stringify({
+              error: 'forbidden',
+              message: 'bearer action1-token'
+            });
+          }
         };
       }
       throw new Error(`Unexpected URL ${url}`);
@@ -446,16 +465,16 @@ async function testHaloClientDiscoveryIsReadOnlyAndSanitized() {
   await withMockedFetch(async (url, options = {}) => {
     fetchCalls.push({ url: String(url), options });
     if (String(url).endsWith('/token')) {
-      return {
-        ok: true,
-        json: async () => ({ access_token: 'halo-token', token_type: 'TokenTypeX' })
-      };
+      return jsonResponse(200, { access_token: 'halo-token', token_type: 'TokenTypeX' });
     }
-    if (String(url).endsWith('/api/Client')) {
-      return {
-        ok: true,
-        json: async () => ({ clients: [{ id: '17', name: 'Acme Ltd' }] })
-      };
+    const parsed = new URL(String(url));
+    if (parsed.pathname.endsWith('/api/Client')) {
+      return jsonResponse(200, {
+        page_no: Number(parsed.searchParams.get('page_no')),
+        page_size: Number(parsed.searchParams.get('page_size')),
+        record_count: 1,
+        clients: [{ id: '17', name: 'Acme Ltd' }]
+      });
     }
     throw new Error(`Unexpected URL ${url}`);
   }, async () => {
@@ -483,27 +502,31 @@ async function testHaloClientDiscoveryIsReadOnlyAndSanitized() {
     assert(tokenCall, 'Halo client discovery should request a Halo token');
     assert(String(tokenCall.options?.body || '').includes('grant_type=client_credentials'), 'Halo token request should keep the client credentials grant');
     assert(String(tokenCall.options?.body || '').includes('scope=all'), 'Halo token request should match standalone scope=all behavior');
-    const clientCall = fetchCalls.find((call) => call.url.endsWith('/api/Client'));
+    const clientCall = fetchCalls.find((call) => new URL(call.url).pathname.endsWith('/api/Client'));
     assert(clientCall, 'Halo client discovery should call the standalone /Client endpoint');
     assert.strictEqual(clientCall.url.includes('?$top=200'), false, 'Halo client discovery should not append the Marketplace-only $top query');
-    assert.strictEqual(clientCall.options?.headers?.Authorization, 'TokenTypeX halo-token', 'Halo client discovery should preserve the token type from the Halo token response');
-    assert.strictEqual(clientCall.options?.headers?.Accept, 'application/json', 'Halo client discovery should request JSON responses');
+    const clientUrl = new URL(clientCall.url);
+    assert.strictEqual(clientUrl.searchParams.get('pageinate'), 'true', 'Halo client discovery should explicitly enable Halo pagination');
+    assert.strictEqual(clientUrl.searchParams.get('page_no'), '1', 'Halo client discovery should start on page 1');
+    assert.strictEqual(clientUrl.searchParams.get('page_size'), '50', 'Halo client discovery should use the bounded page size');
+    assert.strictEqual(clientCall.options?.headers?.authorization, 'TokenTypeX halo-token', 'Halo client discovery should preserve the token type from the Halo token response');
+    assert.strictEqual(clientCall.options?.headers?.accept, 'application/json', 'Halo client discovery should request JSON responses');
     assert(!fetchCalls.some((call) => call.url.includes('/Tickets')), 'Halo client discovery must not call Halo ticket write endpoints');
     assert.strictEqual(logger.warnings.length, 0, 'successful Halo client discovery should not log warnings');
   });
 
   await withMockedFetch(async (url) => {
     if (String(url).endsWith('/token')) {
-      return {
-        ok: true,
-        json: async () => ({ access_token: 'halo-token', token_type: 'Bearer' })
-      };
+      return jsonResponse(200, { access_token: 'halo-token', token_type: 'Bearer' });
     }
-    if (String(url).endsWith('/api/Client')) {
-      return {
-        ok: true,
-        json: async () => ({ clients: [{ id: '18', name: 'Beta Ltd' }] })
-      };
+    const parsed = new URL(String(url));
+    if (parsed.pathname.endsWith('/api/Client')) {
+      return jsonResponse(200, {
+        page_no: Number(parsed.searchParams.get('page_no')),
+        page_size: Number(parsed.searchParams.get('page_size')),
+        record_count: 1,
+        clients: [{ id: '18', name: 'Beta Ltd' }]
+      });
     }
     throw new Error(`Unexpected URL ${url}`);
   }, async () => {
@@ -524,31 +547,19 @@ async function testHaloClientDiscoveryIsReadOnlyAndSanitized() {
 
   await withMockedFetch(async (url) => {
     if (String(url).endsWith('/token')) {
-      return {
-        ok: true,
-        json: async () => ({ access_token: 'halo-token', token_type: 'Bearer' })
-      };
+      return jsonResponse(200, { access_token: 'halo-token', token_type: 'Bearer' });
     }
-    if (String(url).endsWith('/api/Client')) {
+    if (new URL(String(url)).pathname.endsWith('/api/Client')) {
       return {
-        ok: false,
-        status: 403,
-        headers: {
-          get(name) {
-            return String(name).toLowerCase() === 'content-type' ? 'application/json; charset=utf-8' : null;
-          }
-        },
-        json: async () => ({
+        ...jsonResponse(403, {
           error: 'forbidden',
           message: 'bearer halo-token client_secret stored-secret-value',
           detail: 'X'.repeat(1200)
-        })
+        }, { 'content-type': 'application/json; charset=utf-8' }),
+        ok: false
       };
     }
-    return {
-      ok: true,
-      json: async () => ({})
-    };
+    return jsonResponse(200, {});
   }, async () => {
     const actions = await loadFreshActionsModule();
     const logger = createLoggerContext();
@@ -570,7 +581,7 @@ async function testHaloClientDiscoveryIsReadOnlyAndSanitized() {
     assert.strictEqual(result.diagnostics.actionId, 'discover-halo-mapping-options', 'failed Halo client discovery should include the action id');
     assert(result.diagnostics.tokenAcquired === true, 'failed Halo client discovery should report token acquisition success');
     assert(result.diagnostics.request.path === '/Client', 'failed Halo client discovery should include the /Client path');
-    assert.strictEqual(result.diagnostics.request.query, '', 'failed Halo client discovery should report the actual empty /Client query');
+    assert.strictEqual(result.diagnostics.request.query, 'pageinate=true&page_no=1&page_size=50', 'failed Halo client discovery should report the actual paginated /Client query');
     assert.strictEqual(result.diagnostics.request.method, 'GET', 'failed Halo client discovery should include the request method');
     assert.strictEqual(result.diagnostics.resolvedResourceServer, 'https://halo.example.com/api', 'failed Halo client discovery should include the resolved Halo resource server');
     assert(result.diagnostics.response.status === 403, 'failed Halo client discovery should report the HTTP status');
@@ -591,6 +602,51 @@ async function testHaloClientDiscoveryIsReadOnlyAndSanitized() {
   });
 }
 
+async function testHaloClientDiscoveryActionReturnsFullMultiPageCatalog() {
+  await withMockedFetch(async (url) => {
+    if (String(url).endsWith('/token')) {
+      return jsonResponse(200, { access_token: 'halo-token', token_type: 'Bearer' });
+    }
+
+    const parsed = new URL(String(url));
+    if (parsed.pathname.endsWith('/api/Client')) {
+      const pageNo = Number(parsed.searchParams.get('page_no'));
+      const pageSize = Number(parsed.searchParams.get('page_size'));
+      const total = 120;
+      const start = (pageNo - 1) * pageSize + 1;
+      const end = Math.min(total, start + pageSize - 1);
+      return jsonResponse(200, {
+        page_no: pageNo,
+        page_size: pageSize,
+        record_count: total,
+        clients: Array.from({ length: Math.max(0, end - start + 1) }, (_, index) => ({
+          id: String(start + index),
+          name: `Client ${start + index}`
+        }))
+      });
+    }
+
+    throw new Error(`Unexpected URL ${url}`);
+  }, async () => {
+    const actions = await loadFreshActionsModule();
+    const result = await actions['discover-halo-mapping-options']({
+      settings: createSettingsContext()
+    }, {
+      settings: {
+        HaloPsaResourceServer: 'https://halo.example.com',
+        HaloPsaAuthorisationServer: 'https://halo.example.com/auth',
+        HaloPsaClientId: 'client-id-123',
+        HaloPsaClientSecret: 'stored-secret-value'
+      }
+    });
+
+    assert.strictEqual(result.ok, true, 'Halo client discovery action should succeed');
+    assert.strictEqual(result.haloClients.length, 120, 'Halo client discovery action should return the full multi-page catalog');
+    assert.deepStrictEqual(result.haloClients[0], { id: '1', name: 'Client 1' });
+    assert.deepStrictEqual(result.haloClients[119], { id: '120', name: 'Client 120' });
+  });
+}
+
 async function run() {
   await testPortableOrderingSqlStaysOutOfSQLiteOnlyCollation();
   await testListReturnsRowsSafely();
@@ -600,6 +656,7 @@ async function run() {
   await testAction1OrganizationDiscoveryUsesMarketplaceCredentials();
   await testAction1OrganizationDiscoveryFailsSafely();
   await testHaloClientDiscoveryIsReadOnlyAndSanitized();
+  await testHaloClientDiscoveryActionReturnsFullMultiPageCatalog();
 }
 
 run().catch((error) => {

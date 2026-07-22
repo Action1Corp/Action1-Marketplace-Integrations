@@ -2,6 +2,30 @@ const assert = require('assert');
 
 const originalFetch = global.fetch;
 
+function jsonResponse(status, payload, headers = {}) {
+  const normalizedHeaders = {
+    'content-type': 'application/json',
+    ...headers
+  };
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: {
+      get(name) {
+        return normalizedHeaders[String(name).toLowerCase()] || null;
+      },
+      forEach(callback) {
+        for (const [key, value] of Object.entries(normalizedHeaders)) {
+          callback(value, key);
+        }
+      }
+    },
+    async text() {
+      return JSON.stringify(payload);
+    }
+  };
+}
+
 function createSettingsContext(stored = {}) {
   return {
     values: { ...stored },
@@ -57,50 +81,32 @@ async function testSuccessfulDiscoveryReturnsNormalizedOptions() {
     calls.push({ url: String(url), options });
 
     if (String(url).endsWith('/token')) {
-      return {
-        ok: true,
-        json: async () => ({ access_token: 'halo-token', token_type: 'Bearer' })
-      };
+      return jsonResponse(200, { access_token: 'halo-token', token_type: 'Bearer' });
     }
 
     if (String(url).includes('/api/Team?$top=200')) {
-      return {
-        ok: true,
-        json: async () => ([{ id: 7, name: 'Service Desk' }])
-      };
+      return jsonResponse(200, [{ id: 7, name: 'Service Desk' }]);
     }
 
     if (String(url).includes('/api/TicketType?$top=200')) {
-      return {
-        ok: true,
-        json: async () => ({ ticketTypes: [{ id: '12', name: 'Incident' }] })
-      };
+      return jsonResponse(200, { ticketTypes: [{ id: '12', name: 'Incident' }] });
     }
 
     if (String(url).includes('/api/Status?$top=200')) {
-      return {
-        ok: true,
-        json: async () => ({ statuses: [{ id: '4', status: 'New', is_closed: false }] })
-      };
+      return jsonResponse(200, { statuses: [{ id: '4', status: 'New', is_closed: false }] });
     }
 
     if (String(url).includes('/api/Category?$top=200')) {
-      return {
-        ok: true,
-        json: async () => ({ categories: [{ id: '18', category_name: 'Security' }] })
-      };
+      return jsonResponse(200, { categories: [{ id: '18', category_name: 'Security' }] });
     }
 
     if (String(url).includes('/api/TicketType/12')) {
-      return {
-        ok: true,
-        json: async () => ({
-          id: '12',
-          name: 'Incident',
-          allowed_statuses: [{ id: '4', status: 'New', is_closed: false }],
-          allowed_categories: [{ id: '18', name: 'Security' }]
-        })
-      };
+      return jsonResponse(200, {
+        id: '12',
+        name: 'Incident',
+        allowed_statuses: [{ id: '4', status: 'New', is_closed: false }],
+        allowed_categories: [{ id: '18', name: 'Security' }]
+      });
     }
 
     throw new Error(`Unexpected URL ${url}`);
@@ -142,26 +148,19 @@ async function testSuccessfulDiscoveryReturnsNormalizedOptions() {
 async function testFailedDiscoveryReturnsSafeError() {
   await withMockedFetch(async (url) => {
     if (String(url).endsWith('/token')) {
-      return {
-        ok: true,
-        json: async () => ({ access_token: 'halo-token', token_type: 'Bearer' })
-      };
+      return jsonResponse(200, { access_token: 'halo-token', token_type: 'Bearer' });
     }
 
     if (String(url).includes('/api/Category?$top=200')) {
       return {
-        ok: false,
-        status: 500,
-        json: async () => ({
+        ...jsonResponse(500, {
           error: 'bearer halo-token client_secret stored-secret-value'
-        })
+        }),
+        ok: false
       };
     }
 
-    return {
-      ok: true,
-      json: async () => ([])
-    };
+    return jsonResponse(200, []);
   }, async () => {
     const actions = await loadFreshActionsModule();
     const result = await actions['discover-halo-settings-options']({
