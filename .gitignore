@@ -31,3 +31,4 @@ docker-compose.marketplace.local.yml
 
 .runtime-logs/
 integrations/halo-psa/.runtime-logs/
+integrations/halo-psa/tests/HALO_CLIENT_TEST_DATA.md
