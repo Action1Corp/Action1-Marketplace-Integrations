@@ -7,6 +7,7 @@
   "minimumMarketplaceVersion": "1.0.0",
   "description": "Correlate CrowdStrike exposure data with Action1 endpoint and patch context.",
   "category": "EDR / XDR",
+  "status": "disabled",
   "icon_color": "#E00400",
   "entry": "index.js",
   "actions": [
