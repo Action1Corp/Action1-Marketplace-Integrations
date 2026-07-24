@@ -1,33 +1,33 @@
 {
-  "id": "rapid7",
-  "name": "Rapid7 InsightVM",
-  "vendor": "Rapid7",
-  "version": "1.0.1",
-  "marketplaceApiVersion": "1.0",
-  "minimumMarketplaceVersion": "1.0.0",
-  "description": "Correlate Rapid7 InsightVM exposure data with Action1 endpoint and patch context.",
-  "category": "Vulnerability Management",
-  "icon_color": "#FF6B00",
-  "entry": "index.js",
-  "actions": [
-    {
-      "id": "validate-configuration",
-      "kind": "validate",
-      "label": "Validate Configuration",
-      "buttonLabel": "Validate Credentials",
-      "runningLabel": "Validating...",
-      "description": "Validates Rapid7 InsightVM and shared Action1 credentials.",
-      "placement": "settings"
-    },
-    {
-      "id": "sync",
-      "kind": "sync",
-      "label": "Sync",
-      "buttonLabel": "Run Sync Now",
-      "runningLabel": "Syncing...",
-      "description": "Synchronizes Rapid7 InsightVM vulnerabilities and endpoint data.",
-      "placement": "dashboard",
-      "history": false
-    }
-  ]
+    "id":  "rapid7",
+    "name":  "Rapid7 InsightVM",
+    "vendor":  "Rapid7",
+    "version":  "1.0.2",
+    "marketplaceApiVersion":  "1.0",
+    "minimumMarketplaceVersion":  "1.0.0",
+    "description":  "Correlate Rapid7 InsightVM exposure data with Action1 endpoint and patch context.",
+    "category":  "Vulnerability Management",
+    "icon_color":  "#FF6B00",
+    "entry":  "index.js",
+    "actions":  [
+                    {
+                        "id":  "validate-configuration",
+                        "kind":  "validate",
+                        "label":  "Validate Configuration",
+                        "buttonLabel":  "Validate Credentials",
+                        "runningLabel":  "Validating...",
+                        "description":  "Validates Rapid7 InsightVM and shared Action1 credentials.",
+                        "placement":  "settings"
+                    },
+                    {
+                        "id":  "sync",
+                        "kind":  "sync",
+                        "label":  "Sync",
+                        "buttonLabel":  "Run Sync Now",
+                        "runningLabel":  "Syncing...",
+                        "description":  "Synchronizes Rapid7 InsightVM vulnerabilities and endpoint data.",
+                        "placement":  "dashboard",
+                        "history":  false
+                    }
+                ]
 }

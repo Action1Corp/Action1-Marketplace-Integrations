@@ -5,11 +5,45 @@ let getAction1Credentials;
 let computeAndSaveRunMetrics;
 let nvdService;
 
+function firstString(...values) {
+    for (const value of values) {
+        if (typeof value === 'string' && value.trim()) return value.trim();
+        if (Array.isArray(value)) {
+            const match = value.find(item => typeof item === 'string' && item.trim());
+            if (match) return match.trim();
+        }
+    }
+    return null;
+}
+
+function extractRapid7Os(asset = {}) {
+    const os = asset.os || asset.operating_system || asset.operatingSystem || asset.os_name || asset.osName || {};
+    return firstString(
+        asset.os,
+        asset.operating_system,
+        asset.operatingSystem,
+        asset.os_name,
+        asset.osName,
+        asset.platform,
+        asset.family,
+        os.description,
+        os.name,
+        os.family,
+        os.product,
+        asset.system?.os,
+        asset.system?.operating_system,
+        asset.system?.operatingSystem,
+        asset.host?.os,
+        asset.host?.operating_system,
+        asset.host?.operatingSystem
+    );
+}
+
 
 
 async function runSync() {
     console.log("Starting Rapid7 Sync Engine...");
-    
+
     // Create new Run ID
     const runId = await new Promise((resolve, reject) => {
         db.run('INSERT INTO sync_history (integration_id, status, details) VALUES (?, ?, ?)', ['rapid7', 'Running', 'Started sync'], function(err) {
@@ -31,15 +65,15 @@ async function runSync() {
         const Rapid7ApiKey = await getSetting('Rapid7ApiKey');
         const Rapid7Region = await getSetting('Rapid7Region');
         const Rapid7BaseUrl = `https://${Rapid7Region}.api.insight.rapid7.com/vm/v4`;
-        
+
         const { apiKey: action1ApiKey, apiSecret: action1ApiSecret, organizationId: action1OrgId } = await getAction1Credentials();
 
         if (!Rapid7ApiKey || !Rapid7Region || !action1ApiKey || !action1OrgId) {
             throw new Error('Rapid7 or Action1 API keys are not fully configured.');
         }
 
-        const r7Headers = { 
-            'X-Api-Key': Rapid7ApiKey, 
+        const r7Headers = {
+            'X-Api-Key': Rapid7ApiKey,
             'Accept': 'application/json',
             'Content-Type': 'application/json'
         };
@@ -67,7 +101,7 @@ async function runSync() {
         let action1Assets = [];
         const a1Res = await axios.get(`${a1Base}/endpoints/managed/${action1OrgId}?limit=9999`, { headers: a1Headers });
         action1Assets = a1Res.data.items || a1Res.data.data || a1Res.data.endpoints || (Array.isArray(a1Res.data) ? a1Res.data : []);
-        
+
         let a1eps = {};
         for (let ep of action1Assets) {
             if (!ep.device_name) continue;
@@ -100,13 +134,22 @@ async function runSync() {
         await updateProgress("Retrieving detailed vulnerability mappings per asset...");
         let eps = {}; // map of endpoint to cve list
         let uniqueVulnIds = new Set();
+        const rapid7AssetDetailsByName = {};
 
         for (let asset of allR7Assets) {
             if (!asset.host_name || !asset.id) continue;
             let name = asset.host_name.trim().split('.')[0].toLowerCase();
-            
+            rapid7AssetDetailsByName[name] = {
+                os: extractRapid7Os(asset)
+            };
+
             try {
                 const detailRes = await axios.get(`${Rapid7BaseUrl}/integration/assets/${asset.id}?includeSame=true`, { headers: r7Headers });
+                const detailAsset = detailRes.data || {};
+                rapid7AssetDetailsByName[name] = {
+                    ...rapid7AssetDetailsByName[name],
+                    os: extractRapid7Os(detailAsset) || rapid7AssetDetailsByName[name]?.os
+                };
                 const vulns = detailRes.data.same || [];
                 if (vulns.length > 0) {
                     if (!eps[name]) eps[name] = new Set();
@@ -124,7 +167,7 @@ async function runSync() {
         await updateProgress(`Lookup details for ${uniqueVulnIds.size} unique Rapid7 vulnerability IDs...`);
         let vulnLookupMap = {};
         const vulnIdArray = Array.from(uniqueVulnIds);
-        
+
         // We can't batch lookup easily in v4 with IDs, the script does it one by one in a loop.
         // I'll try to do it in chunks if possible, but the API might be limited.
         // Let's do it like the script: POST /integration/vulnerabilities with id filter.
@@ -133,7 +176,7 @@ async function runSync() {
                 const searchRes = await axios.post(`${Rapid7BaseUrl}/integration/vulnerabilities?size=1`, {
                     vulnerability: `id = '${vId}'`
                 }, { headers: r7Headers });
-                
+
                 const vData = searchRes.data.data?.[0] || searchRes.data.data || searchRes.data;
                 if (vData) {
                     vulnLookupMap[vId] = {
@@ -162,7 +205,7 @@ async function runSync() {
                 const catRes = await axios.get(`${a1Base}/Vulnerabilities/${action1OrgId}?limit=${limit}&from=${offset}`, { headers: a1Headers });
                 const p = catRes.data;
                 let catData = Array.isArray(p) ? p : (p.items || p.data || p.vulnerabilities || []);
-                
+
                 if (catData.length === 0) {
                     hasMore = false;
                 } else {
@@ -176,7 +219,8 @@ async function runSync() {
                             }
                         }
                         const score = parseFloat(v.cvss_v3_score || v.cvss_score || v.cvss);
-                        action1Vulns[v.cve_id] = { hasUpdates, score: isNaN(score) ? null : score, severity: v.severity };
+                        const remediationStatus = hasUpdates ? 'Patch Available' : 'Non Patchable';
+                        action1Vulns[v.cve_id] = { hasUpdates, remediationStatus, score: isNaN(score) ? null : score, severity: v.severity };
                     }
                     totalFetched += catData.length;
                     offset += limit;
@@ -221,13 +265,13 @@ async function runSync() {
         let finalCVEList = [];
         let endpointSeverityCounts = {};
         let r7HostsSeen = new Set(allR7Assets.map(a => a.host_name.trim().split('.')[0].toLowerCase()));
-        
+
         let endpointUniqueCVEs = {}; // name -> { cveId -> { cve, severity, cvss, status, ... } }
 
         for (let name in eps) {
             if (!endpointUniqueCVEs[name]) endpointUniqueCVEs[name] = {};
             const hostCVEMap = endpointUniqueCVEs[name];
-            
+
             const vIds = Array.from(eps[name]);
             for (let vId of vIds) {
                 const detail = vulnLookupMap[vId];
@@ -260,6 +304,10 @@ async function runSync() {
                         else if (r7Sev === 'MEDIUM' || r7Sev === 'MODERATE') finalSevLabel = 'Medium';
                     }
 
+                    if (finalScore !== null) {
+                        await nvdService.saveToCache(cleanCVE, finalScore, finalSevLabel);
+                    }
+
                     // De-duplicate: Keep highest
                     const existing = hostCVEMap[cleanCVE];
                     let useNew = false;
@@ -284,7 +332,8 @@ async function runSync() {
                             plugin_name: detail.title,
                             description: detail.description,
                             solution: detail.solution,
-                            status: a1 ? (a1.hasUpdates ? 'Patch Available' : 'No Patch Available') : "Not Recognized"
+                            status: a1 ? (a1.remediationStatus || 'Non Patchable') : "Non Patchable",
+                            patchable: !!a1?.hasUpdates
                         };
                     }
                 }
@@ -293,18 +342,20 @@ async function runSync() {
 
         // Finalize lists and counts from de-duplicated data
         for (let name in endpointUniqueCVEs) {
+            const endpointHasAction1 = !!a1eps[name];
             endpointSeverityCounts[name] = { Critical: 0, High: 0, Medium: 0, Low: 0, Patchable: 0 };
             const hostCVEMap = endpointUniqueCVEs[name];
             for (let cveId in hostCVEMap) {
                 const cveData = hostCVEMap[cveId];
-                
+                const remediationStatus = endpointHasAction1 && cveData.patchable ? 'Patch Available' : 'Non Patchable';
+
                 const s = cveData.severity;
                 if (s === 'Critical') endpointSeverityCounts[name].Critical++;
                 else if (s === 'High') endpointSeverityCounts[name].High++;
                 else if (s === 'Medium') endpointSeverityCounts[name].Medium++;
                 else if (s === 'Low') endpointSeverityCounts[name].Low++;
 
-                if (cveData.status === 'Patch Available') {
+                if (remediationStatus === 'Patch Available') {
                     endpointSeverityCounts[name].Patchable++;
                 }
 
@@ -313,7 +364,7 @@ async function runSync() {
                     endpoint_name: name,
                     cve: cveId,
                     severity: s,
-                    status: cveData.status,
+                    status: remediationStatus,
                     plugin_name: cveData.plugin_name,
                     description: cveData.description,
                     solution: cveData.solution
@@ -342,7 +393,7 @@ async function runSync() {
                 const assetData = allR7Assets.find(a => a.host_name.trim().split('.')[0].toLowerCase() === name);
                 endpointsToSave.push({
                     integration_id: 'rapid7', run_id: runId, endpoint_name: name,
-                    ipv4: null, mac: null, os: assetData?.os || "Unknown",
+                    ipv4: null, mac: null, os: rapid7AssetDetailsByName[name]?.os || extractRapid7Os(assetData) || "Unknown",
                     action1_id: null,
                     has_agent: true,
                     missing_from_vm: false,

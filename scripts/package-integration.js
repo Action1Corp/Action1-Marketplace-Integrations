@@ -84,6 +84,7 @@ function buildUiBundle() {
     react: path.join(repoRoot, 'node_modules', 'react'),
     'react-dom': path.join(repoRoot, 'node_modules', 'react-dom'),
     'react-router-dom': path.join(repoRoot, 'node_modules', 'react-router-dom'),
+    html2canvas: path.join(repoRoot, 'node_modules', 'html2canvas'),
     'lucide-react': path.join(repoRoot, 'node_modules', 'lucide-react'),
     recharts: path.join(repoRoot, 'node_modules', 'recharts')
   };

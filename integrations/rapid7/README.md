@@ -28,4 +28,3 @@ The Marketplace infers supported operations from this integration's files, manif
 - vulnerabilities
 - history
 - settings
-

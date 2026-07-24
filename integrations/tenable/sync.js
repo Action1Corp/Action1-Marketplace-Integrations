@@ -1,6 +1,28 @@
 // Wait utility
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
+function firstString(...values) {
+    for (const value of values) {
+        if (typeof value === 'string' && value.trim()) return value.trim();
+        if (Array.isArray(value)) {
+            const match = value.find(item => typeof item === 'string' && item.trim());
+            if (match) return match.trim();
+        }
+    }
+    return null;
+}
+
+function extractTenableOs(asset = {}) {
+    return firstString(
+        asset.operating_system,
+        asset.operatingSystem,
+        asset.os,
+        asset.system?.operating_system,
+        asset.system?.operatingSystem,
+        asset.system?.os
+    );
+}
+
 async function sync(context) {
     const axios = context.http;
     const db = context.db.raw;
@@ -9,7 +31,7 @@ async function sync(context) {
     const nvdService = context.services.nvd;
     const computeAndSaveRunMetrics = context.services.computeAndSaveRunMetrics;
     context.logger.info("Starting Tenable Sync Engine...");
-    
+
     // Create new Run ID
     const runId = await new Promise((resolve, reject) => {
         db.run('INSERT INTO sync_history (status, details) VALUES (?, ?)', ['Running', 'Started sync'], function(err) {
@@ -44,7 +66,7 @@ async function sync(context) {
         const tenableApiBase = "https://cloud.tenable.com";
 
         const a1Base = "https://app.action1.com/api/3.0";
-        
+
         await updateProgress("Authenticating with Action1...");
         let a1Token = null;
         try {
@@ -79,7 +101,7 @@ async function sync(context) {
         } catch (e) {
             await updateProgress(`Failed fetching Action1 endpoints. Response code: ${e.response?.status} ${e.message}`);
         }
-        
+
         await updateProgress(`Retrieved ${action1Assets.length} Action1 endpoints.`); // Lookup
         let a1eps = {}; // Lookup
         for (let ep of action1Assets) {
@@ -106,7 +128,7 @@ async function sync(context) {
         };
         const vulnExportRes = await axios.post(`${tenableApiBase}/vulns/export`, vulnBody, { headers: tenableHeaders });
         const vulnExportUuid = vulnExportRes.data.export_uuid;
-        
+
         const pollExport = async (type, uuid) => {
             let elapsed = 0;
             const pollInterval = 15000; // 15 seconds
@@ -133,14 +155,14 @@ async function sync(context) {
                 allVulns = allVulns.concat(chunkRes.data);
             }
         }
-        
+
         let eps = {}; // map of endpoint to cve list
         let cveDetails = {};
         for (let v of allVulns) {
             let host = v.asset?.netbios_name;
             if (!host) continue;
             let epName = host.trim().split('.')[0].toLowerCase();
-            
+
             let cveList = v.plugin?.cve;
             if (cveList && Array.isArray(cveList)) {
                 if (!eps[epName]) eps[epName] = [];
@@ -171,7 +193,7 @@ async function sync(context) {
                 const catRes = await axios.get(`${a1Base}/Vulnerabilities/${action1OrgId}?limit=${limit}&from=${offset}`, { headers: a1Headers });
                 const p = catRes.data;
                 let catData = Array.isArray(p) ? p : (p.items || p.data || p.vulnerabilities || []);
-                
+
                 if (catData.length === 0) {
                     hasMore = false;
                 } else {
@@ -185,7 +207,8 @@ async function sync(context) {
                             }
                         }
                         const score = parseFloat(v.cvss_v3_score || v.cvss_score || v.cvss);
-                        action1Vulns[v.cve_id] = { hasUpdates, score: isNaN(score) ? null : score, severity: v.severity };
+                        const remediationStatus = hasUpdates ? 'Patch Available' : 'Non Patchable';
+                        action1Vulns[v.cve_id] = { hasUpdates, remediationStatus, score: isNaN(score) ? null : score, severity: v.severity };
                     }
                     totalFetched += catData.length;
                     offset += limit;
@@ -220,17 +243,17 @@ async function sync(context) {
                 }
             }
         }
-        
+
         await updateProgress("Mapping CVEs to Endpoints with NIST arbitration...");
         let endpointSeverityCounts = {};
         let finalCVEList = [];
-        
+
         let endpointUniqueCVEs = {}; // ep -> { cveId -> { cve, severity, cvss, status, ... } }
 
         for (let ep in eps) {
             if (!endpointUniqueCVEs[ep]) endpointUniqueCVEs[ep] = {};
             const hostCVEMap = endpointUniqueCVEs[ep];
-            
+
             let uniqueCvesRaw = [...new Set(eps[ep])];
             for (let cveId of uniqueCvesRaw) {
                 // Ground Truth Arbitration:
@@ -254,6 +277,10 @@ async function sync(context) {
                     if (tSev === 'CRITICAL') finalSevLabel = 'Critical';
                     else if (tSev === 'HIGH') finalSevLabel = 'High';
                     else if (tSev === 'MEDIUM') finalSevLabel = 'Medium';
+                }
+
+                if (finalScore !== null) {
+                    await nvdService.saveToCache(cveId, finalScore, finalSevLabel);
                 }
 
                 // De-duplicate: Keep highest
@@ -280,7 +307,8 @@ async function sync(context) {
                         plugin_name: detail?.PluginName || "",
                         description: detail?.Description || "",
                         solution: detail?.Solution || "",
-                        status: a1 ? (a1.hasUpdates ? 'Patch Available' : 'No Patch Available') : "Not Recognized"
+                        status: a1 ? (a1.remediationStatus || 'Non Patchable') : "Non Patchable",
+                        patchable: !!a1?.hasUpdates
                     };
                 }
             }
@@ -288,18 +316,20 @@ async function sync(context) {
 
         // Finalize lists and counts from de-duplicated data
         for (let ep in endpointUniqueCVEs) {
+            const endpointHasAction1 = !!a1eps[ep];
             endpointSeverityCounts[ep] = { Critical: 0, High: 0, Medium: 0, Low: 0, Patchable: 0 };
             const hostCVEMap = endpointUniqueCVEs[ep];
             for (let cveId in hostCVEMap) {
                 const cveData = hostCVEMap[cveId];
-                
+                const remediationStatus = endpointHasAction1 && cveData.patchable ? 'Patch Available' : 'Non Patchable';
+
                 const s = cveData.severity;
                 if (s === 'Critical') endpointSeverityCounts[ep].Critical++;
                 else if (s === 'High') endpointSeverityCounts[ep].High++;
                 else if (s === 'Medium') endpointSeverityCounts[ep].Medium++;
                 else if (s === 'Low') endpointSeverityCounts[ep].Low++;
 
-                if (cveData.status === 'Patch Available') {
+                if (remediationStatus === 'Patch Available') {
                     endpointSeverityCounts[ep].Patchable++;
                 }
 
@@ -310,7 +340,7 @@ async function sync(context) {
                     plugin_name: cveData.plugin_name,
                     description: cveData.description,
                     solution: cveData.solution,
-                    status: cveData.status
+                    status: remediationStatus
                 });
             }
         }
@@ -324,7 +354,7 @@ async function sync(context) {
             const assetExportRes = await axios.post(`${tenableApiBase}/assets/v2/export`, { chunk_size: 5000 }, { headers: tenableHeaders });
             const assetExportUuid = assetExportRes.data.export_uuid;
             let assetChunks = await pollExport("assets", assetExportUuid);
-            
+
             for (let chunk of assetChunks) {
                 await updateProgress(`Downloading Asset chunk ${chunk}...`);
                 const chunkRes = await axios.get(`${tenableApiBase}/assets/export/${assetExportUuid}/chunks/${chunk}`, { headers: tenableHeaders });
@@ -332,7 +362,7 @@ async function sync(context) {
                 tenableAssetsList = tenableAssetsList.concat(arr);
             }
         } catch(e) {}
-        
+
         let allTenableAssets = {};
         for (let asset of tenableAssetsList) {
             if (!asset) continue;
@@ -342,12 +372,12 @@ async function sync(context) {
             if (rawName && typeof rawName === 'string') {
                 tName = rawName.trim().split('.')[0].toLowerCase();
             }
-            
+
             if (tName) {
-                allTenableAssets[tName] = { 
-                    ipv4: asset.network?.ipv4s?.[0], 
+                allTenableAssets[tName] = {
+                    ipv4: asset.network?.ipv4s?.[0],
                     mac: asset.network?.mac_addresses?.[0],
-                    os: asset.operating_system?.[0],
+                    os: extractTenableOs(asset),
                     has_agent: asset.has_agent || false
                 };
             }
@@ -357,14 +387,14 @@ async function sync(context) {
         // 6. Find Missing Assets & Combine Data
         // -------------------------------------------------------------
         let endpointsToSave = [];
-        
+
         // Loop Action1 Assets to find missing from Tenable
         for (let a1 in a1eps) {
             const d = a1eps[a1];
-            let missingFromTenable = !allTenableAssets.hasOwnProperty(a1); 
-            
+            let missingFromTenable = !allTenableAssets.hasOwnProperty(a1);
+
             const sevs = endpointSeverityCounts[a1] || {Critical:0,High:0,Medium:0,Low:0,Patchable:0};
-            
+
             endpointsToSave.push({
                 name: a1,
                 ipv4: d.ipv4,
@@ -381,7 +411,7 @@ async function sync(context) {
                 patchable: sevs.Patchable
             });
         }
-        
+
         // Loop Tenable Assets to find missing from Action1
         for (let t in allTenableAssets) {
             if (!a1eps.hasOwnProperty(t)) {

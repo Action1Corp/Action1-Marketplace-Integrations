@@ -73,6 +73,30 @@ function hasAction1AvailableUpdates(vulnerability) {
         && vulnerability.software.some((software) => Array.isArray(software.available_updates) && software.available_updates.length > 0);
 }
 
+function action1RemediationStatus(vulnerability) {
+    return hasAction1AvailableUpdates(vulnerability) ? 'Patch Available' : 'Non Patchable';
+}
+
+function compactSoftwareNames(names) {
+    return Array.from(new Set((names || [])
+        .map((name) => String(name || '').trim())
+        .filter(Boolean)))
+        .sort()
+        .join(', ');
+}
+
+function softwareNameFromAction1Vulnerability(vulnerability) {
+    if (!Array.isArray(vulnerability?.software)) return '';
+    return compactSoftwareNames(vulnerability.software.map((software) =>
+        software.name ||
+        software.software_name ||
+        software.product_name ||
+        software.product ||
+        software.display_name ||
+        software.title
+    ));
+}
+
 async function fetchAction1EndpointVulnCounts(a1Base, action1Org, endpointId, headers) {
     const cves = {};
     const limit = 500;
@@ -90,11 +114,15 @@ async function fetchAction1EndpointVulnCounts(a1Base, action1Org, endpointId, he
 
             const score = parseFloat(item.cvss_v3_score || item.cvss_score || item.cvss);
             const severity = normalizeSeverityLabel(item.severity, score);
+            const softwareName = softwareNameFromAction1Vulnerability(item);
             cves[cveId] = chooseCveEntry(cves[cveId], {
                 cve: cveId,
                 severity,
                 cvss: Number.isNaN(score) ? null : score,
-                status: hasAction1AvailableUpdates(item) ? 'Patch Available' : 'No Patch Available'
+                status: action1RemediationStatus(item),
+                patchable: hasAction1AvailableUpdates(item),
+                plugin_name: softwareName,
+                vulnerable_software: softwareName
             });
         }
 
@@ -105,13 +133,13 @@ async function fetchAction1EndpointVulnCounts(a1Base, action1Org, endpointId, he
     }
 
     const counts = countBySeverity(cves);
-    const patchableTotal = Object.values(cves).filter((cve) => cve.status === 'Patch Available').length;
+    const patchableTotal = Object.values(cves).filter((cve) => cve.patchable).length;
     return { ...counts, patchableTotal, cves };
 }
 
 async function runSync() {
     console.log("Starting Qualys Sync Engine...");
-    
+
     // Create new Run ID
     const runId = await new Promise((resolve, reject) => {
         db.run('INSERT INTO sync_history (integration_id, status, details) VALUES (?, ?, ?)', ['qualys', 'Running', 'Started sync'], function(err) {
@@ -135,7 +163,7 @@ async function runSync() {
         let QualysBaseUrl = await getSetting('QualysBaseUrl');
         if (!QualysBaseUrl) QualysBaseUrl = 'https://qualysapi.qg3.apps.qualys.com';
         QualysBaseUrl = QualysBaseUrl.replace(/\/$/, '');
-        
+
         const { apiKey: action1ApiKey, apiSecret: action1ApiSecret, organizationId: action1OrgId } = await getAction1Credentials();
 
         if (!QualysUsername || !QualysPassword || !action1ApiKey || !action1OrgId) {
@@ -143,10 +171,10 @@ async function runSync() {
         }
 
         const qualysAuth = Buffer.from(`${QualysUsername}:${QualysPassword}`).toString('base64');
-        const qualysHeaders = { 
-            'Authorization': `Basic ${qualysAuth}`, 
+        const qualysHeaders = {
+            'Authorization': `Basic ${qualysAuth}`,
             'X-Requested-With': 'Node.js-SyncEngine',
-            'Accept': 'application/json' 
+            'Accept': 'application/json'
         };
 
         const a1Base = "https://app.action1.com/api/3.0";
@@ -172,7 +200,7 @@ async function runSync() {
         let action1Assets = [];
         const a1Res = await axios.get(`${a1Base}/endpoints/managed/${action1OrgId}?limit=9999`, { headers: a1Headers });
         action1Assets = a1Res.data.items || a1Res.data.data || a1Res.data.endpoints || (Array.isArray(a1Res.data) ? a1Res.data : []);
-        
+
         let a1eps = {};
         for (let ep of action1Assets) {
             if (!ep.device_name) continue;
@@ -184,7 +212,7 @@ async function runSync() {
         // 3. Fetch Qualys VM Detections (CSV)
         await updateProgress("Requesting host detections from Qualys VM...");
         const detectionUri = `${QualysBaseUrl}/api/5.0/fo/asset/host/vm/detection/?action=list&status=Active,Re-Opened&output_format=CSV_NO_METADATA`;
-        
+
         const hostRes = await axios.get(detectionUri, { headers: { ...qualysHeaders, 'Accept': 'text/csv' } });
         // Robust CSV parser capable of handling newlines inside quoted fields
         const parseRawCsv = (csvText) => {
@@ -250,14 +278,14 @@ async function runSync() {
         // 4. Batch QIDs to get CVEs and Details
         const qids = [...new Set(detections.filter(d => d.QID || d.qid).map(d => d.QID || d.qid))];
         const cveMap = {}; // QID -> { cves: [], severity: '', cvssV3: null, cvssV2: null, title: '', desc: '', sol: '', qPatchable: false }
-        
+
         if (qids.length > 0) {
             await updateProgress(`Lookup details for ${qids.length} unique Qualys QIDs...`);
             const batchSize = 50;
             for (let i = 0; i < qids.length; i += batchSize) {
                 const batch = qids.slice(i, i + batchSize).join(',');
                 const kbUri = `${QualysBaseUrl}/api/2.0/fo/knowledge_base/vuln/?action=list&ids=${batch}&details=All`;
-                
+
                 try {
                     // Note: KB API often returns XML. Since we don't have xml2js, we'll try a regex approach or check for CSV.
                     // If we can't get CSV for KB easily, we use XML + Regex.
@@ -271,29 +299,29 @@ async function runSync() {
                         if (qidMatch) {
                             const qidVal = qidMatch[1];
                             const cveMatches = [...block.matchAll(/<ID>(?:<!\[CDATA\[)?(CVE-.*?)(?:\]\]>)?<\/ID>/g)].map(m => m[1]);
-                            const severity = (block.match(/<SEVERITY_LEVEL>(.*?)<\/SEVERITY_LEVEL>/)?.[1] || 
-                                              block.match(/<SEVERITY>(.*?)<\/SEVERITY>/)?.[1] || 
+                            const severity = (block.match(/<SEVERITY_LEVEL>(.*?)<\/SEVERITY_LEVEL>/)?.[1] ||
+                                              block.match(/<SEVERITY>(.*?)<\/SEVERITY>/)?.[1] ||
                                               'Unknown').trim();
 
                             // Support various CVSS tag formats including nested <BASE> and CDATA
-                            const cvssV3 = block.match(/<CVSS_V3>.*?<BASE>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/BASE>/s)?.[1] || 
+                            const cvssV3 = block.match(/<CVSS_V3>.*?<BASE>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/BASE>/s)?.[1] ||
                                            block.match(/<CVSS_V3_BASE>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/CVSS_V3_BASE>/)?.[1] || null;
-                            const cvssV2 = block.match(/<CVSS>.*?<BASE>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/BASE>/s)?.[1] || 
+                            const cvssV2 = block.match(/<CVSS>.*?<BASE>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/BASE>/s)?.[1] ||
                                            block.match(/<CVSS_BASE>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/CVSS_BASE>/)?.[1] || null;
                             const isQPatchable = block.match(/<PATCHABLE>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/PATCHABLE>/)?.[1] === '1';
-                            
+
                             const titleMatch = block.match(/<TITLE>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/TITLE>/s);
                             const title = titleMatch ? titleMatch[1].trim() : 'Qualys Vulnerability';
-                            
+
                             const descMatch = block.match(/<DESCRIPTION>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/DESCRIPTION>/s);
                             const desc = descMatch ? descMatch[1].trim() : '';
-                            
+
                             const solMatch = block.match(/<SOLUTION>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/SOLUTION>/s);
                             const sol = solMatch ? solMatch[1].trim() : '';
-                            
-                            cveMap[qidVal] = { 
-                                cves: cveMatches, 
-                                severity, 
+
+                            cveMap[qidVal] = {
+                                cves: cveMatches,
+                                severity,
                                 cvssV3: cvssV3 ? parseFloat(cvssV3) : null,
                                 cvssV2: cvssV2 ? parseFloat(cvssV2) : null,
                                 title, desc, sol, qPatchable: isQPatchable
@@ -319,7 +347,7 @@ async function runSync() {
                 const catRes = await axios.get(`${a1Base}/Vulnerabilities/${action1OrgId}?limit=${limit}&from=${offset}`, { headers: a1Headers });
                 const p = catRes.data;
                 let catData = Array.isArray(p) ? p : (p.items || p.data || p.vulnerabilities || []);
-                
+
                 if (catData.length === 0) {
                     hasMore = false;
                 } else {
@@ -333,7 +361,7 @@ async function runSync() {
                             }
                         }
                         const score = parseFloat(v.cvss_v3_score || v.cvss_score || v.cvss);
-                        action1Vulns[v.cve_id] = { hasUpdates, score: isNaN(score) ? null : score, severity: v.severity };
+                        action1Vulns[v.cve_id] = { hasUpdates, remediationStatus: action1RemediationStatus(v), score: isNaN(score) ? null : score, severity: v.severity };
                     }
                     totalFetched += catData.length;
                     offset += limit;
@@ -352,9 +380,9 @@ async function runSync() {
         for (let qid in cveMap) {
             cveMap[qid].cves.forEach(c => allDiscoveredCVEs.add(c));
         }
-        
+
         const cveArr = Array.from(allDiscoveredCVEs);
-        
+
         if (cveArr.length > 0) {
             await updateProgress(`Synchronizing ${cveArr.length} CVEs with NIST...`);
             const chunks = [];
@@ -380,7 +408,7 @@ async function runSync() {
             const dns = d['DNS Name'];
             const nbt = d['Netbios Name'];
             const ip = d['IP Address'];
-            
+
             // If any host info is present, update the current host sticker
             if ((dns && dns !== '0') || (nbt && nbt !== '0') || (ip && ip !== '0')) {
                 currentHost = { dns, nbt, ip, os: d['OS'] };
@@ -392,7 +420,7 @@ async function runSync() {
             if (!rawName || rawName === '0') return;
             const name = rawName.trim().split('.')[0].toLowerCase();
             if (name === '0') return;
-            
+
             if (!qualysHostsSeen[name]) {
                 qualysHostsSeen[name] = { ipv4: currentHost.ip, os: currentHost.os, qids: new Set() };
             }
@@ -412,7 +440,7 @@ async function runSync() {
                 const cvssV3 = detail.cvssV3;
                 const cvssV2 = detail.cvssV2;
                 const bestScore = cvssV3 !== null ? cvssV3 : cvssV2;
-                
+
                 let sevLabel = 'Low';
                 if (bestScore !== null) {
                     if (bestScore >= 9.0) sevLabel = 'Critical';
@@ -437,7 +465,7 @@ async function runSync() {
                     const nist = await nvdService.getFromCache(cve);
                     const a1 = action1Vulns[cve];
 
-                    let finalSevLabel = sevLabel; 
+                    let finalSevLabel = sevLabel;
                     let finalScore = bestScore;
 
                     if (nist) {
@@ -448,8 +476,12 @@ async function runSync() {
                         finalScore = a1.score;
                     }
 
+                    if (finalScore !== null) {
+                        await nvdService.saveToCache(cve, finalScore, finalSevLabel);
+                    }
+
                     const existing = hostCVEMap[cve];
-                    
+
                     let useNew = false;
                     const isSpecific = detail.title.includes(cve);
                     const existingWasSpecific = existing ? existing.title.includes(cve) : false;
@@ -457,17 +489,17 @@ async function runSync() {
                     if (!existing) {
                         useNew = true;
                     } else if (isSpecific && !existingWasSpecific) {
-                        useNew = true; 
+                        useNew = true;
                     } else if (!isSpecific && existingWasSpecific) {
-                        useNew = false; 
+                        useNew = false;
                     } else {
                         const existingHasScore = existing.cvss !== null;
                         const newHasScore = finalScore !== null;
-                        
+
                         if (newHasScore && !existingHasScore) {
-                            useNew = true; 
+                            useNew = true;
                         } else if (newHasScore && existingHasScore) {
-                            if (finalScore >= existing.cvss) useNew = true; 
+                            if (finalScore >= existing.cvss) useNew = true;
                         } else if (!newHasScore && !existingHasScore) {
                             const sevRank = { 'Critical': 4, 'High': 3, 'Medium': 2, 'Low': 1, 'Unknown': 0 };
                             if (sevRank[finalSevLabel] >= sevRank[existing.severity]) useNew = true;
@@ -482,7 +514,8 @@ async function runSync() {
                             title: detail.title,
                             desc: detail.desc,
                             sol: detail.sol,
-                            status: a1 ? (a1.hasUpdates ? "Patch Available" : "No Patch Available") : "Not Recognized"
+                            status: a1 ? (a1.remediationStatus || 'Non Patchable') : "Non Patchable",
+                            patchable: !!a1?.hasUpdates
                         };
                     }
 
@@ -497,7 +530,7 @@ async function runSync() {
         }
 
         // Finalize lists and counts from de-duplicated data
-        const finalCVEList = [];
+        let finalCVEList = [];
         let nistVerifiedCount = 0;
         let totalUniqueCVEs = 0;
 
@@ -507,7 +540,7 @@ async function runSync() {
             for (let cveId in hostCVEMap) {
                 const cve = hostCVEMap[cveId];
                 totalUniqueCVEs++;
-                
+
                 // Track NIST coverage
                 if (cve.cvss !== null) nistVerifiedCount++;
 
@@ -516,7 +549,7 @@ async function runSync() {
                 else if (cve.severity === 'Medium') endpointSeverityCounts[name].Medium++;
                 else endpointSeverityCounts[name].Low++;
 
-                if (cve.status === 'Patch Available') {
+                if (cve.patchable) {
                     endpointSeverityCounts[name].Patchable++;
                 }
 
@@ -600,19 +633,19 @@ async function runSync() {
         await new Promise((resolveDb, rejectDb) => {
             db.serialize(() => {
                 db.run('BEGIN TRANSACTION');
-                
+
                 for (let ep of endpointsToSave) {
                     const action1Counts = ep.action1_id ? action1EndpointCounts[ep.action1_id] : null;
-                    const qualysCves = endpointUniqueCVEs[ep.endpoint_name] || {};
-                    const mergedCounts = countBySeverity(mergeCveMaps(qualysCves, action1Counts?.cves || {}));
-                    const integrationTotal = ep.critical + ep.high + ep.medium + ep.low;
+                    const qualysCves = ep.missing_from_vm ? {} : (endpointUniqueCVEs[ep.endpoint_name] || {});
+                    const qualysCounts = countBySeverity(qualysCves);
+                    const integrationTotal = (qualysCounts.Critical || 0) + (qualysCounts.High || 0) + (qualysCounts.Medium || 0) + (qualysCounts.Low || 0);
                     db.run(`INSERT INTO qualys_endpoints (integration_id, run_id, endpoint_name, ipv4, mac, os, action1_id, tenable_has_agent, missing_from_tenable, missing_from_action1, defender_total_vulns, critical_vulns, high_vulns, medium_vulns, low_vulns, action1_critical_vulns, action1_high_vulns, action1_medium_vulns, action1_low_vulns, patchable_vulns)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                         [
                             ep.integration_id, runId, ep.endpoint_name, ep.ipv4, ep.mac, ep.os, ep.action1_id,
                             ep.has_agent, ep.missing_from_vm, ep.missing_from_action1,
                             integrationTotal,
-                            mergedCounts.Critical, mergedCounts.High, mergedCounts.Medium, mergedCounts.Low,
+                            qualysCounts.Critical || 0, qualysCounts.High || 0, qualysCounts.Medium || 0, qualysCounts.Low || 0,
                             action1Counts?.Critical || 0,
                             action1Counts?.High || 0,
                             action1Counts?.Medium || 0,
@@ -620,6 +653,37 @@ async function runSync() {
                             action1Counts?.patchableTotal || 0
                         ]
                     );
+                }
+
+                finalCVEList = [];
+                for (let ep of endpointsToSave) {
+                    const action1Counts = ep.action1_id ? action1EndpointCounts[ep.action1_id] : null;
+                    const qualysCves = ep.missing_from_vm ? {} : (endpointUniqueCVEs[ep.endpoint_name] || {});
+                    const action1Cves = action1Counts?.cves || {};
+                    const cveIds = Array.from(new Set([...Object.keys(qualysCves), ...Object.keys(action1Cves)]));
+
+                    for (let cveId of cveIds) {
+                        const qualysCve = qualysCves[cveId];
+                        const action1Cve = action1Cves[cveId];
+                        const cveData = qualysCve && action1Cve
+                            ? chooseCveEntry(qualysCve, action1Cve)
+                            : (qualysCve || action1Cve);
+                        const source = qualysCve && action1Cve ? 'Both' : action1Cve ? 'Action1' : 'VM Scanner';
+                        const status = ep.action1_id && (action1Cve?.patchable || qualysCve?.patchable)
+                            ? 'Patch Available'
+                            : 'Non Patchable';
+                        finalCVEList.push({
+                            integration_id: 'qualys',
+                            endpoint_name: ep.endpoint_name,
+                            cve: cveData.cve || cveId,
+                            severity: normalizeSeverityLabel(cveData.severity, cveData.cvss),
+                            plugin_name: cveData.plugin_name || cveData.title || cveData.cve || cveId,
+                            description: cveData.desc || '',
+                            solution: cveData.sol || '',
+                            status,
+                            source
+                        });
+                    }
                 }
 
                 // Upsert CVE text into normalized lookup table
@@ -634,10 +698,10 @@ async function runSync() {
                 stmtDetails.finalize();
 
                 // Insert endpoint_cves rows without text blobs
-                let stmt2 = db.prepare(`INSERT INTO qualys_endpoint_cves (integration_id, run_id, endpoint_name, cve, severity, status)
-                    VALUES (?, ?, ?, ?, ?, ?)`);
+                let stmt2 = db.prepare(`INSERT INTO qualys_endpoint_cves (integration_id, run_id, endpoint_name, cve, severity, status, source)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)`);
                 for (let cve of finalCVEList) {
-                    stmt2.run([cve.integration_id, runId, cve.endpoint_name, cve.cve, cve.severity, cve.status]);
+                    stmt2.run([cve.integration_id, runId, cve.endpoint_name, cve.cve, cve.severity, cve.status, cve.source]);
                 }
                 stmt2.finalize();
 

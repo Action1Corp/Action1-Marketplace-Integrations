@@ -12,6 +12,7 @@
     "test:contract": "node tests/validate-contract.js"
   },
   "dependencies": {
+    "html2canvas": "^1.4.1",
     "lucide-react": "^0.364.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
