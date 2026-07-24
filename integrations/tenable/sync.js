@@ -308,6 +308,7 @@ async function sync(context) {
                         description: detail?.Description || "",
                         solution: detail?.Solution || "",
                         status: a1 ? (a1.remediationStatus || 'Non Patchable') : "Non Patchable",
+                        hasAction1Match: !!a1,
                         patchable: !!a1?.hasUpdates
                     };
                 }
@@ -340,7 +341,8 @@ async function sync(context) {
                     plugin_name: cveData.plugin_name,
                     description: cveData.description,
                     solution: cveData.solution,
-                    status: remediationStatus
+                    status: remediationStatus,
+                    source: cveData.hasAction1Match ? 'Both' : 'VM Scanner'
                 });
             }
         }
@@ -477,11 +479,11 @@ async function sync(context) {
 
                 // 2. Insert endpoint_cves rows (no text blobs)
                 const stmtCve = db.prepare(
-                    `INSERT INTO tenable_endpoint_cves (integration_id, run_id, endpoint_name, cve, severity, status)
-                     VALUES (?, ?, ?, ?, ?, ?)`
+                    `INSERT INTO tenable_endpoint_cves (integration_id, run_id, endpoint_name, cve, severity, status, source)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)`
                 );
                 for (const cve of finalCVEList) {
-                    stmtCve.run('tenable', runId, cve.endpoint_name, cve.cve, cve.severity, cve.status);
+                    stmtCve.run('tenable', runId, cve.endpoint_name, cve.cve, cve.severity, cve.status, cve.source);
                 }
                 stmtCve.finalize();
 

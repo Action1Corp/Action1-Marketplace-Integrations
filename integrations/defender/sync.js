@@ -571,6 +571,7 @@ async function runSync() {
                     cve: cveId,
                     severity: normalizeSeverityLabel(cveData.severity, cveData.cvss),
                     status: remediationStatus,
+                    source: defenderCves[cveId] && action1Counts?.cves?.[cveId] ? 'Both' : action1Counts?.cves?.[cveId] ? 'Action1' : 'VM Scanner',
                     plugin_name: cveData.plugin_name || cveData.title || cveId,
                     vulnerable_software: cveData.vulnerable_software || cveData.plugin_name || '',
                     description: '',
@@ -620,10 +621,10 @@ async function runSync() {
                 stmtDetails.finalize();
 
                 // Insert endpoint_cves rows without text blobs
-                let stmt2 = db.prepare(`INSERT INTO defender_endpoint_cves (integration_id, run_id, endpoint_name, cve, severity, status)
-                    VALUES (?, ?, ?, ?, ?, ?)`);
+                let stmt2 = db.prepare(`INSERT INTO defender_endpoint_cves (integration_id, run_id, endpoint_name, cve, severity, status, source)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)`);
                 for (let cve of finalCVEList) {
-                    stmt2.run([cve.integration_id, runId, cve.endpoint_name, cve.cve, cve.severity, cve.status]);
+                    stmt2.run([cve.integration_id, runId, cve.endpoint_name, cve.cve, cve.severity, cve.status, cve.source]);
                 }
                 stmt2.finalize();
 

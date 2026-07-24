@@ -333,6 +333,7 @@ async function runSync() {
                             description: detail.description,
                             solution: detail.solution,
                             status: a1 ? (a1.remediationStatus || 'Non Patchable') : "Non Patchable",
+                            hasAction1Match: !!a1,
                             patchable: !!a1?.hasUpdates
                         };
                     }
@@ -365,6 +366,7 @@ async function runSync() {
                     cve: cveId,
                     severity: s,
                     status: remediationStatus,
+                    source: cveData.hasAction1Match ? 'Both' : 'VM Scanner',
                     plugin_name: cveData.plugin_name,
                     description: cveData.description,
                     solution: cveData.solution
@@ -432,11 +434,11 @@ async function runSync() {
 
                 // Insert endpoint_cves rows without text blobs
                 const stmtCve = db.prepare(
-                    `INSERT INTO rapid7_endpoint_cves (integration_id, run_id, endpoint_name, cve, severity, status)
-                     VALUES (?, ?, ?, ?, ?, ?)`
+                    `INSERT INTO rapid7_endpoint_cves (integration_id, run_id, endpoint_name, cve, severity, status, source)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)`
                 );
                 for (let cve of finalCVEList) {
-                    stmtCve.run('rapid7', runId, cve.endpoint_name, cve.cve, cve.severity, cve.status);
+                    stmtCve.run('rapid7', runId, cve.endpoint_name, cve.cve, cve.severity, cve.status, cve.source);
                 }
                 stmtCve.finalize();
 
