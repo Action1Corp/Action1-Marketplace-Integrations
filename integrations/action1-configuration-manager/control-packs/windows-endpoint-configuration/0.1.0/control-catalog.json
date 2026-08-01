@@ -1,0 +1,2242 @@
+{
+  "packId": "windows-endpoint-configuration",
+  "packVersion": "0.1.0",
+  "families": [
+    {
+      "familyId": "devices",
+      "name": "Devices",
+      "description": "Controls for removable devices and related endpoint configuration.",
+      "displayOrder": 10
+    },
+    {
+      "familyId": "identity-and-sign-in",
+      "name": "Identity & Sign-in",
+      "description": "Controls for interactive sign-in and related endpoint identity configuration.",
+      "displayOrder": 20
+    },
+    {
+      "familyId": "threat-protection",
+      "name": "Threat Protection",
+      "description": "Controls for Microsoft Defender Antivirus protection and scheduled scanning configuration.",
+      "displayOrder": 30
+    },
+    {
+      "familyId": "network-security",
+      "name": "Network Security",
+      "description": "Controls for Windows Defender Firewall and SMB client and server hardening configuration.",
+      "displayOrder": 40
+    },
+    {
+      "familyId": "remote-access",
+      "name": "Remote Access",
+      "description": "Controls for Remote Desktop availability, authentication, and redirection security configuration.",
+      "displayOrder": 50
+    },
+    {
+      "familyId": "privacy-and-experience",
+      "name": "Privacy & Experience",
+      "description": "Controls for device-scoped Windows privacy and experience configuration.",
+      "displayOrder": 60
+    }
+  ],
+  "automationGroups": [
+    {
+      "automationGroupId": "defender.protection",
+      "version": "0.1.0",
+      "familyId": "threat-protection",
+      "name": "Defender Protection",
+      "description": "Controls for Microsoft Defender Antivirus protection and cloud-preference state.",
+      "displayOrder": 10
+    },
+    {
+      "automationGroupId": "devices.removable-storage",
+      "version": "0.1.0",
+      "familyId": "devices",
+      "name": "Removable Storage",
+      "description": "Controls for removable disk and Windows Portable Devices read, write, and execution policy state.",
+      "displayOrder": 10
+    },
+    {
+      "automationGroupId": "firewall.profiles",
+      "version": "0.1.0",
+      "familyId": "network-security",
+      "name": "Firewall Profiles",
+      "description": "Controls for Windows Defender Firewall profile state, default actions, and dropped-packet logging.",
+      "displayOrder": 10
+    },
+    {
+      "automationGroupId": "identity.password-policy",
+      "version": "0.1.0",
+      "familyId": "identity-and-sign-in",
+      "name": "Password Policy",
+      "description": "Controls for password length, age, and history local security policy state.",
+      "displayOrder": 10
+    },
+    {
+      "automationGroupId": "privacy.windows-experience",
+      "version": "0.1.0",
+      "familyId": "privacy-and-experience",
+      "name": "Windows Privacy",
+      "description": "Controls for device-scoped Windows privacy, diagnostic, location, and experience policy state.",
+      "displayOrder": 10
+    },
+    {
+      "automationGroupId": "remote-desktop.security",
+      "version": "0.1.0",
+      "familyId": "remote-access",
+      "name": "Remote Desktop Security",
+      "description": "Controls for Remote Desktop availability, authentication, resource redirection, and connection prompting.",
+      "displayOrder": 10
+    },
+    {
+      "automationGroupId": "identity.account-lockout",
+      "version": "0.1.0",
+      "familyId": "identity-and-sign-in",
+      "name": "Account Lockout",
+      "description": "Controls for account lockout threshold, duration, and reset-counter local security policy state.",
+      "displayOrder": 15
+    },
+    {
+      "automationGroupId": "defender.scanning",
+      "version": "0.1.0",
+      "familyId": "threat-protection",
+      "name": "Defender Scanning",
+      "description": "Controls for Microsoft Defender Antivirus scheduled scan and scan-throttling preferences.",
+      "displayOrder": 20
+    },
+    {
+      "automationGroupId": "identity.interactive-sign-in",
+      "version": "0.1.0",
+      "familyId": "identity-and-sign-in",
+      "name": "Interactive Sign-in",
+      "description": "Controls for interactive Windows sign-in security and legal-notice policy state.",
+      "displayOrder": 20
+    },
+    {
+      "automationGroupId": "smb.security",
+      "version": "0.1.0",
+      "familyId": "network-security",
+      "name": "SMB Security",
+      "description": "Controls for SMB client and SMB server signing, guest-authentication, encryption, protocol, and default-share state.",
+      "displayOrder": 20
+    }
+  ],
+  "controls": [
+    {
+      "controlId": "defender.protection.real-time",
+      "version": "0.1.0",
+      "name": "Real-time protection",
+      "description": "Configures whether Microsoft Defender Antivirus real-time protection is enabled.",
+      "familyId": "threat-protection",
+      "automationGroupId": "defender.protection",
+      "displayOrder": 10,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "enabled",
+          "type": "boolean",
+          "label": "Enabled",
+          "description": "Whether Microsoft Defender Antivirus real-time protection is enabled.",
+          "required": true,
+          "defaultValue": true
+        }
+      ],
+      "policy": {
+        "kind": "DefenderPreference",
+        "scope": "Computer",
+        "preferenceName": "DisableRealtimeMonitoring"
+      }
+    },
+    {
+      "controlId": "defender.scan.type",
+      "version": "0.1.0",
+      "name": "Scheduled scan type",
+      "description": "Configures the type of scheduled Microsoft Defender Antivirus scan.",
+      "familyId": "threat-protection",
+      "automationGroupId": "defender.scanning",
+      "displayOrder": 10,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "scanType",
+          "type": "enum",
+          "label": "Scan type",
+          "description": "Type of scheduled Microsoft Defender Antivirus scan.",
+          "required": true,
+          "defaultValue": "QuickScan",
+          "options": [
+            {
+              "value": "QuickScan",
+              "label": "Quick scan"
+            },
+            {
+              "value": "FullScan",
+              "label": "Full scan"
+            }
+          ]
+        }
+      ],
+      "policy": {
+        "kind": "DefenderPreference",
+        "scope": "Computer",
+        "preferenceName": "ScanParameters"
+      }
+    },
+    {
+      "controlId": "devices.removable-storage.block-read",
+      "version": "0.1.0",
+      "name": "Block read access to removable disks",
+      "description": "Configures the computer-scoped Windows machine policy that denies read access to removable disks.",
+      "familyId": "devices",
+      "automationGroupId": "devices.removable-storage",
+      "displayOrder": 10,
+      "supportedOperatingSystems": [
+        "Windows 10 2004 + KB5005101",
+        "Windows 10 20H2 + KB5005101",
+        "Windows 10 21H1 + KB5005101",
+        "Windows 11 21H2+"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": true,
+      "parameters": [],
+      "policy": {
+        "kind": "ADMX",
+        "admxPolicyName": "RemovableDisks_DenyRead_Access_2",
+        "scope": "Computer"
+      }
+    },
+    {
+      "controlId": "firewall.domain.enabled",
+      "version": "0.1.0",
+      "name": "Domain firewall profile",
+      "description": "Configures whether the Domain Windows Defender Firewall profile is enabled.",
+      "familyId": "network-security",
+      "automationGroupId": "firewall.profiles",
+      "displayOrder": 10,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "enabled",
+          "type": "boolean",
+          "label": "Enabled",
+          "description": "Whether the Domain firewall profile is enabled.",
+          "required": true,
+          "defaultValue": true
+        }
+      ],
+      "policy": {
+        "kind": "NetFirewallProfile",
+        "scope": "Computer",
+        "profile": "Domain",
+        "property": "Enabled"
+      }
+    },
+    {
+      "controlId": "identity.lockout.threshold",
+      "version": "0.1.0",
+      "name": "Account lockout threshold",
+      "description": "Configures the local security policy that locks a local account after the selected number of failed sign-in attempts.",
+      "familyId": "identity-and-sign-in",
+      "automationGroupId": "identity.account-lockout",
+      "displayOrder": 10,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "failedAttempts",
+          "type": "integer",
+          "label": "Failed attempts",
+          "description": "Failed sign-in attempts before a local account is locked.",
+          "required": true,
+          "defaultValue": 10,
+          "minimum": 1,
+          "maximum": 999,
+          "step": 1,
+          "unit": "attempts"
+        }
+      ],
+      "policy": {
+        "kind": "SecurityPolicy",
+        "scope": "Computer",
+        "groupPolicyName": "Account lockout threshold",
+        "infKey": "LockoutBadCount",
+        "relationships": [
+          {
+            "type": "lockout-threshold-dependency",
+            "thresholdParameterId": "failedAttempts",
+            "durationControlId": "identity.lockout.duration",
+            "durationParameterId": "durationMinutes",
+            "resetControlId": "identity.lockout.reset-counter-after",
+            "resetParameterId": "resetMinutes",
+            "description": "When lockout threshold is selected, the same Policy selection must also include lockout duration and reset-counter-after, and duration must be greater than or equal to reset-counter-after."
+          }
+        ]
+      }
+    },
+    {
+      "controlId": "identity.password.minimum-length",
+      "version": "0.1.0",
+      "name": "Minimum password length",
+      "description": "Configures the local security policy that requires a minimum password length for local accounts.",
+      "familyId": "identity-and-sign-in",
+      "automationGroupId": "identity.password-policy",
+      "displayOrder": 10,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "minimumLength",
+          "type": "integer",
+          "label": "Minimum length",
+          "description": "Required minimum number of characters for local account passwords.",
+          "required": true,
+          "defaultValue": 14,
+          "minimum": 0,
+          "maximum": 14,
+          "step": 1,
+          "unit": "characters"
+        }
+      ],
+      "policy": {
+        "kind": "SecurityPolicy",
+        "scope": "Computer",
+        "groupPolicyName": "Minimum password length",
+        "infKey": "MinimumPasswordLength",
+        "relationships": []
+      }
+    },
+    {
+      "controlId": "identity.sign-in.require-secure-attention",
+      "version": "0.1.0",
+      "name": "Require Ctrl+Alt+Delete",
+      "description": "Configures the computer-scoped Windows machine policy that requires the secure attention sequence before interactive sign-in.",
+      "familyId": "identity-and-sign-in",
+      "automationGroupId": "identity.interactive-sign-in",
+      "displayOrder": 10,
+      "supportedOperatingSystems": [
+        "Windows 10 1709+",
+        "Windows 11 21H2+"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [],
+      "policy": {
+        "kind": "SecurityOption",
+        "scope": "Computer",
+        "groupPolicyName": "Interactive logon: Do not require CTRL+ALT+DEL",
+        "cspName": "InteractiveLogon_DoNotRequireCTRLALTDEL"
+      }
+    },
+    {
+      "controlId": "privacy.advertising-id",
+      "version": "0.1.0",
+      "name": "Advertising ID",
+      "description": "Configures the computer-scoped Windows machine policy that allows or blocks application use of the Windows advertising identifier.",
+      "familyId": "privacy-and-experience",
+      "automationGroupId": "privacy.windows-experience",
+      "displayOrder": 10,
+      "supportedOperatingSystems": [
+        "Windows 10 1607+",
+        "Windows 11 21H2+"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "allowed",
+          "type": "boolean",
+          "label": "Allowed",
+          "description": "Whether applications may use the Windows advertising identifier for cross-app experiences.",
+          "required": true,
+          "defaultValue": false
+        }
+      ],
+      "policy": {
+        "kind": "ADMX",
+        "scope": "Computer",
+        "admxPolicyName": "DisableAdvertisingId",
+        "groupPolicyName": "Turn off the advertising ID"
+      }
+    },
+    {
+      "controlId": "remote-desktop.enabled",
+      "version": "0.1.0",
+      "name": "Remote Desktop availability",
+      "description": "Configures whether the endpoint allows incoming Remote Desktop connections.",
+      "familyId": "remote-access",
+      "automationGroupId": "remote-desktop.security",
+      "displayOrder": 10,
+      "supportedOperatingSystems": [
+        "Windows 10 1703+",
+        "Windows 11 21H2+"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "enabled",
+          "type": "boolean",
+          "label": "Enabled",
+          "description": "Whether incoming Remote Desktop connections are allowed.",
+          "required": true,
+          "defaultValue": false
+        }
+      ],
+      "policy": {
+        "kind": "RemoteDesktopPolicy",
+        "scope": "Computer",
+        "admxPolicyName": "TS_DISABLE_CONNECTIONS",
+        "settingName": "fDenyTSConnections"
+      }
+    },
+    {
+      "controlId": "smb.client.require-signing",
+      "version": "0.1.0",
+      "name": "Require SMB client signing",
+      "description": "Configures whether the SMB client requires security signatures for outbound SMB connections.",
+      "familyId": "network-security",
+      "automationGroupId": "smb.security",
+      "displayOrder": 10,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "enabled",
+          "type": "boolean",
+          "label": "Enabled",
+          "description": "Whether the SMB client requires security signatures for outbound SMB connections.",
+          "required": true,
+          "defaultValue": true
+        }
+      ],
+      "policy": {
+        "kind": "SmbClientConfiguration",
+        "scope": "Computer",
+        "property": "RequireSecuritySignature"
+      }
+    },
+    {
+      "controlId": "defender.protection.behavior-monitoring",
+      "version": "0.1.0",
+      "name": "Behavior monitoring",
+      "description": "Configures whether Microsoft Defender Antivirus behavior monitoring is enabled.",
+      "familyId": "threat-protection",
+      "automationGroupId": "defender.protection",
+      "displayOrder": 20,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "enabled",
+          "type": "boolean",
+          "label": "Enabled",
+          "description": "Whether Microsoft Defender Antivirus behavior monitoring is enabled.",
+          "required": true,
+          "defaultValue": true
+        }
+      ],
+      "policy": {
+        "kind": "DefenderPreference",
+        "scope": "Computer",
+        "preferenceName": "DisableBehaviorMonitoring"
+      }
+    },
+    {
+      "controlId": "defender.scan.day",
+      "version": "0.1.0",
+      "name": "Scheduled scan day",
+      "description": "Configures the scheduled Microsoft Defender Antivirus scan day.",
+      "familyId": "threat-protection",
+      "automationGroupId": "defender.scanning",
+      "displayOrder": 20,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "day",
+          "type": "enum",
+          "label": "Scheduled day",
+          "description": "Day on which Microsoft Defender Antivirus runs its scheduled scan.",
+          "required": true,
+          "defaultValue": "Everyday",
+          "options": [
+            {
+              "value": "Everyday",
+              "label": "Every day"
+            },
+            {
+              "value": "Sunday",
+              "label": "Sunday"
+            },
+            {
+              "value": "Monday",
+              "label": "Monday"
+            },
+            {
+              "value": "Tuesday",
+              "label": "Tuesday"
+            },
+            {
+              "value": "Wednesday",
+              "label": "Wednesday"
+            },
+            {
+              "value": "Thursday",
+              "label": "Thursday"
+            },
+            {
+              "value": "Friday",
+              "label": "Friday"
+            },
+            {
+              "value": "Saturday",
+              "label": "Saturday"
+            },
+            {
+              "value": "Never",
+              "label": "Never"
+            }
+          ]
+        }
+      ],
+      "policy": {
+        "kind": "DefenderPreference",
+        "scope": "Computer",
+        "preferenceName": "ScanScheduleDay"
+      }
+    },
+    {
+      "controlId": "devices.removable-storage.block-write",
+      "version": "0.1.0",
+      "name": "Block write access to removable disks",
+      "description": "Configures the computer-scoped Windows machine policy that denies write access to removable disks.",
+      "familyId": "devices",
+      "automationGroupId": "devices.removable-storage",
+      "displayOrder": 20,
+      "supportedOperatingSystems": [
+        "Windows 10 2004 + KB5005101",
+        "Windows 10 20H2 + KB5005101",
+        "Windows 10 21H1 + KB5005101",
+        "Windows 11 21H2+"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": true,
+      "parameters": [],
+      "policy": {
+        "kind": "ADMX",
+        "admxPolicyName": "RemovableDisks_DenyWrite_Access_2",
+        "scope": "Computer"
+      }
+    },
+    {
+      "controlId": "firewall.private.enabled",
+      "version": "0.1.0",
+      "name": "Private firewall profile",
+      "description": "Configures whether the Private Windows Defender Firewall profile is enabled.",
+      "familyId": "network-security",
+      "automationGroupId": "firewall.profiles",
+      "displayOrder": 20,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "enabled",
+          "type": "boolean",
+          "label": "Enabled",
+          "description": "Whether the Private firewall profile is enabled.",
+          "required": true,
+          "defaultValue": true
+        }
+      ],
+      "policy": {
+        "kind": "NetFirewallProfile",
+        "scope": "Computer",
+        "profile": "Private",
+        "property": "Enabled"
+      }
+    },
+    {
+      "controlId": "identity.lockout.duration",
+      "version": "0.1.0",
+      "name": "Account lockout duration",
+      "description": "Configures the local security policy that determines how many minutes a locked local account remains unavailable.",
+      "familyId": "identity-and-sign-in",
+      "automationGroupId": "identity.account-lockout",
+      "displayOrder": 20,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "durationMinutes",
+          "type": "integer",
+          "label": "Duration",
+          "description": "Minutes before a locked local account is automatically unlocked.",
+          "required": true,
+          "defaultValue": 15,
+          "minimum": 1,
+          "maximum": 99999,
+          "step": 1,
+          "unit": "minutes"
+        }
+      ],
+      "policy": {
+        "kind": "SecurityPolicy",
+        "scope": "Computer",
+        "groupPolicyName": "Account lockout duration",
+        "infKey": "LockoutDuration",
+        "relationships": []
+      }
+    },
+    {
+      "controlId": "identity.password.maximum-age",
+      "version": "0.1.0",
+      "name": "Maximum password age",
+      "description": "Configures the local security policy that determines how many days a local account password may be used before it expires.",
+      "familyId": "identity-and-sign-in",
+      "automationGroupId": "identity.password-policy",
+      "displayOrder": 20,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "maximumAgeDays",
+          "type": "integer",
+          "label": "Maximum age",
+          "description": "Days before a local account password expires. Set 0 for never expires.",
+          "required": true,
+          "defaultValue": 90,
+          "minimum": 0,
+          "maximum": 999,
+          "step": 1,
+          "unit": "days"
+        }
+      ],
+      "policy": {
+        "kind": "SecurityPolicy",
+        "scope": "Computer",
+        "groupPolicyName": "Maximum password age",
+        "infKey": "MaximumPasswordAge",
+        "relationships": [
+          {
+            "type": "password-age-range",
+            "maximumAgeParameterId": "maximumAgeDays",
+            "minimumAgeControlId": "identity.password.minimum-age",
+            "minimumAgeParameterId": "minimumAgeDays",
+            "description": "When maximum and minimum password age are selected together, minimum password age must be less than maximum password age unless maximum password age is set to never expire."
+          }
+        ]
+      }
+    },
+    {
+      "controlId": "identity.sign-in.hide-last-user",
+      "version": "0.1.0",
+      "name": "Hide last signed-in user",
+      "description": "Configures the computer-scoped Windows machine policy that hides the most recently signed-in identity on the sign-in screen.",
+      "familyId": "identity-and-sign-in",
+      "automationGroupId": "identity.interactive-sign-in",
+      "displayOrder": 20,
+      "supportedOperatingSystems": [
+        "Windows 10 1709+",
+        "Windows 11 21H2+"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [],
+      "policy": {
+        "kind": "SecurityOption",
+        "scope": "Computer",
+        "groupPolicyName": "Interactive logon: Don't display last signed-in",
+        "cspName": "InteractiveLogon_DoNotDisplayLastSignedIn"
+      }
+    },
+    {
+      "controlId": "privacy.location-access",
+      "version": "0.1.0",
+      "name": "Location access",
+      "description": "Configures the computer-scoped Windows machine policy that controls whether Windows apps may access device location.",
+      "familyId": "privacy-and-experience",
+      "automationGroupId": "privacy.windows-experience",
+      "displayOrder": 20,
+      "supportedOperatingSystems": [
+        "Windows 10 1607+",
+        "Windows 11 21H2+"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "mode",
+          "type": "enum",
+          "label": "Access mode",
+          "description": "Desired default location-access policy for Windows apps on the device.",
+          "required": true,
+          "defaultValue": "ForceDeny",
+          "options": [
+            {
+              "value": "UserControl",
+              "label": "User in control"
+            },
+            {
+              "value": "ForceAllow",
+              "label": "Force allow"
+            },
+            {
+              "value": "ForceDeny",
+              "label": "Force deny"
+            }
+          ]
+        }
+      ],
+      "policy": {
+        "kind": "ADMX",
+        "scope": "Computer",
+        "admxPolicyName": "LetAppsAccessLocation",
+        "groupPolicyName": "Let Windows apps access location"
+      }
+    },
+    {
+      "controlId": "remote-desktop.require-nla",
+      "version": "0.1.0",
+      "name": "Require Network Level Authentication",
+      "description": "Configures whether Remote Desktop requires Network Level Authentication for remote connections.",
+      "familyId": "remote-access",
+      "automationGroupId": "remote-desktop.security",
+      "displayOrder": 20,
+      "supportedOperatingSystems": [
+        "Windows 10 2004+ with KB5005101",
+        "Windows 10 20H2+ with KB5005101",
+        "Windows 11 21H2+"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "enabled",
+          "type": "boolean",
+          "label": "Enabled",
+          "description": "Whether Remote Desktop requires Network Level Authentication.",
+          "required": true,
+          "defaultValue": true
+        }
+      ],
+      "policy": {
+        "kind": "RemoteDesktopPolicy",
+        "scope": "Computer",
+        "admxPolicyName": "TS_USER_AUTHENTICATION_POLICY",
+        "settingName": "UserAuthentication"
+      }
+    },
+    {
+      "controlId": "smb.server.require-signing",
+      "version": "0.1.0",
+      "name": "Require SMB server signing",
+      "description": "Configures whether the SMB server component requires security signatures for inbound SMB connections.",
+      "familyId": "network-security",
+      "automationGroupId": "smb.security",
+      "displayOrder": 20,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "enabled",
+          "type": "boolean",
+          "label": "Enabled",
+          "description": "Whether the SMB server component requires security signatures for inbound SMB connections.",
+          "required": true,
+          "defaultValue": true
+        }
+      ],
+      "policy": {
+        "kind": "SmbServerConfiguration",
+        "scope": "Computer",
+        "property": "RequireSecuritySignature"
+      }
+    },
+    {
+      "controlId": "defender.protection.cloud-delivered",
+      "version": "0.1.0",
+      "name": "Cloud-delivered protection",
+      "description": "Configures whether Microsoft Defender Antivirus cloud-delivered protection is enabled.",
+      "familyId": "threat-protection",
+      "automationGroupId": "defender.protection",
+      "displayOrder": 30,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "enabled",
+          "type": "boolean",
+          "label": "Enabled",
+          "description": "Whether Microsoft Defender Antivirus cloud-delivered protection is enabled.",
+          "required": true,
+          "defaultValue": true
+        }
+      ],
+      "policy": {
+        "kind": "DefenderPreference",
+        "scope": "Computer",
+        "preferenceName": "MAPSReporting"
+      }
+    },
+    {
+      "controlId": "defender.scan.time",
+      "version": "0.1.0",
+      "name": "Scheduled scan time",
+      "description": "Configures the local time at which Microsoft Defender Antivirus runs its scheduled scan.",
+      "familyId": "threat-protection",
+      "automationGroupId": "defender.scanning",
+      "displayOrder": 30,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "localTime",
+          "type": "time",
+          "label": "Scheduled time",
+          "description": "Local time at which Microsoft Defender Antivirus runs its scheduled scan.",
+          "required": true,
+          "defaultValue": "02:00"
+        }
+      ],
+      "policy": {
+        "kind": "DefenderPreference",
+        "scope": "Computer",
+        "preferenceName": "ScanScheduleTime"
+      }
+    },
+    {
+      "controlId": "devices.removable-storage.block-execution",
+      "version": "0.1.0",
+      "name": "Block execution from removable disks",
+      "description": "Configures the computer-scoped Windows machine policy that denies execute access to removable disks.",
+      "familyId": "devices",
+      "automationGroupId": "devices.removable-storage",
+      "displayOrder": 30,
+      "supportedOperatingSystems": [
+        "Windows 10 2004 + KB5005101",
+        "Windows 10 20H2 + KB5005101",
+        "Windows 10 21H1 + KB5005101",
+        "Windows 11 21H2+"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": true,
+      "parameters": [],
+      "policy": {
+        "kind": "ADMX",
+        "admxPolicyName": "RemovableDisks_DenyExecute_Access_2",
+        "scope": "Computer"
+      }
+    },
+    {
+      "controlId": "firewall.public.enabled",
+      "version": "0.1.0",
+      "name": "Public firewall profile",
+      "description": "Configures whether the Public Windows Defender Firewall profile is enabled.",
+      "familyId": "network-security",
+      "automationGroupId": "firewall.profiles",
+      "displayOrder": 30,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "enabled",
+          "type": "boolean",
+          "label": "Enabled",
+          "description": "Whether the Public firewall profile is enabled.",
+          "required": true,
+          "defaultValue": true
+        }
+      ],
+      "policy": {
+        "kind": "NetFirewallProfile",
+        "scope": "Computer",
+        "profile": "Public",
+        "property": "Enabled"
+      }
+    },
+    {
+      "controlId": "identity.lockout.reset-counter-after",
+      "version": "0.1.0",
+      "name": "Reset account lockout counter after",
+      "description": "Configures the local security policy that determines how many minutes must pass before failed sign-in attempts are forgotten.",
+      "familyId": "identity-and-sign-in",
+      "automationGroupId": "identity.account-lockout",
+      "displayOrder": 30,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "resetMinutes",
+          "type": "integer",
+          "label": "Reset counter after",
+          "description": "Minutes before failed local account sign-in attempts are forgotten.",
+          "required": true,
+          "defaultValue": 15,
+          "minimum": 1,
+          "maximum": 99999,
+          "step": 1,
+          "unit": "minutes"
+        }
+      ],
+      "policy": {
+        "kind": "SecurityPolicy",
+        "scope": "Computer",
+        "groupPolicyName": "Reset account lockout counter after",
+        "infKey": "ResetLockoutCount",
+        "relationships": []
+      }
+    },
+    {
+      "controlId": "identity.password.minimum-age",
+      "version": "0.1.0",
+      "name": "Minimum password age",
+      "description": "Configures the local security policy that prevents local account passwords from being changed again before the selected number of days has elapsed.",
+      "familyId": "identity-and-sign-in",
+      "automationGroupId": "identity.password-policy",
+      "displayOrder": 30,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "minimumAgeDays",
+          "type": "integer",
+          "label": "Minimum age",
+          "description": "Days before a local account password may be changed again.",
+          "required": true,
+          "defaultValue": 1,
+          "minimum": 0,
+          "maximum": 998,
+          "step": 1,
+          "unit": "days"
+        }
+      ],
+      "policy": {
+        "kind": "SecurityPolicy",
+        "scope": "Computer",
+        "groupPolicyName": "Minimum password age",
+        "infKey": "MinimumPasswordAge",
+        "relationships": []
+      }
+    },
+    {
+      "controlId": "identity.sign-in.machine-inactivity-timeout",
+      "version": "0.1.0",
+      "name": "Machine inactivity timeout",
+      "description": "Configures the computer-scoped Windows machine policy that locks the session after a specified period of inactivity.",
+      "familyId": "identity-and-sign-in",
+      "automationGroupId": "identity.interactive-sign-in",
+      "displayOrder": 30,
+      "supportedOperatingSystems": [
+        "Windows 10 1709+",
+        "Windows 11 21H2+"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": true,
+      "parameters": [
+        {
+          "id": "timeoutSeconds",
+          "type": "integer",
+          "label": "Timeout",
+          "description": "Seconds of inactivity before Windows locks the session.",
+          "required": true,
+          "defaultValue": 900,
+          "minimum": 1,
+          "maximum": 599940,
+          "step": 1,
+          "unit": "seconds"
+        }
+      ],
+      "policy": {
+        "kind": "SecurityOption",
+        "scope": "Computer",
+        "groupPolicyName": "Interactive logon: Machine inactivity limit",
+        "cspName": "InteractiveLogon_MachineInactivityLimit"
+      }
+    },
+    {
+      "controlId": "privacy.diagnostic-data",
+      "version": "0.1.0",
+      "name": "Diagnostic data level",
+      "description": "Configures the computer-scoped Windows machine policy that limits diagnostic data collection to a supported client level.",
+      "familyId": "privacy-and-experience",
+      "automationGroupId": "privacy.windows-experience",
+      "displayOrder": 30,
+      "supportedOperatingSystems": [
+        "Windows 10 1507+",
+        "Windows 11 21H2+"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "level",
+          "type": "enum",
+          "label": "Diagnostic data level",
+          "description": "Desired diagnostic-data collection level supported across the intended Windows client editions.",
+          "required": true,
+          "defaultValue": "Required",
+          "options": [
+            {
+              "value": "Required",
+              "label": "Required diagnostic data"
+            },
+            {
+              "value": "Optional",
+              "label": "Optional diagnostic data"
+            }
+          ]
+        }
+      ],
+      "policy": {
+        "kind": "ADMX",
+        "scope": "Computer",
+        "admxPolicyName": "AllowTelemetry",
+        "groupPolicyName": "Allow Diagnostic Data"
+      }
+    },
+    {
+      "controlId": "remote-desktop.clipboard-redirection",
+      "version": "0.1.0",
+      "name": "Clipboard redirection",
+      "description": "Configures whether Remote Desktop sessions may redirect clipboard contents.",
+      "familyId": "remote-access",
+      "automationGroupId": "remote-desktop.security",
+      "displayOrder": 30,
+      "supportedOperatingSystems": [
+        "Windows 10 2004+ with KB5005101",
+        "Windows 10 20H2+ with KB5005101",
+        "Windows 11 21H2+"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "allowed",
+          "type": "boolean",
+          "label": "Allowed",
+          "description": "Whether clipboard contents may be redirected in Remote Desktop sessions.",
+          "required": true,
+          "defaultValue": false
+        }
+      ],
+      "policy": {
+        "kind": "RemoteDesktopPolicy",
+        "scope": "Computer",
+        "admxPolicyName": "TS_CLIENT_CLIPBOARD",
+        "settingName": "fDisableClip"
+      }
+    },
+    {
+      "controlId": "smb.client.insecure-guest-auth",
+      "version": "0.1.0",
+      "name": "Allow insecure SMB guest authentication",
+      "description": "Configures whether the SMB client allows insecure guest logons to SMB servers.",
+      "familyId": "network-security",
+      "automationGroupId": "smb.security",
+      "displayOrder": 30,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "enabled",
+          "type": "boolean",
+          "label": "Enabled",
+          "description": "Whether the SMB client allows insecure guest logons.",
+          "required": true,
+          "defaultValue": false
+        }
+      ],
+      "policy": {
+        "kind": "SmbClientConfiguration",
+        "scope": "Computer",
+        "property": "EnableInsecureGuestLogons"
+      }
+    },
+    {
+      "controlId": "defender.protection.pua",
+      "version": "0.1.0",
+      "name": "Potentially unwanted application protection",
+      "description": "Configures the Microsoft Defender Antivirus mode for potentially unwanted application detection.",
+      "familyId": "threat-protection",
+      "automationGroupId": "defender.protection",
+      "displayOrder": 40,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "mode",
+          "type": "enum",
+          "label": "Mode",
+          "description": "Desired mode for potentially unwanted application detection.",
+          "required": true,
+          "defaultValue": "Enabled",
+          "options": [
+            {
+              "value": "Disabled",
+              "label": "Disabled"
+            },
+            {
+              "value": "Enabled",
+              "label": "Enabled"
+            },
+            {
+              "value": "AuditMode",
+              "label": "Audit"
+            }
+          ]
+        }
+      ],
+      "policy": {
+        "kind": "DefenderPreference",
+        "scope": "Computer",
+        "preferenceName": "PUAProtection"
+      }
+    },
+    {
+      "controlId": "defender.scan.maximum-cpu",
+      "version": "0.1.0",
+      "name": "Maximum scan CPU usage",
+      "description": "Configures the maximum average CPU percentage Microsoft Defender Antivirus may use during scheduled scans.",
+      "familyId": "threat-protection",
+      "automationGroupId": "defender.scanning",
+      "displayOrder": 40,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "maximumCpuPercent",
+          "type": "integer",
+          "label": "Maximum CPU",
+          "description": "Maximum average CPU percentage Defender may use during scheduled scans. Set 0 to disable CPU throttling.",
+          "required": true,
+          "defaultValue": 50,
+          "minimum": 0,
+          "maximum": 100,
+          "step": 1,
+          "unit": "percent"
+        }
+      ],
+      "policy": {
+        "kind": "DefenderPreference",
+        "scope": "Computer",
+        "preferenceName": "ScanAvgCPULoadFactor"
+      }
+    },
+    {
+      "controlId": "devices.portable-devices.block-read",
+      "version": "0.1.0",
+      "name": "Block read access to portable devices",
+      "description": "Configures the computer-scoped Windows machine policy that denies read access to the Windows Portable Devices class.",
+      "familyId": "devices",
+      "automationGroupId": "devices.removable-storage",
+      "displayOrder": 40,
+      "supportedOperatingSystems": [
+        "Windows 11 21H2+"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [],
+      "policy": {
+        "kind": "ADMX",
+        "scope": "Computer",
+        "admxPolicyName": "WPDDevices_DenyRead_Access_2"
+      }
+    },
+    {
+      "controlId": "firewall.default-inbound-action",
+      "version": "0.1.0",
+      "name": "Default inbound firewall action",
+      "description": "Configures the default inbound Windows Defender Firewall action for selected profiles.",
+      "familyId": "network-security",
+      "automationGroupId": "firewall.profiles",
+      "displayOrder": 40,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "profiles",
+          "type": "enum",
+          "label": "Profiles",
+          "description": "Firewall profiles to configure.",
+          "required": true,
+          "defaultValue": "AllProfiles",
+          "options": [
+            {
+              "value": "Domain",
+              "label": "Domain"
+            },
+            {
+              "value": "Private",
+              "label": "Private"
+            },
+            {
+              "value": "Public",
+              "label": "Public"
+            },
+            {
+              "value": "DomainAndPrivate",
+              "label": "Domain + Private"
+            },
+            {
+              "value": "DomainAndPublic",
+              "label": "Domain + Public"
+            },
+            {
+              "value": "PrivateAndPublic",
+              "label": "Private + Public"
+            },
+            {
+              "value": "AllProfiles",
+              "label": "All profiles"
+            }
+          ]
+        },
+        {
+          "id": "action",
+          "type": "enum",
+          "label": "Action",
+          "description": "Default inbound action for traffic that does not match a rule.",
+          "required": true,
+          "defaultValue": "Block",
+          "options": [
+            {
+              "value": "Allow",
+              "label": "Allow"
+            },
+            {
+              "value": "Block",
+              "label": "Block"
+            }
+          ]
+        }
+      ],
+      "policy": {
+        "kind": "NetFirewallProfile",
+        "scope": "Computer",
+        "property": "DefaultInboundAction"
+      }
+    },
+    {
+      "controlId": "identity.password.history-size",
+      "version": "0.1.0",
+      "name": "Password history size",
+      "description": "Configures the local security policy that prevents reuse of a selected number of previous local account passwords.",
+      "familyId": "identity-and-sign-in",
+      "automationGroupId": "identity.password-policy",
+      "displayOrder": 40,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "rememberedPasswords",
+          "type": "integer",
+          "label": "Remembered passwords",
+          "description": "Number of previous local account passwords that must not be reused.",
+          "required": true,
+          "defaultValue": 24,
+          "minimum": 0,
+          "maximum": 24,
+          "step": 1,
+          "unit": "passwords"
+        }
+      ],
+      "policy": {
+        "kind": "SecurityPolicy",
+        "scope": "Computer",
+        "groupPolicyName": "Enforce password history",
+        "infKey": "PasswordHistorySize",
+        "relationships": []
+      }
+    },
+    {
+      "controlId": "identity.sign-in.legal-notice-caption",
+      "version": "0.1.0",
+      "name": "Sign-in legal notice caption",
+      "description": "Configures the computer-scoped Windows machine policy that sets the legal-notice title shown before interactive sign-in.",
+      "familyId": "identity-and-sign-in",
+      "automationGroupId": "identity.interactive-sign-in",
+      "displayOrder": 40,
+      "supportedOperatingSystems": [
+        "Windows 10 1709+",
+        "Windows 11 21H2+"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "caption",
+          "type": "string",
+          "label": "Caption",
+          "description": "Title text shown in the legal-notice dialog before sign-in.",
+          "required": true,
+          "defaultValue": "RESTRICTED SYSTEM",
+          "minimumLength": 1,
+          "maximumLength": 120,
+          "placeholder": "Enter legal-notice title"
+        }
+      ],
+      "policy": {
+        "kind": "SecurityOption",
+        "scope": "Computer",
+        "groupPolicyName": "Interactive logon: Message title for users attempting to log on",
+        "cspName": "InteractiveLogon_MessageTitleForUsersAttemptingToLogOn"
+      }
+    },
+    {
+      "controlId": "privacy.input-personalization",
+      "version": "0.1.0",
+      "name": "Input personalization",
+      "description": "Configures the computer-scoped Windows machine policy that allows or blocks online speech recognition services.",
+      "familyId": "privacy-and-experience",
+      "automationGroupId": "privacy.windows-experience",
+      "displayOrder": 40,
+      "supportedOperatingSystems": [
+        "Windows 10 1507+",
+        "Windows 11 21H2+"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "allowed",
+          "type": "boolean",
+          "label": "Allowed",
+          "description": "Whether users may enable online speech recognition services on the device.",
+          "required": true,
+          "defaultValue": false
+        }
+      ],
+      "policy": {
+        "kind": "ADMX",
+        "scope": "Computer",
+        "admxPolicyName": "AllowInputPersonalization",
+        "groupPolicyName": "Allow users to enable online speech recognition services"
+      }
+    },
+    {
+      "controlId": "remote-desktop.drive-redirection",
+      "version": "0.1.0",
+      "name": "Drive redirection",
+      "description": "Configures whether Remote Desktop sessions may redirect client drives.",
+      "familyId": "remote-access",
+      "automationGroupId": "remote-desktop.security",
+      "displayOrder": 40,
+      "supportedOperatingSystems": [
+        "Windows 10 1703+",
+        "Windows 11 21H2+"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "allowed",
+          "type": "boolean",
+          "label": "Allowed",
+          "description": "Whether client drives may be redirected in Remote Desktop sessions.",
+          "required": true,
+          "defaultValue": false
+        }
+      ],
+      "policy": {
+        "kind": "RemoteDesktopPolicy",
+        "scope": "Computer",
+        "admxPolicyName": "TS_CLIENT_DRIVE_M",
+        "settingName": "fDisableCdm"
+      }
+    },
+    {
+      "controlId": "smb.server.require-encryption",
+      "version": "0.1.0",
+      "name": "Require SMB server encryption",
+      "description": "Configures whether the SMB server component requires SMB encryption where supported.",
+      "familyId": "network-security",
+      "automationGroupId": "smb.security",
+      "displayOrder": 40,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "enabled",
+          "type": "boolean",
+          "label": "Enabled",
+          "description": "Whether the SMB server component requires SMB encryption.",
+          "required": true,
+          "defaultValue": true
+        }
+      ],
+      "policy": {
+        "kind": "SmbServerConfiguration",
+        "scope": "Computer",
+        "property": "EncryptData"
+      }
+    },
+    {
+      "controlId": "defender.protection.sample-submission",
+      "version": "0.1.0",
+      "name": "Automatic sample submission",
+      "description": "Configures how Microsoft Defender Antivirus submits file samples for deeper analysis.",
+      "familyId": "threat-protection",
+      "automationGroupId": "defender.protection",
+      "displayOrder": 50,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "mode",
+          "type": "enum",
+          "label": "Mode",
+          "description": "Desired automatic sample submission mode.",
+          "required": true,
+          "defaultValue": "SendSafeSamples",
+          "options": [
+            {
+              "value": "AlwaysPrompt",
+              "label": "Always prompt"
+            },
+            {
+              "value": "SendSafeSamples",
+              "label": "Send safe samples automatically"
+            },
+            {
+              "value": "NeverSend",
+              "label": "Never send"
+            },
+            {
+              "value": "SendAllSamples",
+              "label": "Send all samples automatically"
+            }
+          ]
+        }
+      ],
+      "policy": {
+        "kind": "DefenderPreference",
+        "scope": "Computer",
+        "preferenceName": "SubmitSamplesConsent"
+      }
+    },
+    {
+      "controlId": "defender.scan.removable-drives",
+      "version": "0.1.0",
+      "name": "Scan removable drives",
+      "description": "Configures whether Microsoft Defender Antivirus scans removable drives during full scans.",
+      "familyId": "threat-protection",
+      "automationGroupId": "defender.scanning",
+      "displayOrder": 50,
+      "supportedOperatingSystems": [
+        "Windows 10 2004+",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "enabled",
+          "type": "boolean",
+          "label": "Enabled",
+          "description": "Whether Microsoft Defender Antivirus scans removable drives during full scans.",
+          "required": true,
+          "defaultValue": true
+        }
+      ],
+      "policy": {
+        "kind": "DefenderPreference",
+        "scope": "Computer",
+        "preferenceName": "DisableRemovableDriveScanning"
+      }
+    },
+    {
+      "controlId": "devices.portable-devices.block-write",
+      "version": "0.1.0",
+      "name": "Block write access to portable devices",
+      "description": "Configures the computer-scoped Windows machine policy that denies write access to the Windows Portable Devices class.",
+      "familyId": "devices",
+      "automationGroupId": "devices.removable-storage",
+      "displayOrder": 50,
+      "supportedOperatingSystems": [
+        "Windows 11 21H2+"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [],
+      "policy": {
+        "kind": "ADMX",
+        "scope": "Computer",
+        "admxPolicyName": "WPDDevices_DenyWrite_Access_2"
+      }
+    },
+    {
+      "controlId": "firewall.default-outbound-action",
+      "version": "0.1.0",
+      "name": "Default outbound firewall action",
+      "description": "Configures the default outbound Windows Defender Firewall action for selected profiles.",
+      "familyId": "network-security",
+      "automationGroupId": "firewall.profiles",
+      "displayOrder": 50,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "profiles",
+          "type": "enum",
+          "label": "Profiles",
+          "description": "Firewall profiles to configure.",
+          "required": true,
+          "defaultValue": "AllProfiles",
+          "options": [
+            {
+              "value": "Domain",
+              "label": "Domain"
+            },
+            {
+              "value": "Private",
+              "label": "Private"
+            },
+            {
+              "value": "Public",
+              "label": "Public"
+            },
+            {
+              "value": "DomainAndPrivate",
+              "label": "Domain + Private"
+            },
+            {
+              "value": "DomainAndPublic",
+              "label": "Domain + Public"
+            },
+            {
+              "value": "PrivateAndPublic",
+              "label": "Private + Public"
+            },
+            {
+              "value": "AllProfiles",
+              "label": "All profiles"
+            }
+          ]
+        },
+        {
+          "id": "action",
+          "type": "enum",
+          "label": "Action",
+          "description": "Default outbound action for traffic that does not match a rule.",
+          "required": true,
+          "defaultValue": "Allow",
+          "options": [
+            {
+              "value": "Allow",
+              "label": "Allow"
+            },
+            {
+              "value": "Block",
+              "label": "Block"
+            }
+          ]
+        }
+      ],
+      "policy": {
+        "kind": "NetFirewallProfile",
+        "scope": "Computer",
+        "property": "DefaultOutboundAction"
+      }
+    },
+    {
+      "controlId": "identity.sign-in.legal-notice-text",
+      "version": "0.1.0",
+      "name": "Sign-in legal notice text",
+      "description": "Configures the computer-scoped Windows machine policy that sets the legal-notice message shown before interactive sign-in.",
+      "familyId": "identity-and-sign-in",
+      "automationGroupId": "identity.interactive-sign-in",
+      "displayOrder": 50,
+      "supportedOperatingSystems": [
+        "Windows 10 1709+",
+        "Windows 11 21H2+"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "noticeText",
+          "type": "multiline-string",
+          "label": "Notice text",
+          "description": "Message text shown in the legal-notice dialog before sign-in.",
+          "required": true,
+          "defaultValue": "This system is for authorized use only.\nActivity may be monitored and audited.",
+          "minimumLength": 1,
+          "maximumLength": 4000,
+          "rows": 6,
+          "placeholder": "Enter legal-notice message"
+        }
+      ],
+      "policy": {
+        "kind": "SecurityOption",
+        "scope": "Computer",
+        "groupPolicyName": "Interactive logon: Message text for users attempting to log on",
+        "cspName": "InteractiveLogon_MessageTextForUsersAttemptingToLogOn"
+      }
+    },
+    {
+      "controlId": "privacy.privacy-settings-experience",
+      "version": "0.1.0",
+      "name": "Privacy settings experience",
+      "description": "Configures the computer-scoped Windows machine policy that allows or suppresses the privacy-settings experience on user logon.",
+      "familyId": "privacy-and-experience",
+      "automationGroupId": "privacy.windows-experience",
+      "displayOrder": 50,
+      "supportedOperatingSystems": [
+        "Windows 10 1809+",
+        "Windows 11 21H2+"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "allowed",
+          "type": "boolean",
+          "label": "Allowed",
+          "description": "Whether Windows may launch the privacy-settings experience for new users or first sign-in after an upgrade.",
+          "required": true,
+          "defaultValue": false
+        }
+      ],
+      "policy": {
+        "kind": "ADMX",
+        "scope": "Computer",
+        "admxPolicyName": "DisablePrivacyExperience",
+        "groupPolicyName": "Don't launch privacy settings experience on user logon"
+      }
+    },
+    {
+      "controlId": "remote-desktop.printer-redirection",
+      "version": "0.1.0",
+      "name": "Printer redirection",
+      "description": "Configures whether Remote Desktop sessions may redirect client printers.",
+      "familyId": "remote-access",
+      "automationGroupId": "remote-desktop.security",
+      "displayOrder": 50,
+      "supportedOperatingSystems": [
+        "Windows 10 2004+ with KB5005101",
+        "Windows 10 20H2+ with KB5005101",
+        "Windows 11 21H2+"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "allowed",
+          "type": "boolean",
+          "label": "Allowed",
+          "description": "Whether client printers may be redirected in Remote Desktop sessions.",
+          "required": true,
+          "defaultValue": false
+        }
+      ],
+      "policy": {
+        "kind": "RemoteDesktopPolicy",
+        "scope": "Computer",
+        "admxPolicyName": "TS_CLIENT_PRINTER",
+        "settingName": "fDisableCpm"
+      }
+    },
+    {
+      "controlId": "smb.server.smb1-protocol",
+      "version": "0.1.0",
+      "name": "SMB1 server protocol",
+      "description": "Configures whether the SMB server component allows the SMB1 protocol.",
+      "familyId": "network-security",
+      "automationGroupId": "smb.security",
+      "displayOrder": 50,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "enabled",
+          "type": "boolean",
+          "label": "Enabled",
+          "description": "Whether the SMB server component allows SMB1.",
+          "required": true,
+          "defaultValue": false
+        }
+      ],
+      "policy": {
+        "kind": "SmbServerConfiguration",
+        "scope": "Computer",
+        "property": "EnableSMB1Protocol"
+      }
+    },
+    {
+      "controlId": "defender.protection.cloud-timeout",
+      "version": "0.1.0",
+      "name": "Cloud protection timeout",
+      "description": "Configures the extended Microsoft Defender Antivirus cloud-check timeout in seconds.",
+      "familyId": "threat-protection",
+      "automationGroupId": "defender.protection",
+      "displayOrder": 60,
+      "supportedOperatingSystems": [
+        "Windows 10 1709+",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "timeoutSeconds",
+          "type": "integer",
+          "label": "Extended timeout",
+          "description": "Additional seconds that Defender may use for cloud checking, from 0 through 50.",
+          "required": true,
+          "defaultValue": 50,
+          "minimum": 0,
+          "maximum": 50,
+          "step": 1,
+          "unit": "seconds"
+        }
+      ],
+      "policy": {
+        "kind": "DefenderPreference",
+        "scope": "Computer",
+        "preferenceName": "CloudExtendedTimeout"
+      }
+    },
+    {
+      "controlId": "firewall.logging.dropped-packets",
+      "version": "0.1.0",
+      "name": "Log dropped packets",
+      "description": "Configures dropped-packet logging for selected Windows Defender Firewall profiles.",
+      "familyId": "network-security",
+      "automationGroupId": "firewall.profiles",
+      "displayOrder": 60,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "profiles",
+          "type": "enum",
+          "label": "Profiles",
+          "description": "Firewall profiles to configure.",
+          "required": true,
+          "defaultValue": "AllProfiles",
+          "options": [
+            {
+              "value": "Domain",
+              "label": "Domain"
+            },
+            {
+              "value": "Private",
+              "label": "Private"
+            },
+            {
+              "value": "Public",
+              "label": "Public"
+            },
+            {
+              "value": "DomainAndPrivate",
+              "label": "Domain + Private"
+            },
+            {
+              "value": "DomainAndPublic",
+              "label": "Domain + Public"
+            },
+            {
+              "value": "PrivateAndPublic",
+              "label": "Private + Public"
+            },
+            {
+              "value": "AllProfiles",
+              "label": "All profiles"
+            }
+          ]
+        },
+        {
+          "id": "enabled",
+          "type": "boolean",
+          "label": "Enabled",
+          "description": "Whether dropped packets are logged for the selected firewall profiles.",
+          "required": true,
+          "defaultValue": true
+        }
+      ],
+      "policy": {
+        "kind": "NetFirewallProfile",
+        "scope": "Computer",
+        "property": "LogBlocked"
+      }
+    },
+    {
+      "controlId": "remote-desktop.always-prompt-password",
+      "version": "0.1.0",
+      "name": "Always prompt for password",
+      "description": "Configures whether Remote Desktop always prompts for a password upon connection.",
+      "familyId": "remote-access",
+      "automationGroupId": "remote-desktop.security",
+      "displayOrder": 60,
+      "supportedOperatingSystems": [
+        "Windows 10 1703+",
+        "Windows 11 21H2+"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "enabled",
+          "type": "boolean",
+          "label": "Enabled",
+          "description": "Whether Remote Desktop always prompts for a password upon connection.",
+          "required": true,
+          "defaultValue": true
+        }
+      ],
+      "policy": {
+        "kind": "RemoteDesktopPolicy",
+        "scope": "Computer",
+        "admxPolicyName": "TS_PASSWORD",
+        "settingName": "fPromptForPassword"
+      }
+    },
+    {
+      "controlId": "smb.server.default-workstation-shares",
+      "version": "0.1.0",
+      "name": "Default workstation shares",
+      "description": "Configures whether the SMB server component publishes default administrative workstation shares.",
+      "familyId": "network-security",
+      "automationGroupId": "smb.security",
+      "displayOrder": 60,
+      "supportedOperatingSystems": [
+        "Windows 10",
+        "Windows 11"
+      ],
+      "supportedEditions": [
+        "Pro",
+        "Enterprise",
+        "Education",
+        "IoT Enterprise",
+        "IoT Enterprise LTSC"
+      ],
+      "requiresReboot": false,
+      "parameters": [
+        {
+          "id": "enabled",
+          "type": "boolean",
+          "label": "Enabled",
+          "description": "Whether the SMB server component publishes default administrative workstation shares.",
+          "required": true,
+          "defaultValue": false
+        }
+      ],
+      "policy": {
+        "kind": "SmbServerConfiguration",
+        "scope": "Computer",
+        "property": "AutoShareWorkstation"
+      }
+    }
+  ]
+}
