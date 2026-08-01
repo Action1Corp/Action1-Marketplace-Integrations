@@ -15,11 +15,11 @@ function buildDraft(overrides = {}) {
     policyMode: 'ASSESS_ONLY',
     runSchedule: {
       runEveryHours: 24,
-      startDate: '2026-07-31',
+      startDate: '2026-08-01',
       startTime: '09:30',
       timezone: 'America/Los_Angeles'
     },
-    completionDeadlineMinutes: 360,
+    completionDeadlineMinutes: 1440,
     selectedControls: [],
     unsupportedParameterTypes: [],
     ...overrides
@@ -56,13 +56,19 @@ async function run() {
   expectFieldError(validatePolicyDraft(buildDraft({ organizationId: '', organizationName: '' }), catalog, await buildRepositories()), 'organizationId');
   expectFieldError(validatePolicyDraft(buildDraft({ scopeType: '' }), catalog, await buildRepositories()), 'scopeType');
   expectFieldError(validatePolicyDraft(buildDraft({ endpointGroupId: '', endpointGroupName: '' }), catalog, await buildRepositories()), 'endpointGroupId');
+  expectFieldError(validatePolicyDraft(buildDraft({ runSchedule: { runEveryHours: '', startDate: '2026-08-01', startTime: '09:30', timezone: 'America/Los_Angeles' } }), catalog, await buildRepositories()), 'runEveryHours');
+  expectFieldError(validatePolicyDraft(buildDraft({ runSchedule: { runEveryHours: 24, startDate: '', startTime: '09:30', timezone: 'America/Los_Angeles' } }), catalog, await buildRepositories()), 'startDate');
+  expectFieldError(validatePolicyDraft(buildDraft({ runSchedule: { runEveryHours: 24, startDate: '2026-08-01', startTime: '', timezone: 'America/Los_Angeles' } }), catalog, await buildRepositories()), 'startTime');
+  expectFieldError(validatePolicyDraft(buildDraft({ runSchedule: { runEveryHours: 24, startDate: '2026-08-01', startTime: '09:30', timezone: '' } }), catalog, await buildRepositories()), 'timezone');
+  expectFieldError(validatePolicyDraft(buildDraft({ completionDeadlineMinutes: '' }), catalog, await buildRepositories()), 'completionDeadlineMinutes');
   expectFieldError(validatePolicyDraft(buildDraft({ selectedControls: [] }), catalog, await buildRepositories()), 'selectedControls');
 
   const duplicateRepositories = await buildRepositories();
   duplicateRepositories.policyRepository.createPolicy({
     policyId: 'POL-000001',
     baseName: 'Workstation Security',
-    displayName: 'Workstation Security — Finance Workstations',
+    displayName: 'Workstation Security \u2014 Finance Workstations',
+    enabled: true,
     organizationId: 'org-acme',
     organizationNameSnapshot: 'Acme Corp',
     scopeType: 'ENDPOINT_GROUP',
@@ -71,16 +77,21 @@ async function run() {
     policyMode: 'ASSESS_ONLY',
     runSchedule: {
       runEveryHours: 24,
-      startDate: '2026-07-31',
+      startDate: '2026-08-01',
       startTime: '09:30',
       timezone: 'America/Los_Angeles'
     },
-    completionDeadlineMinutes: 360,
+    completionDeadlineMinutes: 1440,
     controlPackId: 'windows-endpoint-configuration',
     controlPackVersion: '0.1.0',
     selectedControls: []
   });
-  expectFieldError(validatePolicyDraft(buildDraft(), catalog, duplicateRepositories), 'baseName');
+  const duplicateDisplayNameResult = validatePolicyDraft(buildDraft(), catalog, duplicateRepositories);
+  assert.strictEqual(
+    duplicateDisplayNameResult.fieldErrors.baseName,
+    undefined,
+    'validation should not reject draft save solely because another demo Policy currently has the same display name'
+  );
 
   const booleanControl = catalog.controlsById['defender.protection.real-time'];
   const integerControl = catalog.controlsById['identity.lockout.threshold'];
@@ -147,6 +158,11 @@ async function run() {
     await buildRepositories()
   );
   assert.strictEqual(typeof unsupportedResult.blockingMessage, 'string', 'unsupported parameter types should produce a blocking message');
+  assert.strictEqual(
+    invalidTypesResult.sectionErrors.includes('Resolve the highlighted Policy fields before saving.'),
+    true,
+    'validation should still surface a shared section-level save blocker when field errors exist'
+  );
 }
 
 try {

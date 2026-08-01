@@ -4,10 +4,25 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function normalizePositiveInteger(value, fallbackValue) {
+  const normalized = Number(value);
+  if (!Number.isFinite(normalized) || normalized <= 0) {
+    return fallbackValue;
+  }
+  return Math.trunc(normalized);
+}
+
+function deriveCompletionDeadlineMinutes(runEveryHours) {
+  return normalizePositiveInteger(runEveryHours, 24) * 60;
+}
+
 export function createPolicyDraft(input = {}) {
+  const runEveryHours = 24;
+
   return {
     mode: 'create',
     policyId: null,
+    enabled: true,
     baseName: '',
     description: '',
     organizationId: '',
@@ -19,12 +34,12 @@ export function createPolicyDraft(input = {}) {
     scopeLocked: false,
     policyMode: 'ASSESS_ONLY',
     runSchedule: {
-      runEveryHours: 24,
+      runEveryHours,
       startDate: input.currentDate || '',
       startTime: input.currentTime || '',
       timezone: input.timezone || ''
     },
-    completionDeadlineMinutes: 360,
+    completionDeadlineMinutes: deriveCompletionDeadlineMinutes(runEveryHours),
     selectedControls: [],
     unsupportedParameterTypes: []
   };
@@ -34,6 +49,7 @@ export function createDraftFromPolicy(policy) {
   return {
     mode: 'edit',
     policyId: policy.policyId,
+    enabled: policy.enabled !== false,
     baseName: policy.baseName,
     description: policy.description || '',
     organizationId: policy.organizationId,
@@ -49,6 +65,37 @@ export function createDraftFromPolicy(policy) {
     selectedControls: clone(policy.selectedControls || []),
     unsupportedParameterTypes: []
   };
+}
+
+export function updateRunEveryHours(draft, value) {
+  const nextRunEveryHours = normalizePositiveInteger(value, 24);
+
+  return {
+    ...clone(draft),
+    runSchedule: {
+      ...clone(draft.runSchedule),
+      runEveryHours: nextRunEveryHours
+    },
+    completionDeadlineMinutes: deriveCompletionDeadlineMinutes(nextRunEveryHours)
+  };
+}
+
+export function updateCompletionDeadline(draft, value) {
+  return {
+    ...clone(draft),
+    completionDeadlineMinutes: normalizePositiveInteger(value, deriveCompletionDeadlineMinutes(draft.runSchedule?.runEveryHours))
+  };
+}
+
+export function getInitialOpenControlFamilies(draft, catalog) {
+  const nextState = {};
+  const selectedAutomationGroupIds = new Set((draft.selectedControls || []).map((entry) => entry.automationGroupId));
+
+  for (const controlFamily of catalog.controlFamilies || []) {
+    nextState[controlFamily.automationGroupId] = selectedAutomationGroupIds.has(controlFamily.automationGroupId);
+  }
+
+  return nextState;
 }
 
 export function applyControlSelection(draft, control, selected, catalog) {

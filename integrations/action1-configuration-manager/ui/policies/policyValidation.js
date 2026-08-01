@@ -1,5 +1,3 @@
-import { deriveDisplayName } from './policyViewModel.js';
-
 function normalizeInteger(value) {
   if (typeof value === 'number' && Number.isInteger(value)) {
     return value;
@@ -83,7 +81,7 @@ function validateParameter(fieldErrors, control, parameter, value) {
   addFieldError(fieldErrors, fieldName, `Unsupported parameter type: ${parameter.type}`);
 }
 
-export function validatePolicyDraft(draft, catalog, repositories = {}) {
+export function validatePolicyDraft(draft, catalog) {
   const fieldErrors = {};
   const sectionErrors = [];
   let blockingMessage = '';
@@ -133,14 +131,6 @@ export function validatePolicyDraft(draft, catalog, repositories = {}) {
 
   if (Array.isArray(draft.unsupportedParameterTypes) && draft.unsupportedParameterTypes.length > 0) {
     blockingMessage = `Unsupported parameter type: ${draft.unsupportedParameterTypes[0].type}`;
-  }
-
-  const scopeLabel = draft.scopeType === 'ALL_ENDPOINTS' ? 'All endpoints' : draft.endpointGroupName;
-  const displayName = deriveDisplayName(trimmedBaseName, scopeLabel);
-  const existingPolicies = repositories.policyRepository ? repositories.policyRepository.listPolicies() : [];
-  const duplicatePolicy = existingPolicies.find((policy) => policy.displayName === displayName && policy.policyId !== draft.policyId);
-  if (displayName && duplicatePolicy) {
-    addFieldError(fieldErrors, 'baseName', 'Policy name must be unique for the selected scope.');
   }
 
   for (const selectedControl of draft.selectedControls || []) {

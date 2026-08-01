@@ -32,7 +32,8 @@ async function run() {
   const createdPolicy = policyRepository.createPolicy({
     policyId: 'POL-000001',
     baseName: 'Workstation Security',
-    displayName: 'Workstation Security — Finance Workstations',
+    displayName: 'Workstation Security \u2014 Finance Workstations',
+    enabled: true,
     organizationId: organizations[0].organizationId,
     organizationNameSnapshot: organizations[0].organizationName,
     scopeType: 'ENDPOINT_GROUP',
@@ -45,6 +46,14 @@ async function run() {
     completionDeadlineMinutes: 360,
     controlPackId: 'windows-endpoint-configuration',
     controlPackVersion: '0.1.0',
+    action1Automations: [
+      {
+        automationId: 'auto-001',
+        controlFamilyName: 'Password Policy',
+        automationName: 'A1CM \u2014 Workstation Security \u2014 Finance Workstations \u2014 Password Policy',
+        action1Url: 'https://action1.example.test/automations/auto-001'
+      }
+    ],
     selectedControls: [
       {
         controlId: 'identity.password.minimum-length',
@@ -57,26 +66,52 @@ async function run() {
   });
 
   assert.strictEqual(createdPolicy.policyId, 'POL-000001', 'demo policy repository should preserve the provided policy id');
+  assert.strictEqual(createdPolicy.enabled, true, 'demo policy repository should preserve the provided enabled state');
+  assert.strictEqual(
+    createdPolicy.action1Automations[0].action1Url,
+    'https://action1.example.test/automations/auto-001',
+    'demo policy repository should preserve deterministic Action1 automation links'
+  );
   assert.strictEqual(policyRepository.listPolicies().length, 1, 'demo policy repository should expose created policies in-memory');
   assert.strictEqual(
     policyRepository.getPolicy('POL-000001').displayName,
-    'Workstation Security — Finance Workstations',
+    'Workstation Security \u2014 Finance Workstations',
     'demo policy repository should return created policies by id'
+  );
+  assert.strictEqual(
+    policyRepository.getPolicy('POL-000001').action1Automations[0].automationName,
+    'A1CM \u2014 Workstation Security \u2014 Finance Workstations \u2014 Password Policy',
+    'demo policy repository should return deterministic mocked Action1 automation records by id'
   );
 
   const updatedPolicy = policyRepository.updatePolicy('POL-000001', {
     ...createdPolicy,
     baseName: 'Workstation Security Updated',
-    displayName: 'Workstation Security Updated — Finance Workstations',
-    policyMode: 'ASSESS_AND_REMEDIATE'
+    displayName: 'Workstation Security Updated \u2014 Finance Workstations',
+    policyMode: 'ASSESS_AND_REMEDIATE',
+    enabled: false,
+    action1Automations: [
+      {
+        automationId: 'auto-002',
+        controlFamilyName: 'Password Policy',
+        automationName: 'A1CM \u2014 Workstation Security Updated \u2014 Finance Workstations \u2014 Password Policy',
+        action1Url: 'https://action1.example.test/automations/auto-002'
+      }
+    ]
   });
 
   assert.strictEqual(updatedPolicy.baseName, 'Workstation Security Updated', 'demo policy repository should update mutable policy fields in memory');
   assert.strictEqual(updatedPolicy.policyMode, 'ASSESS_AND_REMEDIATE', 'demo policy repository should persist updated policy mode in memory');
+  assert.strictEqual(updatedPolicy.enabled, false, 'demo policy repository should persist updated enabled state in memory');
   assert.strictEqual(
     policyRepository.getPolicy('POL-000001').displayName,
-    'Workstation Security Updated — Finance Workstations',
+    'Workstation Security Updated \u2014 Finance Workstations',
     'demo policy repository should expose the updated policy shape from getPolicy'
+  );
+  assert.strictEqual(
+    policyRepository.getPolicy('POL-000001').action1Automations[0].automationId,
+    'auto-002',
+    'demo policy repository should expose updated deterministic Action1 automation records from getPolicy'
   );
 }
 

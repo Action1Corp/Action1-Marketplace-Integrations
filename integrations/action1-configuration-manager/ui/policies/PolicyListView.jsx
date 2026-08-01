@@ -1,125 +1,182 @@
+import PolicyActionMenu from './PolicyActionMenu.jsx';
+import {
+  primaryButtonStyle
+} from './policyUiStyles.js';
+import { formatPolicyListRow, getPolicyRowActions } from './policyViewModel.js';
+
 const styles = {
-  card: {
-    border: '1px solid var(--border-color, rgba(255,255,255,0.12))',
-    borderRadius: 14,
-    padding: '1rem',
-    background: 'var(--panel-background, rgba(15,23,42,0.36))',
+  section: {
     display: 'grid',
-    gap: '0.85rem'
+    gap: '0.75rem'
   },
-  header: {
+  actionRow: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: '0.75rem'
   },
-  title: {
-    margin: 0,
-    fontSize: '1.125rem'
-  },
-  description: {
-    margin: 0,
-    color: 'var(--text-secondary)'
-  },
-  actionButton: {
-    border: 'none',
-    borderRadius: 10,
-    padding: '0.65rem 0.95rem',
-    background: 'var(--brand-color, #3b82f6)',
-    color: 'white',
-    cursor: 'pointer',
-    fontWeight: 600
-  },
   table: {
     width: '100%',
-    borderCollapse: 'collapse'
+    borderCollapse: 'collapse',
+    background: '#ffffff',
+    border: '1px solid var(--border-color, #d7dee8)',
+    borderRadius: 14
+  },
+  headerCell: {
+    padding: '0.72rem 0.8rem',
+    textAlign: 'left',
+    fontSize: '0.82rem',
+    fontWeight: 600,
+    color: '#5a6f84',
+    borderBottom: '1px solid var(--border-color, #d7dee8)',
+    background: '#f8fbff'
   },
   cell: {
-    padding: '0.65rem 0.5rem',
-    borderTop: '1px solid var(--border-color, rgba(255,255,255,0.08))',
+    padding: '0.8rem',
+    textAlign: 'left',
     verticalAlign: 'top',
-    textAlign: 'left'
+    borderTop: '1px solid var(--border-color, #e5ebf3)'
   },
-  empty: {
+  policyName: {
     margin: 0,
-    color: 'var(--text-secondary)'
+    fontSize: '0.96rem',
+    fontWeight: 600,
+    color: '#16314a',
+    lineHeight: 1.35,
+    wordBreak: 'break-word'
   },
-  rowActions: {
-    display: 'flex',
-    gap: '0.5rem'
+  valueText: {
+    margin: 0,
+    fontSize: '0.94rem',
+    fontWeight: 400,
+    color: '#23384c',
+    lineHeight: 1.35
   },
-  inlineButton: {
-    border: '1px solid var(--border-color, rgba(255,255,255,0.18))',
-    borderRadius: 999,
-    padding: '0.35rem 0.75rem',
-    background: 'transparent',
-    color: 'inherit',
-    cursor: 'pointer'
+  valueTextMuted: {
+    margin: '0.16rem 0 0',
+    fontSize: '0.89rem',
+    fontWeight: 400,
+    color: '#5a6f84',
+    lineHeight: 1.35
+  },
+  statusText: {
+    margin: 0,
+    fontSize: '0.94rem',
+    fontWeight: 500,
+    color: '#16314a',
+    lineHeight: 1.35
+  },
+  createButton: {
+    ...primaryButtonStyle
+  },
+  emptyState: {
+    border: '1px solid var(--border-color, #d7dee8)',
+    borderRadius: 14,
+    padding: '1rem',
+    background: '#ffffff',
+    display: 'grid',
+    gap: '0.35rem'
+  },
+  emptyHeading: {
+    margin: 0,
+    fontSize: '1rem'
+  },
+  emptyText: {
+    margin: 0,
+    color: '#4a627d'
+  },
+  actionsCell: {
+    width: 56
   }
 };
 
-function formatScope(policy) {
-  return policy.scopeType === 'ALL_ENDPOINTS' ? 'All endpoints' : policy.endpointGroupNameSnapshot;
+function buildActionItems({ actions, policyId, onDelete, onDisable, onEnable, onOpen, onEdit }) {
+  const items = [];
+
+  if (actions.includes('openDetails')) {
+    items.push({ label: 'Open details', onSelect: () => onOpen(policyId) });
+  }
+  if (actions.includes('edit')) {
+    items.push({ label: 'Edit', onSelect: () => onEdit(policyId) });
+  }
+  if (actions.includes('enable')) {
+    items.push({ label: 'Enable', onSelect: () => onEnable(policyId) });
+  }
+  if (actions.includes('disable')) {
+    items.push({ label: 'Disable', onSelect: () => onDisable(policyId) });
+  }
+  if (actions.includes('delete')) {
+    items.push({ label: 'Delete', destructive: true, onSelect: () => onDelete(policyId) });
+  }
+
+  return items;
 }
 
-function formatRunSchedule(policy) {
-  return `Every ${policy.runSchedule.runEveryHours} hours`;
-}
-
-function PolicyListView({ policies, onCreate, onOpen, onEdit }) {
+function PolicyListView({ policies, onCreate, onDelete, onDisable, onEnable, onOpen, onEdit }) {
   return (
-    <section style={styles.card}>
-      <div style={styles.header}>
-        <div>
-          <h2 style={styles.title}>Open Policies</h2>
-          <p style={styles.description}>Manage demo Policies for the Tuesday Marketplace walkthrough.</p>
-        </div>
-        <button type="button" style={styles.actionButton} onClick={onCreate}>
+    <section style={styles.section}>
+      <div style={styles.actionRow}>
+        <div />
+        <button type="button" style={styles.createButton} onClick={onCreate}>
           Create Policy
         </button>
       </div>
       {policies.length === 0 ? (
-        <p style={styles.empty}>No Policies have been created in this browser session yet.</p>
+        <div style={styles.emptyState}>
+          <h2 style={styles.emptyHeading}>No policies</h2>
+          <p style={styles.emptyText}>Create a Policy to start configuring Windows endpoint controls through scheduled Action1 automations.</p>
+        </div>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.cell}>Policy</th>
-                <th style={styles.cell}>Organization</th>
-                <th style={styles.cell}>Scope</th>
-                <th style={styles.cell}>Mode</th>
-                <th style={styles.cell}>Run schedule</th>
-                <th style={styles.cell}>Controls</th>
-                <th style={styles.cell}>Automations</th>
-                <th style={styles.cell}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {policies.map((policy) => (
+        <table style={styles.table}>
+          <thead>
+            <tr>
+              <th style={styles.headerCell}>Policy</th>
+              <th style={styles.headerCell}>Status</th>
+              <th style={styles.headerCell}>Target</th>
+              <th style={styles.headerCell}>Mode</th>
+              <th style={styles.headerCell}>Schedule</th>
+              <th style={styles.headerCell}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {policies.map((policy) => {
+              const row = formatPolicyListRow(policy);
+              const actionItems = buildActionItems({
+                actions: getPolicyRowActions(policy),
+                policyId: policy.policyId,
+                onDelete,
+                onDisable,
+                onEnable,
+                onOpen,
+                onEdit
+              });
+
+              return (
                 <tr key={policy.policyId}>
-                  <td style={styles.cell}>{policy.displayName}</td>
-                  <td style={styles.cell}>{policy.organizationNameSnapshot}</td>
-                  <td style={styles.cell}>{formatScope(policy)}</td>
-                  <td style={styles.cell}>{policy.policyMode === 'ASSESS_ONLY' ? 'Assess only' : 'Assess and remediate'}</td>
-                  <td style={styles.cell}>{formatRunSchedule(policy)}</td>
-                  <td style={styles.cell}>{policy.selectedControls.length}</td>
-                  <td style={styles.cell}>{policy.expectedAutomationCount}</td>
                   <td style={styles.cell}>
-                    <div style={styles.rowActions}>
-                      <button type="button" style={styles.inlineButton} onClick={() => onOpen(policy.policyId)}>
-                        Open
-                      </button>
-                      <button type="button" style={styles.inlineButton} onClick={() => onEdit(policy.policyId)}>
-                        Edit
-                      </button>
-                    </div>
+                    <p style={styles.policyName}>{row.policyName}</p>
+                  </td>
+                  <td style={styles.cell}>
+                    <p style={styles.statusText}>{row.status}</p>
+                  </td>
+                  <td style={styles.cell}>
+                    <p style={styles.valueText}>{row.targetPrimary}</p>
+                    <p style={styles.valueTextMuted}>{row.targetSecondary}</p>
+                  </td>
+                  <td style={styles.cell}>
+                    <p style={styles.valueText}>{row.modeLabel}</p>
+                  </td>
+                  <td style={styles.cell}>
+                    <p style={styles.valueText}>{row.scheduleLabel}</p>
+                  </td>
+                  <td style={{ ...styles.cell, ...styles.actionsCell }}>
+                    <PolicyActionMenu items={actionItems} label="Policy actions" />
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              );
+            })}
+          </tbody>
+        </table>
       )}
     </section>
   );

@@ -25,6 +25,15 @@ export function createDemoPolicyRepository() {
       const nextPolicy = clone(input);
       policies[index] = nextPolicy;
       return clone(nextPolicy);
+    },
+    deletePolicy(policyId) {
+      const index = policies.findIndex((entry) => entry.policyId === policyId);
+      if (index === -1) {
+        throw new Error(`Unknown demo policy: ${policyId}`);
+      }
+
+      const [deletedPolicy] = policies.splice(index, 1);
+      return clone(deletedPolicy);
     }
   };
 }
