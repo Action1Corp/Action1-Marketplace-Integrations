@@ -1,6 +1,7 @@
 let axios;
 let db;
 let getSetting;
+let getAction1Credentials;
 let computeAndSaveRunMetrics;
 let nvdService;
 
@@ -11,6 +12,9 @@ const crypto = require('crypto');
 const ACTION1_APP_IMAGE_URL = 'https://www.action1.com/wp-content/uploads/2025/03/Action1_2560x1600.png';
 const ACTION1_APP_INFORMATION_URL = 'https://www.action1.com/documentation/';
 const ACTION1_APP_PRIVACY_URL = 'https://www.action1.com/legal/privacy-policy/';
+const INTUNE_GRAPH_BASE = 'https://graph.microsoft.com/beta';
+const ASSIGNMENT_MODE_ALL_DEVICES = 'allDevices';
+const ASSIGNMENT_MODE_SELECTED_GROUPS = 'selectedGroups';
 
 
 function updateProgress(details, status = 'Running') {
@@ -196,12 +200,248 @@ async function waitForFileState(graphHeaders, fileUrl, description, isReady, max
 }
 
 async function deleteIntuneApp(graphHeaders, appId) {
-    await axios.delete(`https://graph.microsoft.com/beta/deviceAppManagement/mobileApps/${appId}`, { headers: graphHeaders });
+    await axios.delete(`${INTUNE_GRAPH_BASE}/deviceAppManagement/mobileApps/${appId}`, { headers: graphHeaders });
+}
+
+function parseSelectedGroupIds(value) {
+    if (Array.isArray(value)) return value.map(String).map(item => item.trim()).filter(Boolean);
+    const text = String(value || '').trim();
+    if (!text) return [];
+    try {
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed)) return parsed.map(String).map(item => item.trim()).filter(Boolean);
+    } catch {}
+    return text.split(',').map(item => item.trim()).filter(Boolean);
+}
+
+function parseSelectedGroupMap(value) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+    const text = String(value || '').trim();
+    if (!text) return {};
+    try {
+        const parsed = JSON.parse(text);
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {}
+    return {};
+}
+
+function normalizeAssignmentMode(value) {
+    return value === ASSIGNMENT_MODE_SELECTED_GROUPS ? ASSIGNMENT_MODE_SELECTED_GROUPS : ASSIGNMENT_MODE_ALL_DEVICES;
+}
+
+function buildAssignmentSettings() {
+    return {
+        "@odata.type": "#microsoft.graph.win32LobAppAssignmentSettings",
+        notifications: "showAll",
+        deliveryOptimizationPriority: "notConfigured",
+        installTimeSettings: null,
+        restartSettings: null
+    };
+}
+
+function buildRequiredAssignment(target) {
+    return {
+        "@odata.type": "#microsoft.graph.mobileAppAssignment",
+        intent: "required",
+        target,
+        settings: buildAssignmentSettings()
+    };
+}
+
+function buildDesiredAssignments(mode, selectedGroupIds) {
+    if (mode === ASSIGNMENT_MODE_SELECTED_GROUPS) {
+        if (selectedGroupIds.length === 0) {
+            throw new Error('Select at least one Intune device group, or choose All devices.');
+        }
+        return selectedGroupIds.map(groupId => buildRequiredAssignment({
+            "@odata.type": "#microsoft.graph.groupAssignmentTarget",
+            groupId
+        }));
+    }
+
+    return [buildRequiredAssignment({
+        "@odata.type": "#microsoft.graph.allDevicesAssignmentTarget"
+    })];
+}
+
+function describeDesiredAssignments(mode, selectedGroupIds) {
+    return mode === ASSIGNMENT_MODE_SELECTED_GROUPS
+        ? `${selectedGroupIds.length} selected device group${selectedGroupIds.length === 1 ? '' : 's'}`
+        : 'All devices';
+}
+
+async function assignIntuneApp(graphHeaders, appId, mode, selectedGroupIds) {
+    await axios.post(`${INTUNE_GRAPH_BASE}/deviceAppManagement/mobileApps/${appId}/assign`, {
+        mobileAppAssignments: buildDesiredAssignments(mode, selectedGroupIds)
+    }, { headers: graphHeaders });
+}
+
+function normalizeEndpointName(value) {
+    return String(value || '').trim().split('.')[0].toLowerCase();
+}
+
+function firstString(...values) {
+    for (const value of values) {
+        if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+    return '';
+}
+
+async function fetchGraphCollection(graphHeaders, url) {
+    const rows = [];
+    let nextUrl = url;
+    while (nextUrl) {
+        const response = await axios.get(nextUrl, { headers: graphHeaders });
+        rows.push(...(response.data?.value || []));
+        nextUrl = response.data?.['@odata.nextLink'] || '';
+    }
+    return rows;
+}
+
+async function fetchAction1ManagedEndpoints(action1ApiKey, action1ApiSecret, action1OrgId) {
+    const tokenParams = new URLSearchParams();
+    tokenParams.append('client_id', action1ApiKey);
+    tokenParams.append('client_secret', action1ApiSecret);
+    tokenParams.append('grant_type', 'client_credentials');
+    const tokenRes = await axios.post('https://app.action1.com/api/3.0/oauth2/token', tokenParams, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    });
+    const headers = { Authorization: `Bearer ${tokenRes.data.access_token}`, Accept: 'application/json' };
+    const response = await axios.get(`https://app.action1.com/api/3.0/endpoints/managed/${action1OrgId}?limit=9999`, { headers });
+    const payload = response.data;
+    if (Array.isArray(payload)) return payload;
+    return payload.items || payload.data || payload.endpoints || [];
+}
+
+function addGroupMemberKey(groupMembershipByDeviceKey, key, groupName) {
+    const normalizedKey = String(key || '').trim().toLowerCase();
+    if (!normalizedKey || !groupName) return;
+    if (!groupMembershipByDeviceKey.has(normalizedKey)) groupMembershipByDeviceKey.set(normalizedKey, new Set());
+    groupMembershipByDeviceKey.get(normalizedKey).add(groupName);
+}
+
+async function fetchDeviceGroupMembership(graphHeaders) {
+    const groupMembershipByDeviceKey = new Map();
+    let redactedDeviceMembers = 0;
+    const groups = await fetchGraphCollection(
+        graphHeaders,
+        'https://graph.microsoft.com/v1.0/groups?$select=id,displayName,description,securityEnabled,mailEnabled,groupTypes,membershipRule&$top=999'
+    );
+    const deviceGroups = groups
+        .filter(group => group.securityEnabled || (group.groupTypes || []).includes('DynamicMembership'))
+        .sort((a, b) => String(a.displayName || '').localeCompare(String(b.displayName || '')));
+
+    for (const group of deviceGroups) {
+        const groupName = group.displayName || group.id;
+        const members = await fetchGraphCollection(
+            graphHeaders,
+            `https://graph.microsoft.com/v1.0/groups/${encodeURIComponent(group.id)}/members/microsoft.graph.device?$select=id,displayName,deviceId`
+        );
+        for (const member of members) {
+            if (member.id && !member.deviceId && !member.displayName) {
+                redactedDeviceMembers += 1;
+            }
+            addGroupMemberKey(groupMembershipByDeviceKey, member.id, groupName);
+            addGroupMemberKey(groupMembershipByDeviceKey, member.deviceId, groupName);
+            addGroupMemberKey(groupMembershipByDeviceKey, normalizeEndpointName(member.displayName), groupName);
+        }
+    }
+    return { groupMembershipByDeviceKey, redactedDeviceMembers };
+}
+
+function getDeviceGroupNames(device, groupMembershipByDeviceKey) {
+    const deviceName = firstString(device.deviceName, device.managedDeviceName, device.name);
+    const keys = [
+        device.id,
+        device.azureADDeviceId,
+        device.azureAdDeviceId,
+        deviceName,
+        normalizeEndpointName(deviceName)
+    ];
+    const names = new Set();
+    for (const key of keys) {
+        const groupNames = groupMembershipByDeviceKey.get(String(key || '').trim().toLowerCase());
+        if (groupNames) {
+            for (const groupName of groupNames) names.add(groupName);
+        }
+    }
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+}
+
+async function compareIntuneDevicesToAction1(graphHeaders) {
+    const { apiKey: action1ApiKey, apiSecret: action1ApiSecret, organizationId: action1OrgId } = await getAction1Credentials();
+    if (!action1ApiKey || !action1ApiSecret || !action1OrgId) {
+        return {
+            status: 'skipped',
+            message: 'Action1 API credentials are not configured.',
+            intuneTotal: 0,
+            action1Total: 0,
+            registeredInAction1: 0,
+            missingFromAction1: 0,
+            matchRate: 0,
+            missingDevices: []
+        };
+    }
+
+    const [intuneDevices, action1Endpoints, groupMembership] = await Promise.all([
+        fetchGraphCollection(graphHeaders, `${INTUNE_GRAPH_BASE}/deviceManagement/managedDevices?$top=999`),
+        fetchAction1ManagedEndpoints(action1ApiKey, action1ApiSecret, action1OrgId),
+        fetchDeviceGroupMembership(graphHeaders)
+    ]);
+    const groupMembershipByDeviceKey = groupMembership.groupMembershipByDeviceKey;
+    const groupMembershipStatus = groupMembership.redactedDeviceMembers > 0 ? 'limited_permissions' : 'checked';
+    const groupMembershipMessage = groupMembership.redactedDeviceMembers > 0
+        ? 'Microsoft Graph returned redacted device group members. Add Directory.Read.All or Device.Read.All application permission with admin consent to show endpoint device group names.'
+        : '';
+
+    const action1Names = new Set();
+    for (const endpoint of action1Endpoints) {
+        const name = normalizeEndpointName(firstString(endpoint.device_name, endpoint.name, endpoint.hostname, endpoint.endpoint_name));
+        if (name) action1Names.add(name);
+    }
+
+    let registeredInAction1 = 0;
+    const missingDevices = [];
+    for (const device of intuneDevices) {
+        const deviceName = firstString(device.deviceName, device.managedDeviceName, device.name);
+        const normalizedName = normalizeEndpointName(deviceName);
+        const registered = normalizedName && action1Names.has(normalizedName);
+        if (registered) {
+            registeredInAction1 += 1;
+        } else {
+            const deviceGroupNames = getDeviceGroupNames(device, groupMembershipByDeviceKey);
+            missingDevices.push({
+                deviceName: deviceName || device.id || 'Unknown device',
+                deviceGroups: deviceGroupNames,
+                os: firstString(device.operatingSystem, device.osVersion),
+                userPrincipalName: firstString(device.userPrincipalName, device.emailAddress),
+                lastSyncDateTime: device.lastSyncDateTime || '',
+                azureADDeviceId: device.azureADDeviceId || device.azureAdDeviceId || '',
+                intuneDeviceId: device.id || ''
+            });
+        }
+    }
+
+    const intuneTotal = intuneDevices.length;
+    const missingFromAction1 = missingDevices.length;
+    const matchRate = intuneTotal > 0 ? Math.round((registeredInAction1 / intuneTotal) * 100) : 0;
+    return {
+        status: 'checked',
+        message: `${registeredInAction1} of ${intuneTotal} Intune endpoints are registered in Action1.`,
+        intuneTotal,
+        action1Total: action1Endpoints.length,
+        registeredInAction1,
+        missingFromAction1,
+        matchRate,
+        groupMembershipStatus,
+        groupMembershipMessage,
+        missingDevices: missingDevices.slice(0, 50)
+    };
 }
 
 /** Create a new Win32 LOB app in Intune and upload the MSI content */
 async function createIntuneApp(graphHeaders, msiBuffer, msiFileName, version, productCode) {
-    const graphBase = 'https://graph.microsoft.com/beta';
+    const graphBase = INTUNE_GRAPH_BASE;
     let appId = null;
 
     const largeIcon = await getAction1LargeIcon();
@@ -315,24 +555,6 @@ async function createIntuneApp(graphHeaders, msiBuffer, msiFileName, version, pr
         committedContentVersion: cvId
     }, { headers: graphHeaders });
 
-    // 10. Assign to all users
-    try {
-        await axios.post(`${graphBase}/deviceAppManagement/mobileApps/${appId}/assignments`, {
-            "@odata.type": "#microsoft.graph.mobileAppAssignment",
-            target: { "@odata.type": "#microsoft.graph.allLicensedUsersAssignmentTarget" },
-            intent: "available",
-            settings: {
-                "@odata.type": "#microsoft.graph.win32LobAppAssignmentSettings",
-                notifications: "showAll",
-                deliveryOptimizationPriority: "notConfigured",
-                installTimeSettings: null,
-                restartSettings: null
-            }
-        }, { headers: graphHeaders });
-    } catch (e) {
-        // Assignment may fail if tenant settings don't allow — non-fatal
-    }
-
     return appId;
     } catch (e) {
         if (appId) {
@@ -374,9 +596,13 @@ async function runSync() {
         const IntuneClientSecret = await getSetting('IntuneClientSecret');
         const IntuneAgentId = await getSetting('IntuneAgentId');
         const IntuneOrgName = await getSetting('IntuneOrgName');
+        const assignmentMode = normalizeAssignmentMode(await getSetting('IntuneAssignmentTargetMode'));
+        const selectedGroupIds = parseSelectedGroupIds(await getSetting('IntuneDeviceGroupIds'));
+        const selectedGroupMap = parseSelectedGroupMap(await getSetting('IntuneDeviceGroupMap'));
 
         if (!IntuneTenantId || !IntuneClientId || !IntuneClientSecret) throw new Error("Intune credentials missing.");
         if (!IntuneAgentId || !IntuneOrgName) throw new Error("Action1 Agent ID and Org Name are required.");
+        if (assignmentMode === ASSIGNMENT_MODE_SELECTED_GROUPS && selectedGroupIds.length === 0) throw new Error("Select at least one Intune device group, or choose All devices.");
 
         // 1. Auth to Graph API
         await updateProgress("Authenticating to Microsoft Graph...");
@@ -416,7 +642,7 @@ async function runSync() {
 
         try {
             const appsRes = await axios.get(
-                `https://graph.microsoft.com/beta/deviceAppManagement/mobileApps?$filter=isof('microsoft.graph.win32LobApp')`,
+                `${INTUNE_GRAPH_BASE}/deviceAppManagement/mobileApps?$filter=isof('microsoft.graph.win32LobApp')`,
                 { headers: graphHeaders }
             );
             const apps = appsRes.data.value || [];
@@ -465,7 +691,7 @@ async function runSync() {
 
             try {
                 // Remove old app
-                await axios.delete(`https://graph.microsoft.com/beta/deviceAppManagement/mobileApps/${intuneAppId}`, { headers: graphHeaders });
+                await axios.delete(`${INTUNE_GRAPH_BASE}/deviceAppManagement/mobileApps/${intuneAppId}`, { headers: graphHeaders });
                 await updateProgress("Removed old Intune app. Creating updated version...");
                 await new Promise(r => setTimeout(r, 3000)); // Give Graph API a moment
 
@@ -484,6 +710,47 @@ async function runSync() {
             await updateProgress(`Agent is up to date (v${intuneVersion}). No action needed.`);
         }
 
+        let assignmentStatus = 'not_checked';
+        let assignmentMessage = 'Assignments were not checked.';
+        if (intuneAppId && !action.includes('failed')) {
+            try {
+                const assignmentTarget = describeDesiredAssignments(assignmentMode, selectedGroupIds);
+                await updateProgress(`Configuring Intune assignment target: ${assignmentTarget}...`);
+                await assignIntuneApp(graphHeaders, intuneAppId, assignmentMode, selectedGroupIds);
+                assignmentStatus = 'configured';
+                assignmentMessage = `Assigned to ${assignmentTarget}.`;
+                await updateProgress(`Assignments configured: ${assignmentTarget}.`);
+            } catch (assignmentError) {
+                assignmentStatus = 'failed';
+                assignmentMessage = assignmentError.response?.data?.error?.message || assignmentError.message;
+                action = action === 'none' ? 'assignment_failed' : action;
+                await updateProgress(`Failed to configure assignments: ${assignmentMessage}`);
+            }
+        }
+
+        let endpointRegistration = {
+            status: 'not_checked',
+            message: 'Endpoint registration was not checked.',
+            intuneTotal: 0,
+            action1Total: 0,
+            registeredInAction1: 0,
+            missingFromAction1: 0,
+            matchRate: 0,
+            missingDevices: []
+        };
+        try {
+            await updateProgress('Comparing Intune managed devices to Action1 endpoints...');
+            endpointRegistration = await compareIntuneDevicesToAction1(graphHeaders);
+            await updateProgress(endpointRegistration.message);
+        } catch (registrationError) {
+            endpointRegistration = {
+                ...endpointRegistration,
+                status: 'failed',
+                message: registrationError.response?.data?.error?.message || registrationError.message
+            };
+            await updateProgress(`Endpoint registration comparison failed: ${endpointRegistration.message}`);
+        }
+
         // 5. Store results
         const versionStatus = action === 'none' ? 'up_to_date'
             : (action === 'create' || action === 'update') ? 'up_to_date'
@@ -498,13 +765,19 @@ async function runSync() {
             intuneAppName: intuneAppName || 'Action1 Agent',
             versionStatus,
             lastAction: action,
+            assignmentMode,
+            selectedGroupIds,
+            selectedGroupMap,
+            assignmentStatus,
+            assignmentMessage,
+            endpointRegistration,
             checkedAt: new Date().toISOString()
         });
 
         await new Promise(r => db.run(`INSERT OR REPLACE INTO settings (key, value) VALUES ('IntuneVersionData', ?)`, [resultData], r));
         
         const finalStatus = (action.includes('failed')) ? 'Failed' : 'Success';
-        await updateProgress(`Check complete. Action: ${action} | Latest: v${latestVersion} | Intune: v${intuneVersion}`, finalStatus);
+        await updateProgress(`Check complete. Action: ${action} | Latest: v${latestVersion} | Intune: v${intuneVersion} | Assignments: ${assignmentStatus}`, finalStatus);
 
         const runId = await new Promise(r => db.get("SELECT id FROM sync_history WHERE integration_id = 'intune' ORDER BY id DESC LIMIT 1", (err, row) => r(row?.id)));
         if (runId) db.run(`UPDATE sync_history SET assets_processed = 0 WHERE id = ?`, [runId]);
@@ -519,6 +792,7 @@ async function sync(context) {
   axios = context.http;
   db = context.db.raw;
   getSetting = context.settings.get;
+  getAction1Credentials = context.action1.getCredentials;
   computeAndSaveRunMetrics = context.services.computeAndSaveRunMetrics;
   nvdService = context.services.nvd;
   return runSync();

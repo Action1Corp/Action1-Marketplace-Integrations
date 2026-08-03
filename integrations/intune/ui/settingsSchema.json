@@ -33,5 +33,29 @@
     "type": "text",
     "group": "Action1 Agent Settings",
     "required": true
+  },
+  {
+    "key": "IntuneAssignmentTargetMode",
+    "label": "Assignment Target",
+    "type": "select",
+    "group": "Action1 Agent Assignments",
+    "required": true,
+    "defaultValue": "allDevices",
+    "options": [
+      {
+        "label": "All devices",
+        "value": "allDevices"
+      },
+      {
+        "label": "Selected device groups",
+        "value": "selectedGroups"
+      }
+    ]
+  },
+  {
+    "key": "IntuneDeviceGroupIds",
+    "label": "Selected Device Group IDs",
+    "type": "text",
+    "group": "Action1 Agent Assignments"
   }
 ]

@@ -1,4 +1,4 @@
-const { validate } = require('./validate');
+const { listDeviceGroups, validate, validateAssignments } = require('./validate');
 const { sync } = require('./sync');
 
 function summarizeValidationResult(result) {
@@ -33,9 +33,28 @@ async function syncAction(context) {
   };
 }
 
+async function listDeviceGroupsAction(context, request) {
+  const groups = await listDeviceGroups(request.settings || {});
+  return {
+    ok: true,
+    message: `Loaded ${groups.length} Intune device group${groups.length === 1 ? '' : 's'}.`,
+    groups
+  };
+}
+
+async function validateAssignmentsAction(context, request) {
+  const result = await validateAssignments(request.settings || {});
+  return {
+    ...result,
+    details: result
+  };
+}
+
 module.exports = {
   actions: {
     'validate-configuration': validateConfiguration,
+    'list-device-groups': listDeviceGroupsAction,
+    'validate-assignments': validateAssignmentsAction,
     sync: syncAction
   }
 };

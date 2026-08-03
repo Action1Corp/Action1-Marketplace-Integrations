@@ -2,7 +2,7 @@
   "id": "intune",
   "name": "Microsoft Intune",
   "vendor": "Microsoft",
-  "version": "1.0.1",
+  "version": "1.0.25",
   "marketplaceApiVersion": "1.0",
   "minimumMarketplaceVersion": "1.0.0",
   "description": "Sync Intune managed devices and compliance status with Action1.",
@@ -18,6 +18,26 @@
       "runningLabel": "Validating...",
       "description": "Validates Microsoft Intune credentials.",
       "placement": "settings"
+    },
+    {
+      "id": "list-device-groups",
+      "kind": "read",
+      "label": "List Device Groups",
+      "buttonLabel": "Load Groups",
+      "runningLabel": "Loading...",
+      "description": "Reads available Intune device groups for Action1 Agent assignment.",
+      "placement": "settings",
+      "history": false
+    },
+    {
+      "id": "validate-assignments",
+      "kind": "validate",
+      "label": "Validate Assignments",
+      "buttonLabel": "Validate Assignments",
+      "runningLabel": "Validating...",
+      "description": "Validates that the Action1 Agent app assignments match the selected target mode.",
+      "placement": "settings",
+      "history": false
     },
     {
       "id": "sync",
