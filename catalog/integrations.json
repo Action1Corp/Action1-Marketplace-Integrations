@@ -3,22 +3,6 @@
   "publishedAt": "2026-08-03T13:39:30.257Z",
   "integrations": [
     {
-      "id": "crowdstrike",
-      "name": "CrowdStrike Falcon",
-      "vendor": "CrowdStrike",
-      "description": "Correlate CrowdStrike exposure data with Action1 endpoint and patch context.",
-      "category": "EDR / XDR",
-      "latestVersion": "1.0.1",
-      "minimumMarketplaceVersion": "1.0.0",
-      "status": "disabled",
-      "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
-      "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-11/action1-integration-crowdstrike-1.0.1.tgz",
-        "sha256": "505b4de1d4ba3010ea73d54dfaf6a7ceece8a18fdfbd401905199afaad259923",
-        "signatureUrl": ""
-      }
-    },
-    {
       "id": "defender",
       "name": "Microsoft Defender",
       "vendor": "Microsoft",
