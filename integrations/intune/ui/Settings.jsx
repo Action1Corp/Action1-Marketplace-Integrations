@@ -2,13 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import settingsSchema from './settingsSchema.json';
 import {
   SECRET_MASK,
-  WEEKDAYS,
-  browserTimezone,
-  cronToSchedule,
-  groupSettings,
-  scheduleKey,
-  scheduleToCron,
-  timezoneKey
+  groupSettings
 } from './viewToolkit.jsx';
 
 function Settings({ integration }) {
@@ -20,13 +14,15 @@ function Settings({ integration }) {
   const [loadingGroups, setLoadingGroups] = useState(false);
   const [groupMessage, setGroupMessage] = useState('');
   const [deviceGroups, setDeviceGroups] = useState([]);
+  const [loadingAction1Groups, setLoadingAction1Groups] = useState(false);
+  const [action1GroupMessage, setAction1GroupMessage] = useState('');
+  const [action1EndpointGroups, setAction1EndpointGroups] = useState([]);
   const [validatingAssignments, setValidatingAssignments] = useState(false);
   const [assignmentValidation, setAssignmentValidation] = useState(null);
   const [validationResult, setValidationResult] = useState(null);
-  const [scheduleUi, setScheduleUi] = useState(cronToSchedule(''));
   const [attemptedAutoLoadGroups, setAttemptedAutoLoadGroups] = useState(false);
+  const [attemptedAutoLoadAction1Groups, setAttemptedAutoLoadAction1Groups] = useState(false);
   const sensitiveSettings = useMemo(() => new Set(settingsSchema.filter(setting => setting.type === 'secret' || setting.sensitive).map(setting => setting.key)), [settingsSchema]);
-  const supportsSchedule = Boolean(meta?.operations?.schedule || meta?.operations?.sync);
   const supportsValidation = Boolean(meta?.operations?.validate);
 
   useEffect(() => {
@@ -36,11 +32,9 @@ function Settings({ integration }) {
         for (const setting of settingsSchema || []) {
           if ((setting.type === 'secret' || setting.sensitive) && data.storedSecrets?.[setting.key]) nextSettings[setting.key] = SECRET_MASK;
         }
-        if (!nextSettings[timezoneKey(integration)]) nextSettings[timezoneKey(integration)] = browserTimezone();
         setMeta(nextMeta);
         setSettings(nextSettings);
         setStoredSecrets(data.storedSecrets || {});
-        setScheduleUi(cronToSchedule(nextSettings[scheduleKey(integration)]));
       });
   }, [integration]);
 
@@ -51,11 +45,8 @@ function Settings({ integration }) {
       if (sensitiveSettings.has(setting.key) && settings[setting.key] === SECRET_MASK) continue;
       payload[setting.key] = settings[setting.key] || '';
     }
-    if (supportsSchedule) {
-      payload[scheduleKey(integration)] = settings[scheduleKey(integration)] || '';
-      payload[timezoneKey(integration)] = settings[timezoneKey(integration)] || browserTimezone();
-    }
     payload.IntuneDeviceGroupMap = settings.IntuneDeviceGroupMap || '';
+    payload.IntuneProvisioningAction1GroupMap = settings.IntuneProvisioningAction1GroupMap || '';
     const response = await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     setMessage(response.ok ? 'Settings saved successfully.' : 'Unable to save settings.');
   };
@@ -74,8 +65,8 @@ function Settings({ integration }) {
     return payload;
   };
 
-  const parseSelectedGroupIds = () => {
-    const value = settings.IntuneDeviceGroupIds;
+  const parseJsonListSetting = (key) => {
+    const value = settings[key];
     if (Array.isArray(value)) return value.map(String).filter(Boolean);
     const text = String(value || '').trim();
     if (!text) return [];
@@ -86,8 +77,8 @@ function Settings({ integration }) {
     return text.split(',').map(item => item.trim()).filter(Boolean);
   };
 
-  const parseSelectedGroupMap = () => {
-    const value = settings.IntuneDeviceGroupMap;
+  const parseJsonMapSetting = (key) => {
+    const value = settings[key];
     if (value && typeof value === 'object' && !Array.isArray(value)) return value;
     const text = String(value || '').trim();
     if (!text) return {};
@@ -97,6 +88,11 @@ function Settings({ integration }) {
     } catch {}
     return {};
   };
+
+  const parseSelectedGroupIds = () => parseJsonListSetting('IntuneDeviceGroupIds');
+  const parseSelectedGroupMap = () => parseJsonMapSetting('IntuneDeviceGroupMap');
+  const parseSelectedAction1GroupIds = () => parseJsonListSetting('IntuneProvisioningAction1GroupIds');
+  const parseSelectedAction1GroupMap = () => parseJsonMapSetting('IntuneProvisioningAction1GroupMap');
 
   const setSelectedGroupIds = (ids) => {
     const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
@@ -108,6 +104,19 @@ function Settings({ integration }) {
       ...current,
       IntuneDeviceGroupIds: JSON.stringify(uniqueIds),
       IntuneDeviceGroupMap: JSON.stringify({ ...parseSelectedGroupMap(), ...groupMap })
+    }));
+  };
+
+  const setSelectedAction1GroupIds = (ids) => {
+    const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+    const groupMap = {};
+    for (const group of action1EndpointGroups) {
+      if (uniqueIds.includes(group.id)) groupMap[group.id] = group.name || group.id;
+    }
+    setSettings(current => ({
+      ...current,
+      IntuneProvisioningAction1GroupIds: JSON.stringify(uniqueIds),
+      IntuneProvisioningAction1GroupMap: JSON.stringify({ ...parseSelectedAction1GroupMap(), ...groupMap })
     }));
   };
 
@@ -138,6 +147,33 @@ function Settings({ integration }) {
     }
   };
 
+  const loadAction1EndpointGroups = async () => {
+    setLoadingAction1Groups(true);
+    setAction1GroupMessage('');
+    try {
+      const response = await fetch(`/api/integrations/${integration}/actions/list-action1-endpoint-groups`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: validationPayload(), trackHistory: false })
+      });
+      const data = await response.json();
+      if (!response.ok || data.ok === false) throw new Error(data.message || 'Unable to load Action1 endpoint groups.');
+      const groups = data.groups || [];
+      const selectedGroupIds = parseSelectedAction1GroupIds();
+      const nextGroupMap = { ...parseSelectedAction1GroupMap() };
+      for (const group of groups) {
+        if (selectedGroupIds.includes(group.id)) nextGroupMap[group.id] = group.name || group.id;
+      }
+      setAction1EndpointGroups(groups);
+      setSettings(current => ({ ...current, IntuneProvisioningAction1GroupMap: JSON.stringify(nextGroupMap) }));
+      setAction1GroupMessage(data.message || `Loaded ${groups.length} endpoint groups.`);
+    } catch (error) {
+      setAction1GroupMessage(error.message);
+    } finally {
+      setLoadingAction1Groups(false);
+    }
+  };
+
   useEffect(() => {
     if (!meta || attemptedAutoLoadGroups || loadingGroups) return;
     if ((settings.IntuneAssignmentTargetMode || 'allDevices') !== 'selectedGroups') return;
@@ -145,6 +181,13 @@ function Settings({ integration }) {
     setAttemptedAutoLoadGroups(true);
     loadDeviceGroups();
   }, [meta, settings.IntuneAssignmentTargetMode, settings.IntuneDeviceGroupIds, attemptedAutoLoadGroups, loadingGroups, deviceGroups.length]);
+
+  useEffect(() => {
+    if (!meta || attemptedAutoLoadAction1Groups || loadingAction1Groups) return;
+    if (parseSelectedAction1GroupIds().length === 0 || action1EndpointGroups.length > 0) return;
+    setAttemptedAutoLoadAction1Groups(true);
+    loadAction1EndpointGroups();
+  }, [meta, settings.IntuneProvisioningAction1GroupIds, attemptedAutoLoadAction1Groups, loadingAction1Groups, action1EndpointGroups.length]);
 
   const validateAssignments = async () => {
     setValidatingAssignments(true);
@@ -182,14 +225,6 @@ function Settings({ integration }) {
     }
   };
 
-  const updateSchedule = (changes) => {
-    setScheduleUi(prev => {
-      const next = { ...prev, ...changes };
-      setSettings(current => ({ ...current, [scheduleKey(integration)]: scheduleToCron(next), [timezoneKey(integration)]: current[timezoneKey(integration)] || browserTimezone() }));
-      return next;
-    });
-  };
-
   if (!meta) return <div style={{ padding: '2rem' }}>Loading settings...</div>;
   const grouped = groupSettings(settingsSchema);
   const assignmentMode = settings.IntuneAssignmentTargetMode || 'allDevices';
@@ -197,6 +232,15 @@ function Settings({ integration }) {
   const selectedGroupSet = new Set(selectedGroupIds);
   const selectedGroupMap = parseSelectedGroupMap();
   const selectedGroupLabels = selectedGroupIds.map(groupId => deviceGroups.find(group => group.id === groupId)?.displayName || selectedGroupMap[groupId] || (loadingGroups ? 'Loading selected group...' : 'Group name unavailable'));
+  const selectedAction1GroupIds = parseSelectedAction1GroupIds();
+  const selectedAction1GroupSet = new Set(selectedAction1GroupIds);
+  const selectedAction1GroupMap = parseSelectedAction1GroupMap();
+  const selectedAction1GroupLabels = selectedAction1GroupIds.map(groupId => action1EndpointGroups.find(group => group.id === groupId)?.name || selectedAction1GroupMap[groupId] || (loadingAction1Groups ? 'Loading selected group...' : 'Group name unavailable'));
+  const savedAction1Groups = selectedAction1GroupIds
+    .filter(groupId => !action1EndpointGroups.some(group => group.id === groupId))
+    .map(groupId => ({ id: groupId, name: selectedAction1GroupMap[groupId] || groupId }));
+  const displayedAction1EndpointGroups = action1EndpointGroups.length ? action1EndpointGroups : savedAction1Groups;
+  const hiddenSettingKeys = new Set(['IntuneDeviceGroupIds', 'IntuneProvisioningAction1GroupIds', 'IntuneProvisioningAction1GroupMap']);
 
   return (
     <div style={{ maxWidth: 760 }}>
@@ -204,7 +248,7 @@ function Settings({ integration }) {
         {Object.entries(grouped).map(([groupName, fields]) => (
           <div key={groupName} className="glass-panel" style={{ marginBottom: '1.5rem' }}>
             <h3>{groupName}</h3>
-            {fields.filter(setting => setting.key !== 'IntuneDeviceGroupIds').map(setting => (
+            {fields.filter(setting => !hiddenSettingKeys.has(setting.key)).map(setting => (
               <div key={setting.key} style={{ marginBottom: '1rem' }}>
                 <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 700 }}>{setting.label}{setting.required && <span style={{ color: '#DC2626' }}> *</span>}</label>
                 {setting.type === 'select' ? (
@@ -243,6 +287,9 @@ function Settings({ integration }) {
             ))}
             {groupName === 'Action1 Agent Assignments' && (
               <div style={{ marginTop: '0.5rem' }}>
+                <p style={{ marginTop: 0, color: '#4B5563', fontSize: '0.9rem', lineHeight: 1.45 }}>
+                  Select the Intune device groups whose devices should receive the Action1 Agent app.
+                </p>
                 {assignmentMode === 'selectedGroups' ? (
                   <>
                     <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '0.75rem' }}>
@@ -273,7 +320,7 @@ function Settings({ integration }) {
                           <span>
                             <span style={{ display: 'block', fontWeight: 700 }}>{group.displayName}</span>
                             <span style={{ display: 'block', color: '#6B7280', fontSize: '0.78rem' }}>
-                              {group.dynamic ? 'Dynamic group' : 'Assigned group'}{group.description ? ` - ${group.description}` : ''}
+                              {group.dynamic ? 'Dynamic group' : 'Assigned group'}
                             </span>
                           </span>
                         </label>
@@ -297,6 +344,42 @@ function Settings({ integration }) {
                 </div>
               </div>
             )}
+            {groupName === 'Action1 Provisioning' && (
+              <div style={{ marginTop: '0.5rem' }}>
+                <p style={{ marginTop: 0, color: '#4B5563', fontSize: '0.9rem', lineHeight: 1.45 }}>
+                  Select the Action1 endpoint groups whose automations should be treated as provisioning automations.
+                </p>
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '0.75rem' }}>
+                  <button className="btn-section-action action1-action" type="button" onClick={loadAction1EndpointGroups} disabled={loadingAction1Groups}>
+                    {loadingAction1Groups ? 'Loading endpoint groups...' : 'Load Action1 Endpoint Groups'}
+                  </button>
+                  <span style={{ fontSize: '0.82rem', color: action1GroupMessage.includes('Unable') || action1GroupMessage.includes('Failed') || action1GroupMessage.includes('required') ? '#DC2626' : '#6B7280' }}>{action1GroupMessage}</span>
+                </div>
+                {selectedAction1GroupIds.length > 0 && (
+                  <div style={{ marginBottom: '0.75rem', fontSize: '0.85rem', color: '#374151' }}>
+                    Selected: {selectedAction1GroupLabels.join(', ')}
+                  </div>
+                )}
+                <div style={{ border: '1px solid #D1D5DB', borderRadius: 4, background: '#fff', maxHeight: 260, overflowY: 'auto' }}>
+                  {displayedAction1EndpointGroups.length === 0 ? (
+                    <div style={{ padding: '0.85rem', color: '#6B7280', fontSize: '0.85rem' }}>Load Action1 endpoint groups to choose provisioning groups.</div>
+                  ) : displayedAction1EndpointGroups.map(group => (
+                    <label key={group.id} style={{ display: 'flex', gap: '0.65rem', alignItems: 'flex-start', padding: '0.7rem 0.85rem', borderBottom: '1px solid #EEF2F7', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedAction1GroupSet.has(group.id)}
+                        onChange={event => {
+                          setSelectedAction1GroupIds(event.target.checked
+                            ? [...selectedAction1GroupIds, group.id]
+                            : selectedAction1GroupIds.filter(groupId => groupId !== group.id));
+                        }}
+                      />
+                      <span style={{ display: 'block', fontWeight: 700 }}>{group.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
             {supportsValidation && groupName.toLowerCase().includes('configuration') && (
               <button className="btn-section-action action1-action" type="button" onClick={validate} disabled={validating}>
                 {validating ? 'Validating...' : 'Validate Credentials'}
@@ -309,23 +392,6 @@ function Settings({ integration }) {
             )}
           </div>
         ))}
-        {supportsSchedule && (
-          <div className="glass-panel" style={{ marginBottom: '1.5rem' }}>
-            <h3>Schedule</h3>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-              <input type="checkbox" checked={scheduleUi.enabled} onChange={e => updateSchedule({ enabled: e.target.checked })} />
-              Schedule enabled
-            </label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(54px, 1fr))', gap: '0.5rem', marginBottom: '1rem' }}>
-              {WEEKDAYS.map(day => (
-                <button key={day.value} type="button" className={scheduleUi.days.includes(day.value) ? 'btn-primary' : 'btn-secondary'} onClick={() => updateSchedule({ enabled: true, days: scheduleUi.days.includes(day.value) ? scheduleUi.days.filter(value => value !== day.value) : [...scheduleUi.days, day.value] })}>
-                  {day.label}
-                </button>
-              ))}
-            </div>
-            <input type="time" value={scheduleUi.time} onChange={e => updateSchedule({ enabled: true, time: e.target.value })} style={{ padding: '0.6rem', border: '1px solid #D1D5DB', borderRadius: 4, background: '#fff', color: '#111827' }} />
-          </div>
-        )}
         <button className="btn-section-action action1-action" type="submit">Save Settings</button>
         {message && <span style={{ marginLeft: '1rem', color: message.includes('Unable') ? '#DC2626' : '#15803D' }}>{message}</span>}
       </form>

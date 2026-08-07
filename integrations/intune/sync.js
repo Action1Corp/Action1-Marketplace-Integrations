@@ -8,6 +8,7 @@ let nvdService;
 
 
 const crypto = require('crypto');
+const zlib = require('zlib');
 
 const ACTION1_APP_IMAGE_URL = 'https://www.action1.com/wp-content/uploads/2025/03/Action1_2560x1600.png';
 const ACTION1_APP_INFORMATION_URL = 'https://www.action1.com/documentation/';
@@ -15,6 +16,9 @@ const ACTION1_APP_PRIVACY_URL = 'https://www.action1.com/legal/privacy-policy/';
 const INTUNE_GRAPH_BASE = 'https://graph.microsoft.com/beta';
 const ASSIGNMENT_MODE_ALL_DEVICES = 'allDevices';
 const ASSIGNMENT_MODE_SELECTED_GROUPS = 'selectedGroups';
+const ACTION1_AUTOMATION_INSTANCE_LIMIT = 100;
+const ACTION1_AUTOMATION_ENDPOINT_RESULT_LIMIT = 500;
+const ACTION1_AUTOMATION_PAGE_LIMIT = 10;
 
 
 function updateProgress(details, status = 'Running') {
@@ -117,6 +121,100 @@ async function getAction1LargeIcon() {
     }
 }
 
+const CRC32_TABLE = (() => {
+    const table = new Uint32Array(256);
+    for (let i = 0; i < 256; i += 1) {
+        let c = i;
+        for (let j = 0; j < 8; j += 1) {
+            c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+        }
+        table[i] = c >>> 0;
+    }
+    return table;
+})();
+
+function crc32(buffer) {
+    let crc = 0xffffffff;
+    for (const byte of buffer) {
+        crc = CRC32_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+    }
+    return (crc ^ 0xffffffff) >>> 0;
+}
+
+function dosDateTime(date = new Date()) {
+    const year = Math.max(1980, date.getFullYear());
+    const dosTime = (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2);
+    const dosDate = ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate();
+    return { dosTime, dosDate };
+}
+
+function createZip(files) {
+    const localParts = [];
+    const centralParts = [];
+    let offset = 0;
+    const { dosTime, dosDate } = dosDateTime();
+
+    for (const file of files) {
+        const nameBuffer = Buffer.from(file.name.replace(/\\/g, '/'), 'utf8');
+        const data = Buffer.isBuffer(file.data) ? file.data : Buffer.from(file.data);
+        const compressed = zlib.deflateRawSync(data, { level: 9 });
+        const checksum = crc32(data);
+
+        const localHeader = Buffer.alloc(30);
+        localHeader.writeUInt32LE(0x04034b50, 0);
+        localHeader.writeUInt16LE(20, 4);
+        localHeader.writeUInt16LE(0x0800, 6);
+        localHeader.writeUInt16LE(8, 8);
+        localHeader.writeUInt16LE(dosTime, 10);
+        localHeader.writeUInt16LE(dosDate, 12);
+        localHeader.writeUInt32LE(checksum, 14);
+        localHeader.writeUInt32LE(compressed.length, 18);
+        localHeader.writeUInt32LE(data.length, 22);
+        localHeader.writeUInt16LE(nameBuffer.length, 26);
+        localHeader.writeUInt16LE(0, 28);
+        localParts.push(localHeader, nameBuffer, compressed);
+
+        const centralHeader = Buffer.alloc(46);
+        centralHeader.writeUInt32LE(0x02014b50, 0);
+        centralHeader.writeUInt16LE(20, 4);
+        centralHeader.writeUInt16LE(20, 6);
+        centralHeader.writeUInt16LE(0x0800, 8);
+        centralHeader.writeUInt16LE(8, 10);
+        centralHeader.writeUInt16LE(dosTime, 12);
+        centralHeader.writeUInt16LE(dosDate, 14);
+        centralHeader.writeUInt32LE(checksum, 16);
+        centralHeader.writeUInt32LE(compressed.length, 20);
+        centralHeader.writeUInt32LE(data.length, 24);
+        centralHeader.writeUInt16LE(nameBuffer.length, 28);
+        centralHeader.writeUInt16LE(0, 30);
+        centralHeader.writeUInt16LE(0, 32);
+        centralHeader.writeUInt16LE(0, 34);
+        centralHeader.writeUInt16LE(0, 36);
+        centralHeader.writeUInt32LE(0, 38);
+        centralHeader.writeUInt32LE(offset, 42);
+        centralParts.push(centralHeader, nameBuffer);
+
+        offset += localHeader.length + nameBuffer.length + compressed.length;
+    }
+
+    const centralDirectory = Buffer.concat(centralParts);
+    const endRecord = Buffer.alloc(22);
+    endRecord.writeUInt32LE(0x06054b50, 0);
+    endRecord.writeUInt16LE(0, 4);
+    endRecord.writeUInt16LE(0, 6);
+    endRecord.writeUInt16LE(files.length, 8);
+    endRecord.writeUInt16LE(files.length, 10);
+    endRecord.writeUInt32LE(centralDirectory.length, 12);
+    endRecord.writeUInt32LE(offset, 16);
+    endRecord.writeUInt16LE(0, 20);
+
+    return Buffer.concat([...localParts, centralDirectory, endRecord]);
+}
+
+function createIntuneWinInnerPackage(msiBuffer, msiFileName) {
+    return createZip([{ name: msiFileName, data: msiBuffer }]);
+}
+
 /** Encrypt file buffer for Intune content upload */
 function encryptForIntune(fileBuffer) {
     const encKey = crypto.randomBytes(32);
@@ -130,8 +228,6 @@ function encryptForIntune(fileBuffer) {
     hmac.update(iv);
     hmac.update(encrypted);
     const mac = hmac.digest();
-
-    // Upload payload: hmac(32) + iv(16) + encrypted_data
     const uploadData = Buffer.concat([mac, iv, encrypted]);
 
     const fileDigest = crypto.createHash('sha256').update(fileBuffer).digest('base64');
@@ -287,6 +383,12 @@ function firstString(...values) {
     return '';
 }
 
+function formatEndpointDate(value) {
+    if (!value) return '';
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toISOString();
+}
+
 async function fetchGraphCollection(graphHeaders, url) {
     const rows = [];
     let nextUrl = url;
@@ -298,7 +400,7 @@ async function fetchGraphCollection(graphHeaders, url) {
     return rows;
 }
 
-async function fetchAction1ManagedEndpoints(action1ApiKey, action1ApiSecret, action1OrgId) {
+async function getAction1Headers(action1ApiKey, action1ApiSecret) {
     const tokenParams = new URLSearchParams();
     tokenParams.append('client_id', action1ApiKey);
     tokenParams.append('client_secret', action1ApiSecret);
@@ -306,11 +408,114 @@ async function fetchAction1ManagedEndpoints(action1ApiKey, action1ApiSecret, act
     const tokenRes = await axios.post('https://app.action1.com/api/3.0/oauth2/token', tokenParams, {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
     });
-    const headers = { Authorization: `Bearer ${tokenRes.data.access_token}`, Accept: 'application/json' };
+    return { Authorization: `Bearer ${tokenRes.data.access_token}`, Accept: 'application/json' };
+}
+
+async function fetchAction1ManagedEndpoints(action1ApiKey, action1ApiSecret, action1OrgId) {
+    const headers = await getAction1Headers(action1ApiKey, action1ApiSecret);
     const response = await axios.get(`https://app.action1.com/api/3.0/endpoints/managed/${action1OrgId}?limit=9999`, { headers });
     const payload = response.data;
     if (Array.isArray(payload)) return payload;
     return payload.items || payload.data || payload.endpoints || [];
+}
+
+function action1Items(payload) {
+    if (Array.isArray(payload)) return payload;
+    return payload?.items || payload?.data || payload?.results || payload?.rows || [];
+}
+
+async function fetchAction1Collection(headers, firstUrl, { limit = 500, pageLimit = ACTION1_AUTOMATION_PAGE_LIMIT } = {}) {
+    const rows = [];
+    let url = firstUrl;
+    let pages = 0;
+    while (url && pages < pageLimit) {
+        const response = await axios.get(url, { headers });
+        const payload = response.data || {};
+        const items = action1Items(payload);
+        rows.push(...items);
+        pages += 1;
+
+        const nextUrl = payload.next || payload.next_link || payload.nextLink || '';
+        if (nextUrl) {
+            url = String(nextUrl).startsWith('http') ? nextUrl : `https://app.action1.com/api/3.0${nextUrl}`;
+            continue;
+        }
+
+        const from = Number(payload.from);
+        const total = Number(payload.total_items ?? payload.totalItems ?? payload.total);
+        if (Number.isFinite(from) && Number.isFinite(total) && from + items.length < total && items.length > 0) {
+            const nextFrom = from + items.length;
+            url = firstUrl.replace(/([?&])from=\d+/, `$1from=${nextFrom}`);
+            if (url === firstUrl && !/[?&]from=/.test(url)) url += `${url.includes('?') ? '&' : '?'}from=${nextFrom}`;
+            if (!/[?&]limit=/.test(url)) url += `${url.includes('?') ? '&' : '?'}limit=${limit}`;
+            continue;
+        }
+        break;
+    }
+    return rows;
+}
+
+function normalizeAutomationStatus(row, instance) {
+    const raw = firstString(row?.status, row?.last_status, row?.lastStatus, row?.state, instance?.status, instance?.last_status);
+    const normalized = raw.toLowerCase().replace(/[_-]+/g, ' ');
+    if (/(error|fail|failed|failure|cancel|canceled|cancelled|timeout|stopped|aborted)/.test(normalized)) return 'Failed';
+    if (/(running|progress|pending|queued|waiting|started|starting|processing|scheduled|not started)/.test(normalized)) return 'In progress';
+    if (/(success|succeed|succeeded|completed|complete|done|ok)/.test(normalized)) return 'Completed';
+    if (instance && (instance.completed === false || String(instance.completed || '').toLowerCase() === 'no')) return 'In progress';
+    return '';
+}
+
+function summarizeProvisioningResults(results) {
+    if (!results.length) return { status: 'N/A', detail: '', automationResults: [] };
+    if (results.some(result => result.status === 'Failed')) return { status: 'Failed', detail: 'One or more Action1 automations failed.', automationResults: results };
+    if (results.some(result => result.status === 'In progress')) return { status: 'In progress', detail: 'One or more Action1 automations are still running.', automationResults: results };
+    if (results.every(result => result.status === 'Completed')) return { status: 'Completed', detail: 'All observed Action1 automations completed successfully.', automationResults: results };
+    return { status: 'N/A', detail: '', automationResults: results };
+}
+
+async function fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecret, action1OrgId, endpointIds) {
+    const targetIds = new Set(endpointIds.map(id => String(id || '').trim()).filter(Boolean));
+    const provisioningByEndpoint = new Map();
+    if (!targetIds.size) return provisioningByEndpoint;
+
+    const headers = await getAction1Headers(action1ApiKey, action1ApiSecret);
+    const instances = await fetchAction1Collection(
+        headers,
+        `https://app.action1.com/api/3.0/automations/instances/${encodeURIComponent(action1OrgId)}?sortby=${encodeURIComponent('-end_time')}&limit=${ACTION1_AUTOMATION_INSTANCE_LIMIT}&from=0`,
+        { limit: ACTION1_AUTOMATION_INSTANCE_LIMIT }
+    );
+
+    for (const instance of instances) {
+        const instanceId = firstString(instance?.id, instance?.instance_id, instance?.instanceId);
+        if (!instanceId) continue;
+        const results = await fetchAction1Collection(
+            headers,
+            `https://app.action1.com/api/3.0/automations/instances/${encodeURIComponent(action1OrgId)}/${encodeURIComponent(instanceId)}/endpoint-results?limit=${ACTION1_AUTOMATION_ENDPOINT_RESULT_LIMIT}&from=0`,
+            { limit: ACTION1_AUTOMATION_ENDPOINT_RESULT_LIMIT }
+        );
+        for (const result of results) {
+            const endpointId = firstString(result?.id, result?.endpoint_id, result?.endpointId);
+            if (!targetIds.has(endpointId)) continue;
+            const status = normalizeAutomationStatus(result, instance);
+            if (!status) continue;
+            if (!provisioningByEndpoint.has(endpointId)) provisioningByEndpoint.set(endpointId, []);
+            provisioningByEndpoint.get(endpointId).push({
+                status,
+                automationName: firstString(instance?.name, instance?.action_name, result?.action_name, result?.automation_name, 'Unnamed automation'),
+                startedAt: firstString(instance?.start_time, instance?.started_at, result?.start_time, result?.started_at),
+                completedAt: firstString(result?.time, result?.end_time, result?.completed_at, instance?.end_time, instance?.completed_at),
+                actionName: firstString(result?.action_name, result?.actionName),
+                percentCompleted: firstString(result?.percent_completed, result?.percentCompleted, instance?.percent_completed),
+                statusDetail: firstString(result?.description, result?.details_text, result?.status_details, result?.statusDetail, result?.message, result?.error, result?.error_message, instance?.status_details)
+            });
+        }
+    }
+
+    const summarized = new Map();
+    for (const [endpointId, results] of provisioningByEndpoint.entries()) {
+        summarized.set(endpointId, summarizeProvisioningResults(results));
+    }
+    return summarized;
 }
 
 function addGroupMemberKey(groupMembershipByDeviceKey, key, groupName) {
@@ -320,8 +525,94 @@ function addGroupMemberKey(groupMembershipByDeviceKey, key, groupName) {
     groupMembershipByDeviceKey.get(normalizedKey).add(groupName);
 }
 
-async function fetchDeviceGroupMembership(graphHeaders) {
+function groupMemberDeviceKey(member) {
+    return firstString(
+        member.deviceId,
+        member.id,
+        normalizeEndpointName(member.displayName)
+    );
+}
+
+function intuneDeviceTargetKeys(device) {
+    const deviceName = firstString(device.deviceName, device.managedDeviceName, device.name);
+    return [
+        device.id,
+        device.azureADDeviceId,
+        device.azureAdDeviceId,
+        deviceName,
+        normalizeEndpointName(deviceName)
+    ]
+        .map(key => String(key || '').trim().toLowerCase())
+        .filter(Boolean);
+}
+
+function addEndpointGroupKey(endpointGroupsByKey, key, groupName) {
+    const normalizedKey = String(key || '').trim().toLowerCase();
+    if (!normalizedKey || !groupName) return;
+    if (!endpointGroupsByKey.has(normalizedKey)) endpointGroupsByKey.set(normalizedKey, new Set());
+    endpointGroupsByKey.get(normalizedKey).add(groupName);
+}
+
+function action1EndpointKeys(endpoint) {
+    const endpointName = firstString(endpoint?.device_name, endpoint?.name, endpoint?.hostname, endpoint?.endpoint_name);
+    return [
+        endpoint?.id,
+        endpoint?.endpoint_id,
+        endpoint?.endpointId,
+        endpoint?.device_id,
+        endpoint?.deviceId,
+        endpointName,
+        normalizeEndpointName(endpointName)
+    ]
+        .map(key => String(key || '').trim().toLowerCase())
+        .filter(Boolean);
+}
+
+function getAction1EndpointGroupNames(endpoint, endpointGroupsByKey) {
+    const names = new Set();
+    for (const key of action1EndpointKeys(endpoint)) {
+        const matches = endpointGroupsByKey.get(key);
+        if (matches) matches.forEach(name => names.add(name));
+    }
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+}
+
+async function fetchAction1EndpointGroupMembership(action1ApiKey, action1ApiSecret, action1OrgId, selectedAction1GroupIds = [], selectedAction1GroupMap = {}) {
+    const endpointGroupsByKey = new Map();
+    const groupIds = selectedAction1GroupIds.map(String).filter(Boolean);
+    if (!groupIds.length) return endpointGroupsByKey;
+
+    const headers = await getAction1Headers(action1ApiKey, action1ApiSecret);
+    for (const groupId of groupIds) {
+        const groupName = String(selectedAction1GroupMap?.[groupId] || groupId).trim();
+        const encodedOrgId = encodeURIComponent(action1OrgId);
+        const encodedGroupId = encodeURIComponent(groupId);
+        const candidateUrls = [
+            `https://app.action1.com/api/3.0/endpoints/groups/${encodedOrgId}/${encodedGroupId}/endpoints?limit=500&from=0`,
+            `https://app.action1.com/api/3.0/endpoints/groups/${encodedOrgId}/${encodedGroupId}/members?limit=500&from=0`,
+            `https://app.action1.com/api/3.0/endpoints/managed/${encodedOrgId}?group_id=${encodedGroupId}&limit=500&from=0`
+        ];
+
+        for (const url of candidateUrls) {
+            try {
+                const members = await fetchAction1Collection(headers, url, { limit: 500 });
+                if (!members.length) continue;
+                for (const member of members) {
+                    for (const key of action1EndpointKeys(member)) {
+                        addEndpointGroupKey(endpointGroupsByKey, key, groupName);
+                    }
+                }
+                break;
+            } catch {}
+        }
+    }
+    return endpointGroupsByKey;
+}
+
+async function fetchDeviceGroupMembership(graphHeaders, selectedGroupIds = []) {
     const groupMembershipByDeviceKey = new Map();
+    const selectedGroupSet = new Set(selectedGroupIds.map(String).filter(Boolean));
+    const assignmentTargetDeviceKeys = new Set();
     let redactedDeviceMembers = 0;
     const groups = await fetchGraphCollection(
         graphHeaders,
@@ -333,6 +624,7 @@ async function fetchDeviceGroupMembership(graphHeaders) {
 
     for (const group of deviceGroups) {
         const groupName = group.displayName || group.id;
+        const isSelectedAssignmentGroup = selectedGroupSet.has(String(group.id));
         const members = await fetchGraphCollection(
             graphHeaders,
             `https://graph.microsoft.com/v1.0/groups/${encodeURIComponent(group.id)}/members/microsoft.graph.device?$select=id,displayName,deviceId`
@@ -344,9 +636,18 @@ async function fetchDeviceGroupMembership(graphHeaders) {
             addGroupMemberKey(groupMembershipByDeviceKey, member.id, groupName);
             addGroupMemberKey(groupMembershipByDeviceKey, member.deviceId, groupName);
             addGroupMemberKey(groupMembershipByDeviceKey, normalizeEndpointName(member.displayName), groupName);
+            if (isSelectedAssignmentGroup) {
+                const memberKey = groupMemberDeviceKey(member);
+                if (memberKey) assignmentTargetDeviceKeys.add(String(memberKey).trim().toLowerCase());
+            }
         }
     }
-    return { groupMembershipByDeviceKey, redactedDeviceMembers };
+    return {
+        groupMembershipByDeviceKey,
+        redactedDeviceMembers,
+        assignmentTargetDeviceCount: assignmentTargetDeviceKeys.size,
+        assignmentTargetDeviceKeys
+    };
 }
 
 function getDeviceGroupNames(device, groupMembershipByDeviceKey) {
@@ -368,74 +669,169 @@ function getDeviceGroupNames(device, groupMembershipByDeviceKey) {
     return Array.from(names).sort((a, b) => a.localeCompare(b));
 }
 
-async function compareIntuneDevicesToAction1(graphHeaders) {
+async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = ASSIGNMENT_MODE_ALL_DEVICES, selectedGroupIds = [], selectedGroupMap = {}, selectedAction1GroupIds = [], selectedAction1GroupMap = {} } = {}) {
     const { apiKey: action1ApiKey, apiSecret: action1ApiSecret, organizationId: action1OrgId } = await getAction1Credentials();
     if (!action1ApiKey || !action1ApiSecret || !action1OrgId) {
         return {
             status: 'skipped',
             message: 'Action1 API credentials are not configured.',
             intuneTotal: 0,
+            assignmentTargetDeviceCount: 0,
             action1Total: 0,
             registeredInAction1: 0,
             missingFromAction1: 0,
+            missingFromIntune: 0,
             matchRate: 0,
-            missingDevices: []
+            missingDevices: [],
+            endpoints: []
         };
     }
 
-    const [intuneDevices, action1Endpoints, groupMembership] = await Promise.all([
+    const [intuneDevices, action1Endpoints, groupMembership, action1EndpointGroupMembership] = await Promise.all([
         fetchGraphCollection(graphHeaders, `${INTUNE_GRAPH_BASE}/deviceManagement/managedDevices?$top=999`),
         fetchAction1ManagedEndpoints(action1ApiKey, action1ApiSecret, action1OrgId),
-        fetchDeviceGroupMembership(graphHeaders)
+        fetchDeviceGroupMembership(graphHeaders, selectedGroupIds),
+        fetchAction1EndpointGroupMembership(action1ApiKey, action1ApiSecret, action1OrgId, selectedAction1GroupIds, selectedAction1GroupMap)
     ]);
     const groupMembershipByDeviceKey = groupMembership.groupMembershipByDeviceKey;
     const groupMembershipStatus = groupMembership.redactedDeviceMembers > 0 ? 'limited_permissions' : 'checked';
     const groupMembershipMessage = groupMembership.redactedDeviceMembers > 0
         ? 'Microsoft Graph returned redacted device group members. Add Directory.Read.All or Device.Read.All application permission with admin consent to show endpoint device group names.'
         : '';
+    const selectedGroupNameSet = new Set(
+        selectedGroupIds
+            .map(groupId => String(selectedGroupMap?.[groupId] || '').trim().toLowerCase())
+            .filter(Boolean)
+    );
 
-    const action1Names = new Set();
+    const action1ByName = new Map();
     for (const endpoint of action1Endpoints) {
         const name = normalizeEndpointName(firstString(endpoint.device_name, endpoint.name, endpoint.hostname, endpoint.endpoint_name));
-        if (name) action1Names.add(name);
+        if (name && !action1ByName.has(name)) action1ByName.set(name, endpoint);
     }
 
     let registeredInAction1 = 0;
     const missingDevices = [];
+    const endpoints = [];
+    const intuneNames = new Set();
     for (const device of intuneDevices) {
         const deviceName = firstString(device.deviceName, device.managedDeviceName, device.name);
         const normalizedName = normalizeEndpointName(deviceName);
-        const registered = normalizedName && action1Names.has(normalizedName);
+        if (normalizedName) intuneNames.add(normalizedName);
+        const registered = normalizedName && action1ByName.has(normalizedName);
+        const action1Endpoint = action1ByName.get(normalizedName);
+        const deviceGroupNames = getDeviceGroupNames(device, groupMembershipByDeviceKey);
+        const inAssignmentTarget = assignmentMode === ASSIGNMENT_MODE_ALL_DEVICES ||
+            intuneDeviceTargetKeys(device).some(key => groupMembership.assignmentTargetDeviceKeys.has(key)) ||
+            deviceGroupNames.some(groupName => selectedGroupNameSet.has(String(groupName || '').trim().toLowerCase()));
+        const row = {
+            id: device.id || normalizedName || deviceName || `intune-${endpoints.length}`,
+            deviceName: deviceName || device.id || 'Unknown device',
+            source: registered ? 'Synced' : 'Intune',
+            inAssignmentTarget,
+            intuneDeviceId: device.id || '',
+            action1EndpointId: firstString(action1Endpoint?.id, action1Endpoint?.endpoint_id),
+            action1EndpointGroups: action1Endpoint ? getAction1EndpointGroupNames(action1Endpoint, action1EndpointGroupMembership) : [],
+            deviceGroups: deviceGroupNames,
+            os: firstString(device.operatingSystem, device.osVersion),
+            userPrincipalName: firstString(device.userPrincipalName, device.emailAddress),
+            lastSyncDateTime: formatEndpointDate(device.lastSyncDateTime),
+            azureADDeviceId: device.azureADDeviceId || device.azureAdDeviceId || ''
+        };
+        endpoints.push(row);
         if (registered) {
             registeredInAction1 += 1;
         } else {
-            const deviceGroupNames = getDeviceGroupNames(device, groupMembershipByDeviceKey);
-            missingDevices.push({
-                deviceName: deviceName || device.id || 'Unknown device',
-                deviceGroups: deviceGroupNames,
-                os: firstString(device.operatingSystem, device.osVersion),
-                userPrincipalName: firstString(device.userPrincipalName, device.emailAddress),
-                lastSyncDateTime: device.lastSyncDateTime || '',
-                azureADDeviceId: device.azureADDeviceId || device.azureAdDeviceId || '',
-                intuneDeviceId: device.id || ''
-            });
+            missingDevices.push(row);
         }
     }
 
+    for (const [normalizedName, endpoint] of action1ByName.entries()) {
+        if (intuneNames.has(normalizedName)) continue;
+        const endpointName = firstString(endpoint.device_name, endpoint.name, endpoint.hostname, endpoint.endpoint_name);
+        endpoints.push({
+            id: firstString(endpoint.id, endpoint.endpoint_id, normalizedName) || `action1-${endpoints.length}`,
+            deviceName: endpointName || normalizedName || 'Unknown device',
+            source: 'Action1',
+            inAssignmentTarget: false,
+            intuneDeviceId: '',
+            action1EndpointId: firstString(endpoint.id, endpoint.endpoint_id),
+            action1EndpointGroups: getAction1EndpointGroupNames(endpoint, action1EndpointGroupMembership),
+            deviceGroups: [],
+            os: firstString(endpoint.os, endpoint.operating_system, endpoint.os_name, endpoint.platform),
+            userPrincipalName: firstString(endpoint.user, endpoint.username, endpoint.last_logged_on_user),
+            lastSyncDateTime: formatEndpointDate(firstString(endpoint.last_seen, endpoint.last_seen_at, endpoint.last_checkin, endpoint.updated_at)),
+            azureADDeviceId: ''
+        });
+    }
+
     const intuneTotal = intuneDevices.length;
+    const assignmentTargetDeviceCount = assignmentMode === ASSIGNMENT_MODE_SELECTED_GROUPS
+        ? groupMembership.assignmentTargetDeviceCount
+        : intuneTotal;
+    const assignmentTargetRegisteredInAction1 = endpoints.filter(endpoint => (
+        endpoint.source === 'Synced' && endpoint.inAssignmentTarget
+    )).length;
     const missingFromAction1 = missingDevices.length;
+    const missingFromIntune = endpoints.filter(endpoint => endpoint.source === 'Action1').length;
     const matchRate = intuneTotal > 0 ? Math.round((registeredInAction1 / intuneTotal) * 100) : 0;
+    let provisioningStatus = 'checked';
+    let provisioningMessage = '';
+    try {
+        const targetAction1EndpointIds = endpoints
+            .filter(endpoint => endpoint.inAssignmentTarget && endpoint.source === 'Synced' && endpoint.action1EndpointId)
+            .map(endpoint => endpoint.action1EndpointId);
+        const provisioningByEndpoint = await fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecret, action1OrgId, targetAction1EndpointIds);
+        for (const endpoint of endpoints) {
+            if (endpoint.inAssignmentTarget && endpoint.source === 'Intune' && !endpoint.action1EndpointId) {
+                endpoint.provisioningStatus = 'Awaiting Enrollment';
+                endpoint.provisioningDetail = 'Device is assigned but has not enrolled into Action1 yet.';
+                endpoint.automationResults = [];
+                continue;
+            }
+            if (!endpoint.inAssignmentTarget || endpoint.source !== 'Synced' || !endpoint.action1EndpointId) {
+                endpoint.provisioningStatus = 'N/A';
+                endpoint.provisioningDetail = '';
+                endpoint.automationResults = [];
+                continue;
+            }
+            const provisioning = provisioningByEndpoint.get(endpoint.action1EndpointId) || { status: 'N/A', detail: '', automationResults: [] };
+            endpoint.provisioningStatus = provisioning.status;
+            endpoint.provisioningDetail = provisioning.detail;
+            endpoint.automationResults = provisioning.automationResults;
+        }
+    } catch (provisioningError) {
+        provisioningStatus = 'failed';
+        provisioningMessage = `Unable to load Action1 automation results: ${provisioningError.message}`;
+        for (const endpoint of endpoints) {
+            if (endpoint.inAssignmentTarget && endpoint.source === 'Intune' && !endpoint.action1EndpointId) {
+                endpoint.provisioningStatus = 'Awaiting Enrollment';
+                endpoint.provisioningDetail = 'Device is assigned but has not enrolled into Action1 yet.';
+                endpoint.automationResults = [];
+            } else {
+                endpoint.provisioningStatus = 'N/A';
+                endpoint.provisioningDetail = provisioningMessage;
+                endpoint.automationResults = [];
+            }
+        }
+    }
     return {
         status: 'checked',
         message: `${registeredInAction1} of ${intuneTotal} Intune endpoints are registered in Action1.`,
         intuneTotal,
+        assignmentTargetDeviceCount,
+        assignmentTargetRegisteredInAction1,
         action1Total: action1Endpoints.length,
         registeredInAction1,
         missingFromAction1,
+        missingFromIntune,
         matchRate,
         groupMembershipStatus,
         groupMembershipMessage,
-        missingDevices: missingDevices.slice(0, 50)
+        provisioningStatus,
+        provisioningMessage,
+        missingDevices: missingDevices.slice(0, 50),
+        endpoints: endpoints.sort((a, b) => a.deviceName.localeCompare(b.deviceName)).slice(0, 5000)
     };
 }
 
@@ -445,6 +841,7 @@ async function createIntuneApp(graphHeaders, msiBuffer, msiFileName, version, pr
     let appId = null;
 
     const largeIcon = await getAction1LargeIcon();
+    const intuneContentFileName = 'IntunePackage.intunewin';
 
     // 1. Create the app shell
     const appBody = {
@@ -456,7 +853,7 @@ async function createIntuneApp(graphHeaders, msiBuffer, msiFileName, version, pr
         privacyInformationUrl: ACTION1_APP_PRIVACY_URL,
         ...(largeIcon ? { largeIcon } : {}),
         displayVersion: version,
-        fileName: msiFileName,
+        fileName: intuneContentFileName,
         installCommandLine: `msiexec /i "${msiFileName}" /qn`,
         uninstallCommandLine: `msiexec /x "${msiFileName}" /qn`,
         setupFilePath: msiFileName,
@@ -472,23 +869,14 @@ async function createIntuneApp(graphHeaders, msiBuffer, msiFileName, version, pr
         detectionRules: productCode ? [{
             "@odata.type": "#microsoft.graph.win32LobAppProductCodeDetection",
             productCode: productCode,
-            productVersionOperator: "greaterThanOrEqual",
-            productVersion: version
+            productVersionOperator: "notConfigured",
+            productVersion: null
         }] : [{
             "@odata.type": "#microsoft.graph.win32LobAppFileSystemDetection",
-            path: "C:\\Program Files\\Action1",
-            fileOrFolderName: "agent_service.exe",
+            path: "C:\\Windows\\Action1",
+            fileOrFolderName: "action1_agent.exe",
             check32BitOn64System: false,
             detectionType: "exists"
-        }],
-        requirementRules: [{
-            "@odata.type": "#microsoft.graph.win32LobAppRegistryRequirement",
-            operator: "greaterThanOrEqual",
-            detectionValue: "10.0.19041",
-            keyPath: "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion",
-            valueName: "CurrentBuildNumber",
-            check32BitOn64System: false,
-            detectionType: "version"
         }],
         minimumSupportedOperatingSystem: { v10_1903: true }
     };
@@ -504,13 +892,14 @@ async function createIntuneApp(graphHeaders, msiBuffer, msiFileName, version, pr
     );
     const cvId = cvRes.data.id;
 
-    // 3. Encrypt the MSI
-    const enc = encryptForIntune(msiBuffer);
+    // 3. Package the MSI like IntuneWinAppUtil does: compress source content, then encrypt that package.
+    const innerPackage = createIntuneWinInnerPackage(msiBuffer, msiFileName);
+    const enc = encryptForIntune(innerPackage);
 
     // 4. Create content file entry
     const fileBody = {
         "@odata.type": "#microsoft.graph.mobileAppContentFile",
-        name: msiFileName,
+        name: intuneContentFileName,
         size: enc.sizeOriginal,
         sizeEncrypted: enc.sizeEncrypted,
         manifest: null,
@@ -569,6 +958,16 @@ async function createIntuneApp(graphHeaders, msiBuffer, msiFileName, version, pr
     }
 }
 
+async function clearIntuneAppRequirementRules(graphHeaders, app) {
+    const requirementRules = Array.isArray(app?.requirementRules) ? app.requirementRules : [];
+    if (!app?.id || requirementRules.length === 0) return false;
+    await axios.patch(`${INTUNE_GRAPH_BASE}/deviceAppManagement/mobileApps/${app.id}`, {
+        "@odata.type": "#microsoft.graph.win32LobApp",
+        requirementRules: []
+    }, { headers: graphHeaders });
+    return true;
+}
+
 function compareVersions(v1, v2) {
     const a = v1.split('.').map(Number);
     const b = v2.split('.').map(Number);
@@ -599,6 +998,8 @@ async function runSync() {
         const assignmentMode = normalizeAssignmentMode(await getSetting('IntuneAssignmentTargetMode'));
         const selectedGroupIds = parseSelectedGroupIds(await getSetting('IntuneDeviceGroupIds'));
         const selectedGroupMap = parseSelectedGroupMap(await getSetting('IntuneDeviceGroupMap'));
+        const selectedAction1GroupIds = parseSelectedGroupIds(await getSetting('IntuneProvisioningAction1GroupIds'));
+        const selectedAction1GroupMap = parseSelectedGroupMap(await getSetting('IntuneProvisioningAction1GroupMap'));
 
         if (!IntuneTenantId || !IntuneClientId || !IntuneClientSecret) throw new Error("Intune credentials missing.");
         if (!IntuneAgentId || !IntuneOrgName) throw new Error("Action1 Agent ID and Org Name are required.");
@@ -660,6 +1061,12 @@ async function runSync() {
                     intuneAppId = action1App.id;
                     intuneAppName = action1App.displayName;
                     await updateProgress(`Found: "${intuneAppName}" v${intuneVersion}`);
+                    try {
+                        const clearedRequirements = await clearIntuneAppRequirementRules(graphHeaders, action1App);
+                        if (clearedRequirements) await updateProgress("Removed custom Intune app requirement rules.");
+                    } catch (requirementError) {
+                        await updateProgress(`Warning: Could not remove custom Intune app requirement rules: ${requirementError.response?.data?.error?.message || requirementError.message}`);
+                    }
                 }
             } else {
                 await updateProgress("No Action1 Agent app found in Intune.");
@@ -732,15 +1139,25 @@ async function runSync() {
             status: 'not_checked',
             message: 'Endpoint registration was not checked.',
             intuneTotal: 0,
+            assignmentTargetDeviceCount: 0,
+            assignmentTargetRegisteredInAction1: 0,
             action1Total: 0,
             registeredInAction1: 0,
             missingFromAction1: 0,
+            missingFromIntune: 0,
             matchRate: 0,
-            missingDevices: []
+            missingDevices: [],
+            endpoints: []
         };
         try {
             await updateProgress('Comparing Intune managed devices to Action1 endpoints...');
-            endpointRegistration = await compareIntuneDevicesToAction1(graphHeaders);
+            endpointRegistration = await compareIntuneDevicesToAction1(graphHeaders, {
+                assignmentMode,
+                selectedGroupIds,
+                selectedGroupMap,
+                selectedAction1GroupIds,
+                selectedAction1GroupMap
+            });
             await updateProgress(endpointRegistration.message);
         } catch (registrationError) {
             endpointRegistration = {

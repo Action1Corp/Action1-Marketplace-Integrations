@@ -57,5 +57,17 @@
     "label": "Selected Device Group IDs",
     "type": "text",
     "group": "Action1 Agent Assignments"
+  },
+  {
+    "key": "IntuneProvisioningAction1GroupIds",
+    "label": "Provisioning Endpoint Group IDs",
+    "type": "text",
+    "group": "Action1 Provisioning"
+  },
+  {
+    "key": "IntuneProvisioningAction1GroupMap",
+    "label": "Provisioning Endpoint Group Map",
+    "type": "text",
+    "group": "Action1 Provisioning"
   }
 ]

@@ -1,6 +1,7 @@
 const GRAPH_BASE = 'https://graph.microsoft.com/beta';
 const ASSIGNMENT_MODE_ALL_DEVICES = 'allDevices';
 const ASSIGNMENT_MODE_SELECTED_GROUPS = 'selectedGroups';
+const ACTION1_BASE = 'https://app.action1.com/api/3.0';
 
 function parseSelectedGroupIds(value) {
   if (Array.isArray(value)) return value.map(String).map(item => item.trim()).filter(Boolean);
@@ -77,6 +78,77 @@ async function graphGetAll(token, url) {
   return rows;
 }
 
+function action1Items(payload) {
+  if (Array.isArray(payload)) return payload;
+  return payload?.items || payload?.data || payload?.results || payload?.rows || payload?.endpoint_groups || payload?.groups || [];
+}
+
+async function getAction1Token(credentials) {
+  const apiKey = credentials?.apiKey;
+  const apiSecret = credentials?.apiSecret;
+  if (!apiKey || !apiSecret) throw new Error('Action1 API key and secret are required.');
+
+  const tokenBody = new URLSearchParams();
+  tokenBody.append('grant_type', 'client_credentials');
+  tokenBody.append('client_id', apiKey);
+  tokenBody.append('client_secret', apiSecret);
+
+  const response = await fetch(`${ACTION1_BASE}/oauth2/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: tokenBody
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.access_token) {
+    throw new Error(data.error_description || data.error || `Action1 authentication failed with HTTP ${response.status}.`);
+  }
+  return data.access_token;
+}
+
+async function action1Get(token, url) {
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json'
+    }
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.message || data.error_description || data.error || `Action1 request failed with HTTP ${response.status}.`);
+  }
+  return data;
+}
+
+async function action1GetAll(token, firstUrl) {
+  const rows = [];
+  let url = firstUrl;
+  let pages = 0;
+  while (url && pages < 50) {
+    const data = await action1Get(token, url);
+    const items = action1Items(data);
+    rows.push(...items);
+    pages += 1;
+
+    const nextUrl = data.next || data.next_link || data.nextLink || '';
+    if (nextUrl) {
+      url = String(nextUrl).startsWith('http') ? nextUrl : `${ACTION1_BASE}${nextUrl}`;
+      continue;
+    }
+
+    const from = Number(data.from);
+    const total = Number(data.total_items ?? data.totalItems ?? data.total);
+    if (Number.isFinite(from) && Number.isFinite(total) && from + items.length < total && items.length > 0) {
+      const nextFrom = from + items.length;
+      url = firstUrl.replace(/([?&])from=\d+/, `$1from=${nextFrom}`);
+      if (url === firstUrl && !/[?&]from=/.test(url)) url += `${url.includes('?') ? '&' : '?'}from=${nextFrom}`;
+      continue;
+    }
+
+    break;
+  }
+  return rows;
+}
+
 async function findAction1App(token) {
   const apps = await graphGetAll(
     token,
@@ -122,6 +194,27 @@ async function listDeviceGroups(settings) {
       securityEnabled: Boolean(group.securityEnabled)
     }))
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
+}
+
+async function listAction1EndpointGroups(credentials) {
+  const organizationId = credentials?.organizationId;
+  if (!organizationId) throw new Error('Action1 organization ID is required.');
+
+  const token = await getAction1Token(credentials);
+  const groups = await action1GetAll(
+    token,
+    `${ACTION1_BASE}/endpoints/groups/${encodeURIComponent(organizationId)}?limit=500&from=0`
+  );
+
+  return groups
+    .map(group => ({
+      id: String(group.id || group.group_id || group.groupId || group.name || '').trim(),
+      name: String(group.name || group.displayName || group.display_name || group.id || '').trim(),
+      description: String(group.description || '').trim(),
+      endpointCount: Number(group.endpoint_count ?? group.endpointCount ?? group.endpoints_count ?? group.count ?? 0)
+    }))
+    .filter(group => group.id && group.name)
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 async function validateAssignments(settings) {
@@ -201,6 +294,7 @@ async function validate({ settings }) {
 }
 
 module.exports = {
+  listAction1EndpointGroups,
   listDeviceGroups,
   validate,
   validateAssignments

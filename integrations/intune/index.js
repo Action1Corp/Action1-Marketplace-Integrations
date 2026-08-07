@@ -1,4 +1,4 @@
-const { listDeviceGroups, validate, validateAssignments } = require('./validate');
+const { listAction1EndpointGroups, listDeviceGroups, validate, validateAssignments } = require('./validate');
 const { sync } = require('./sync');
 
 function summarizeValidationResult(result) {
@@ -50,9 +50,19 @@ async function validateAssignmentsAction(context, request) {
   };
 }
 
+async function listAction1EndpointGroupsAction(context) {
+  const groups = await listAction1EndpointGroups(await context.action1.getCredentials());
+  return {
+    ok: true,
+    message: `Loaded ${groups.length} Action1 endpoint group${groups.length === 1 ? '' : 's'}.`,
+    groups
+  };
+}
+
 module.exports = {
   actions: {
     'validate-configuration': validateConfiguration,
+    'list-action1-endpoint-groups': listAction1EndpointGroupsAction,
     'list-device-groups': listDeviceGroupsAction,
     'validate-assignments': validateAssignmentsAction,
     sync: syncAction

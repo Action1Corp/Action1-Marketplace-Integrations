@@ -40,6 +40,16 @@
       "history": false
     },
     {
+      "id": "list-action1-endpoint-groups",
+      "kind": "read",
+      "label": "List Action1 Endpoint Groups",
+      "buttonLabel": "Load Endpoint Groups",
+      "runningLabel": "Loading...",
+      "description": "Reads available Action1 endpoint groups for provisioning status tracking.",
+      "placement": "settings",
+      "history": false
+    },
+    {
       "id": "sync",
       "kind": "sync",
       "label": "Check Agent Version",
