@@ -248,6 +248,11 @@ function Settings({ integration }) {
         {Object.entries(grouped).map(([groupName, fields]) => (
           <div key={groupName} className="glass-panel" style={{ marginBottom: '1.5rem' }}>
             <h3>{groupName}</h3>
+            {groupName === 'Action1 Enrollment' && (
+              <p style={{ marginTop: 0, color: '#4B5563', fontSize: '0.9rem', lineHeight: 1.45 }}>
+                Select the Intune devices that should receive the Action1 Agent.
+              </p>
+            )}
             {fields.filter(setting => !hiddenSettingKeys.has(setting.key)).map(setting => (
               <div key={setting.key} style={{ marginBottom: '1rem' }}>
                 <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 700 }}>{setting.label}{setting.required && <span style={{ color: '#DC2626' }}> *</span>}</label>
@@ -287,9 +292,6 @@ function Settings({ integration }) {
             ))}
             {groupName === 'Action1 Enrollment' && (
               <div style={{ marginTop: '0.5rem' }}>
-                <p style={{ marginTop: 0, color: '#4B5563', fontSize: '0.9rem', lineHeight: 1.45 }}>
-                  Select the Intune device groups whose devices should receive the Action1 Agent app.
-                </p>
                 {assignmentMode === 'selectedGroups' ? (
                   <>
                     <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '0.75rem' }}>

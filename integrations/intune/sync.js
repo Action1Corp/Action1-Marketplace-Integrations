@@ -16,9 +16,12 @@ const ACTION1_APP_PRIVACY_URL = 'https://www.action1.com/legal/privacy-policy/';
 const INTUNE_GRAPH_BASE = 'https://graph.microsoft.com/beta';
 const ASSIGNMENT_MODE_ALL_DEVICES = 'allDevices';
 const ASSIGNMENT_MODE_SELECTED_GROUPS = 'selectedGroups';
-const ACTION1_AUTOMATION_INSTANCE_LIMIT = 100;
 const ACTION1_AUTOMATION_ENDPOINT_RESULT_LIMIT = 500;
 const ACTION1_AUTOMATION_PAGE_LIMIT = 10;
+const ACTION1_AUTOMATION_INSTANCE_SCAN_LIMIT = 100;
+const ACTION1_API_MAX_RETRIES = 5;
+const ACTION1_API_BASE_BACKOFF_MS = 2000;
+const ACTION1_API_MAX_BACKOFF_MS = 60000;
 
 
 function updateProgress(details, status = 'Running') {
@@ -389,6 +392,47 @@ function formatEndpointDate(value) {
     return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toISOString();
 }
 
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function retryAfterMs(headers) {
+    const retryAfter = headers?.['retry-after'] || headers?.['Retry-After'];
+    if (!retryAfter) return 0;
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+    const retryDate = new Date(retryAfter);
+    const delta = retryDate.getTime() - Date.now();
+    return Number.isFinite(delta) ? Math.max(0, delta) : 0;
+}
+
+function action1BackoffDelay(error, attempt) {
+    const fromHeader = retryAfterMs(error?.response?.headers);
+    if (fromHeader > 0) return Math.min(fromHeader, ACTION1_API_MAX_BACKOFF_MS);
+    const exponential = ACTION1_API_BASE_BACKOFF_MS * Math.pow(2, attempt - 1);
+    const jitter = Math.floor(Math.random() * 1000);
+    return Math.min(exponential + jitter, ACTION1_API_MAX_BACKOFF_MS);
+}
+
+async function requestAction1(config, label = 'Action1 API request') {
+    let lastError;
+    for (let attempt = 1; attempt <= ACTION1_API_MAX_RETRIES + 1; attempt += 1) {
+        try {
+            if (typeof axios.request === 'function') return await axios.request(config);
+            return await axios(config);
+        } catch (error) {
+            lastError = error;
+            const status = error?.response?.status;
+            const shouldRetry = status === 429 || status === 503 || status === 504;
+            if (!shouldRetry || attempt > ACTION1_API_MAX_RETRIES) break;
+            const delay = action1BackoffDelay(error, attempt);
+            await updateProgress(`${label} returned HTTP ${status}. Retrying in ${Math.ceil(delay / 1000)}s (${attempt}/${ACTION1_API_MAX_RETRIES})...`);
+            await sleep(delay);
+        }
+    }
+    throw lastError;
+}
+
 async function fetchGraphCollection(graphHeaders, url) {
     const rows = [];
     let nextUrl = url;
@@ -405,15 +449,22 @@ async function getAction1Headers(action1ApiKey, action1ApiSecret) {
     tokenParams.append('client_id', action1ApiKey);
     tokenParams.append('client_secret', action1ApiSecret);
     tokenParams.append('grant_type', 'client_credentials');
-    const tokenRes = await axios.post('https://app.action1.com/api/3.0/oauth2/token', tokenParams, {
+    const tokenRes = await requestAction1({
+        method: 'post',
+        url: 'https://app.action1.com/api/3.0/oauth2/token',
+        data: tokenParams,
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-    });
+    }, 'Action1 token request');
     return { Authorization: `Bearer ${tokenRes.data.access_token}`, Accept: 'application/json' };
 }
 
 async function fetchAction1ManagedEndpoints(action1ApiKey, action1ApiSecret, action1OrgId) {
     const headers = await getAction1Headers(action1ApiKey, action1ApiSecret);
-    const response = await axios.get(`https://app.action1.com/api/3.0/endpoints/managed/${action1OrgId}?limit=9999`, { headers });
+    const response = await requestAction1({
+        method: 'get',
+        url: `https://app.action1.com/api/3.0/endpoints/managed/${action1OrgId}?limit=9999`,
+        headers
+    }, 'Action1 managed endpoints request');
     const payload = response.data;
     if (Array.isArray(payload)) return payload;
     return payload.items || payload.data || payload.endpoints || [];
@@ -429,7 +480,11 @@ async function fetchAction1Collection(headers, firstUrl, { limit = 500, pageLimi
     let url = firstUrl;
     let pages = 0;
     while (url && pages < pageLimit) {
-        const response = await axios.get(url, { headers });
+        const response = await requestAction1({
+            method: 'get',
+            url,
+            headers
+        }, 'Action1 collection request');
         const payload = response.data || {};
         const items = action1Items(payload);
         rows.push(...items);
@@ -465,15 +520,130 @@ function normalizeAutomationStatus(row, instance) {
     return '';
 }
 
-function summarizeProvisioningResults(results) {
-    if (!results.length) return { status: 'N/A', detail: '', automationResults: [] };
-    if (results.some(result => result.status === 'Failed')) return { status: 'Failed', detail: 'One or more Action1 automations failed.', automationResults: results };
-    if (results.some(result => result.status === 'In progress')) return { status: 'In progress', detail: 'One or more Action1 automations are still running.', automationResults: results };
-    if (results.every(result => result.status === 'Completed')) return { status: 'Completed', detail: 'All observed Action1 automations completed successfully.', automationResults: results };
-    return { status: 'N/A', detail: '', automationResults: results };
+function automationResultTime(result) {
+    const raw = firstString(result?.completedAt, result?.startedAt);
+    if (!raw) return 0;
+    const normalized = raw.replace(/^(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})$/, '$1T$2:$3:$4Z');
+    const parsed = Date.parse(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
 }
 
-async function fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecret, action1OrgId, endpointIds) {
+function latestProvisioningResults(results) {
+    const latestByAutomation = new Map();
+    for (const result of results) {
+        const automationKey = String(result.automationName || result.actionName || 'Unnamed automation').trim().toLowerCase();
+        const current = latestByAutomation.get(automationKey);
+        if (!current || automationResultTime(result) >= automationResultTime(current)) {
+            latestByAutomation.set(automationKey, result);
+        }
+    }
+    return Array.from(latestByAutomation.values()).sort((a, b) => automationResultTime(b) - automationResultTime(a));
+}
+
+function action1GroupIds(items = []) {
+    return (Array.isArray(items) ? items : [])
+        .filter(item => String(item?.type || '').toLowerCase() === 'endpointgroup' || item?.id)
+        .map(item => String(item?.id || item?.group_id || item?.groupId || '').trim())
+        .filter(Boolean);
+}
+
+function action1InstanceGroupIds(instance) {
+    return action1GroupIds(instance?.endpoints || instance?.endpoint_groups || instance?.endpointGroups || instance?.targets);
+}
+
+function action1InstanceScheduleKey(instance) {
+    const scheduleUrl = firstString(instance?.schedule);
+    if (scheduleUrl) return scheduleUrl;
+    const instanceId = firstString(instance?.id, instance?.instance_id, instance?.instanceId);
+    return instanceId.replace(/_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/, '') || firstString(instance?.name, 'Unnamed automation');
+}
+
+function parseAction1Time(value) {
+    const raw = firstString(value);
+    if (!raw) return 0;
+    const normalized = raw.replace(/^(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})$/, '$1T$2:$3:$4Z');
+    const parsed = Date.parse(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function action1InstanceTime(instance) {
+    return parseAction1Time(firstString(instance?.end_time, instance?.endTime, instance?.start_time, instance?.startTime));
+}
+
+function action1ScheduleFrequencyMinutes(schedule, instance) {
+    const settings = firstString(schedule?.settings);
+    const everyMatch = settings.match(/\bEVERY:(\d+)\b/i);
+    if (everyMatch) return Number(everyMatch[1]);
+
+    const lastRun = parseAction1Time(schedule?.last_run || schedule?.lastRun);
+    const nextRun = parseAction1Time(schedule?.next_run || schedule?.nextRun);
+    if (lastRun && nextRun && nextRun > lastRun) return Math.round((nextRun - lastRun) / 60000);
+
+    const retryMinutes = Number(firstString(schedule?.retry_minutes, schedule?.retryMinutes, instance?.retry_minutes, instance?.retryMinutes));
+    return Number.isFinite(retryMinutes) && retryMinutes > 0 ? retryMinutes : null;
+}
+
+async function fetchAction1Schedule(headers, scheduleUrl) {
+    if (!scheduleUrl) return null;
+    const response = await requestAction1({
+        method: 'get',
+        url: scheduleUrl,
+        headers
+    }, 'Action1 automation schedule request');
+    return response.data || null;
+}
+
+async function selectLatestProvisioningInstances(headers, instances, selectedAction1GroupIds = []) {
+    const selectedGroupSet = new Set(selectedAction1GroupIds.map(id => String(id || '').trim()).filter(Boolean));
+    if (!selectedGroupSet.size) return [];
+
+    const matchingInstances = instances.filter(instance => (
+        action1InstanceGroupIds(instance).some(groupId => selectedGroupSet.has(groupId))
+    ));
+    const scheduleCache = new Map();
+    const latestBySchedule = new Map();
+
+    for (const instance of matchingInstances) {
+        const scheduleUrl = firstString(instance?.schedule);
+        const scheduleKey = action1InstanceScheduleKey(instance);
+        let schedule = scheduleCache.get(scheduleKey);
+        if (!schedule && scheduleUrl) {
+            try {
+                schedule = await fetchAction1Schedule(headers, scheduleUrl);
+            } catch {
+                schedule = null;
+            }
+            scheduleCache.set(scheduleKey, schedule || null);
+        }
+
+        const scheduleGroups = action1GroupIds(schedule?.endpoints || schedule?.endpoint_groups || schedule?.endpointGroups || schedule?.targets);
+        if (scheduleGroups.length && !scheduleGroups.some(groupId => selectedGroupSet.has(groupId))) continue;
+
+        const frequencyMinutes = action1ScheduleFrequencyMinutes(schedule, instance);
+        const current = latestBySchedule.get(scheduleKey);
+        if (!current || action1InstanceTime(instance) >= action1InstanceTime(current.instance)) {
+            latestBySchedule.set(scheduleKey, {
+                instance,
+                schedule,
+                frequencyMinutes,
+                scheduleGroupIds: scheduleGroups.length ? scheduleGroups : action1InstanceGroupIds(instance)
+            });
+        }
+    }
+
+    return Array.from(latestBySchedule.values()).sort((a, b) => action1InstanceTime(b.instance) - action1InstanceTime(a.instance));
+}
+
+function summarizeProvisioningResults(results) {
+    const latestResults = latestProvisioningResults(results);
+    if (!latestResults.length) return { status: 'N/A', detail: '', automationResults: [] };
+    if (latestResults.some(result => result.status === 'Failed')) return { status: 'Failed', detail: 'One or more latest Action1 provisioning automation runs failed.', automationResults: latestResults };
+    if (latestResults.some(result => result.status === 'In progress')) return { status: 'In progress', detail: 'One or more Action1 provisioning automations are still running.', automationResults: latestResults };
+    if (latestResults.every(result => result.status === 'Completed')) return { status: 'Completed', detail: 'Latest Action1 provisioning automation runs completed successfully.', automationResults: latestResults };
+    return { status: 'N/A', detail: '', automationResults: latestResults };
+}
+
+async function fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecret, action1OrgId, endpointIds, selectedAction1GroupIds = []) {
     const targetIds = new Set(endpointIds.map(id => String(id || '').trim()).filter(Boolean));
     const provisioningByEndpoint = new Map();
     if (!targetIds.size) return provisioningByEndpoint;
@@ -481,11 +651,13 @@ async function fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecre
     const headers = await getAction1Headers(action1ApiKey, action1ApiSecret);
     const instances = await fetchAction1Collection(
         headers,
-        `https://app.action1.com/api/3.0/automations/instances/${encodeURIComponent(action1OrgId)}?sortby=${encodeURIComponent('-end_time')}&limit=${ACTION1_AUTOMATION_INSTANCE_LIMIT}&from=0`,
-        { limit: ACTION1_AUTOMATION_INSTANCE_LIMIT }
+        `https://app.action1.com/api/3.0/automations/instances/${encodeURIComponent(action1OrgId)}?sortby=${encodeURIComponent('-end_time')}&limit=${ACTION1_AUTOMATION_INSTANCE_SCAN_LIMIT}&from=0`,
+        { limit: ACTION1_AUTOMATION_INSTANCE_SCAN_LIMIT, pageLimit: 1 }
     );
+    const provisioningInstances = await selectLatestProvisioningInstances(headers, instances, selectedAction1GroupIds);
 
-    for (const instance of instances) {
+    for (const provisioningInstance of provisioningInstances) {
+        const instance = provisioningInstance.instance;
         const instanceId = firstString(instance?.id, instance?.instance_id, instance?.instanceId);
         if (!instanceId) continue;
         const results = await fetchAction1Collection(
@@ -506,7 +678,11 @@ async function fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecre
                 completedAt: firstString(result?.time, result?.end_time, result?.completed_at, instance?.end_time, instance?.completed_at),
                 actionName: firstString(result?.action_name, result?.actionName),
                 percentCompleted: firstString(result?.percent_completed, result?.percentCompleted, instance?.percent_completed),
-                statusDetail: firstString(result?.description, result?.details_text, result?.status_details, result?.statusDetail, result?.message, result?.error, result?.error_message, instance?.status_details)
+                statusDetail: firstString(result?.description, result?.details_text, result?.status_details, result?.statusDetail, result?.message, result?.error, result?.error_message, instance?.status_details),
+                runFrequencyMinutes: provisioningInstance.frequencyMinutes,
+                scheduleId: firstString(provisioningInstance.schedule?.id),
+                scheduleSettings: firstString(provisioningInstance.schedule?.settings),
+                provisioningEndpointGroups: provisioningInstance.scheduleGroupIds
             });
         }
     }
@@ -781,7 +957,7 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
         const targetAction1EndpointIds = endpoints
             .filter(endpoint => endpoint.inAssignmentTarget && endpoint.source === 'Synced' && endpoint.action1EndpointId)
             .map(endpoint => endpoint.action1EndpointId);
-        const provisioningByEndpoint = await fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecret, action1OrgId, targetAction1EndpointIds);
+        const provisioningByEndpoint = await fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecret, action1OrgId, targetAction1EndpointIds, selectedAction1GroupIds);
         for (const endpoint of endpoints) {
             if (endpoint.inAssignmentTarget && endpoint.source === 'Intune' && !endpoint.action1EndpointId) {
                 endpoint.provisioningStatus = 'Awaiting Enrollment';
@@ -815,9 +991,13 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
             }
         }
     }
+    const registrationStatus = provisioningStatus === 'failed' ? 'failed' : 'checked';
+    const registrationMessage = provisioningStatus === 'failed'
+        ? provisioningMessage
+        : `${registeredInAction1} of ${intuneTotal} Intune endpoints are registered in Action1.`;
     return {
-        status: 'checked',
-        message: `${registeredInAction1} of ${intuneTotal} Intune endpoints are registered in Action1.`,
+        status: registrationStatus,
+        message: registrationMessage,
         intuneTotal,
         assignmentTargetDeviceCount,
         assignmentTargetRegisteredInAction1,
@@ -979,6 +1159,18 @@ function compareVersions(v1, v2) {
     return 0;
 }
 
+async function getPreviousEndpointRegistration() {
+    try {
+        const previousData = JSON.parse(await getSetting('IntuneVersionData') || '{}');
+        const previousRegistration = previousData?.endpointRegistration;
+        return previousRegistration && Array.isArray(previousRegistration.endpoints)
+            ? previousRegistration
+            : null;
+    } catch {
+        return null;
+    }
+}
+
 async function runSync() {
     console.log('[Intune] Starting Intune Sync Engine...');
     try {
@@ -1135,6 +1327,7 @@ async function runSync() {
             }
         }
 
+        const previousEndpointRegistration = await getPreviousEndpointRegistration();
         let endpointRegistration = {
             status: 'not_checked',
             message: 'Endpoint registration was not checked.',
@@ -1158,12 +1351,28 @@ async function runSync() {
                 selectedAction1GroupIds,
                 selectedAction1GroupMap
             });
+            if (endpointRegistration.status === 'failed' && previousEndpointRegistration?.endpoints?.length) {
+                endpointRegistration = {
+                    ...previousEndpointRegistration,
+                    status: 'failed',
+                    message: endpointRegistration.message,
+                    provisioningStatus: endpointRegistration.provisioningStatus || 'failed',
+                    provisioningMessage: endpointRegistration.provisioningMessage || endpointRegistration.message,
+                    usingStaleEndpointData: true,
+                    staleEndpointDataReason: endpointRegistration.message
+                };
+            }
             await updateProgress(endpointRegistration.message);
         } catch (registrationError) {
+            const failureMessage = registrationError.response?.data?.error?.message || registrationError.message;
             endpointRegistration = {
-                ...endpointRegistration,
+                ...(previousEndpointRegistration?.endpoints?.length ? previousEndpointRegistration : endpointRegistration),
                 status: 'failed',
-                message: registrationError.response?.data?.error?.message || registrationError.message
+                message: failureMessage,
+                provisioningStatus: 'failed',
+                provisioningMessage: failureMessage,
+                usingStaleEndpointData: Boolean(previousEndpointRegistration?.endpoints?.length),
+                staleEndpointDataReason: failureMessage
             };
             await updateProgress(`Endpoint registration comparison failed: ${endpointRegistration.message}`);
         }
@@ -1193,8 +1402,18 @@ async function runSync() {
 
         await new Promise(r => db.run(`INSERT OR REPLACE INTO settings (key, value) VALUES ('IntuneVersionData', ?)`, [resultData], r));
         
-        const finalStatus = (action.includes('failed')) ? 'Failed' : 'Success';
-        await updateProgress(`Check complete. Action: ${action} | Latest: v${latestVersion} | Intune: v${intuneVersion} | Assignments: ${assignmentStatus}`, finalStatus);
+        const failureReasons = [];
+        if (action.includes('failed')) failureReasons.push(`Action failed: ${action}`);
+        if (assignmentStatus === 'failed') failureReasons.push(`Assignment failed: ${assignmentMessage}`);
+        if (endpointRegistration.status === 'failed') failureReasons.push(`Endpoint registration comparison failed: ${endpointRegistration.message}`);
+        if (endpointRegistration.provisioningStatus === 'failed' && endpointRegistration.provisioningMessage && endpointRegistration.provisioningMessage !== endpointRegistration.message) {
+            failureReasons.push(`Provisioning status failed: ${endpointRegistration.provisioningMessage}`);
+        }
+        const finalStatus = failureReasons.length ? 'Failed' : 'Success';
+        const finalMessage = failureReasons.length
+            ? `Check failed. ${failureReasons.join(' | ')}`
+            : `Check complete. Action: ${action} | Latest: v${latestVersion} | Intune: v${intuneVersion} | Assignments: ${assignmentStatus}`;
+        await updateProgress(finalMessage, finalStatus);
 
         const runId = await new Promise(r => db.get("SELECT id FROM sync_history WHERE integration_id = 'intune' ORDER BY id DESC LIMIT 1", (err, row) => r(row?.id)));
         if (runId) db.run(`UPDATE sync_history SET assets_processed = 0 WHERE id = ?`, [runId]);

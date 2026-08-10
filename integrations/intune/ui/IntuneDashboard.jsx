@@ -259,6 +259,8 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
     ? (endpointRegistration.missingFromAction1 > 0 ? '#f59e0b' : '#10b981')
     : registrationStatus === 'failed' ? '#ef4444' : '#6B7280';
   const groupMembershipLimited = endpointRegistration.groupMembershipStatus === 'limited_permissions';
+  const endpointFailureMessage = endpointRegistration.staleEndpointDataReason || endpointRegistration.provisioningMessage || endpointRegistration.message || '';
+  const endpointDataStale = registrationStatus === 'failed' && endpointRegistration.usingStaleEndpointData;
 
   const statusConfig = {
     up_to_date: { label: 'Up to Date', color: '#10b981' },
@@ -366,6 +368,13 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
             </div>
             {groupMembershipLimited && (
               <div style={{ fontSize: '0.85rem', color: '#B45309', marginBottom: '1rem' }}>{endpointRegistration.groupMembershipMessage}</div>
+            )}
+            {registrationStatus === 'failed' && endpointFailureMessage && (
+              <div style={{ padding: '0.85rem 1rem', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, color: '#991B1B', fontSize: '0.85rem', marginBottom: '1rem' }}>
+                {endpointDataStale
+                  ? `Latest endpoint status refresh failed: ${endpointFailureMessage}. Showing the last successfully loaded endpoint details.`
+                  : `Endpoint details could not be loaded: ${endpointFailureMessage}`}
+              </div>
             )}
 
             {endpointRows.length > 0 ? (
@@ -493,7 +502,9 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
               </div>
             ) : (
               <div style={{ padding: '1rem', background: '#F9FAFB', borderRadius: 8, color: '#6B7280', fontSize: '0.85rem' }}>
-                Endpoint details will appear after a successful check with Action1 API credentials configured.
+                {registrationStatus === 'failed' && endpointFailureMessage
+                  ? `Endpoint details could not be loaded: ${endpointFailureMessage}`
+                  : 'Endpoint details will appear after a successful check with Action1 API credentials configured.'}
               </div>
             )}
           </div>
