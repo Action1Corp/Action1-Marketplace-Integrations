@@ -2,7 +2,7 @@
   "id": "intune",
   "name": "Microsoft Intune",
   "vendor": "Microsoft",
-  "version": "1.0.25",
+  "version": "1.0.0",
   "marketplaceApiVersion": "1.0",
   "minimumMarketplaceVersion": "1.0.0",
   "description": "Sync Intune managed devices and compliance status with Action1.",

@@ -31,7 +31,7 @@ The integration uses the Microsoft identity platform client credentials flow, so
 
 ## Assignment Options
 
-The Action1 Agent Assignments settings support two target modes:
+The Action1 Enrollment settings support two target modes:
 
 - All devices - the single Action1 Agent Win32 app is assigned as a required install to Intune All devices.
 - Selected device groups - the single Action1 Agent Win32 app is assigned as a required install to each selected Intune device group.

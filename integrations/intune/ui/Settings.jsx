@@ -285,7 +285,7 @@ function Settings({ integration }) {
                 {storedSecrets[setting.key] && <div style={{ marginTop: '0.3rem', fontSize: '0.78rem', color: '#6B7280' }}>A secret value is stored. Keep *** to leave it unchanged.</div>}
               </div>
             ))}
-            {groupName === 'Action1 Agent Assignments' && (
+            {groupName === 'Action1 Enrollment' && (
               <div style={{ marginTop: '0.5rem' }}>
                 <p style={{ marginTop: 0, color: '#4B5563', fontSize: '0.9rem', lineHeight: 1.45 }}>
                   Select the Intune device groups whose devices should receive the Action1 Agent app.
