@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "publishedAt": "2026-08-07T16:03:02.948Z",
+  "publishedAt": "2026-08-10T14:00:26.284Z",
   "integrations": [
     {
       "id": "defender",
@@ -13,8 +13,8 @@
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-13/action1-integration-defender-1.0.3.tgz",
-        "sha256": "54115f27175d944d6a9e1fc77d795caee296cecf867179dea56e28b112c94fc8",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-14/action1-integration-defender-1.0.3.tgz",
+        "sha256": "2319e3c039416dbc318fe8065add21d9d4bab3f4c2adfc2c50522a1ce38da771",
         "signatureUrl": ""
       }
     },
@@ -29,8 +29,8 @@
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-13/action1-integration-entra-id-1.0.0.tgz",
-        "sha256": "1f5df6a48d8516d62323fbf89cee5dcf7fc6c04a1a87b1ddc01ae3dcfd2f21f3",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-14/action1-integration-entra-id-1.0.0.tgz",
+        "sha256": "20ea8c2906523f503f1ce2f9c25ab41b7b2874ffdde892ebf93bdabc4ef21b8e",
         "signatureUrl": ""
       }
     },
@@ -45,8 +45,8 @@
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-13/action1-integration-halo-psa-1.0.0.tgz",
-        "sha256": "e388a5f967cee9fbd92041b39bd1aa71a6587f3a7f7b449789ae85091223798e",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-14/action1-integration-halo-psa-1.0.0.tgz",
+        "sha256": "808b42df4c21b47e0b4c780f7156a5628c851a13a576b842f325c6a11763b15c",
         "signatureUrl": ""
       }
     },
@@ -56,13 +56,13 @@
       "vendor": "Microsoft",
       "description": "Sync Intune managed devices and compliance status with Action1.",
       "category": "Endpoint Management",
-      "latestVersion": "1.0.25",
+      "latestVersion": "1.0.0",
       "minimumMarketplaceVersion": "1.0.0",
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-13/action1-integration-intune-1.0.25.tgz",
-        "sha256": "3bafed86f4341d59b70d3e52f7afa18f69d7abc2cc098b58c57d68f7770361b4",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-14/action1-integration-intune-1.0.0.tgz",
+        "sha256": "4a288624c77a727ad531203844bc9400b88b838e6bc3f132672c5e67d125c5d3",
         "signatureUrl": ""
       }
     },
@@ -77,8 +77,8 @@
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-13/action1-integration-jira-cloud-1.0.0.tgz",
-        "sha256": "9703cec2fbaf10988741636e41a27afd9371afa8eb83b0cf15c08696f2a3a9d8",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-14/action1-integration-jira-cloud-1.0.0.tgz",
+        "sha256": "4a57c6537ad7b5c88e0747532cdca3a897cf60732c6003cd7672d29cdad0573e",
         "signatureUrl": ""
       }
     },
@@ -93,8 +93,8 @@
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-13/action1-integration-qualys-1.0.3.tgz",
-        "sha256": "729f231bf650e168751f9582c2c4f4bbed2dc92427097191b9b42493d9e6fd90",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-14/action1-integration-qualys-1.0.3.tgz",
+        "sha256": "359e2b90a58f93a6577e451053c9fe3d48475946f547cff3d720f6b9986a3809",
         "signatureUrl": ""
       }
     },
@@ -109,8 +109,8 @@
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-13/action1-integration-rapid7-1.0.3.tgz",
-        "sha256": "d9a31c006f54011cc0b16fde605eb67ea809340acb5c86bc56a884b4dc85aa32",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-14/action1-integration-rapid7-1.0.3.tgz",
+        "sha256": "cb2373643be5f167361ba43911604a4a99799fc2426e372d76e1cd87e988c1ca",
         "signatureUrl": ""
       }
     },
@@ -125,8 +125,8 @@
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-13/action1-integration-tenable-1.0.3.tgz",
-        "sha256": "53084f0773f4a802e5506720f0a65774009798b1a99fd42474ef8d9c823295f9",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-14/action1-integration-tenable-1.0.3.tgz",
+        "sha256": "e956100b28b65d0fc0a3d4b972d595e9dccd87eb845ae1abc676b280a2764dcc",
         "signatureUrl": ""
       }
     }
