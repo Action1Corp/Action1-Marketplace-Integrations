@@ -8,6 +8,8 @@ import PolicyEditorView from './PolicyEditorView.jsx';
 import PolicyListView from './PolicyListView.jsx';
 import {
   destructivePrimaryButtonStyle,
+  pageSurfaceStyle,
+  policyUiTokens,
   primaryButtonStyle,
   secondaryButtonStyle
 } from './policyUiStyles.js';
@@ -18,7 +20,7 @@ import { deriveDisplayName } from './policyViewModel.js';
 const styles = {
   shell: {
     width: '100%',
-    maxWidth: 820,
+    maxWidth: 960,
     margin: '0 auto',
     display: 'grid',
     gap: '0.75rem'
@@ -28,14 +30,9 @@ const styles = {
   },
   description: {
     margin: 0,
-    color: 'var(--text-secondary)'
-  },
-  banner: {
-    border: '1px solid var(--border-color, #d7dee8)',
-    borderRadius: 12,
-    padding: '0.85rem 1rem',
-    background: '#f5f9ff',
-    color: '#38506a'
+    color: policyUiTokens.textSecondary,
+    fontSize: policyUiTokens.fontSizes.body,
+    lineHeight: 1.5
   },
   dialogBackdrop: {
     position: 'fixed',
@@ -47,24 +44,24 @@ const styles = {
     zIndex: 20
   },
   dialogCard: {
+    ...pageSurfaceStyle,
     width: '100%',
     maxWidth: 520,
-    border: '1px solid var(--border-color, #d7dee8)',
-    borderRadius: 14,
-    background: '#ffffff',
     padding: '1rem',
     display: 'grid',
     gap: '0.75rem',
-    boxShadow: '0 18px 48px rgba(15, 23, 42, 0.12)'
+    boxShadow: policyUiTokens.shadowOverlay
   },
   dialogTitle: {
     margin: 0,
-    fontSize: '1.08rem',
-    color: '#16314a'
+    fontSize: policyUiTokens.fontSizes.section,
+    fontWeight: 600,
+    color: policyUiTokens.textPrimary
   },
   dialogText: {
     margin: 0,
-    color: '#4a627d',
+    color: policyUiTokens.textSecondary,
+    fontSize: policyUiTokens.fontSizes.label,
     lineHeight: 1.5
   },
   dialogActions: {
@@ -182,14 +179,14 @@ function attachPolicyMetrics(policy) {
 
 function formatLifecycleMessage(kind, policy) {
   if (kind === 'enable') {
-    return `Restore the demo Action1 automations for ${policy.displayName}.`;
+    return `Restore the Action1 automations for ${policy.displayName}.`;
   }
 
   if (kind === 'disable') {
-    return `Disable ${policy.displayName}. The Policy remains available, and its demo Action1 automations are removed.`;
+    return `Disable ${policy.displayName}. The Policy remains available, and its Action1 automations are removed.`;
   }
 
-  return `Delete ${policy.displayName}. This removes the Policy and its demo Action1 automations.`;
+  return `Delete ${policy.displayName}. This removes the Policy and its Action1 automations.`;
 }
 
 function PolicyPage({ integration }) {
@@ -335,7 +332,6 @@ function PolicyPage({ integration }) {
       <p style={styles.description}>
         Create and manage Windows configuration policies that assess and remediate endpoints through scheduled Action1 automations.
       </p>
-      <div style={styles.banner}>Demo state resets when the Marketplace page is refreshed.</div>
       {mode.kind === 'list' ? (
         <PolicyListView
           policies={policies}

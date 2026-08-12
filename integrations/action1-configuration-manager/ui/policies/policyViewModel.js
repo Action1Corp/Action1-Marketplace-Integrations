@@ -49,7 +49,7 @@ function formatBooleanParameter(parameter, value) {
   return value ? 'On' : 'Off';
 }
 
-function formatParameterValue(parameter, value) {
+export function formatParameterValue(parameter, value) {
   if (value === undefined || value === null || value === '') {
     return '';
   }
@@ -75,18 +75,27 @@ function formatParameterValue(parameter, value) {
   return String(value);
 }
 
-function buildControlFamilyGroups(policy, catalog) {
+function buildCompactControlChips(control, selectedControl) {
+  return (control.parameters || [])
+    .filter((parameter) => Object.prototype.hasOwnProperty.call(selectedControl.parameters || {}, parameter.id))
+    .map((parameter) => ({
+      label: parameter.label,
+      value: formatParameterValue(parameter, selectedControl.parameters?.[parameter.id])
+    }))
+    .filter((parameter) => parameter.value !== '');
+}
+
+export function buildCompactControlFamilyGroups({ selectedControls, action1Automations = [], catalog }) {
   if (!catalog) {
     return [];
   }
 
-  const action1Automations = Array.isArray(policy.action1Automations) ? policy.action1Automations : [];
   const automationRowsByFamilyName = new Map(
     action1Automations.map((automationRow) => [automationRow.controlFamilyName, automationRow])
   );
   const groups = new Map();
 
-  for (const selectedControl of Array.isArray(policy.selectedControls) ? policy.selectedControls : []) {
+  for (const selectedControl of Array.isArray(selectedControls) ? selectedControls : []) {
     const control = catalog.controlsById?.[selectedControl.controlId];
     const controlFamily = catalog.controlFamiliesById?.[selectedControl.automationGroupId];
 
@@ -96,23 +105,21 @@ function buildControlFamilyGroups(policy, catalog) {
 
     if (!groups.has(controlFamily.automationGroupId)) {
       groups.set(controlFamily.automationGroupId, {
+        automationGroupId: controlFamily.automationGroupId,
         familyId: controlFamily.automationGroupId,
         familyName: controlFamily.name,
         automationLink: automationRowsByFamilyName.get(controlFamily.name) || null,
+        selectedCount: 0,
         controls: []
       });
     }
 
-    groups.get(controlFamily.automationGroupId).controls.push({
+    const group = groups.get(controlFamily.automationGroupId);
+    group.selectedCount += 1;
+    group.controls.push({
+      controlKey: `${controlFamily.automationGroupId}:${control.name}`,
       controlName: control.name,
-      controlDescription: control.description,
-      parameters: (control.parameters || [])
-        .filter((parameter) => Object.prototype.hasOwnProperty.call(selectedControl.parameters || {}, parameter.id))
-        .map((parameter) => ({
-          label: parameter.label,
-          value: formatParameterValue(parameter, selectedControl.parameters?.[parameter.id])
-        }))
-        .filter((parameter) => parameter.value !== '')
+      chips: buildCompactControlChips(control, selectedControl)
     });
   }
 
@@ -153,6 +160,10 @@ export function formatPolicyDetails(policy, catalog) {
     controlFamiliesCountLabel: formatCountLabel(policy.selectedFamilyCount || 0, 'Control Family', 'Control Families'),
     automationsCountLabel: formatCountLabel(policy.expectedAutomationCount || 0, 'Action1 automation'),
     automationRows: action1Automations,
-    controlFamilyGroups: buildControlFamilyGroups(policy, catalog)
+    controlFamilyGroups: buildCompactControlFamilyGroups({
+      selectedControls,
+      action1Automations,
+      catalog
+    })
   };
 }

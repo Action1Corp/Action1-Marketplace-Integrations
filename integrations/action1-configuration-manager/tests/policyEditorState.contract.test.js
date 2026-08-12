@@ -14,6 +14,10 @@ async function run() {
     createPolicyDraft,
     createDraftFromPolicy,
     applyControlSelection,
+    applyBaselineSelection,
+    createWizardState,
+    createInitialWizardState,
+    getVisibleWizardControls,
     updateControlParameter,
     updateRunEveryHours,
     updateCompletionDeadline,
@@ -62,6 +66,20 @@ async function run() {
     'deriveDisplayName should append the scope name with an em dash'
   );
 
+  const wizardState = createWizardState();
+  assert.strictEqual(wizardState.currentStep, 1, 'wizard state should start on step 1');
+  assert.strictEqual(wizardState.selectedBaselineId, '', 'wizard state should start with no selected baseline');
+  assert.strictEqual(wizardState.appliedBaselineId, '', 'wizard state should start with no applied baseline');
+  assert.strictEqual(wizardState.selectedOnly, false, 'wizard state should not default to Selected only');
+  assert.strictEqual(wizardState.inBaselineOnly, false, 'wizard state should not default to In baseline only');
+
+  const createWizardDefaults = createInitialWizardState({ isEditMode: false });
+  assert.strictEqual(
+    createWizardDefaults.selectedOnly,
+    false,
+    'create wizard initialization should preserve the full-catalog default on the Controls step'
+  );
+
   const control = catalog.controlsById['identity.password.minimum-length'];
   const selectedDraft = applyControlSelection(createDraft, control, true, catalog);
   assert.strictEqual(selectedDraft.selectedControls.length, 1, 'selecting a control should add it to the draft');
@@ -80,6 +98,68 @@ async function run() {
 
   const deselectedDraft = applyControlSelection(updatedDraft, control, false, catalog);
   assert.strictEqual(deselectedDraft.selectedControls.length, 0, 'deselecting a control should remove it from the draft');
+
+  const manualControl = catalog.controlsById['identity.sign-in.require-secure-attention'];
+  const manualSelectedDraft = applyControlSelection(createDraft, manualControl, true, catalog);
+  const baselineAppliedDraft = applyBaselineSelection(
+    manualSelectedDraft,
+    catalog,
+    catalog.baselines,
+    'microsoft-windows-11-25h2'
+  );
+  const secureAttentionSelection = baselineAppliedDraft.selectedControls.find((entry) => entry.controlId === 'identity.sign-in.require-secure-attention');
+  const minimumLengthSelection = baselineAppliedDraft.selectedControls.find((entry) => entry.controlId === 'identity.password.minimum-length');
+
+  assert(secureAttentionSelection, 'applying a baseline should preserve an existing manual selection that is not in the baseline');
+  assert(minimumLengthSelection, 'applying a baseline should add mapped baseline controls to the selection');
+  assert.deepStrictEqual(
+    minimumLengthSelection.parameters,
+    { minimumLength: 14 },
+    'applying a baseline should materialize the baseline recommended parameters for mapped controls'
+  );
+
+  const overriddenBaselineDraft = updateControlParameter(
+    baselineAppliedDraft,
+    'identity.password.minimum-length',
+    'minimumLength',
+    20
+  );
+  const reAppliedBaselineDraft = applyBaselineSelection(
+    overriddenBaselineDraft,
+    catalog,
+    catalog.baselines,
+    'microsoft-windows-11-25h2'
+  );
+  assert.strictEqual(
+    reAppliedBaselineDraft.selectedControls.find((entry) => entry.controlId === 'identity.password.minimum-length').parameters.minimumLength,
+    14,
+    'reapplying a baseline should replace the effective parameter values for mapped controls'
+  );
+
+  const visibleControlsBeforeApply = getVisibleWizardControls(catalog, manualSelectedDraft, {
+    searchTerm: '',
+    selectedOnly: false,
+    inBaselineOnly: true,
+    selectedBaselineId: 'microsoft-windows-11-25h2'
+  });
+  assert(
+    visibleControlsBeforeApply.some((entry) => entry.control.controlId === 'identity.password.minimum-length') &&
+      !visibleControlsBeforeApply.some((entry) => entry.control.controlId === 'identity.sign-in.require-secure-attention'),
+    'In baseline only should be a visibility filter against the selected baseline even before Apply'
+  );
+
+  const selectedOnlyVisibleControls = getVisibleWizardControls(catalog, baselineAppliedDraft, {
+    searchTerm: '',
+    selectedOnly: true,
+    inBaselineOnly: false,
+    selectedBaselineId: ''
+  });
+  assert(
+    selectedOnlyVisibleControls.every((entry) =>
+      baselineAppliedDraft.selectedControls.some((selectedControl) => selectedControl.controlId === entry.control.controlId)
+    ),
+    'Selected only should restrict the visible Controls to the current selection'
+  );
 
   const initialOpenFamilies = getInitialOpenControlFamilies(createDraft, catalog);
   assert.strictEqual(
@@ -107,7 +187,7 @@ async function run() {
     },
     completionDeadlineMinutes: 360,
     controlPackId: 'windows-endpoint-configuration',
-    controlPackVersion: '0.1.0',
+    controlPackVersion: '0.5.0',
     selectedControls: [
       {
         controlId: control.controlId,
@@ -132,6 +212,13 @@ async function run() {
     editOpenFamilies['identity.password-policy'],
     true,
     'selected Control Families should start expanded when reopening an existing Policy'
+  );
+
+  const editWizardDefaults = createInitialWizardState({ isEditMode: true });
+  assert.strictEqual(
+    editWizardDefaults.selectedOnly,
+    true,
+    'edit wizard initialization should default the Controls step to Selected only so operators first see managed Controls'
   );
 }
 

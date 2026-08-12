@@ -1,5 +1,5 @@
 # Action1 Configuration Manager Control Pack
-# Pack: Windows Endpoint Configuration (windows-endpoint-configuration) v0.1.0
+# Pack: Windows Endpoint Configuration (windows-endpoint-configuration) v0.2.0
 # Automation Group: Password Policy (identity.password-policy) v0.1.0
 # Contains: 4 fixed Control implementation(s)
 # The embedded Policy configuration selects which included Controls execute.
@@ -1556,14 +1556,21 @@ function Invoke-A1CMRemovableStoragePolicyControl {
         [string]$RegistryValueName,
 
         [Parameter(Mandatory)]
-        [int]$DesiredValue
+        [int]$DesiredValue,
+
+        [Parameter(Mandatory)]
+        [string]$AccessDescription,
+
+        [Parameter(Mandatory)]
+        [ValidateSet('Allow', 'Deny')]
+        [string]$DesiredState
     )
 
     if ($env:A1CM_TEST_FAIL_CONTROL -and $env:A1CM_TEST_FAIL_CONTROL -eq $Context.ControlId) {
         throw "Injected technical failure for $($Context.ControlId)."
     }
 
-    $friendlyName = $Context.ControlName.ToLowerInvariant()
+    $configuredVerb = if ($DesiredState -eq 'Deny') { 'denies' } else { 'allows' }
 
     Invoke-A1CMConfiguredControl `
         -Context $Context `
@@ -1571,10 +1578,10 @@ function Invoke-A1CMRemovableStoragePolicyControl {
             $value = Get-A1CMRegistryPolicyValue -RegistryPath $RegistryPath -ValueName $RegistryValueName
             [PSCustomObject]@{
                 IsCompliant                         = ($value -eq $DesiredValue)
-                CompliantMessage                   = "Configured machine policy already denies $friendlyName. Live enforcement may still require policy refresh or restart."
-                NonCompliantMessage                = "Configured machine policy does not yet deny $friendlyName. ASSESS_ONLY did not modify the endpoint."
-                RemediatedMessage                  = "Configured machine policy now denies $friendlyName. Live enforcement may still require policy refresh or restart."
-                PostRemediationNonCompliantMessage = "Configured machine policy still does not deny $friendlyName after one remediation attempt."
+                CompliantMessage                   = "Configured machine policy already $configuredVerb $AccessDescription. Live enforcement may still require policy refresh or restart."
+                NonCompliantMessage                = "Configured machine policy does not yet $($DesiredState.ToLowerInvariant()) $AccessDescription. ASSESS_ONLY did not modify the endpoint."
+                RemediatedMessage                  = "Configured machine policy now $configuredVerb $AccessDescription. Live enforcement may still require policy refresh or restart."
+                PostRemediationNonCompliantMessage = "Configured machine policy still does not $($DesiredState.ToLowerInvariant()) $AccessDescription after one remediation attempt."
             }
         } `
         -Remediate {

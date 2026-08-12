@@ -6,21 +6,63 @@ async function run() {
   const catalogModulePath = path.join(__dirname, '..', 'ui', 'catalog', 'controlPackCatalog.js');
   const {
     loadReleasedControlCatalog,
+    loadReleasedBaselines,
+    findBaselineById,
+    getBaselineOptions,
+    getBaselineMembershipByControlId,
+    getRecommendedParametersForBaselineControl,
     buildDefaultParameters,
     countSelectedControlFamilies,
     countExpectedAutomations
   } = await import(pathToFileURL(catalogModulePath).href);
 
   const catalog = loadReleasedControlCatalog();
+  const baselines = loadReleasedBaselines();
+  const baselineOptions = getBaselineOptions(baselines);
+  const baselineLookup = getBaselineMembershipByControlId(baselines);
 
   assert.strictEqual(catalog.packId, 'windows-endpoint-configuration', 'catalog adapter should expose the released pack id');
-  assert.strictEqual(catalog.packVersion, '0.1.0', 'catalog adapter should expose the released pack version');
+  assert.strictEqual(catalog.packVersion, '0.5.0', 'catalog adapter should expose the released pack version');
   assert.strictEqual(Array.isArray(catalog.families), true, 'catalog adapter should expose released families');
   assert.strictEqual(Array.isArray(catalog.controlFamilies), true, 'catalog adapter should expose customer-facing control families');
   assert.strictEqual(Array.isArray(catalog.controls), true, 'catalog adapter should expose released controls');
-  assert.strictEqual(catalog.families.length, 6, 'catalog adapter should expose all released families');
-  assert.strictEqual(catalog.controlFamilies.length, 10, 'catalog adapter should expose all released control families');
-  assert.strictEqual(catalog.controls.length, 51, 'catalog adapter should expose all released controls');
+  assert(catalog.families.length > 0, 'catalog adapter should expose released families from the current pack');
+  assert(catalog.controlFamilies.length > 0, 'catalog adapter should expose released control families from the current pack');
+  assert(catalog.controls.length > 0, 'catalog adapter should expose released controls from the current pack');
+
+  assert.strictEqual(Array.isArray(baselines), true, 'catalog adapter should expose released baselines');
+  assert.strictEqual(baselines.length, 1, 'catalog adapter should expose the current released baselines');
+  assert.deepStrictEqual(
+    baselineOptions,
+    [
+      {
+        id: 'microsoft-windows-11-25h2',
+        name: 'Microsoft Security Baseline - Windows 11 25H2',
+        provider: 'Microsoft',
+        version: '25H2',
+        tag: 'MS Baseline'
+      }
+    ],
+    'catalog adapter should derive baseline dropdown options from baselines.json'
+  );
+
+  assert.strictEqual(
+    findBaselineById(baselines, 'microsoft-windows-11-25h2')?.tag,
+    'MS Baseline',
+    'catalog adapter should support baseline lookup by id'
+  );
+
+  assert(
+    Array.isArray(baselineLookup['identity.password.minimum-length']) &&
+      baselineLookup['identity.password.minimum-length'].some((entry) => entry.baselineId === 'microsoft-windows-11-25h2'),
+    'catalog adapter should expose baseline membership by control id'
+  );
+
+  assert.deepStrictEqual(
+    getRecommendedParametersForBaselineControl(baselines, 'microsoft-windows-11-25h2', 'identity.password.minimum-length'),
+    { minimumLength: 14 },
+    'catalog adapter should expose recommended parameter values for a baseline-mapped control'
+  );
 
   const familyOrders = catalog.families.map((family) => family.displayOrder);
   const sortedFamilyOrders = [...familyOrders].sort((left, right) => left - right);

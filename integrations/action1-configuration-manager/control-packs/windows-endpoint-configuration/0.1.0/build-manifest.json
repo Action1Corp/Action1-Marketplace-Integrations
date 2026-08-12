@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "packId": "windows-endpoint-configuration",
-  "packVersion": "0.1.0",
+  "packVersion": "0.2.0",
   "sourceDefinitionPath": "pack-definitions/windows-endpoint-configuration/composition.yaml",
   "sourcePackPath": "pack-definitions/windows-endpoint-configuration/pack.json",
   "builderVersion": "0.1.0",
@@ -52,23 +52,23 @@
     },
     {
       "controlId": "devices.portable-devices.block-read",
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     {
       "controlId": "devices.portable-devices.block-write",
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     {
       "controlId": "devices.removable-storage.block-execution",
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     {
       "controlId": "devices.removable-storage.block-read",
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     {
       "controlId": "devices.removable-storage.block-write",
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     {
       "controlId": "firewall.default-inbound-action",
@@ -222,7 +222,7 @@
     },
     {
       "automationGroupId": "devices.removable-storage",
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     {
       "automationGroupId": "firewall.profiles",
@@ -257,20 +257,20 @@
     "MOCK_VALIDATED"
   ],
   "generatedArtifacts": [
-    "dist/windows-endpoint-configuration/0.1.0/build-manifest.json",
-    "dist/windows-endpoint-configuration/0.1.0/bundles/defender.protection.bundle.ps1",
-    "dist/windows-endpoint-configuration/0.1.0/bundles/defender.scanning.bundle.ps1",
-    "dist/windows-endpoint-configuration/0.1.0/bundles/devices.removable-storage.bundle.ps1",
-    "dist/windows-endpoint-configuration/0.1.0/bundles/firewall.profiles.bundle.ps1",
-    "dist/windows-endpoint-configuration/0.1.0/bundles/identity.account-lockout.bundle.ps1",
-    "dist/windows-endpoint-configuration/0.1.0/bundles/identity.interactive-sign-in.bundle.ps1",
-    "dist/windows-endpoint-configuration/0.1.0/bundles/identity.password-policy.bundle.ps1",
-    "dist/windows-endpoint-configuration/0.1.0/bundles/privacy.windows-experience.bundle.ps1",
-    "dist/windows-endpoint-configuration/0.1.0/bundles/remote-desktop.security.bundle.ps1",
-    "dist/windows-endpoint-configuration/0.1.0/bundles/smb.security.bundle.ps1",
-    "dist/windows-endpoint-configuration/0.1.0/control-catalog.json",
-    "dist/windows-endpoint-configuration/0.1.0/pack.json",
-    "dist/windows-endpoint-configuration/0.1.0/samples/identity.password-policy.assess-and-remediate.ps1",
-    "dist/windows-endpoint-configuration/0.1.0/samples/identity.password-policy.assess-only.ps1"
+    "dist/windows-endpoint-configuration/0.2.0/build-manifest.json",
+    "dist/windows-endpoint-configuration/0.2.0/bundles/defender.protection.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.2.0/bundles/defender.scanning.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.2.0/bundles/devices.removable-storage.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.2.0/bundles/firewall.profiles.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.2.0/bundles/identity.account-lockout.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.2.0/bundles/identity.interactive-sign-in.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.2.0/bundles/identity.password-policy.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.2.0/bundles/privacy.windows-experience.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.2.0/bundles/remote-desktop.security.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.2.0/bundles/smb.security.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.2.0/control-catalog.json",
+    "dist/windows-endpoint-configuration/0.2.0/pack.json",
+    "dist/windows-endpoint-configuration/0.2.0/samples/identity.password-policy.assess-and-remediate.ps1",
+    "dist/windows-endpoint-configuration/0.2.0/samples/identity.password-policy.assess-only.ps1"
   ]
 }

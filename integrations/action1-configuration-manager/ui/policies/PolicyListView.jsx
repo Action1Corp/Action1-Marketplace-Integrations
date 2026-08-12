@@ -1,6 +1,11 @@
+import { useState } from 'react';
 import PolicyActionMenu from './PolicyActionMenu.jsx';
 import {
-  primaryButtonStyle
+  getStatusBadgeStyle,
+  pageSurfaceStyle,
+  policyUiTokens,
+  primaryButtonStyle,
+  scheduleChipStyle
 } from './policyUiStyles.js';
 import { formatPolicyListRow, getPolicyRowActions } from './policyViewModel.js';
 
@@ -15,78 +20,99 @@ const styles = {
     alignItems: 'center',
     gap: '0.75rem'
   },
+  createButton: {
+    ...primaryButtonStyle
+  },
   table: {
+    ...pageSurfaceStyle,
     width: '100%',
-    borderCollapse: 'collapse',
-    background: '#ffffff',
-    border: '1px solid var(--border-color, #d7dee8)',
-    borderRadius: 14
+    borderCollapse: 'separate',
+    borderSpacing: 0,
+    overflow: 'hidden'
   },
   headerCell: {
-    padding: '0.72rem 0.8rem',
+    padding: '0.75rem 0.8rem',
     textAlign: 'left',
-    fontSize: '0.82rem',
+    fontSize: policyUiTokens.fontSizes.hint,
     fontWeight: 600,
-    color: '#5a6f84',
-    borderBottom: '1px solid var(--border-color, #d7dee8)',
-    background: '#f8fbff'
+    color: policyUiTokens.textMuted,
+    borderBottom: `1px solid ${policyUiTokens.borderColor}`,
+    background: policyUiTokens.surfaceBackground
   },
   cell: {
-    padding: '0.8rem',
+    padding: '0.7rem 0.8rem',
     textAlign: 'left',
-    verticalAlign: 'top',
-    borderTop: '1px solid var(--border-color, #e5ebf3)'
+    verticalAlign: 'middle',
+    borderBottom: `1px solid ${policyUiTokens.borderColor}`,
+    background: policyUiTokens.surfaceBackground
+  },
+  hoveredCell: {
+    background: policyUiTokens.mutedBackground
+  },
+  lastRowCell: {
+    borderBottom: 'none'
   },
   policyName: {
     margin: 0,
-    fontSize: '0.96rem',
+    fontSize: policyUiTokens.fontSizes.label,
     fontWeight: 600,
-    color: '#16314a',
+    color: policyUiTokens.textPrimary,
     lineHeight: 1.35,
     wordBreak: 'break-word'
   },
   valueText: {
     margin: 0,
-    fontSize: '0.94rem',
+    fontSize: policyUiTokens.fontSizes.label,
     fontWeight: 400,
-    color: '#23384c',
+    color: policyUiTokens.textPrimary,
     lineHeight: 1.35
   },
-  valueTextMuted: {
-    margin: '0.16rem 0 0',
-    fontSize: '0.89rem',
+  targetScope: {
+    margin: '0.14rem 0 0',
+    fontSize: policyUiTokens.fontSizes.hint,
     fontWeight: 400,
-    color: '#5a6f84',
+    color: policyUiTokens.textMuted,
     lineHeight: 1.35
   },
-  statusText: {
-    margin: 0,
-    fontSize: '0.94rem',
-    fontWeight: 500,
-    color: '#16314a',
-    lineHeight: 1.35
+  statusBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5
   },
-  createButton: {
-    ...primaryButtonStyle
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: '50%',
+    background: 'currentColor',
+    flex: '0 0 auto'
   },
-  emptyState: {
-    border: '1px solid var(--border-color, #d7dee8)',
-    borderRadius: 14,
-    padding: '1rem',
-    background: '#ffffff',
-    display: 'grid',
-    gap: '0.35rem'
-  },
-  emptyHeading: {
-    margin: 0,
-    fontSize: '1rem'
-  },
-  emptyText: {
-    margin: 0,
-    color: '#4a627d'
+  scheduleChip: {
+    ...scheduleChipStyle
   },
   actionsCell: {
     width: 56
+  },
+  emptyState: {
+    ...pageSurfaceStyle,
+    borderStyle: 'dashed',
+    padding: '2.2rem 1.5rem',
+    textAlign: 'center',
+    display: 'grid',
+    gap: '0.4rem',
+    justifyItems: 'center'
+  },
+  emptyHeading: {
+    margin: 0,
+    fontSize: policyUiTokens.fontSizes.body,
+    fontWeight: 600,
+    color: policyUiTokens.textPrimary
+  },
+  emptyText: {
+    margin: 0,
+    maxWidth: 520,
+    color: policyUiTokens.textSecondary,
+    fontSize: policyUiTokens.fontSizes.label,
+    lineHeight: 1.45
   }
 };
 
@@ -113,6 +139,8 @@ function buildActionItems({ actions, policyId, onDelete, onDisable, onEnable, on
 }
 
 function PolicyListView({ policies, onCreate, onDelete, onDisable, onEnable, onOpen, onEdit }) {
+  const [hoveredPolicyId, setHoveredPolicyId] = useState('');
+
   return (
     <section style={styles.section}>
       <div style={styles.actionRow}>
@@ -139,7 +167,7 @@ function PolicyListView({ policies, onCreate, onDelete, onDisable, onEnable, onO
             </tr>
           </thead>
           <tbody>
-            {policies.map((policy) => {
+            {policies.map((policy, index) => {
               const row = formatPolicyListRow(policy);
               const actionItems = buildActionItems({
                 actions: getPolicyRowActions(policy),
@@ -150,26 +178,43 @@ function PolicyListView({ policies, onCreate, onDelete, onDisable, onEnable, onO
                 onOpen,
                 onEdit
               });
+              const isHovered = hoveredPolicyId === policy.policyId;
+              const isLastRow = index === policies.length - 1;
+
+              function resolveCellStyle() {
+                return {
+                  ...styles.cell,
+                  ...(isHovered ? styles.hoveredCell : null),
+                  ...(isLastRow ? styles.lastRowCell : null)
+                };
+              }
 
               return (
-                <tr key={policy.policyId}>
-                  <td style={styles.cell}>
+                <tr
+                  key={policy.policyId}
+                  onMouseEnter={() => setHoveredPolicyId(policy.policyId)}
+                  onMouseLeave={() => setHoveredPolicyId('')}
+                >
+                  <td style={resolveCellStyle()}>
                     <p style={styles.policyName}>{row.policyName}</p>
                   </td>
-                  <td style={styles.cell}>
-                    <p style={styles.statusText}>{row.status}</p>
+                  <td style={resolveCellStyle()}>
+                    <span style={getStatusBadgeStyle(policy.enabled)}>
+                      {policy.enabled ? <span style={styles.statusDot} aria-hidden="true" /> : null}
+                      <span style={styles.statusBadge}>{row.status}</span>
+                    </span>
                   </td>
-                  <td style={styles.cell}>
+                  <td style={resolveCellStyle()}>
                     <p style={styles.valueText}>{row.targetPrimary}</p>
-                    <p style={styles.valueTextMuted}>{row.targetSecondary}</p>
+                    <p style={styles.targetScope}>{row.targetSecondary}</p>
                   </td>
-                  <td style={styles.cell}>
-                    <p style={styles.valueText}>{row.modeLabel}</p>
+                  <td style={resolveCellStyle()}>
+                    <p style={{ ...styles.valueText, color: policyUiTokens.textSecondary }}>{row.modeLabel}</p>
                   </td>
-                  <td style={styles.cell}>
-                    <p style={styles.valueText}>{row.scheduleLabel}</p>
+                  <td style={resolveCellStyle()}>
+                    <span style={styles.scheduleChip}>{row.scheduleLabel.toLowerCase()}</span>
                   </td>
-                  <td style={{ ...styles.cell, ...styles.actionsCell }}>
+                  <td style={{ ...resolveCellStyle(), ...styles.actionsCell }}>
                     <PolicyActionMenu items={actionItems} label="Policy actions" />
                   </td>
                 </tr>

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "packId": "windows-endpoint-configuration",
-  "packVersion": "0.1.0",
+  "packVersion": "0.2.0",
   "name": "Windows Endpoint Configuration",
   "description": "General-purpose Windows endpoint desired-state configuration Controls for Action1 Configuration Manager.",
   "objective": {

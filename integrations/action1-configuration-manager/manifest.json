@@ -1,6 +1,6 @@
 {
   "id": "action1-configuration-manager",
-  "name": "Action1 Configuration Manager",
+  "name": "Configuration Management",
   "vendor": "Action1",
   "version": "0.1.0",
   "marketplaceApiVersion": "1.0",

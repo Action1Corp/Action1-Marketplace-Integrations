@@ -1,12 +1,18 @@
+import CompactControlSummaryGroups from './CompactControlSummaryGroups.jsx';
 import PolicyActionMenu from './PolicyActionMenu.jsx';
-import { textLinkButtonStyle } from './policyUiStyles.js';
+import {
+  getStatusBadgeStyle,
+  modeBadgeStyle,
+  pageSurfaceStyle,
+  policyUiTokens,
+  sectionDividerStyle,
+  textLinkButtonStyle
+} from './policyUiStyles.js';
 import { formatPolicyDetails } from './policyViewModel.js';
 
 const styles = {
   shell: {
-    border: '1px solid var(--border-color, #d7dee8)',
-    borderRadius: 14,
-    background: '#ffffff',
+    ...pageSurfaceStyle,
     padding: '1rem',
     display: 'grid',
     gap: '0.95rem'
@@ -26,18 +32,18 @@ const styles = {
   },
   title: {
     margin: 0,
-    fontSize: '1.12rem',
-    color: '#16314a'
+    fontSize: policyUiTokens.fontSizes.title,
+    fontWeight: 600,
+    color: policyUiTokens.textPrimary
   },
   subtitle: {
     margin: 0,
-    color: '#5a6f84',
+    color: policyUiTokens.textSecondary,
+    fontSize: policyUiTokens.fontSizes.label,
     lineHeight: 1.45
   },
   sectionDivider: {
-    border: 'none',
-    borderTop: '1px solid #e3eaf2',
-    margin: 0
+    ...sectionDividerStyle
   },
   section: {
     display: 'grid',
@@ -45,13 +51,13 @@ const styles = {
   },
   sectionTitle: {
     margin: 0,
-    fontSize: '0.97rem',
+    fontSize: policyUiTokens.fontSizes.section,
     fontWeight: 600,
-    color: '#16314a'
+    color: policyUiTokens.textPrimary
   },
   keyValueGrid: {
     display: 'grid',
-    gap: '0.7rem',
+    gap: '0.75rem',
     gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))'
   },
   keyValueRow: {
@@ -60,34 +66,39 @@ const styles = {
   },
   label: {
     margin: 0,
-    color: '#5a6f84',
-    fontSize: '0.82rem'
+    color: policyUiTokens.textMuted,
+    fontSize: policyUiTokens.fontSizes.hint,
+    fontWeight: 400
   },
   value: {
     margin: 0,
-    color: '#1f3448',
-    fontSize: '0.94rem',
-    fontWeight: 500,
-    lineHeight: 1.4
-  },
-  subduedValue: {
-    margin: 0,
-    color: '#1f3448',
-    fontSize: '0.94rem',
+    color: policyUiTokens.textPrimary,
+    fontSize: policyUiTokens.fontSizes.body,
     fontWeight: 400,
     lineHeight: 1.4
   },
-  statusValue: {
+  emphasizedValue: {
     margin: 0,
-    color: '#16314a',
-    fontSize: '0.94rem',
-    fontWeight: 500,
+    color: policyUiTokens.textPrimary,
+    fontSize: policyUiTokens.fontSizes.body,
+    fontWeight: 600,
     lineHeight: 1.4
+  },
+  statusBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: '50%',
+    background: 'currentColor',
+    flex: '0 0 auto'
   },
   familyBlock: {
     display: 'grid',
-    gap: '0.6rem',
-    paddingTop: '0.1rem'
+    gap: '0.75rem'
   },
   familyHeadingRow: {
     display: 'flex',
@@ -98,54 +109,20 @@ const styles = {
   },
   familyName: {
     margin: 0,
-    fontSize: '0.96rem',
+    fontSize: policyUiTokens.fontSizes.body,
     fontWeight: 600,
-    color: '#16314a'
+    color: policyUiTokens.textPrimary
   },
   link: {
-    color: '#2563eb',
+    color: policyUiTokens.accent,
     textDecoration: 'none',
-    fontSize: '0.9rem',
+    fontSize: policyUiTokens.fontSizes.hint,
     fontWeight: 500
-  },
-  controlsList: {
-    listStyle: 'none',
-    margin: 0,
-    padding: 0,
-    display: 'grid',
-    gap: '0.55rem'
-  },
-  controlItem: {
-    display: 'grid',
-    gap: '0.18rem'
-  },
-  controlName: {
-    margin: 0,
-    fontSize: '0.94rem',
-    fontWeight: 600,
-    color: '#20364b'
-  },
-  controlDescription: {
-    margin: 0,
-    color: '#5a6f84',
-    fontSize: '0.88rem',
-    lineHeight: 1.4
-  },
-  parameterList: {
-    listStyle: 'none',
-    margin: '0.1rem 0 0',
-    padding: 0,
-    display: 'grid',
-    gap: '0.16rem'
-  },
-  parameterRow: {
-    color: '#2f455a',
-    fontSize: '0.89rem',
-    lineHeight: 1.35
   },
   emptyText: {
     margin: 0,
-    color: '#5a6f84'
+    color: policyUiTokens.textSecondary,
+    fontSize: policyUiTokens.fontSizes.label
   }
 };
 
@@ -173,7 +150,7 @@ function PolicyDetailsView({ catalog, policy, onBack, onDelete, onDisable, onEdi
       <div style={styles.titleRow}>
         <div style={styles.titleBlock}>
           <h2 style={styles.title}>Policy Details</h2>
-          <p style={styles.subtitle}>Inspect the saved Policy, its current schedule, and the deterministic demo Action1 automation records.</p>
+          <p style={styles.subtitle}>Inspect the saved Policy, its current schedule, and its Action1 automations.</p>
         </div>
         <PolicyActionMenu items={actionItems} label="Policy actions" />
       </div>
@@ -185,35 +162,38 @@ function PolicyDetailsView({ catalog, policy, onBack, onDelete, onDisable, onEdi
         <div style={styles.keyValueGrid}>
           <div style={styles.keyValueRow}>
             <p style={styles.label}>Policy</p>
-            <p style={styles.value}>{details.policyName}</p>
+            <p style={styles.emphasizedValue}>{details.policyName}</p>
           </div>
           <div style={styles.keyValueRow}>
             <p style={styles.label}>Status</p>
-            <p style={styles.statusValue}>{details.statusLabel}</p>
+            <span style={getStatusBadgeStyle(policy.enabled)}>
+              {policy.enabled ? <span style={styles.statusDot} aria-hidden="true" /> : null}
+              <span style={styles.statusBadge}>{details.statusLabel}</span>
+            </span>
           </div>
           <div style={styles.keyValueRow}>
             <p style={styles.label}>Organization</p>
-            <p style={styles.subduedValue}>{details.organizationLabel}</p>
+            <p style={styles.value}>{details.organizationLabel}</p>
           </div>
           <div style={styles.keyValueRow}>
             <p style={styles.label}>Scope</p>
-            <p style={styles.subduedValue}>{details.scopeLabel}</p>
+            <p style={styles.value}>{details.scopeLabel}</p>
           </div>
           <div style={styles.keyValueRow}>
             <p style={styles.label}>Policy mode</p>
-            <p style={styles.subduedValue}>{details.policyModeLabel}</p>
+            <span style={modeBadgeStyle}>{details.policyModeLabel}</span>
           </div>
           <div style={styles.keyValueRow}>
             <p style={styles.label}>Controls</p>
-            <p style={styles.subduedValue}>{details.controlsCountLabel}</p>
+            <p style={styles.value}>{details.controlsCountLabel}</p>
           </div>
           <div style={styles.keyValueRow}>
             <p style={styles.label}>Control Families</p>
-            <p style={styles.subduedValue}>{details.controlFamiliesCountLabel}</p>
+            <p style={styles.value}>{details.controlFamiliesCountLabel}</p>
           </div>
           <div style={styles.keyValueRow}>
             <p style={styles.label}>Action1 automations</p>
-            <p style={styles.subduedValue}>{details.automationsCountLabel}</p>
+            <p style={styles.value}>{details.automationsCountLabel}</p>
           </div>
         </div>
       </section>
@@ -225,11 +205,11 @@ function PolicyDetailsView({ catalog, policy, onBack, onDelete, onDisable, onEdi
         <div style={styles.keyValueGrid}>
           <div style={styles.keyValueRow}>
             <p style={styles.label}>Run schedule</p>
-            <p style={styles.subduedValue}>{details.scheduleLabel}</p>
+            <p style={styles.value}>{details.scheduleLabel}</p>
           </div>
           <div style={styles.keyValueRow}>
             <p style={styles.label}>Automation completion deadline</p>
-            <p style={styles.subduedValue}>{details.completionDeadlineLabel}</p>
+            <p style={styles.value}>{details.completionDeadlineLabel}</p>
           </div>
         </div>
       </section>
@@ -244,31 +224,16 @@ function PolicyDetailsView({ catalog, policy, onBack, onDelete, onDisable, onEdi
           details.controlFamilyGroups.map((group, index) => (
             <div key={group.familyId} style={styles.familyBlock}>
               {index > 0 ? <hr style={styles.sectionDivider} /> : null}
-              <div style={styles.familyHeadingRow}>
-                <p style={styles.familyName}>{group.familyName}</p>
-                {group.automationLink ? (
-                  <a href={group.automationLink.action1Url} style={styles.link}>
-                    Open automation in Action1
-                  </a>
-                ) : null}
-              </div>
-              <ul style={styles.controlsList}>
-                {group.controls.map((control) => (
-                  <li key={`${group.familyId}-${control.controlName}`} style={styles.controlItem}>
-                    <p style={styles.controlName}>{control.controlName}</p>
-                    <p style={styles.controlDescription}>{control.controlDescription}</p>
-                    {control.parameters.length > 0 ? (
-                      <ul style={styles.parameterList}>
-                        {control.parameters.map((parameter) => (
-                          <li key={`${control.controlName}-${parameter.label}`} style={styles.parameterRow}>
-                            {parameter.label}: {parameter.value}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
+              <CompactControlSummaryGroups
+                groups={[group]}
+                renderFamilyAction={(familyGroup) =>
+                  familyGroup.automationLink ? (
+                    <a href={familyGroup.automationLink.action1Url} style={styles.link}>
+                      Open automation in Action1
+                    </a>
+                  ) : null
+                }
+              />
             </div>
           ))
         )}

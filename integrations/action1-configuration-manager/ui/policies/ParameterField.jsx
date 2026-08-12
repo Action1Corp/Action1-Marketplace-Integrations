@@ -2,6 +2,7 @@ import {
   compactCheckboxStyle,
   formControlStyle,
   helperTextStyle,
+  policyUiTokens,
   textareaControlStyle
 } from './policyUiStyles.js';
 
@@ -11,9 +12,9 @@ const styles = {
     gap: '0.35rem'
   },
   label: {
-    color: '#1f3448',
-    fontSize: '0.9rem',
-    fontWeight: 500
+    color: policyUiTokens.textPrimary,
+    fontSize: policyUiTokens.fontSizes.hint,
+    fontWeight: 600
   },
   checkboxLabel: {
     display: 'flex',
@@ -25,8 +26,8 @@ const styles = {
   },
   errorText: {
     margin: 0,
-    color: '#b42318',
-    fontSize: '0.84rem'
+    color: policyUiTokens.danger,
+    fontSize: policyUiTokens.fontSizes.hint
   }
 };
 
@@ -45,7 +46,7 @@ function renderCheckbox(parameter, value, onChange, disabled) {
   );
 }
 
-function renderIntegerInput(parameter, value, onChange, disabled) {
+function renderIntegerInput(parameter, value, onChange, disabled, compact) {
   return (
     <label style={styles.fieldStack}>
       <span style={styles.label}>{parameter.label}</span>
@@ -57,17 +58,22 @@ function renderIntegerInput(parameter, value, onChange, disabled) {
         step={parameter.step || 1}
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled}
-        style={formControlStyle}
+        style={compact ? { ...formControlStyle, minHeight: 30, fontSize: policyUiTokens.fontSizes.label } : formControlStyle}
       />
     </label>
   );
 }
 
-function renderEnumInput(parameter, value, onChange, disabled) {
+function renderEnumInput(parameter, value, onChange, disabled, compact) {
   return (
     <label style={styles.fieldStack}>
       <span style={styles.label}>{parameter.label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} disabled={disabled} style={formControlStyle}>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+        style={compact ? { ...formControlStyle, minHeight: 30, fontSize: policyUiTokens.fontSizes.label } : formControlStyle}
+      >
         {(parameter.options || []).map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -78,7 +84,7 @@ function renderEnumInput(parameter, value, onChange, disabled) {
   );
 }
 
-function renderStringInput(parameter, value, onChange, disabled) {
+function renderStringInput(parameter, value, onChange, disabled, compact) {
   return (
     <label style={styles.fieldStack}>
       <span style={styles.label}>{parameter.label}</span>
@@ -90,13 +96,13 @@ function renderStringInput(parameter, value, onChange, disabled) {
         placeholder={parameter.placeholder}
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled}
-        style={formControlStyle}
+        style={compact ? { ...formControlStyle, minHeight: 30, fontSize: policyUiTokens.fontSizes.label } : formControlStyle}
       />
     </label>
   );
 }
 
-function renderMultilineStringInput(parameter, value, onChange, disabled) {
+function renderMultilineStringInput(parameter, value, onChange, disabled, compact) {
   return (
     <label style={styles.fieldStack}>
       <span style={styles.label}>{parameter.label}</span>
@@ -108,22 +114,28 @@ function renderMultilineStringInput(parameter, value, onChange, disabled) {
         placeholder={parameter.placeholder}
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled}
-        style={textareaControlStyle}
+        style={compact ? { ...textareaControlStyle, minHeight: 64, fontSize: policyUiTokens.fontSizes.label } : textareaControlStyle}
       />
     </label>
   );
 }
 
-function renderTimeInput(parameter, value, onChange, disabled) {
+function renderTimeInput(parameter, value, onChange, disabled, compact) {
   return (
     <label style={styles.fieldStack}>
       <span style={styles.label}>{parameter.label}</span>
-      <input type="time" value={value} onChange={(event) => onChange(event.target.value)} disabled={disabled} style={formControlStyle} />
+      <input
+        type="time"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+        style={compact ? { ...formControlStyle, minHeight: 30, fontSize: policyUiTokens.fontSizes.label } : formControlStyle}
+      />
     </label>
   );
 }
 
-function ParameterField({ parameter, value, onChange, disabled = false, errorMessage = '' }) {
+function ParameterField({ parameter, value, onChange, disabled = false, compact = false, errorMessage = '' }) {
   let input = null;
 
   switch (parameter.type) {
@@ -131,19 +143,19 @@ function ParameterField({ parameter, value, onChange, disabled = false, errorMes
       input = renderCheckbox(parameter, value, onChange, disabled);
       break;
     case 'integer':
-      input = renderIntegerInput(parameter, value, onChange, disabled);
+      input = renderIntegerInput(parameter, value, onChange, disabled, compact);
       break;
     case 'enum':
-      input = renderEnumInput(parameter, value, onChange, disabled);
+      input = renderEnumInput(parameter, value, onChange, disabled, compact);
       break;
     case 'string':
-      input = renderStringInput(parameter, value, onChange, disabled);
+      input = renderStringInput(parameter, value, onChange, disabled, compact);
       break;
     case 'multiline-string':
-      input = renderMultilineStringInput(parameter, value, onChange, disabled);
+      input = renderMultilineStringInput(parameter, value, onChange, disabled, compact);
       break;
     case 'time':
-      input = renderTimeInput(parameter, value, onChange, disabled);
+      input = renderTimeInput(parameter, value, onChange, disabled, compact);
       break;
     default:
       return (
@@ -156,7 +168,7 @@ function ParameterField({ parameter, value, onChange, disabled = false, errorMes
   return (
     <div className="policy-parameter-field" style={styles.fieldStack}>
       {input}
-      {parameter.description ? <p className="policy-help-text" style={styles.helpText}>{parameter.description}</p> : null}
+      {!compact && parameter.description ? <p className="policy-help-text" style={styles.helpText}>{parameter.description}</p> : null}
       {errorMessage ? (
         <p className="policy-error-text" role="alert" style={styles.errorText}>
           {errorMessage}

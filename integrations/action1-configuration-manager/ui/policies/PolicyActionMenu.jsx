@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   destructiveButtonStyle,
   menuTriggerButtonStyle,
+  policyUiTokens,
   secondaryButtonStyle
 } from './policyUiStyles.js';
 
@@ -17,11 +18,11 @@ const styles = {
   menu: {
     position: 'fixed',
     minWidth: 176,
-    border: '1px solid #d7dee8',
-    borderRadius: 12,
-    background: '#ffffff',
-    boxShadow: '0 18px 48px rgba(15, 23, 42, 0.12)',
-    padding: '0.35rem',
+    border: `1px solid ${policyUiTokens.borderColor}`,
+    borderRadius: policyUiTokens.surfaceRadius,
+    background: policyUiTokens.surfaceBackground,
+    boxShadow: policyUiTokens.shadowOverlay,
+    padding: '0.3rem',
     display: 'grid',
     gap: '0.2rem',
     zIndex: 40
@@ -29,17 +30,17 @@ const styles = {
   menuButton: {
     ...secondaryButtonStyle,
     border: 'none',
-    borderRadius: 8,
-    padding: '0.55rem 0.7rem',
+    borderRadius: 4,
+    padding: '0.5rem 0.65rem',
     textAlign: 'left',
     fontWeight: 500
   },
   destructiveMenuButton: {
     ...destructiveButtonStyle,
     border: 'none',
-    borderTop: '1px solid #e8edf3',
-    borderRadius: 8,
-    padding: '0.65rem 0.7rem 0.55rem',
+    borderTop: `1px solid ${policyUiTokens.borderColor}`,
+    borderRadius: 4,
+    padding: '0.6rem 0.65rem 0.5rem',
     textAlign: 'left',
     marginTop: '0.15rem'
   }

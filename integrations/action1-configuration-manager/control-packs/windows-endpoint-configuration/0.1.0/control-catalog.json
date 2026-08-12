@@ -1,6 +1,6 @@
 {
   "packId": "windows-endpoint-configuration",
-  "packVersion": "0.1.0",
+  "packVersion": "0.2.0",
   "families": [
     {
       "familyId": "devices",
@@ -50,7 +50,7 @@
     },
     {
       "automationGroupId": "devices.removable-storage",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "familyId": "devices",
       "name": "Removable Storage",
       "description": "Controls for removable disk and Windows Portable Devices read, write, and execution policy state.",
@@ -206,9 +206,9 @@
     },
     {
       "controlId": "devices.removable-storage.block-read",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "name": "Block read access to removable disks",
-      "description": "Configures the computer-scoped Windows machine policy that denies read access to removable disks.",
+      "description": "Configures the computer-scoped Windows machine policy for removable-disk read access according to the selected access state.",
       "familyId": "devices",
       "automationGroupId": "devices.removable-storage",
       "displayOrder": 10,
@@ -226,7 +226,26 @@
         "IoT Enterprise LTSC"
       ],
       "requiresReboot": true,
-      "parameters": [],
+      "parameters": [
+        {
+          "id": "access",
+          "type": "enum",
+          "label": "Access",
+          "description": "Desired machine-policy state for removable-disk read access.",
+          "required": true,
+          "defaultValue": "Deny",
+          "options": [
+            {
+              "value": "Allow",
+              "label": "Allow"
+            },
+            {
+              "value": "Deny",
+              "label": "Deny"
+            }
+          ]
+        }
+      ],
       "policy": {
         "kind": "ADMX",
         "admxPolicyName": "RemovableDisks_DenyRead_Access_2",
@@ -614,9 +633,9 @@
     },
     {
       "controlId": "devices.removable-storage.block-write",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "name": "Block write access to removable disks",
-      "description": "Configures the computer-scoped Windows machine policy that denies write access to removable disks.",
+      "description": "Configures the computer-scoped Windows machine policy for removable-disk write access according to the selected access state.",
       "familyId": "devices",
       "automationGroupId": "devices.removable-storage",
       "displayOrder": 20,
@@ -634,7 +653,26 @@
         "IoT Enterprise LTSC"
       ],
       "requiresReboot": true,
-      "parameters": [],
+      "parameters": [
+        {
+          "id": "access",
+          "type": "enum",
+          "label": "Access",
+          "description": "Desired machine-policy state for removable-disk write access.",
+          "required": true,
+          "defaultValue": "Deny",
+          "options": [
+            {
+              "value": "Allow",
+              "label": "Allow"
+            },
+            {
+              "value": "Deny",
+              "label": "Deny"
+            }
+          ]
+        }
+      ],
       "policy": {
         "kind": "ADMX",
         "admxPolicyName": "RemovableDisks_DenyWrite_Access_2",
@@ -997,9 +1035,9 @@
     },
     {
       "controlId": "devices.removable-storage.block-execution",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "name": "Block execution from removable disks",
-      "description": "Configures the computer-scoped Windows machine policy that denies execute access to removable disks.",
+      "description": "Configures the computer-scoped Windows machine policy for removable-disk execute access according to the selected access state.",
       "familyId": "devices",
       "automationGroupId": "devices.removable-storage",
       "displayOrder": 30,
@@ -1017,7 +1055,26 @@
         "IoT Enterprise LTSC"
       ],
       "requiresReboot": true,
-      "parameters": [],
+      "parameters": [
+        {
+          "id": "access",
+          "type": "enum",
+          "label": "Access",
+          "description": "Desired machine-policy state for removable-disk execute access.",
+          "required": true,
+          "defaultValue": "Deny",
+          "options": [
+            {
+              "value": "Allow",
+              "label": "Allow"
+            },
+            {
+              "value": "Deny",
+              "label": "Deny"
+            }
+          ]
+        }
+      ],
       "policy": {
         "kind": "ADMX",
         "admxPolicyName": "RemovableDisks_DenyExecute_Access_2",
@@ -1399,9 +1456,9 @@
     },
     {
       "controlId": "devices.portable-devices.block-read",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "name": "Block read access to portable devices",
-      "description": "Configures the computer-scoped Windows machine policy that denies read access to the Windows Portable Devices class.",
+      "description": "Configures the computer-scoped Windows machine policy for Windows Portable Devices read access according to the selected access state.",
       "familyId": "devices",
       "automationGroupId": "devices.removable-storage",
       "displayOrder": 40,
@@ -1416,7 +1473,26 @@
         "IoT Enterprise LTSC"
       ],
       "requiresReboot": false,
-      "parameters": [],
+      "parameters": [
+        {
+          "id": "access",
+          "type": "enum",
+          "label": "Access",
+          "description": "Desired machine-policy state for Windows Portable Devices read access.",
+          "required": true,
+          "defaultValue": "Deny",
+          "options": [
+            {
+              "value": "Allow",
+              "label": "Allow"
+            },
+            {
+              "value": "Deny",
+              "label": "Deny"
+            }
+          ]
+        }
+      ],
       "policy": {
         "kind": "ADMX",
         "scope": "Computer",
@@ -1791,9 +1867,9 @@
     },
     {
       "controlId": "devices.portable-devices.block-write",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "name": "Block write access to portable devices",
-      "description": "Configures the computer-scoped Windows machine policy that denies write access to the Windows Portable Devices class.",
+      "description": "Configures the computer-scoped Windows machine policy for Windows Portable Devices write access according to the selected access state.",
       "familyId": "devices",
       "automationGroupId": "devices.removable-storage",
       "displayOrder": 50,
@@ -1808,7 +1884,26 @@
         "IoT Enterprise LTSC"
       ],
       "requiresReboot": false,
-      "parameters": [],
+      "parameters": [
+        {
+          "id": "access",
+          "type": "enum",
+          "label": "Access",
+          "description": "Desired machine-policy state for Windows Portable Devices write access.",
+          "required": true,
+          "defaultValue": "Deny",
+          "options": [
+            {
+              "value": "Allow",
+              "label": "Allow"
+            },
+            {
+              "value": "Deny",
+              "label": "Deny"
+            }
+          ]
+        }
+      ],
       "policy": {
         "kind": "ADMX",
         "scope": "Computer",

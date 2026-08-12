@@ -1,6 +1,16 @@
+const styles = {
+  shell: {
+    width: '100%',
+    maxWidth: 960,
+    margin: '0 auto',
+    display: 'grid',
+    gap: '0.75rem'
+  }
+};
+
 function History() {
   return (
-    <div>
+    <div style={styles.shell}>
       <h1 className="page-title">History</h1>
       <div className="glass-panel">
         <p style={{ margin: 0, color: 'var(--text-secondary)' }}>

@@ -1,6 +1,6 @@
 # Action1 Configuration Manager Control Pack
-# Pack: Windows Endpoint Configuration (windows-endpoint-configuration) v0.1.0
-# Automation Group: Removable Storage (devices.removable-storage) v0.1.0
+# Pack: Windows Endpoint Configuration (windows-endpoint-configuration) v0.2.0
+# Automation Group: Removable Storage (devices.removable-storage) v0.2.0
 # Contains: 5 fixed Control implementation(s)
 # The embedded Policy configuration selects which included Controls execute.
 # Generated file. Do not edit manually.
@@ -1556,14 +1556,21 @@ function Invoke-A1CMRemovableStoragePolicyControl {
         [string]$RegistryValueName,
 
         [Parameter(Mandatory)]
-        [int]$DesiredValue
+        [int]$DesiredValue,
+
+        [Parameter(Mandatory)]
+        [string]$AccessDescription,
+
+        [Parameter(Mandatory)]
+        [ValidateSet('Allow', 'Deny')]
+        [string]$DesiredState
     )
 
     if ($env:A1CM_TEST_FAIL_CONTROL -and $env:A1CM_TEST_FAIL_CONTROL -eq $Context.ControlId) {
         throw "Injected technical failure for $($Context.ControlId)."
     }
 
-    $friendlyName = $Context.ControlName.ToLowerInvariant()
+    $configuredVerb = if ($DesiredState -eq 'Deny') { 'denies' } else { 'allows' }
 
     Invoke-A1CMConfiguredControl `
         -Context $Context `
@@ -1571,10 +1578,10 @@ function Invoke-A1CMRemovableStoragePolicyControl {
             $value = Get-A1CMRegistryPolicyValue -RegistryPath $RegistryPath -ValueName $RegistryValueName
             [PSCustomObject]@{
                 IsCompliant                         = ($value -eq $DesiredValue)
-                CompliantMessage                   = "Configured machine policy already denies $friendlyName. Live enforcement may still require policy refresh or restart."
-                NonCompliantMessage                = "Configured machine policy does not yet deny $friendlyName. ASSESS_ONLY did not modify the endpoint."
-                RemediatedMessage                  = "Configured machine policy now denies $friendlyName. Live enforcement may still require policy refresh or restart."
-                PostRemediationNonCompliantMessage = "Configured machine policy still does not deny $friendlyName after one remediation attempt."
+                CompliantMessage                   = "Configured machine policy already $configuredVerb $AccessDescription. Live enforcement may still require policy refresh or restart."
+                NonCompliantMessage                = "Configured machine policy does not yet $($DesiredState.ToLowerInvariant()) $AccessDescription. ASSESS_ONLY did not modify the endpoint."
+                RemediatedMessage                  = "Configured machine policy now $configuredVerb $AccessDescription. Live enforcement may still require policy refresh or restart."
+                PostRemediationNonCompliantMessage = "Configured machine policy still does not $($DesiredState.ToLowerInvariant()) $AccessDescription after one remediation attempt."
             }
         } `
         -Remediate {
@@ -1660,6 +1667,12 @@ function Invoke-A1CMControl_RemovableStorageBlockRead {
         [PSCustomObject]$Parameters
     )
 
+    switch ($Parameters.access) {
+        'Deny' { $desiredValue = 1 }
+        'Allow' { $desiredValue = 0 }
+        default { throw "Unsupported devices.removable-storage.block-read access value: $($Parameters.access)" }
+    }
+
     # Control-specific adapter only.
     # Shared assess/remediate/verify behavior lives in runtime modules.
     # The builder combines this adapter and the runtime into the generated Automation Group bundle.
@@ -1667,7 +1680,9 @@ function Invoke-A1CMControl_RemovableStorageBlockRead {
         -Context $Context `
         -RegistryPath 'HKLM:\Software\Policies\Microsoft\Windows\RemovableStorageDevices\{53f5630d-b6bf-11d0-94f2-00a0c91efb8b}' `
         -RegistryValueName 'Deny_Read' `
-        -DesiredValue 1
+        -DesiredValue $desiredValue `
+        -AccessDescription 'read access to removable disks' `
+        -DesiredState $Parameters.access
 }
 
 function Invoke-A1CMControl_RemovableStorageBlockWrite {
@@ -1679,6 +1694,12 @@ function Invoke-A1CMControl_RemovableStorageBlockWrite {
         [PSCustomObject]$Parameters
     )
 
+    switch ($Parameters.access) {
+        'Deny' { $desiredValue = 1 }
+        'Allow' { $desiredValue = 0 }
+        default { throw "Unsupported devices.removable-storage.block-write access value: $($Parameters.access)" }
+    }
+
     # Control-specific adapter only.
     # Shared assess/remediate/verify behavior lives in runtime modules.
     # The builder combines this adapter and the runtime into the generated Automation Group bundle.
@@ -1686,7 +1707,9 @@ function Invoke-A1CMControl_RemovableStorageBlockWrite {
         -Context $Context `
         -RegistryPath 'HKLM:\Software\Policies\Microsoft\Windows\RemovableStorageDevices\{53f5630d-b6bf-11d0-94f2-00a0c91efb8b}' `
         -RegistryValueName 'Deny_Write' `
-        -DesiredValue 1
+        -DesiredValue $desiredValue `
+        -AccessDescription 'write access to removable disks' `
+        -DesiredState $Parameters.access
 }
 
 function Invoke-A1CMControl_RemovableStorageBlockExecution {
@@ -1698,6 +1721,12 @@ function Invoke-A1CMControl_RemovableStorageBlockExecution {
         [PSCustomObject]$Parameters
     )
 
+    switch ($Parameters.access) {
+        'Deny' { $desiredValue = 1 }
+        'Allow' { $desiredValue = 0 }
+        default { throw "Unsupported devices.removable-storage.block-execution access value: $($Parameters.access)" }
+    }
+
     # Control-specific adapter only.
     # Shared assess/remediate/verify behavior lives in runtime modules.
     # The builder combines this adapter and the runtime into the generated Automation Group bundle.
@@ -1705,7 +1734,9 @@ function Invoke-A1CMControl_RemovableStorageBlockExecution {
         -Context $Context `
         -RegistryPath 'HKLM:\Software\Policies\Microsoft\Windows\RemovableStorageDevices\{53f5630d-b6bf-11d0-94f2-00a0c91efb8b}' `
         -RegistryValueName 'Deny_Execute' `
-        -DesiredValue 1
+        -DesiredValue $desiredValue `
+        -AccessDescription 'execution from removable disks' `
+        -DesiredState $Parameters.access
 }
 
 function Invoke-A1CMControl_PortableDevicesBlockRead {
@@ -1717,6 +1748,12 @@ function Invoke-A1CMControl_PortableDevicesBlockRead {
         [PSCustomObject]$Parameters
     )
 
+    switch ($Parameters.access) {
+        'Deny' { $desiredValue = 1 }
+        'Allow' { $desiredValue = 0 }
+        default { throw "Unsupported devices.portable-devices.block-read access value: $($Parameters.access)" }
+    }
+
     # Control-specific adapter only.
     # Shared assess/remediate/verify behavior lives in runtime modules.
     # The builder combines this adapter and the runtime into the generated Automation Group bundle.
@@ -1724,7 +1761,9 @@ function Invoke-A1CMControl_PortableDevicesBlockRead {
         -Context $Context `
         -RegistryPath 'HKLM:\Software\Policies\Microsoft\Windows\RemovableStorageDevices\{6AC27878-A6FA-4155-BA85-F98F491D4F33}' `
         -RegistryValueName 'Deny_Read' `
-        -DesiredValue 1
+        -DesiredValue $desiredValue `
+        -AccessDescription 'read access to Windows Portable Devices' `
+        -DesiredState $Parameters.access
 }
 
 function Invoke-A1CMControl_PortableDevicesBlockWrite {
@@ -1736,6 +1775,12 @@ function Invoke-A1CMControl_PortableDevicesBlockWrite {
         [PSCustomObject]$Parameters
     )
 
+    switch ($Parameters.access) {
+        'Deny' { $desiredValue = 1 }
+        'Allow' { $desiredValue = 0 }
+        default { throw "Unsupported devices.portable-devices.block-write access value: $($Parameters.access)" }
+    }
+
     # Control-specific adapter only.
     # Shared assess/remediate/verify behavior lives in runtime modules.
     # The builder combines this adapter and the runtime into the generated Automation Group bundle.
@@ -1743,7 +1788,9 @@ function Invoke-A1CMControl_PortableDevicesBlockWrite {
         -Context $Context `
         -RegistryPath 'HKLM:\Software\Policies\Microsoft\Windows\RemovableStorageDevices\{6AC27878-A6FA-4155-BA85-F98F491D4F33}' `
         -RegistryValueName 'Deny_Write' `
-        -DesiredValue 1
+        -DesiredValue $desiredValue `
+        -AccessDescription 'write access to Windows Portable Devices' `
+        -DesiredState $Parameters.access
 }
 
 $script:A1CMControlOrder = @(
@@ -1760,42 +1807,42 @@ $script:A1CMControlDefinitions = @{
 
     'devices.removable-storage.block-read' = [PSCustomObject]@{
         ControlId = 'devices.removable-storage.block-read'
-        ControlVersion = '0.1.0'
+        ControlVersion = '0.2.0'
         ControlName = 'Block read access to removable disks'
         EntryPoint = 'Invoke-A1CMControl_RemovableStorageBlockRead'
-        ParameterDefinitionsJson = '[]'
+        ParameterDefinitionsJson = '[{"id":"access","type":"enum","label":"Access","description":"Desired machine-policy state for removable-disk read access.","required":true,"defaultValue":"Deny","options":[{"value":"Allow","label":"Allow"},{"value":"Deny","label":"Deny"}]}]'
     }
     'devices.removable-storage.block-write' = [PSCustomObject]@{
         ControlId = 'devices.removable-storage.block-write'
-        ControlVersion = '0.1.0'
+        ControlVersion = '0.2.0'
         ControlName = 'Block write access to removable disks'
         EntryPoint = 'Invoke-A1CMControl_RemovableStorageBlockWrite'
-        ParameterDefinitionsJson = '[]'
+        ParameterDefinitionsJson = '[{"id":"access","type":"enum","label":"Access","description":"Desired machine-policy state for removable-disk write access.","required":true,"defaultValue":"Deny","options":[{"value":"Allow","label":"Allow"},{"value":"Deny","label":"Deny"}]}]'
     }
     'devices.removable-storage.block-execution' = [PSCustomObject]@{
         ControlId = 'devices.removable-storage.block-execution'
-        ControlVersion = '0.1.0'
+        ControlVersion = '0.2.0'
         ControlName = 'Block execution from removable disks'
         EntryPoint = 'Invoke-A1CMControl_RemovableStorageBlockExecution'
-        ParameterDefinitionsJson = '[]'
+        ParameterDefinitionsJson = '[{"id":"access","type":"enum","label":"Access","description":"Desired machine-policy state for removable-disk execute access.","required":true,"defaultValue":"Deny","options":[{"value":"Allow","label":"Allow"},{"value":"Deny","label":"Deny"}]}]'
     }
     'devices.portable-devices.block-read' = [PSCustomObject]@{
         ControlId = 'devices.portable-devices.block-read'
-        ControlVersion = '0.1.0'
+        ControlVersion = '0.2.0'
         ControlName = 'Block read access to portable devices'
         EntryPoint = 'Invoke-A1CMControl_PortableDevicesBlockRead'
-        ParameterDefinitionsJson = '[]'
+        ParameterDefinitionsJson = '[{"id":"access","type":"enum","label":"Access","description":"Desired machine-policy state for Windows Portable Devices read access.","required":true,"defaultValue":"Deny","options":[{"value":"Allow","label":"Allow"},{"value":"Deny","label":"Deny"}]}]'
     }
     'devices.portable-devices.block-write' = [PSCustomObject]@{
         ControlId = 'devices.portable-devices.block-write'
-        ControlVersion = '0.1.0'
+        ControlVersion = '0.2.0'
         ControlName = 'Block write access to portable devices'
         EntryPoint = 'Invoke-A1CMControl_PortableDevicesBlockWrite'
-        ParameterDefinitionsJson = '[]'
+        ParameterDefinitionsJson = '[{"id":"access","type":"enum","label":"Access","description":"Desired machine-policy state for Windows Portable Devices write access.","required":true,"defaultValue":"Deny","options":[{"value":"Allow","label":"Allow"},{"value":"Deny","label":"Deny"}]}]'
     }
 
 }
 
-Invoke-A1CMGroup -PolicyConfiguration $policyConfiguration -AutomationGroupId 'devices.removable-storage' -AutomationGroupVersion '0.1.0' -AutomationGroupName 'Removable Storage' -FamilyId 'devices' -FamilyName 'Devices' -ControlOrder $script:A1CMControlOrder -ControlDefinitions $script:A1CMControlDefinitions
+Invoke-A1CMGroup -PolicyConfiguration $policyConfiguration -AutomationGroupId 'devices.removable-storage' -AutomationGroupVersion '0.2.0' -AutomationGroupName 'Removable Storage' -FamilyId 'devices' -FamilyName 'Devices' -ControlOrder $script:A1CMControlOrder -ControlDefinitions $script:A1CMControlDefinitions
 
 if ($env:A1CM_TEST_MODE -ne '1') { exit $global:A1CM_ExitCode }

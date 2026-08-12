@@ -13,7 +13,8 @@ async function run() {
   const {
     formatPolicyListRow,
     getPolicyRowActions,
-    formatPolicyDetails
+    formatPolicyDetails,
+    buildCompactControlFamilyGroups
   } = await import(pathToFileURL(path.join(__dirname, '..', 'ui', 'policies', 'policyViewModel.js')).href);
   const catalog = await buildCatalog();
 
@@ -117,15 +118,20 @@ async function run() {
     'Minimum password length',
     'details groups should use the released catalog Control name instead of the raw control id'
   );
-  assert.strictEqual(
-    details.controlFamilyGroups[0].controls[1].parameters[0].label,
-    'Maximum age',
-    'details groups should use released catalog parameter labels'
+  assert.deepStrictEqual(
+    details.controlFamilyGroups[0].controls[0].chips,
+    [{ label: 'Minimum length', value: '14 characters' }],
+    'details groups should expose the same compact control/value chip data used by the wizard Review step'
   );
   assert.strictEqual(
-    details.controlFamilyGroups[0].controls[1].parameters[0].value,
+    details.controlFamilyGroups[0].controls[1].chips[0].label,
+    'Maximum age',
+    'details groups should use released catalog parameter labels in the shared compact chip data'
+  );
+  assert.strictEqual(
+    details.controlFamilyGroups[0].controls[1].chips[0].value,
     '90 days',
-    'details groups should format parameter values for customer-facing display'
+    'details groups should format parameter values for customer-facing display in the shared compact chip data'
   );
   assert.strictEqual(
     JSON.stringify(details).includes('identity.password.minimum-length'),
@@ -141,6 +147,17 @@ async function run() {
     JSON.stringify(details).includes('Automation Group'),
     false,
     'view-model helpers must not return customer-facing Automation Group terminology'
+  );
+
+  const compactGroups = buildCompactControlFamilyGroups({
+    selectedControls: enabledPolicy.selectedControls,
+    action1Automations: enabledPolicy.action1Automations,
+    catalog
+  });
+  assert.deepStrictEqual(
+    compactGroups,
+    details.controlFamilyGroups,
+    'Policy Details should reuse the shared compact Control summary grouping used by the wizard Review data model'
   );
 }
 

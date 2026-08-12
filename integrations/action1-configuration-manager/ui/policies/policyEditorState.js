@@ -1,4 +1,4 @@
-import { buildDefaultParameters } from '../catalog/controlPackCatalog.js';
+import { buildDefaultParameters, findBaselineById, getRecommendedParametersForBaselineControl } from '../catalog/controlPackCatalog.js';
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -14,6 +14,25 @@ function normalizePositiveInteger(value, fallbackValue) {
 
 function deriveCompletionDeadlineMinutes(runEveryHours) {
   return normalizePositiveInteger(runEveryHours, 24) * 60;
+}
+
+export function createWizardState() {
+  return {
+    currentStep: 1,
+    selectedBaselineId: '',
+    appliedBaselineId: '',
+    selectedOnly: false,
+    inBaselineOnly: false,
+    searchTerm: '',
+    activeControlFamilyId: ''
+  };
+}
+
+export function createInitialWizardState({ isEditMode = false } = {}) {
+  return {
+    ...createWizardState(),
+    selectedOnly: Boolean(isEditMode)
+  };
 }
 
 export function createPolicyDraft(input = {}) {
@@ -98,6 +117,18 @@ export function getInitialOpenControlFamilies(draft, catalog) {
   return nextState;
 }
 
+function createSelectedControlEntry(control, catalog, parameters) {
+  const controlFamily = catalog.controlFamiliesById[control.automationGroupId] || {};
+
+  return {
+    controlId: control.controlId,
+    controlVersion: control.version,
+    automationGroupId: control.automationGroupId,
+    automationGroupVersion: controlFamily.version || '',
+    parameters
+  };
+}
+
 export function applyControlSelection(draft, control, selected, catalog) {
   const nextDraft = clone(draft);
   const existingIndex = nextDraft.selectedControls.findIndex((entry) => entry.controlId === control.controlId);
@@ -113,14 +144,7 @@ export function applyControlSelection(draft, control, selected, catalog) {
     return nextDraft;
   }
 
-  const controlFamily = catalog.controlFamiliesById[control.automationGroupId] || {};
-  nextDraft.selectedControls.push({
-    controlId: control.controlId,
-    controlVersion: control.version,
-    automationGroupId: control.automationGroupId,
-    automationGroupVersion: controlFamily.version || '',
-    parameters: buildDefaultParameters(control)
-  });
+  nextDraft.selectedControls.push(createSelectedControlEntry(control, catalog, buildDefaultParameters(control)));
   return nextDraft;
 }
 
@@ -135,4 +159,100 @@ export function updateControlParameter(draft, controlId, parameterId, value) {
   selectedControl.parameters = selectedControl.parameters || {};
   selectedControl.parameters[parameterId] = value;
   return nextDraft;
+}
+
+export function applyBaselineSelection(draft, catalog, baselines, baselineId) {
+  const baseline = findBaselineById(baselines, baselineId);
+  const nextDraft = clone(draft);
+
+  if (!baseline) {
+    return nextDraft;
+  }
+
+  for (const baselineControl of baseline.controls || []) {
+    const control = catalog.controlsById?.[baselineControl.controlId];
+    if (!control) {
+      continue;
+    }
+
+    const recommendedParameters = getRecommendedParametersForBaselineControl(baselines, baselineId, control.controlId);
+    const existingIndex = nextDraft.selectedControls.findIndex((entry) => entry.controlId === control.controlId);
+
+    if (existingIndex === -1) {
+      nextDraft.selectedControls.push(
+        createSelectedControlEntry(control, catalog, recommendedParameters || buildDefaultParameters(control))
+      );
+      continue;
+    }
+
+    if (recommendedParameters) {
+      nextDraft.selectedControls[existingIndex].parameters = recommendedParameters;
+    }
+  }
+
+  return nextDraft;
+}
+
+export function clearAllSelectedControls(draft) {
+  return {
+    ...clone(draft),
+    selectedControls: []
+  };
+}
+
+export function getVisibleWizardControls(catalog, draft, wizardState) {
+  const normalizedSearchTerm = String(wizardState?.searchTerm || '').trim().toLowerCase();
+  const selectedControlIds = new Set((draft.selectedControls || []).map((entry) => entry.controlId));
+  const baselineId = wizardState?.selectedBaselineId || '';
+  const baselineMembershipLookup = catalog?.baselineMembershipByControlId || {};
+  const visibleControls = [];
+
+  for (const category of catalog?.families || []) {
+    for (const controlFamily of catalog?.controlFamilies || []) {
+      if (controlFamily.familyId !== category.familyId) {
+        continue;
+      }
+
+      for (const control of catalog?.controls || []) {
+        if (control.automationGroupId !== controlFamily.automationGroupId) {
+          continue;
+        }
+
+        if (wizardState?.selectedOnly && !selectedControlIds.has(control.controlId)) {
+          continue;
+        }
+
+        if (
+          wizardState?.inBaselineOnly &&
+          !((baselineMembershipLookup[control.controlId] || []).some((entry) => entry.baselineId === baselineId))
+        ) {
+          continue;
+        }
+
+        if (normalizedSearchTerm) {
+          const haystack = [
+            category.name,
+            controlFamily.name,
+            control.name,
+            control.description
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+
+          if (!haystack.includes(normalizedSearchTerm)) {
+            continue;
+          }
+        }
+
+        visibleControls.push({
+          category,
+          controlFamily,
+          control
+        });
+      }
+    }
+  }
+
+  return visibleControls;
 }
