@@ -1,0 +1,1713 @@
+{
+  "schemaVersion": "1.0",
+  "baselines": [
+    {
+      "id": "microsoft-windows-11-25h2",
+      "name": "Microsoft Security Baseline - Windows 11 25H2",
+      "provider": "Microsoft",
+      "version": "25H2",
+      "tag": "MS Baseline",
+      "metadata": {
+        "sourceId": "windows-11-v25h2-security-baseline",
+        "sourceVersion": "25H2",
+        "approvedReviewPath": "baseline-sources/microsoft/Windows 11 v25H2 Security Baseline/Windows 11 v25H2 Security Baseline/matching/MSFT-Win11-v25H2.reconciled-composition-review.md"
+      },
+      "controls": [
+        {
+          "controlId": "audit.policy.account-lockout",
+          "parameters": {
+            "auditing": "failure"
+          },
+          "metadata": {
+            "sourceRuleId": "auditpol:{0cce9217-69ae-11d9-bed3-505054503030}",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "audit.policy.audit-policy-change",
+          "parameters": {
+            "auditing": "success"
+          },
+          "metadata": {
+            "sourceRuleId": "auditpol:{0cce922f-69ae-11d9-bed3-505054503030}",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "audit.policy.authentication-policy-change",
+          "parameters": {
+            "auditing": "success"
+          },
+          "metadata": {
+            "sourceRuleId": "auditpol:{0cce9230-69ae-11d9-bed3-505054503030}",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "audit.policy.credential-validation",
+          "parameters": {
+            "auditing": "success-and-failure"
+          },
+          "metadata": {
+            "sourceRuleId": "auditpol:{0cce923f-69ae-11d9-bed3-505054503030}",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "audit.policy.detailed-file-share",
+          "parameters": {
+            "auditing": "failure"
+          },
+          "metadata": {
+            "sourceRuleId": "auditpol:{0cce9244-69ae-11d9-bed3-505054503030}",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "audit.policy.file-share",
+          "parameters": {
+            "auditing": "success-and-failure"
+          },
+          "metadata": {
+            "sourceRuleId": "auditpol:{0cce9224-69ae-11d9-bed3-505054503030}",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "audit.policy.group-membership",
+          "parameters": {
+            "auditing": "success"
+          },
+          "metadata": {
+            "sourceRuleId": "auditpol:{0cce9249-69ae-11d9-bed3-505054503030}",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "audit.policy.logon",
+          "parameters": {
+            "auditing": "success-and-failure"
+          },
+          "metadata": {
+            "sourceRuleId": "auditpol:{0cce9215-69ae-11d9-bed3-505054503030}",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "audit.policy.mpssvc-rule-level-policy-change",
+          "parameters": {
+            "auditing": "success-and-failure"
+          },
+          "metadata": {
+            "sourceRuleId": "auditpol:{0cce9232-69ae-11d9-bed3-505054503030}",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "audit.policy.other-logon-logoff-events",
+          "parameters": {
+            "auditing": "success-and-failure"
+          },
+          "metadata": {
+            "sourceRuleId": "auditpol:{0cce921c-69ae-11d9-bed3-505054503030}",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "audit.policy.other-object-access-events",
+          "parameters": {
+            "auditing": "success-and-failure"
+          },
+          "metadata": {
+            "sourceRuleId": "auditpol:{0cce9227-69ae-11d9-bed3-505054503030}",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "audit.policy.other-policy-change-events",
+          "parameters": {
+            "auditing": "failure"
+          },
+          "metadata": {
+            "sourceRuleId": "auditpol:{0cce9234-69ae-11d9-bed3-505054503030}",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "audit.policy.other-system-events",
+          "parameters": {
+            "auditing": "success-and-failure"
+          },
+          "metadata": {
+            "sourceRuleId": "auditpol:{0cce9214-69ae-11d9-bed3-505054503030}",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "audit.policy.pnp-activity",
+          "parameters": {
+            "auditing": "success"
+          },
+          "metadata": {
+            "sourceRuleId": "auditpol:{0cce9248-69ae-11d9-bed3-505054503030}",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "audit.policy.process-creation",
+          "parameters": {
+            "auditing": "success"
+          },
+          "metadata": {
+            "sourceRuleId": "auditpol:{0cce922b-69ae-11d9-bed3-505054503030}",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "audit.policy.removable-storage",
+          "parameters": {
+            "auditing": "success-and-failure"
+          },
+          "metadata": {
+            "sourceRuleId": "auditpol:{0cce9245-69ae-11d9-bed3-505054503030}",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "audit.policy.security-group-management",
+          "parameters": {
+            "auditing": "success"
+          },
+          "metadata": {
+            "sourceRuleId": "auditpol:{0cce9237-69ae-11d9-bed3-505054503030}",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "audit.policy.security-state-change",
+          "parameters": {
+            "auditing": "success"
+          },
+          "metadata": {
+            "sourceRuleId": "auditpol:{0cce9210-69ae-11d9-bed3-505054503030}",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "audit.policy.security-system-extension",
+          "parameters": {
+            "auditing": "success"
+          },
+          "metadata": {
+            "sourceRuleId": "auditpol:{0cce9211-69ae-11d9-bed3-505054503030}",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "audit.policy.sensitive-privilege-use",
+          "parameters": {
+            "auditing": "success"
+          },
+          "metadata": {
+            "sourceRuleId": "auditpol:{0cce9228-69ae-11d9-bed3-505054503030}",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "audit.policy.special-logon",
+          "parameters": {
+            "auditing": "success"
+          },
+          "metadata": {
+            "sourceRuleId": "auditpol:{0cce921b-69ae-11d9-bed3-505054503030}",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "audit.policy.system-integrity",
+          "parameters": {
+            "auditing": "success-and-failure"
+          },
+          "metadata": {
+            "sourceRuleId": "auditpol:{0cce9212-69ae-11d9-bed3-505054503030}",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "audit.policy.user-account-management",
+          "parameters": {
+            "auditing": "success-and-failure"
+          },
+          "metadata": {
+            "sourceRuleId": "auditpol:{0cce9235-69ae-11d9-bed3-505054503030}",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "defender-baseline-policy.microsoft-windows-defender-disable-local-admin-merge",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows Defender\\DisableLocalAdminMerge",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "defender-baseline-policy.microsoft-windows-defender-disable-routinely-taking-action",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows Defender\\DisableRoutinelyTakingAction",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "defender-baseline-policy.microsoft-windows-defender-hide-exclusions-from-local-admins",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows Defender\\HideExclusionsFromLocalAdmins",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "defender-baseline-policy.windows-defender-exploit-guard-asr-exploit-guard-asr-rules",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\ASR\\ExploitGuard_ASR_Rules",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "defender-baseline-policy.windows-defender-exploit-guard-network-protection-enable-network-protection",
+          "parameters": {
+            "mode": "Block"
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\Network Protection\\EnableNetworkProtection",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "defender-baseline-policy.windows-defender-features-passive-remediation",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows Defender\\Features\\PassiveRemediation",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "defender-baseline-policy.windows-defender-mp-engine-mp-cloud-block-level",
+          "parameters": {
+            "level": "High"
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows Defender\\MpEngine\\MpCloudBlockLevel",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "defender-baseline-policy.windows-defender-nis-enable-convert-warn-to-block",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows Defender\\NIS\\EnableConvertWarnToBlock",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "defender-baseline-policy.windows-defender-real-time-protection-disable-ioavprotection",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows Defender\\Real-Time Protection\\DisableIOAVProtection",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "defender-baseline-policy.windows-defender-real-time-protection-disable-on-access-protection",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows Defender\\Real-Time Protection\\DisableOnAccessProtection",
+            "sourceVersion": "25H2",
+            "overlapDisposition": "KEEP_BOTH_AS_DISTINCT_SETTINGS"
+          }
+        },
+        {
+          "controlId": "defender-baseline-policy.windows-defender-real-time-protection-disable-scan-on-realtime-enable",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows Defender\\Real-Time Protection\\DisableScanOnRealtimeEnable",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "defender-baseline-policy.windows-defender-real-time-protection-disable-script-scanning",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows Defender\\Real-Time Protection\\DisableScriptScanning",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "defender-baseline-policy.windows-defender-real-time-protection-oobe-enable-rtp-and-sig-update",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows Defender\\Real-Time Protection\\OobeEnableRtpAndSigUpdate",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "defender-baseline-policy.windows-defender-real-time-protection-realtime-scan-direction",
+          "parameters": {
+            "direction": "ScanIncomingAndOutgoing"
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows Defender\\Real-Time Protection\\RealtimeScanDirection",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "defender-baseline-policy.windows-defender-reporting-enable-dynamic-signature-dropped-event-reporting",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows Defender\\Reporting\\EnableDynamicSignatureDroppedEventReporting",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "defender-baseline-policy.windows-defender-scan-quick-scan-include-exclusions",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows Defender\\Scan\\QuickScanIncludeExclusions",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "defender-baseline-policy.windows-defender-spynet-disable-block-at-first-seen",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows Defender\\Spynet\\DisableBlockAtFirstSeen",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "defender.protection.behavior-monitoring",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows Defender\\Real-Time Protection\\DisableBehaviorMonitoring",
+            "sourceVersion": "25H2",
+            "overlapDisposition": "REPLACE_PROPOSED_WITH_EXISTING"
+          }
+        },
+        {
+          "controlId": "defender.protection.cloud-delivered",
+          "parameters": {
+            "mode": "Advanced"
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows Defender\\Spynet\\SpynetReporting",
+            "sourceVersion": "25H2",
+            "overlapDisposition": "EXTEND_EXISTING_PARAMETER_CONTRACT",
+            "sourceDisplayValue": "Advanced MAPS"
+          }
+        },
+        {
+          "controlId": "defender.protection.cloud-timeout",
+          "parameters": {
+            "timeoutSeconds": 50
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows Defender\\MpEngine\\MpBafsExtendedTimeout",
+            "sourceVersion": "25H2",
+            "overlapDisposition": "REPLACE_PROPOSED_WITH_EXISTING"
+          }
+        },
+        {
+          "controlId": "defender.protection.pua",
+          "parameters": {
+            "mode": "Enabled"
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows Defender\\PUAProtection",
+            "sourceVersion": "25H2",
+            "overlapDisposition": "REPLACE_PROPOSED_WITH_EXISTING"
+          }
+        },
+        {
+          "controlId": "defender.protection.real-time",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows Defender\\Real-Time Protection\\DisableRealtimeMonitoring",
+            "sourceVersion": "25H2",
+            "overlapDisposition": "REPLACE_PROPOSED_WITH_EXISTING"
+          }
+        },
+        {
+          "controlId": "defender.protection.sample-submission",
+          "parameters": {
+            "mode": "SendAllSamples"
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows Defender\\Spynet\\SubmitSamplesConsent",
+            "sourceVersion": "25H2",
+            "overlapDisposition": "REPLACE_PROPOSED_WITH_EXISTING",
+            "sourceDisplayValue": "Send all samples"
+          }
+        },
+        {
+          "controlId": "defender.scan.removable-drives",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows Defender\\Scan\\DisableRemovableDriveScanning",
+            "sourceVersion": "25H2",
+            "overlapDisposition": "REPLACE_PROPOSED_WITH_EXISTING"
+          }
+        },
+        {
+          "controlId": "devices-media-and-autoplay.policies-explorer-no-autorun",
+          "parameters": {
+            "defaultBehavior": "DoNotExecuteAnyAutorunCommands"
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer\\NoAutorun",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "devices-media-and-autoplay.policies-explorer-no-drive-type-auto-run",
+          "parameters": {
+            "turnOffAutoplayOn": "AllDrives"
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer\\NoDriveTypeAutoRun",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "firewall-advanced-policy.domain-profile-logging-log-file-size",
+          "parameters": {
+            "sizeKilobytes": 16384
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\WindowsFirewall\\DomainProfile\\Logging\\LogFileSize",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "firewall-advanced-policy.domain-profile-logging-log-successful-connections",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\WindowsFirewall\\DomainProfile\\Logging\\LogSuccessfulConnections",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "firewall-advanced-policy.private-profile-logging-log-file-size",
+          "parameters": {
+            "sizeKilobytes": 16384
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\WindowsFirewall\\PrivateProfile\\Logging\\LogFileSize",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "firewall-advanced-policy.private-profile-logging-log-successful-connections",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\WindowsFirewall\\PrivateProfile\\Logging\\LogSuccessfulConnections",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "firewall-advanced-policy.public-profile-logging-log-file-size",
+          "parameters": {
+            "sizeKilobytes": 16384
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\WindowsFirewall\\PublicProfile\\Logging\\LogFileSize",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "firewall-advanced-policy.public-profile-logging-log-successful-connections",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\WindowsFirewall\\PublicProfile\\Logging\\LogSuccessfulConnections",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "firewall-advanced-policy.windows-firewall-domain-profile-disable-notifications",
+          "parameters": {
+            "enabled": false
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\WindowsFirewall\\DomainProfile\\DisableNotifications",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "firewall-advanced-policy.windows-firewall-private-profile-disable-notifications",
+          "parameters": {
+            "enabled": false
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\WindowsFirewall\\PrivateProfile\\DisableNotifications",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "firewall-advanced-policy.windows-firewall-public-profile-allow-local-ipsec-policy-merge",
+          "parameters": {
+            "enabled": false
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\WindowsFirewall\\PublicProfile\\AllowLocalIPsecRules",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "firewall-advanced-policy.windows-firewall-public-profile-allow-local-policy-merge",
+          "parameters": {
+            "enabled": false
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\WindowsFirewall\\PublicProfile\\AllowLocalFirewallRules",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "firewall-advanced-policy.windows-firewall-public-profile-disable-notifications",
+          "parameters": {
+            "enabled": false
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\WindowsFirewall\\PublicProfile\\DisableNotifications",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "firewall.default-inbound-action",
+          "parameters": {
+            "profiles": "AllProfiles",
+            "action": "Block"
+          },
+          "metadata": {
+            "sourceRuleIds": [
+              {
+                "registry": "computer:HKLM\\Software\\Policies\\Microsoft\\WindowsFirewall\\DomainProfile\\DefaultInboundAction"
+              },
+              {
+                "registry": "computer:HKLM\\Software\\Policies\\Microsoft\\WindowsFirewall\\PrivateProfile\\DefaultInboundAction"
+              },
+              {
+                "registry": "computer:HKLM\\Software\\Policies\\Microsoft\\WindowsFirewall\\PublicProfile\\DefaultInboundAction"
+              }
+            ],
+            "sourceVersion": "25H2",
+            "overlapDisposition": "REPLACE_PROPOSED_WITH_EXISTING"
+          }
+        },
+        {
+          "controlId": "firewall.default-outbound-action",
+          "parameters": {
+            "profiles": "AllProfiles",
+            "action": "Allow"
+          },
+          "metadata": {
+            "sourceRuleIds": [
+              {
+                "registry": "computer:HKLM\\Software\\Policies\\Microsoft\\WindowsFirewall\\DomainProfile\\DefaultOutboundAction"
+              },
+              {
+                "registry": "computer:HKLM\\Software\\Policies\\Microsoft\\WindowsFirewall\\PrivateProfile\\DefaultOutboundAction"
+              },
+              {
+                "registry": "computer:HKLM\\Software\\Policies\\Microsoft\\WindowsFirewall\\PublicProfile\\DefaultOutboundAction"
+              }
+            ],
+            "sourceVersion": "25H2",
+            "overlapDisposition": "REPLACE_PROPOSED_WITH_EXISTING"
+          }
+        },
+        {
+          "controlId": "firewall.domain.enabled",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\WindowsFirewall\\DomainProfile\\EnableFirewall",
+            "sourceVersion": "25H2",
+            "overlapDisposition": "REPLACE_PROPOSED_WITH_EXISTING"
+          }
+        },
+        {
+          "controlId": "firewall.logging.dropped-packets",
+          "parameters": {
+            "profiles": "AllProfiles",
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleIds": [
+              {
+                "registry": "computer:HKLM\\Software\\Policies\\Microsoft\\WindowsFirewall\\DomainProfile\\Logging\\LogDroppedPackets"
+              },
+              {
+                "registry": "computer:HKLM\\Software\\Policies\\Microsoft\\WindowsFirewall\\PrivateProfile\\Logging\\LogDroppedPackets"
+              },
+              {
+                "registry": "computer:HKLM\\Software\\Policies\\Microsoft\\WindowsFirewall\\PublicProfile\\Logging\\LogDroppedPackets"
+              }
+            ],
+            "sourceVersion": "25H2",
+            "overlapDisposition": "REPLACE_PROPOSED_WITH_EXISTING"
+          }
+        },
+        {
+          "controlId": "firewall.private.enabled",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\WindowsFirewall\\PrivateProfile\\EnableFirewall",
+            "sourceVersion": "25H2",
+            "overlapDisposition": "REPLACE_PROPOSED_WITH_EXISTING"
+          }
+        },
+        {
+          "controlId": "firewall.public.enabled",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\WindowsFirewall\\PublicProfile\\EnableFirewall",
+            "sourceVersion": "25H2",
+            "overlapDisposition": "REPLACE_PROPOSED_WITH_EXISTING"
+          }
+        },
+        {
+          "controlId": "identity.lockout.allow-administrator-lockout",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "secedit:System Access:AllowAdministratorLockout",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "identity.lockout.duration",
+          "parameters": {
+            "durationMinutes": 10
+          },
+          "metadata": {
+            "sourceRuleId": "secedit:System Access:LockoutDuration",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "identity.lockout.reset-counter-after",
+          "parameters": {
+            "resetMinutes": 10
+          },
+          "metadata": {
+            "sourceRuleId": "secedit:System Access:ResetLockoutCount",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "identity.lockout.threshold",
+          "parameters": {
+            "failedAttempts": 10
+          },
+          "metadata": {
+            "sourceRuleId": "secedit:System Access:LockoutBadCount",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "identity.password.clear-text-password",
+          "parameters": {
+            "enabled": false
+          },
+          "metadata": {
+            "sourceRuleId": "secedit:System Access:ClearTextPassword",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "identity.password.history-size",
+          "parameters": {
+            "rememberedPasswords": 24
+          },
+          "metadata": {
+            "sourceRuleId": "secedit:System Access:PasswordHistorySize",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "identity.password.lsaanonymous-name-lookup",
+          "parameters": {
+            "enabled": false
+          },
+          "metadata": {
+            "sourceRuleId": "secedit:System Access:LSAAnonymousNameLookup",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "identity.password.minimum-length",
+          "parameters": {
+            "minimumLength": 14
+          },
+          "metadata": {
+            "sourceRuleId": "secedit:System Access:MinimumPasswordLength",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "identity.password.password-complexity",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "secedit:System Access:PasswordComplexity",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "identity.sign-in.machine-inactivity-timeout",
+          "parameters": {
+            "timeoutSeconds": 900
+          },
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\\InactivityTimeoutSecs",
+            "sourceVersion": "25H2",
+            "overlapDisposition": "REPLACE_PROPOSED_WITH_EXISTING"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.biometrics-facial-features-enhanced-anti-spoofing",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Biometrics\\FacialFeatures\\EnhancedAntiSpoofing",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.current-version-internet-settings-certificate-revocation",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\CertificateRevocation",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.current-version-internet-settings-enable-ssl3-fallback",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\EnableSSL3Fallback",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.current-version-internet-settings-prevent-ignore-cert-errors",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\PreventIgnoreCertErrors",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.current-version-internet-settings-secure-protocols",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\SecureProtocols",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.current-version-internet-settings-security-hklm-only",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Security_HKLM_only",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.current-version-internet-settings-security-options-edit",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Security_options_edit",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.current-version-internet-settings-security-zones-map-edit",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Security_zones_map_edit",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.current-version-internet-settings-warn-on-bad-cert-recving",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\WarnOnBadCertRecving",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.internet-settings-zone-map-uncas-intranet",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\ZoneMap\\UNCAsIntranet",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.lockdown-zones-0-1-c00",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Lockdown_Zones\\0\\1C00",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.lockdown-zones-1-1-c00",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Lockdown_Zones\\1\\1C00",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.lockdown-zones-2-1-c00",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Lockdown_Zones\\2\\1C00",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.lockdown-zones-3-2301",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Lockdown_Zones\\3\\2301",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.lockdown-zones-4-1-c00",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Lockdown_Zones\\4\\1C00",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.lockdown-zones-4-2301",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Lockdown_Zones\\4\\2301",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.microsoft-fve-disable-external-dmaunder-lock",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\SOFTWARE\\Policies\\Microsoft\\FVE\\DisableExternalDMAUnderLock",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.microsoft-fve-rdvdeny-cross-org",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\SOFTWARE\\Policies\\Microsoft\\FVE\\RDVDenyCrossOrg",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.microsoft-fve-use-enhanced-pin",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\SOFTWARE\\Policies\\Microsoft\\FVE\\UseEnhancedPin",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.policies-cred-ui-enumerate-administrators",
+          "parameters": {
+            "enabled": false
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\CredUI\\EnumerateAdministrators",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.policies-explorer-no-web-services",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer\\NoWebServices",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.policies-ext-run-this-time-enabled",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Ext\\RunThisTimeEnabled",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.policies-ext-version-check-enabled",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Ext\\VersionCheckEnabled",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.policies-system-disable-automatic-restart-sign-on",
+          "parameters": {
+            "enabled": false
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\\DisableAutomaticRestartSignOn",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.policies-system-enable-mpr",
+          "parameters": {
+            "enabled": false
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\\EnableMPR",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.policies-system-local-account-token-filter-policy",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\\LocalAccountTokenFilterPolicy",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.policies-system-msaoptional",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\\MSAOptional",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.power-settings-0e796bdb-100d-47d6-a2d5-f7d2daa51f51-acsetting-index",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Power\\PowerSettings\\0e796bdb-100d-47d6-a2d5-f7d2daa51f51\\ACSettingIndex",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.power-settings-0e796bdb-100d-47d6-a2d5-f7d2daa51f51-dcsetting-index",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Power\\PowerSettings\\0e796bdb-100d-47d6-a2d5-f7d2daa51f51\\DCSettingIndex",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.power-settings-abfc2519-3608-4c2a-94ea-171b0ed546ab-acsetting-index",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\SOFTWARE\\Policies\\Microsoft\\Power\\PowerSettings\\abfc2519-3608-4c2a-94ea-171b0ed546ab\\ACSettingIndex",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.power-settings-abfc2519-3608-4c2a-94ea-171b0ed546ab-dcsetting-index",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\SOFTWARE\\Policies\\Microsoft\\Power\\PowerSettings\\abfc2519-3608-4c2a-94ea-171b0ed546ab\\DCSettingIndex",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.printers-point-and-print-restrict-driver-installation-to-administrators",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows NT\\Printers\\PointAndPrint\\RestrictDriverInstallationToAdministrators",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.printers-rpc-force-kerberos-for-rpc",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows NT\\Printers\\RPC\\ForceKerberosForRpc",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.printers-rpc-rpc-authentication",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows NT\\Printers\\RPC\\RpcAuthentication",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.printers-rpc-rpc-protocols",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows NT\\Printers\\RPC\\RpcProtocols",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.printers-rpc-rpc-tcp-port",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows NT\\Printers\\RPC\\RpcTcpPort",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.printers-rpc-rpc-use-named-pipe-protocol",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows NT\\Printers\\RPC\\RpcUseNamedPipeProtocol",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.system-audit-process-creation-include-cmd-line-enabled",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\\Audit\\ProcessCreationIncludeCmdLine_Enabled",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.wifinetworkmanager-config-auto-connect-allowed-oem",
+          "parameters": {
+            "enabled": false
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Microsoft\\WcmSvc\\wifinetworkmanager\\config\\AutoConnectAllowedOEM",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.windows-ax-installer-only-use-axisfor-active-xinstall",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\AxInstaller\\OnlyUseAXISForActiveXInstall",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.windows-bowser-enable-mailslots",
+          "parameters": {
+            "enabled": false
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\Bowser\\EnableMailslots",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.windows-credentials-delegation-allow-protected-creds",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CredentialsDelegation\\AllowProtectedCreds",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.windows-nt-dnsclient-enable-multicast",
+          "parameters": {
+            "enabled": false
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows NT\\DNSClient\\EnableMulticast",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.windows-nt-dnsclient-enable-netbios",
+          "parameters": {
+            "enabled": false
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows NT\\DNSClient\\EnableNetbios",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.windows-nt-printers-copy-files-policy",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows NT\\Printers\\CopyFilesPolicy",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.windows-nt-printers-disable-web-pn-pdownload",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows NT\\Printers\\DisableWebPnPDownload",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.windows-nt-printers-redirection-guard-policy",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows NT\\Printers\\RedirectionGuardPolicy",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.windows-nt-rpc-restrict-remote-clients",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows NT\\Rpc\\RestrictRemoteClients",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.zones-0-1-c00",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Zones\\0\\1C00",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.zones-0-270-c",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Zones\\0\\270C",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.zones-1-1-c00",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Zones\\1\\1C00",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.zones-1-1201",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Zones\\1\\1201",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.zones-1-270-c",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Zones\\1\\270C",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.zones-2-1-c00",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Zones\\2\\1C00",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.zones-2-1201",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Zones\\2\\1201",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.zones-2-270-c",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Zones\\2\\270C",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.zones-3-1001",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Zones\\3\\1001",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform-os-hardening.zones-3-1004",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Zones\\3\\1004",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-software-microsoft-windows-current-version-policies-system-consent-prompt-behavior-admin",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\\ConsentPromptBehaviorAdmin",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-software-microsoft-windows-current-version-policies-system-consent-prompt-behavior-enhanced-admin",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\\ConsentPromptBehaviorEnhancedAdmin",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-software-microsoft-windows-current-version-policies-system-consent-prompt-behavior-user",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\\ConsentPromptBehaviorUser",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-software-microsoft-windows-current-version-policies-system-enable-installer-detection",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\\EnableInstallerDetection",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-software-microsoft-windows-current-version-policies-system-enable-lua",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\\EnableLUA",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-software-microsoft-windows-current-version-policies-system-enable-secure-uiapaths",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\\EnableSecureUIAPaths",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-software-microsoft-windows-current-version-policies-system-enable-virtualization",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\\EnableVirtualization",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-software-microsoft-windows-current-version-policies-system-filter-administrator-token",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\\FilterAdministratorToken",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-software-microsoft-windows-current-version-policies-system-type-of-admin-approval-mode",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\\TypeOfAdminApprovalMode",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-software-microsoft-windows-nt-current-version-winlogon-sc-remove-option",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\\ScRemoveOption",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-system-current-control-set-control-lsa-limit-blank-password-use",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\System\\CurrentControlSet\\Control\\Lsa\\LimitBlankPasswordUse",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-system-current-control-set-control-lsa-lm-compatibility-level",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\System\\CurrentControlSet\\Control\\Lsa\\LmCompatibilityLevel",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-system-current-control-set-control-lsa-msv1-0-allownullsessionfallback",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\System\\CurrentControlSet\\Control\\Lsa\\MSV1_0\\allownullsessionfallback",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-system-current-control-set-control-lsa-msv1-0-ntlmmin-client-sec",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\System\\CurrentControlSet\\Control\\Lsa\\MSV1_0\\NTLMMinClientSec",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-system-current-control-set-control-lsa-msv1-0-ntlmmin-server-sec",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\System\\CurrentControlSet\\Control\\Lsa\\MSV1_0\\NTLMMinServerSec",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-system-current-control-set-control-lsa-restrict-anonymous",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\System\\CurrentControlSet\\Control\\Lsa\\RestrictAnonymous",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-system-current-control-set-control-lsa-restrict-anonymous-sam",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\System\\CurrentControlSet\\Control\\Lsa\\RestrictAnonymousSAM",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-system-current-control-set-control-lsa-restrict-remote-sam",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\System\\CurrentControlSet\\Control\\Lsa\\RestrictRemoteSAM",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-system-current-control-set-control-lsa-sceno-apply-legacy-audit-policy",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\System\\CurrentControlSet\\Control\\Lsa\\SCENoApplyLegacyAuditPolicy",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-system-current-control-set-control-session-manager-protection-mode",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\System\\CurrentControlSet\\Control\\Session Manager\\ProtectionMode",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-system-current-control-set-services-lan-man-server-parameters-restrict-null-sess-access",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\System\\CurrentControlSet\\Services\\LanManServer\\Parameters\\RestrictNullSessAccess",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-system-current-control-set-services-lanman-workstation-parameters-enable-plain-text-password",
+          "parameters": {
+            "allowed": false
+          },
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\System\\CurrentControlSet\\Services\\LanmanWorkstation\\Parameters\\EnablePlainTextPassword",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-system-current-control-set-services-ldap-ldapclient-integrity",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\System\\CurrentControlSet\\Services\\LDAP\\LDAPClientIntegrity",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-system-current-control-set-services-netlogon-parameters-disable-password-change",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\System\\CurrentControlSet\\Services\\Netlogon\\Parameters\\DisablePasswordChange",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-system-current-control-set-services-netlogon-parameters-requiresignorseal",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\System\\CurrentControlSet\\Services\\Netlogon\\Parameters\\requiresignorseal",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-system-current-control-set-services-netlogon-parameters-requirestrongkey",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\System\\CurrentControlSet\\Services\\Netlogon\\Parameters\\requirestrongkey",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-system-current-control-set-services-netlogon-parameters-sealsecurechannel",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\System\\CurrentControlSet\\Services\\Netlogon\\Parameters\\sealsecurechannel",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "platform.secedit.machine-system-current-control-set-services-netlogon-parameters-signsecurechannel",
+          "parameters": {},
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\System\\CurrentControlSet\\Services\\Netlogon\\Parameters\\signsecurechannel",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "privacy-advanced-windows-experience.windows-app-privacy-let-apps-activate-with-voice-above-lock",
+          "parameters": {
+            "mode": "ForceDeny"
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\AppPrivacy\\LetAppsActivateWithVoiceAboveLock",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "privacy-advanced-windows-experience.windows-cloud-content-disable-windows-consumer-features",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\CloudContent\\DisableWindowsConsumerFeatures",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "privacy.advertising-id",
+          "parameters": {
+            "allowed": false
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\AdvertisingInfo\\DisabledByGroupPolicy",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "privacy.diagnostic-data",
+          "parameters": {
+            "level": "Required"
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\DataCollection\\AllowTelemetry",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "privacy.input-personalization",
+          "parameters": {
+            "allowed": false
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\InputPersonalization\\AllowInputPersonalization",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "privacy.location-access",
+          "parameters": {
+            "mode": "ForceDeny"
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\AppPrivacy\\LetAppsAccessLocation",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "privacy.privacy-settings-experience",
+          "parameters": {
+            "allowed": false
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows\\OOBE\\DisablePrivacyExperience",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "remote-desktop-advanced-policy.cred-ssp-parameters-allow-encryption-oracle",
+          "parameters": {
+            "mode": "ForceUpdatedClients"
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\\CredSSP\\Parameters\\AllowEncryptionOracle",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "remote-desktop-advanced-policy.windows-nt-terminal-services-disable-password-saving",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows NT\\Terminal Services\\DisablePasswordSaving",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "remote-desktop-advanced-policy.windows-nt-terminal-services-f-allow-to-get-help",
+          "parameters": {
+            "enabled": false
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows NT\\Terminal Services\\fAllowToGetHelp",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "remote-desktop-advanced-policy.windows-nt-terminal-services-f-encrypt-rpctraffic",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows NT\\Terminal Services\\fEncryptRPCTraffic",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "remote-desktop-advanced-policy.windows-nt-terminal-services-min-encryption-level",
+          "parameters": {
+            "level": "High"
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows NT\\Terminal Services\\MinEncryptionLevel",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "remote-desktop.always-prompt-password",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows NT\\Terminal Services\\fPromptForPassword",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "remote-desktop.drive-redirection",
+          "parameters": {
+            "allowed": false
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\Software\\Policies\\Microsoft\\Windows NT\\Terminal Services\\fDisableCdm",
+            "sourceVersion": "25H2"
+          }
+        },
+        {
+          "controlId": "smb.client.require-signing",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\System\\CurrentControlSet\\Services\\LanmanWorkstation\\Parameters\\RequireSecuritySignature",
+            "sourceVersion": "25H2",
+            "overlapDisposition": "REPLACE_PROPOSED_WITH_EXISTING"
+          }
+        },
+        {
+          "controlId": "smb.server.require-signing",
+          "parameters": {
+            "enabled": true
+          },
+          "metadata": {
+            "sourceRuleId": "secedit:Registry Values:MACHINE\\System\\CurrentControlSet\\Services\\LanManServer\\Parameters\\requiresecuritysignature",
+            "sourceVersion": "25H2",
+            "overlapDisposition": "REPLACE_PROPOSED_WITH_EXISTING"
+          }
+        },
+        {
+          "controlId": "smb.server.smb1-protocol",
+          "parameters": {
+            "enabled": false
+          },
+          "metadata": {
+            "sourceRuleId": "registry:computer:HKLM\\SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters\\SMB1",
+            "sourceVersion": "25H2"
+          }
+        }
+      ]
+    }
+  ]
+}

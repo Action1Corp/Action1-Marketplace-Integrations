@@ -1,0 +1,160 @@
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+
+function readSource(relativePath) {
+  return fs.readFileSync(path.join(__dirname, '..', relativePath), 'utf8').replace(/\r\n/g, '\n');
+}
+
+function run() {
+  const policiesSource = readSource('ui/Policies.jsx');
+  assert(policiesSource.includes("import PolicyPage from './policies/PolicyPage.jsx';"), 'Policies.jsx should delegate to the PolicyPage shell');
+  assert(policiesSource.includes('<PolicyPage integration={integration} />'), 'Policies.jsx should render the policy shell with the integration prop');
+
+  const policyPageSource = readSource('ui/policies/PolicyPage.jsx');
+  assert(policyPageSource.includes('<h1 className="page-title" style={styles.title}>Policies</h1>'), 'PolicyPage should render the Policies page title');
+  assert(policyPageSource.includes("maxWidth: 960"), 'PolicyPage should use the Action1-specific centered 960px shell');
+  assert(policyPageSource.includes("margin: '0 auto'"), 'PolicyPage should center the Policies shell');
+  assert(policyPageSource.includes('Create and manage Windows configuration policies that assess and remediate'), 'PolicyPage should use the Blueprint-approved product description');
+  assert(!policyPageSource.includes('Demo state resets when the Marketplace page is refreshed.'), 'PolicyPage should remove the prototype reset notice from the customer-facing UI');
+  assert(policyPageSource.includes('openCreate'), 'PolicyPage should own the Create Policy shell transition');
+  assert(policyPageSource.includes('openDetails'), 'PolicyPage should own the Policy Details shell transition');
+  assert(policyPageSource.includes('openEdit'), 'PolicyPage should own the Edit Policy shell transition');
+  assert(policyPageSource.includes('saveDraft'), 'PolicyPage should own the save flow');
+  assert(policyPageSource.includes('togglePolicyEnabled'), 'PolicyPage should own the enable/disable lifecycle transition');
+  assert(policyPageSource.includes('deletePolicy'), 'PolicyPage should own the delete lifecycle transition');
+  assert(!policyPageSource.includes('ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â'), 'PolicyPage should not preserve mojibake em-dash literals');
+  assert(!policyPageSource.includes('demo Action1 automations'), 'PolicyPage should not leak customer-facing demo automation copy');
+  assert(!policyPageSource.includes('Demo state resets when the Marketplace page is refreshed.'), 'PolicyPage should not leak the prototype reset note');
+
+  const listViewSource = readSource('ui/policies/PolicyListView.jsx');
+  assert(listViewSource.includes('Create Policy'), 'PolicyListView should expose the Create Policy action');
+  assert(listViewSource.includes('Status'), 'PolicyListView should render the Status column');
+  assert(listViewSource.includes('Target'), 'PolicyListView should render the Target column');
+  assert(listViewSource.includes('Actions'), 'PolicyListView should render the Actions column');
+  assert(!listViewSource.includes('Open Policies'), 'PolicyListView should not render the stale Open Policies heading');
+  assert(!listViewSource.includes('Tuesday Marketplace walkthrough'), 'PolicyListView should not render stale demo walkthrough copy');
+  assert(!listViewSource.includes('Organization</th>'), 'PolicyListView should not render a separate Organization column');
+  assert(!listViewSource.includes('Scope</th>'), 'PolicyListView should not render a separate Scope column');
+  assert(!listViewSource.includes('Controls</th>'), 'PolicyListView should not render a separate Controls column');
+  assert(!listViewSource.includes('Automations</th>'), 'PolicyListView should not render a separate Automations column');
+  assert(!listViewSource.includes("overflowX: 'auto'"), 'PolicyListView should not default to horizontal overflow for the primary list');
+  assert(listViewSource.includes('Open details'), 'PolicyListView should expose Open details from the overflow action pattern');
+  assert(listViewSource.includes('Enable'), 'PolicyListView should expose Enable from the overflow action pattern');
+  assert(listViewSource.includes('Disable'), 'PolicyListView should expose Disable from the overflow action pattern');
+  assert(listViewSource.includes('Delete'), 'PolicyListView should expose Delete from the overflow action pattern');
+  assert(listViewSource.includes('No policies'), 'PolicyListView should render the compact Blueprint empty-state heading');
+  assert(!listViewSource.includes('<details'), 'PolicyListView should not rely on the clipped details/summary menu pattern');
+  assert(listViewSource.includes('Policy actions'), 'PolicyListView should provide an accessible label for the row ellipsis menu');
+  assert(listViewSource.includes('\u2026') || listViewSource.includes('...'), 'PolicyListView should render a compact ellipsis-style menu trigger');
+  assert(listViewSource.includes('statusBadge'), 'PolicyListView should render the compact badge treatment for Policy status');
+  assert(listViewSource.includes('scheduleChip'), 'PolicyListView should render the compact schedule chip treatment');
+  assert(listViewSource.includes('targetScope'), 'PolicyListView should render the muted target scope line beneath the organization');
+  assert(!listViewSource.includes('demo Action1 automations'), 'PolicyListView should not leak customer-facing demo automation copy');
+
+  const editorViewSource = readSource('ui/policies/PolicyEditorView.jsx');
+  assert(editorViewSource.includes('updateRunEveryHours'), 'PolicyEditorView should use the shared Run every synchronization helper');
+  assert(editorViewSource.includes('updateCompletionDeadline'), 'PolicyEditorView should use the shared deadline override helper');
+  assert(editorViewSource.includes('Save and apply'), 'PolicyEditorView should use Save and apply as the primary action label');
+  assert(!editorViewSource.includes('Save changes'), 'PolicyEditorView should not use the stale Save changes label');
+  assert(editorViewSource.includes('Save and apply Policy'), 'PolicyEditorView should render a final Save and apply confirmation');
+  assert(editorViewSource.includes('Confirm remediation'), 'PolicyEditorView should keep the separate remediation confirmation');
+  assert(editorViewSource.includes('Details & Target'), 'PolicyEditorView should render the wizard step label for Details & Target');
+  assert(editorViewSource.includes('Policy mode'), 'PolicyEditorView should render the wizard step label for Policy mode');
+  assert(editorViewSource.includes('Controls'), 'PolicyEditorView should render the wizard step label for Controls');
+  assert(editorViewSource.includes('Review'), 'PolicyEditorView should render the wizard step label for Review');
+  assert(editorViewSource.includes('Next'), 'PolicyEditorView should render the wizard Next action');
+  assert(editorViewSource.includes('Back'), 'PolicyEditorView should render the wizard Back action');
+  assert(editorViewSource.includes('Automation completion deadline'), 'PolicyEditorView should render the completion deadline field');
+  assert(editorViewSource.includes('Run every'), 'PolicyEditorView should render the Run every field');
+  assert(editorViewSource.includes('Timezone'), 'PolicyEditorView should render the timezone field');
+  assert(editorViewSource.includes('Start date'), 'PolicyEditorView should render the start date field');
+  assert(editorViewSource.includes('Start time'), 'PolicyEditorView should render the start time field');
+  assert(editorViewSource.includes('Advanced settings'), 'PolicyEditorView should place Run schedule inside the approved Advanced settings section');
+  assert(editorViewSource.includes('Action1 automations'), 'PolicyEditorView summary should preserve the Action1 automation count');
+  assert(editorViewSource.includes('Control Family'), 'PolicyEditorView should use Control Family terminology');
+  assert(editorViewSource.includes('Category'), 'PolicyEditorView should use Category terminology in the controls hierarchy');
+  assert(editorViewSource.includes('Selected only'), 'PolicyEditorView should expose the Selected only filter');
+  assert(editorViewSource.includes('In baseline only'), 'PolicyEditorView should expose the In baseline only filter');
+  assert(editorViewSource.includes('Apply'), 'PolicyEditorView should expose the baseline Apply action');
+  assert(editorViewSource.includes('Search controls'), 'PolicyEditorView should render the wizard Controls search field');
+  assert(!/['"`]Family:/.test(editorViewSource), 'PolicyEditorView should not prefix hierarchy rows with stale Family: labels');
+  assert(!/['"`]Control Family:/.test(editorViewSource), 'PolicyEditorView should not prefix hierarchy rows with stale Control Family: labels');
+  assert(!/['"`]Control:/.test(editorViewSource), 'PolicyEditorView should not prefix hierarchy rows with stale Control: labels');
+  assert(!editorViewSource.includes('rgba(15,23,42,0.36)'), 'PolicyEditorView should not use the stale dark per-section card background');
+  assert(!editorViewSource.includes('rgb(15, 23, 42)'), 'PolicyEditorView dialogs should not use a dark modal surface');
+  assert(!editorViewSource.includes('summaryGrid'), 'PolicyEditorView should not render the summary as bordered tiles');
+  assert(editorViewSource.includes('editorSurface'), 'PolicyEditorView should use one shared primary editor surface');
+  assert(editorViewSource.includes('.a1-policy-wizard .section { border-top: 1px solid var(--border);'), 'PolicyEditorView should port the mock section divider CSS directly');
+  assert(editorViewSource.includes('Open details'), 'PolicyEditorView should preserve the final confirmation action wording');
+  assert(editorViewSource.includes('Assess only'), 'PolicyEditorView should render the Assess only option');
+  assert(editorViewSource.includes('Assess and remediate'), 'PolicyEditorView should render the Assess and remediate option');
+  assert(editorViewSource.includes('readOnly={isEditMode}'), 'PolicyEditorView should keep immutable edit fields visibly read-only');
+  assert(editorViewSource.includes('disabled={isEditMode}'), 'PolicyEditorView should keep immutable edit selectors disabled');
+  assert(!editorViewSource.includes('expected demo automation record(s)'), 'PolicyEditorView should not surface implementation-oriented automation count copy');
+  assert(!editorViewSource.includes('deterministic demo Action1 automations'), 'PolicyEditorView should not leak customer-facing demo automation copy');
+  assert(!editorViewSource.includes('saved demo Policy'), 'PolicyEditorView should not leak prototype wording in the editor copy');
+  assert(!editorViewSource.includes('localStorage'), 'PolicyEditorView should not read localStorage');
+  assert(!editorViewSource.includes('/api/'), 'PolicyEditorView should not call Marketplace backend routes');
+  assert(editorViewSource.includes('categoryCaption'), 'PolicyEditorView should render uppercase muted category captions');
+  assert(editorViewSource.includes('selectedControlRow'), 'PolicyEditorView should highlight selected Controls across the row');
+  assert(editorViewSource.includes('lockedSectionHint'), 'PolicyEditorView should visibly communicate locked Target fields in edit mode');
+  assert(editorViewSource.includes('baseline-select'), 'PolicyEditorView should render a baseline selection control');
+  assert(editorViewSource.includes('masterDetailLayout'), 'PolicyEditorView should render the wizard master-detail Controls layout');
+  assert(editorViewSource.includes('activeControlFamilyId'), 'PolicyEditorView should track the active Control Family for the detail pane');
+  assert(editorViewSource.includes('aria-hidden="true"'), 'PolicyEditorView should use a compact chevron icon instead of Expand / Collapse copy');
+  assert(editorViewSource.includes('stepConnector'), 'PolicyEditorView should render mock-like step connector lines');
+  assert(editorViewSource.includes('goToStep(row.step)'), 'PolicyEditorView review should link summary rows back to earlier steps');
+  assert(editorViewSource.includes('className={cx(\'s-value\', row.emphasized && \'strong\')}'), 'PolicyEditorView should render review values inside the inline summary value container');
+  assert(editorViewSource.includes('className="s-edit" onClick={() => goToStep(row.step)}'), 'PolicyEditorView should keep the review Edit links inline with their target values');
+  assert(editorViewSource.includes('Applying a baseline adds its recommended Controls and settings to this'), 'PolicyEditorView should use the customer-facing baseline helper copy');
+  assert(editorViewSource.includes('Policy. Your other selected Controls remain unchanged.'), 'PolicyEditorView should preserve the approved baseline helper copy continuation');
+  assert(editorViewSource.includes('createInitialWizardState({ isEditMode })'), 'PolicyEditorView should initialize Edit mode with the Selected only Controls lens');
+  assert(editorViewSource.includes('const recommendationLabel = selectedBaseline?.tag || \'Recommended\';'), 'PolicyEditorView should label inline recommendation values with the active baseline tag');
+  assert(!editorViewSource.includes('setOpenControlFamilies'), 'PolicyEditorView should not treat Control Families as collapsible tree nodes');
+  assert(!editorViewSource.includes('aria-expanded={family.isExpanded}'), 'PolicyEditorView should not expose per-family expand/collapse state');
+  assert(!editorViewSource.includes("textTransform: 'uppercase'"), 'PolicyEditorView should not restyle Category labels away from the executable mock');
+  assert(!editorViewSource.includes("letterSpacing: '0.08em'"), 'PolicyEditorView should not add mock-divergent category letterspacing');
+  assert(!editorViewSource.includes('<h3 style={styles.sectionHeading}>Run schedule</h3>'), 'PolicyEditorView should keep Advanced settings structurally aligned with the executable mock');
+  assert(!editorViewSource.includes('Baseline recommended'), 'PolicyEditorView should render baseline metadata using the mock-aligned inline recommendation treatment');
+  assert(editorViewSource.includes('const WIZARD_CSS = `'), 'PolicyEditorView should port the wizard styling into a dedicated mock-derived CSS block');
+  assert(editorViewSource.includes('.a1-policy-wizard .tree-cat.open + .tree-cat-body { display: block; }'), 'PolicyEditorView should port the mock tree expansion CSS directly');
+  assert(editorViewSource.includes('.a1-policy-wizard .review-chips { display: flex; flex-wrap: wrap; gap: 6px; }'), 'PolicyEditorView should port the mock review chip layout directly');
+
+  const detailsViewSource = readSource('ui/policies/PolicyDetailsView.jsx');
+  assert(detailsViewSource.includes('Policy Details'), 'PolicyDetailsView should render the Policy Details heading');
+  assert(detailsViewSource.includes('Open automation in Action1'), 'PolicyDetailsView should expose deterministic Action1 automation links');
+  assert(detailsViewSource.includes('Enable'), 'PolicyDetailsView should expose the Enable lifecycle action');
+  assert(detailsViewSource.includes('Disable'), 'PolicyDetailsView should expose the Disable lifecycle action');
+  assert(detailsViewSource.includes('Delete'), 'PolicyDetailsView should expose the Delete lifecycle action');
+  assert(detailsViewSource.includes('Back to Policies'), 'PolicyDetailsView should use a text-style Back to Policies navigation link');
+  assert(!detailsViewSource.includes('rgba(15,23,42,0.36)'), 'PolicyDetailsView should not use the stale dark card background');
+  assert(detailsViewSource.includes('Controls and Action1 automations'), 'PolicyDetailsView should merge Controls and automation links into one customer-facing section');
+  assert(!detailsViewSource.includes('Selected Controls'), 'PolicyDetailsView should not render the stale technical Selected Controls section');
+  assert(!detailsViewSource.includes('JSON.stringify'), 'PolicyDetailsView should not stringify raw parameter JSON into the customer-facing Details view');
+  assert(detailsViewSource.includes('Policy actions'), 'PolicyDetailsView should provide an accessible label for the heading action menu');
+  assert(detailsViewSource.includes('statusBadge'), 'PolicyDetailsView should render status and mode badges in the Overview section');
+  assert(detailsViewSource.includes('CompactControlSummaryGroups'), 'PolicyDetailsView should reuse the shared compact Control summary presentation');
+  assert(!detailsViewSource.includes('deterministic demo Action1 automation records'), 'PolicyDetailsView should not leak customer-facing demo automation wording');
+
+  const actionMenuSource = readSource('ui/policies/PolicyActionMenu.jsx');
+  assert(actionMenuSource.includes('createPortal'), 'PolicyActionMenu should render through a portal so menus are not clipped by table surfaces');
+  assert(actionMenuSource.includes('Escape'), 'PolicyActionMenu should close on Escape');
+  assert(actionMenuSource.includes('mousedown'), 'PolicyActionMenu should close on outside click');
+  assert(actionMenuSource.includes('fixed'), 'PolicyActionMenu should use fixed positioning for reliable viewport anchoring');
+
+  const styleTokensSource = readSource('ui/policies/policyUiStyles.js');
+  assert(styleTokensSource.includes('controlHeight: 34'), 'policyUiStyles should centralize the compact 34px control height');
+  assert(styleTokensSource.includes('surfaceRadius: 8'), 'policyUiStyles should centralize the 8px card/dialog radius');
+  assert(styleTokensSource.includes('borderRadius: 4'), 'policyUiStyles should use the reference 4px rectangular control geometry');
+  assert(styleTokensSource.includes('#e4e8ec'), 'policyUiStyles should use the reference neutral border color');
+  assert(styleTokensSource.includes('#cfd6dd'), 'policyUiStyles should use the reference control border color');
+  assert(styleTokensSource.includes('#1f2328'), 'policyUiStyles should use the reference primary text color');
+}
+
+try {
+  run();
+} catch (error) {
+  console.error(error);
+  process.exit(1);
+}

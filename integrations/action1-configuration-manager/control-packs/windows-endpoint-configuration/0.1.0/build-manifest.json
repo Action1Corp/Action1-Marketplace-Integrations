@@ -1,0 +1,276 @@
+{
+  "schemaVersion": 1,
+  "packId": "windows-endpoint-configuration",
+  "packVersion": "0.2.0",
+  "sourceDefinitionPath": "pack-definitions/windows-endpoint-configuration/composition.yaml",
+  "sourcePackPath": "pack-definitions/windows-endpoint-configuration/pack.json",
+  "builderVersion": "0.1.0",
+  "includedControls": [
+    {
+      "controlId": "defender.protection.behavior-monitoring",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender.protection.cloud-delivered",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender.protection.cloud-timeout",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender.protection.pua",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender.protection.real-time",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender.protection.sample-submission",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender.scan.day",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender.scan.maximum-cpu",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender.scan.removable-drives",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender.scan.time",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender.scan.type",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "devices.portable-devices.block-read",
+      "version": "0.2.0"
+    },
+    {
+      "controlId": "devices.portable-devices.block-write",
+      "version": "0.2.0"
+    },
+    {
+      "controlId": "devices.removable-storage.block-execution",
+      "version": "0.2.0"
+    },
+    {
+      "controlId": "devices.removable-storage.block-read",
+      "version": "0.2.0"
+    },
+    {
+      "controlId": "devices.removable-storage.block-write",
+      "version": "0.2.0"
+    },
+    {
+      "controlId": "firewall.default-inbound-action",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "firewall.default-outbound-action",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "firewall.domain.enabled",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "firewall.logging.dropped-packets",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "firewall.private.enabled",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "firewall.public.enabled",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.lockout.duration",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.lockout.reset-counter-after",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.lockout.threshold",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.password.history-size",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.password.maximum-age",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.password.minimum-age",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.password.minimum-length",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.sign-in.hide-last-user",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.sign-in.legal-notice-caption",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.sign-in.legal-notice-text",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.sign-in.machine-inactivity-timeout",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.sign-in.require-secure-attention",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.advertising-id",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.diagnostic-data",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.input-personalization",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.location-access",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.privacy-settings-experience",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "remote-desktop.always-prompt-password",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "remote-desktop.clipboard-redirection",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "remote-desktop.drive-redirection",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "remote-desktop.enabled",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "remote-desktop.printer-redirection",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "remote-desktop.require-nla",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "smb.client.insecure-guest-auth",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "smb.client.require-signing",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "smb.server.default-workstation-shares",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "smb.server.require-encryption",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "smb.server.require-signing",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "smb.server.smb1-protocol",
+      "version": "0.1.0"
+    }
+  ],
+  "includedAutomationGroups": [
+    {
+      "automationGroupId": "defender.protection",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "defender.scanning",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "devices.removable-storage",
+      "version": "0.2.0"
+    },
+    {
+      "automationGroupId": "firewall.profiles",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "identity.account-lockout",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "identity.interactive-sign-in",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "identity.password-policy",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "privacy.windows-experience",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "remote-desktop.security",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "smb.security",
+      "version": "0.1.0"
+    }
+  ],
+  "validationLevels": [
+    "MOCK_VALIDATED"
+  ],
+  "generatedArtifacts": [
+    "dist/windows-endpoint-configuration/0.2.0/build-manifest.json",
+    "dist/windows-endpoint-configuration/0.2.0/bundles/defender.protection.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.2.0/bundles/defender.scanning.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.2.0/bundles/devices.removable-storage.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.2.0/bundles/firewall.profiles.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.2.0/bundles/identity.account-lockout.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.2.0/bundles/identity.interactive-sign-in.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.2.0/bundles/identity.password-policy.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.2.0/bundles/privacy.windows-experience.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.2.0/bundles/remote-desktop.security.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.2.0/bundles/smb.security.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.2.0/control-catalog.json",
+    "dist/windows-endpoint-configuration/0.2.0/pack.json",
+    "dist/windows-endpoint-configuration/0.2.0/samples/identity.password-policy.assess-and-remediate.ps1",
+    "dist/windows-endpoint-configuration/0.2.0/samples/identity.password-policy.assess-only.ps1"
+  ]
+}

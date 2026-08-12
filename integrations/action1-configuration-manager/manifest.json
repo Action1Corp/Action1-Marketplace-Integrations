@@ -1,0 +1,13 @@
+{
+  "id": "action1-configuration-manager",
+  "name": "Configuration Management",
+  "vendor": "Action1",
+  "version": "0.1.0",
+  "marketplaceApiVersion": "1.0",
+  "minimumMarketplaceVersion": "1.0.0",
+  "description": "Create and manage Windows configuration policies through scheduled Action1 automations.",
+  "category": "Endpoint Management",
+  "icon_color": "#2E8CEB",
+  "entry": "index.js",
+  "actions": []
+}
