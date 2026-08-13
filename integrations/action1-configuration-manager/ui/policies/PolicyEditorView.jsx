@@ -345,14 +345,19 @@ function renderConfigInput({ parameter, value, onChange, errorMessage }) {
 }
 
 function PolicyEditorView({
+  allEndpointsAvailable = true,
   catalog,
   draft,
   endpointGroups,
+  endpointGroupsError = '',
+  endpointGroupsLoading = false,
   isEditMode,
   onCancel,
   onChange,
   onSave,
   organizations,
+  organizationsError = '',
+  organizationsLoading = false,
   validationResult
 }) {
   const [wizardState, setWizardState] = useState(() => createInitialWizardState({ isEditMode }));
@@ -780,8 +785,8 @@ function PolicyEditorView({
                 {isEditMode ? (
                   <input type="text" value={draft.organizationName} readOnly={isEditMode} disabled={isEditMode} className="locked" />
                 ) : (
-                  <select value={draft.organizationId} onChange={(event) => updateOrganization(draft, organizations, onChange, event.target.value)} disabled={isEditMode}>
-                    <option value="">Select organization</option>
+                  <select value={draft.organizationId} onChange={(event) => updateOrganization(draft, organizations, onChange, event.target.value)} disabled={isEditMode || organizationsLoading}>
+                    <option value="">{organizationsLoading ? 'Loading Action1 organizations...' : 'Select organization'}</option>
                     {organizations.map((organization) => (
                       <option key={organization.organizationId} value={organization.organizationId}>
                         {organization.organizationName}
@@ -790,6 +795,7 @@ function PolicyEditorView({
                   </select>
                 )}
                 {fieldError('organizationId') ? <p className="hint error">{fieldError('organizationId')}</p> : null}
+                {organizationsError ? <p className="hint error">{organizationsError}</p> : null}
               </div>
 
               <div className="field">
@@ -801,7 +807,7 @@ function PolicyEditorView({
                       name="scopeType"
                       checked={draft.scopeType === 'ALL_ENDPOINTS'}
                       onChange={() => updateScopeType(draft, onChange, 'ALL_ENDPOINTS')}
-                      disabled={isEditMode}
+                      disabled={isEditMode || !draft.organizationId || endpointGroupsLoading || !allEndpointsAvailable}
                     />
                     All endpoints
                   </label>
@@ -811,12 +817,15 @@ function PolicyEditorView({
                       name="scopeType"
                       checked={draft.scopeType === 'ENDPOINT_GROUP'}
                       onChange={() => updateScopeType(draft, onChange, 'ENDPOINT_GROUP')}
-                      disabled={isEditMode}
+                      disabled={isEditMode || !draft.organizationId || endpointGroupsLoading}
                     />
                     Endpoint group
                   </label>
                 </div>
                 {fieldError('scopeType') ? <p className="hint error">{fieldError('scopeType')}</p> : null}
+                {!isEditMode && draft.organizationId && !allEndpointsAvailable && draft.scopeType === 'ALL_ENDPOINTS' ? (
+                  <p className="hint error">All endpoints is unavailable because this organization already has reserved target scopes.</p>
+                ) : null}
               </div>
 
               <div className="field">
@@ -824,22 +833,30 @@ function PolicyEditorView({
                 {isEditMode ? (
                   <input type="text" value={draft.endpointGroupName} readOnly={isEditMode} disabled={isEditMode} className="locked" />
                 ) : (
-                  <select
-                    value={draft.endpointGroupId}
-                    onChange={(event) => updateEndpointGroup(draft, endpointGroups, onChange, event.target.value)}
-                    disabled={draft.scopeType !== 'ENDPOINT_GROUP' || isEditMode}
-                  >
-                    <option value="">{draft.scopeType === 'ENDPOINT_GROUP' ? 'Select endpoint group' : 'Choose Endpoint group'}</option>
-                    {endpointGroups
-                      .filter((entry) => !draft.organizationId || entry.organizationId === draft.organizationId)
-                      .map((endpointGroup) => (
+                    <select
+                      value={draft.endpointGroupId}
+                      onChange={(event) => updateEndpointGroup(draft, endpointGroups, onChange, event.target.value)}
+                      disabled={!draft.organizationId || draft.scopeType !== 'ENDPOINT_GROUP' || isEditMode || endpointGroupsLoading}
+                    >
+                      <option value="">
+                        {endpointGroupsLoading
+                          ? 'Loading endpoint groups...'
+                          : draft.scopeType === 'ENDPOINT_GROUP'
+                            ? 'Select endpoint group'
+                            : 'Choose Endpoint group'}
+                      </option>
+                      {endpointGroups.map((endpointGroup) => (
                         <option key={endpointGroup.endpointGroupId} value={endpointGroup.endpointGroupId}>
                           {endpointGroup.endpointGroupName}
                         </option>
                       ))}
-                  </select>
+                    </select>
                 )}
                 {fieldError('endpointGroupId') ? <p className="hint error">{fieldError('endpointGroupId')}</p> : null}
+                {endpointGroupsError ? <p className="hint error">{endpointGroupsError}</p> : null}
+                {!isEditMode && draft.scopeType === 'ENDPOINT_GROUP' && !endpointGroupsLoading && !endpointGroupsError && endpointGroups.length === 0 ? (
+                  <p className="hint">No endpoint groups are currently available for a new Policy in this organization.</p>
+                ) : null}
               </div>
             </div>
           </div>

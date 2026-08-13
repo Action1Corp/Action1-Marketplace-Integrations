@@ -9,5 +9,70 @@
   "category": "Endpoint Management",
   "icon_color": "#2E8CEB",
   "entry": "index.js",
-  "actions": []
+  "actions": [
+    {
+      "id": "list-policies",
+      "kind": "action",
+      "label": "List Policies",
+      "buttonLabel": "List Policies",
+      "description": "Lists persisted Configuration Manager policies.",
+      "placement": "policies",
+      "history": false
+    },
+    {
+      "id": "get-policy",
+      "kind": "action",
+      "label": "Get Policy",
+      "buttonLabel": "Get Policy",
+      "description": "Loads one persisted Configuration Manager policy.",
+      "placement": "policies",
+      "history": false
+    },
+    {
+      "id": "save-policy",
+      "kind": "action",
+      "label": "Save Policy",
+      "buttonLabel": "Save Policy",
+      "runningLabel": "Saving...",
+      "description": "Creates or updates the persisted Configuration Manager policy record.",
+      "placement": "policies",
+      "history": false
+    },
+    {
+      "id": "set-policy-enabled",
+      "kind": "action",
+      "label": "Set Policy Enabled",
+      "buttonLabel": "Update Policy",
+      "description": "Enables or disables a persisted Configuration Manager policy.",
+      "placement": "policies",
+      "history": false
+    },
+    {
+      "id": "delete-policy",
+      "kind": "action",
+      "label": "Delete Policy",
+      "buttonLabel": "Delete Policy",
+      "description": "Deletes a persisted Configuration Manager policy.",
+      "placement": "policies",
+      "history": false
+    },
+    {
+      "id": "discover-policy-organizations",
+      "kind": "action",
+      "label": "Discover Policy Organizations",
+      "buttonLabel": "Discover Policy Organizations",
+      "description": "Loads Action1 organizations for the Configuration Manager Policies wizard.",
+      "placement": "policies",
+      "history": false
+    },
+    {
+      "id": "discover-policy-endpoint-groups",
+      "kind": "action",
+      "label": "Discover Policy Endpoint Groups",
+      "buttonLabel": "Discover Policy Endpoint Groups",
+      "description": "Loads Action1 endpoint groups for the selected Configuration Manager organization.",
+      "placement": "policies",
+      "history": false
+    }
+  ]
 }
