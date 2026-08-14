@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "publishedAt": "2026-08-14T16:19:25.084Z",
+  "publishedAt": "2026-08-14T16:22:22.318Z",
   "integrations": [
     {
       "id": "defender",
@@ -56,13 +56,13 @@
       "vendor": "Microsoft",
       "description": "Deploy the Action1 Agent with Intune, track enrollment, and monitor provisioning automations.",
       "category": "Endpoint Management",
-      "latestVersion": "1.0.0",
+      "latestVersion": "1.0.1",
       "minimumMarketplaceVersion": "1.0.0",
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-16/action1-integration-intune-1.0.0.tgz",
-        "sha256": "ad333b6438b3b9787b6172d9109520c983e19f2c1a296268d3145f50e1bf7426",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-17/action1-integration-intune-1.0.1.tgz",
+        "sha256": "50ae2b37c748b609edb3ea774dadcd6b269da1582e3ac87df979b7f3d4db8bfc",
         "signatureUrl": ""
       }
     },

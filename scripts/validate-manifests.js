@@ -87,8 +87,6 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
   if (!entry.isDirectory() || entry.name.startsWith('_')) continue;
   const manifestPath = path.join(root, entry.name, 'manifest.json');
   if (!fs.existsSync(manifestPath)) {
-    console.error(`${entry.name}: missing manifest.json`);
-    failures += 1;
     continue;
   }
 

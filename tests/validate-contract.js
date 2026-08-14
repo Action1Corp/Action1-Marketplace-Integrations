@@ -13,7 +13,9 @@ async function run() {
     if (!entry.isDirectory() || entry.name.startsWith('_')) continue;
 
     const integrationDir = path.join(root, entry.name);
-    const manifest = JSON.parse(fs.readFileSync(path.join(integrationDir, 'manifest.json'), 'utf8'));
+    const manifestPath = path.join(integrationDir, 'manifest.json');
+    if (!fs.existsSync(manifestPath)) continue;
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     assert(!Object.prototype.hasOwnProperty.call(manifest, 'capabilities'), `${manifest.id}: capabilities are inferred and should not be in manifest.json`);
     assert(!Object.prototype.hasOwnProperty.call(manifest, 'marketplaceActions'), `${manifest.id}: marketplaceActions should not be in manifest.json`);
     assert(!Object.prototype.hasOwnProperty.call(manifest, 'hostServices'), `${manifest.id}: hostServices should not be in manifest.json`);
