@@ -22,6 +22,8 @@ const ACTION1_AUTOMATION_INSTANCE_SCAN_LIMIT = 100;
 const ACTION1_API_MAX_RETRIES = 5;
 const ACTION1_API_BASE_BACKOFF_MS = 2000;
 const ACTION1_API_MAX_BACKOFF_MS = 60000;
+const ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE = 'Action1 Provisioning Status';
+const ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE = 'Completed';
 
 
 function updateProgress(details, status = 'Running') {
@@ -593,6 +595,123 @@ async function fetchAction1Schedule(headers, scheduleUrl) {
     return response.data || null;
 }
 
+async function removeAction1EndpointFromGroup(headers, action1OrgId, groupId, endpointId) {
+    const response = await requestAction1({
+        method: 'post',
+        url: `https://app.action1.com/api/3.0/endpoints/groups/${encodeURIComponent(action1OrgId)}/${encodeURIComponent(groupId)}/contents`,
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        data: [{ method: 'DELETE', endpoint_id: endpointId }]
+    }, 'Action1 endpoint group removal request');
+    return response.data || {};
+}
+
+async function ensureAction1ProvisioningCustomAttribute(headers) {
+    const settings = await fetchAction1Collection(
+        headers,
+        'https://app.action1.com/api/3.0/settings/all?limit=100&from=0',
+        { limit: 100, pageLimit: 5 }
+    );
+    const setting = settings.find(item => (
+        item?.template_id === 'endpoint_custom_attributes' ||
+        String(item?.name || '').toLowerCase() === 'endpoint custom attributes'
+    ));
+    const desired = ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE;
+    if (setting) {
+        let attributes = [];
+        try {
+            attributes = JSON.parse(setting.value || '[]');
+        } catch {
+            attributes = [];
+        }
+        if (attributes.some(attribute => String(attribute?.name || '').trim().toLowerCase() === desired.toLowerCase())) {
+            return { changed: false, message: `${desired} custom attribute already exists.` };
+        }
+        const updatedAttributes = [...attributes, { name: desired }];
+        await requestAction1({
+            method: 'patch',
+            url: `https://app.action1.com/api/3.0/settings/all/${encodeURIComponent(setting.id)}`,
+            headers: { ...headers, 'Content-Type': 'application/json' },
+            data: {
+                value: JSON.stringify(updatedAttributes),
+                scope: setting.scope || [{ type: 'Enterprise', object: 'All' }]
+            }
+        }, 'Action1 custom attribute settings request');
+        return { changed: true, message: `${desired} custom attribute was added.` };
+    }
+
+    await requestAction1({
+        method: 'post',
+        url: 'https://app.action1.com/api/3.0/settings/all',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        data: {
+            template_id: 'endpoint_custom_attributes',
+            value: JSON.stringify([{ name: desired }]),
+            scope: [{ type: 'Enterprise', object: 'All' }]
+        }
+    }, 'Action1 custom attribute settings request');
+    return { changed: true, message: `${desired} custom attribute setting was created.` };
+}
+
+async function fetchAction1EndpointGroup(headers, action1OrgId, groupId) {
+    const response = await requestAction1({
+        method: 'get',
+        url: `https://app.action1.com/api/3.0/endpoints/groups/${encodeURIComponent(action1OrgId)}/${encodeURIComponent(groupId)}`,
+        headers
+    }, 'Action1 endpoint group request');
+    return response.data || {};
+}
+
+function hasProvisionedAttributeExclusion(filters = []) {
+    const desiredField = `custom:${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE}`.toLowerCase();
+    const desiredValue = ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE.toLowerCase();
+    return (Array.isArray(filters) ? filters : []).some(filter => (
+        String(filter?.field_name || '').trim().toLowerCase() === desiredField &&
+        String(filter?.field_value || '').trim().toLowerCase() === desiredValue &&
+        String(filter?.mode || '').trim().toLowerCase() === 'include'
+    ));
+}
+
+async function ensureAction1ProvisioningGroupExclusion(headers, action1OrgId, groupId) {
+    const group = await fetchAction1EndpointGroup(headers, action1OrgId, groupId);
+    const excludeFilter = Array.isArray(group.exclude_filter) ? group.exclude_filter : [];
+    if (hasProvisionedAttributeExclusion(excludeFilter)) {
+        return { changed: false, message: `${group.name || groupId} already excludes provisioned endpoints.` };
+    }
+
+    const desiredField = `custom:${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE}`.toLowerCase();
+    const desiredValue = ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE.toLowerCase();
+    const updatedExcludeFilter = [
+        ...excludeFilter.filter(filter => !(
+            String(filter?.field_name || '').trim().toLowerCase() === desiredField &&
+            String(filter?.field_value || '').trim().toLowerCase() === desiredValue
+        )),
+        {
+            field_name: `custom:${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE}`,
+            field_value: ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE,
+            mode: 'include'
+        }
+    ];
+    await requestAction1({
+        method: 'patch',
+        url: `https://app.action1.com/api/3.0/endpoints/groups/${encodeURIComponent(action1OrgId)}/${encodeURIComponent(groupId)}`,
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        data: { exclude_filter: updatedExcludeFilter }
+    }, 'Action1 endpoint group exclusion request');
+    return { changed: true, message: `${group.name || groupId} now excludes provisioned endpoints.` };
+}
+
+async function setAction1EndpointProvisioningAttribute(headers, action1OrgId, endpointId) {
+    const response = await requestAction1({
+        method: 'patch',
+        url: `https://app.action1.com/api/3.0/endpoints/managed/${encodeURIComponent(action1OrgId)}/${encodeURIComponent(endpointId)}`,
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        data: {
+            [`custom:${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE}`]: ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE
+        }
+    }, 'Action1 endpoint custom attribute request');
+    return response.data || {};
+}
+
 async function selectLatestProvisioningInstances(headers, instances, selectedAction1GroupIds = []) {
     const selectedGroupSet = new Set(selectedAction1GroupIds.map(id => String(id || '').trim()).filter(Boolean));
     if (!selectedGroupSet.size) return [];
@@ -632,6 +751,34 @@ async function selectLatestProvisioningInstances(headers, instances, selectedAct
     }
 
     return Array.from(latestBySchedule.values()).sort((a, b) => action1InstanceTime(b.instance) - action1InstanceTime(a.instance));
+}
+
+function previousProvisioningByEndpoint(previousEndpointRegistration) {
+    const previous = new Map();
+    for (const endpoint of previousEndpointRegistration?.endpoints || []) {
+        const keys = [
+            endpoint.action1EndpointId,
+            endpoint.intuneDeviceId,
+            normalizeEndpointName(endpoint.deviceName)
+        ].map(key => String(key || '').trim().toLowerCase()).filter(Boolean);
+        for (const key of keys) {
+            if (!previous.has(key)) previous.set(key, endpoint);
+        }
+    }
+    return previous;
+}
+
+function findPreviousProvisioning(endpoint, previousByEndpoint) {
+    const keys = [
+        endpoint.action1EndpointId,
+        endpoint.intuneDeviceId,
+        normalizeEndpointName(endpoint.deviceName)
+    ].map(key => String(key || '').trim().toLowerCase()).filter(Boolean);
+    for (const key of keys) {
+        const previous = previousByEndpoint.get(key);
+        if (previous) return previous;
+    }
+    return null;
 }
 
 function summarizeProvisioningResults(results) {
@@ -845,7 +992,7 @@ function getDeviceGroupNames(device, groupMembershipByDeviceKey) {
     return Array.from(names).sort((a, b) => a.localeCompare(b));
 }
 
-async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = ASSIGNMENT_MODE_ALL_DEVICES, selectedGroupIds = [], selectedGroupMap = {}, selectedAction1GroupIds = [], selectedAction1GroupMap = {} } = {}) {
+async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = ASSIGNMENT_MODE_ALL_DEVICES, selectedGroupIds = [], selectedGroupMap = {}, selectedAction1GroupIds = [], selectedAction1GroupMap = {}, previousEndpointRegistration = null } = {}) {
     const { apiKey: action1ApiKey, apiSecret: action1ApiSecret, organizationId: action1OrgId } = await getAction1Credentials();
     if (!action1ApiKey || !action1ApiSecret || !action1OrgId) {
         return {
@@ -953,6 +1100,7 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
     const matchRate = intuneTotal > 0 ? Math.round((registeredInAction1 / intuneTotal) * 100) : 0;
     let provisioningStatus = 'checked';
     let provisioningMessage = '';
+    const previousProvisioning = previousProvisioningByEndpoint(previousEndpointRegistration);
     try {
         const targetAction1EndpointIds = endpoints
             .filter(endpoint => endpoint.inAssignmentTarget && endpoint.source === 'Synced' && endpoint.action1EndpointId)
@@ -972,9 +1120,101 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
                 continue;
             }
             const provisioning = provisioningByEndpoint.get(endpoint.action1EndpointId) || { status: 'N/A', detail: '', automationResults: [] };
-            endpoint.provisioningStatus = provisioning.status;
-            endpoint.provisioningDetail = provisioning.detail;
-            endpoint.automationResults = provisioning.automationResults;
+            const previous = findPreviousProvisioning(endpoint, previousProvisioning);
+            if (provisioning.status === 'N/A' && previous?.provisioningStatus === 'Completed') {
+                endpoint.provisioningStatus = 'Completed';
+                endpoint.provisioningDetail = previous.provisioningDetail || 'Provisioning previously completed successfully.';
+                endpoint.automationResults = previous.automationResults || [];
+                endpoint.provisioningCleanupStatus = previous.provisioningCleanupStatus || '';
+                endpoint.provisioningCleanupMessage = previous.provisioningCleanupMessage || '';
+                endpoint.provisioningCleanupGroupIds = previous.provisioningCleanupGroupIds || [];
+                endpoint.provisioningAttributeStatus = previous.provisioningAttributeStatus || '';
+                endpoint.provisioningAttributeMessage = previous.provisioningAttributeMessage || '';
+            } else {
+                endpoint.provisioningStatus = provisioning.status;
+                endpoint.provisioningDetail = provisioning.detail;
+                endpoint.automationResults = provisioning.automationResults;
+                endpoint.provisioningCleanupStatus = previous?.provisioningCleanupStatus || '';
+                endpoint.provisioningCleanupMessage = previous?.provisioningCleanupMessage || '';
+                endpoint.provisioningCleanupGroupIds = previous?.provisioningCleanupGroupIds || [];
+                endpoint.provisioningAttributeStatus = previous?.provisioningAttributeStatus || '';
+                endpoint.provisioningAttributeMessage = previous?.provisioningAttributeMessage || '';
+            }
+        }
+
+        const selectedAction1GroupSet = new Set(selectedAction1GroupIds.map(id => String(id || '').trim()).filter(Boolean));
+        const completedEndpoints = endpoints.filter(endpoint => (
+            endpoint.inAssignmentTarget &&
+            endpoint.source === 'Synced' &&
+            endpoint.action1EndpointId &&
+            endpoint.provisioningStatus === 'Completed'
+        ));
+        if (completedEndpoints.length && selectedAction1GroupSet.size) {
+            const headers = await getAction1Headers(action1ApiKey, action1ApiSecret);
+            try {
+                const attributeDefinition = await ensureAction1ProvisioningCustomAttribute(headers);
+                if (attributeDefinition.changed) await updateProgress(attributeDefinition.message);
+            } catch (attributeDefinitionError) {
+                await updateProgress(`Warning: Could not verify Action1 provisioning custom attribute definition: ${attributeDefinitionError.response?.data?.error?.message || attributeDefinitionError.message}`);
+            }
+            for (const groupId of selectedAction1GroupIds.map(id => String(id || '').trim()).filter(Boolean)) {
+                try {
+                    const exclusion = await ensureAction1ProvisioningGroupExclusion(headers, action1OrgId, groupId);
+                    if (exclusion.changed) await updateProgress(exclusion.message);
+                } catch (exclusionError) {
+                    await updateProgress(`Warning: Could not add provisioned-endpoint exclusion to ${selectedAction1GroupMap?.[groupId] || groupId}: ${exclusionError.response?.data?.error?.message || exclusionError.message}`);
+                }
+            }
+            for (const endpoint of completedEndpoints) {
+                const previous = findPreviousProvisioning(endpoint, previousProvisioning);
+                if (previous?.provisioningAttributeStatus !== 'completed') {
+                    try {
+                        await setAction1EndpointProvisioningAttribute(headers, action1OrgId, endpoint.action1EndpointId);
+                        endpoint.provisioningAttributeStatus = 'completed';
+                        endpoint.provisioningAttributeMessage = `${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE} set to ${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE}.`;
+                        await updateProgress(`Marked ${endpoint.deviceName} as provisioned with Action1 custom attribute.`);
+                    } catch (attributeError) {
+                        endpoint.provisioningAttributeStatus = 'warning';
+                        endpoint.provisioningAttributeMessage = attributeError.response?.data?.error?.message || attributeError.message;
+                        await updateProgress(`Warning: Could not mark ${endpoint.deviceName} with Action1 provisioning custom attribute: ${endpoint.provisioningAttributeMessage}`);
+                    }
+                }
+
+                const endpointGroupIds = new Set((endpoint.action1EndpointGroups || [])
+                    .map(groupName => Object.entries(selectedAction1GroupMap).find(([, name]) => name === groupName)?.[0] || groupName)
+                    .map(id => String(id || '').trim())
+                    .filter(Boolean));
+                const previousCleanupGroupIds = new Set((previous?.provisioningCleanupGroupIds || [])
+                    .map(id => String(id || '').trim())
+                    .filter(Boolean));
+                if (!previousCleanupGroupIds.size && previous?.provisioningCleanupStatus === 'completed') {
+                    const previousCleanupMessage = String(previous?.provisioningCleanupMessage || '');
+                    for (const groupId of selectedAction1GroupIds) {
+                        const groupName = selectedAction1GroupMap?.[groupId] || groupId;
+                        if (previousCleanupMessage.includes(groupName)) previousCleanupGroupIds.add(String(groupId).trim());
+                    }
+                }
+                const groupsToRemove = selectedAction1GroupIds
+                    .map(id => String(id || '').trim())
+                    .filter(groupId => selectedAction1GroupSet.has(groupId) && endpointGroupIds.has(groupId) && !previousCleanupGroupIds.has(groupId));
+
+                if (!groupsToRemove.length) continue;
+                const cleanupMessages = [];
+                const completedCleanupGroupIds = new Set(previousCleanupGroupIds);
+                for (const groupId of groupsToRemove) {
+                    try {
+                        const cleanup = await removeAction1EndpointFromGroup(headers, action1OrgId, groupId, endpoint.action1EndpointId);
+                        cleanupMessages.push(`${selectedAction1GroupMap?.[groupId] || groupId}: ${firstString(cleanup?.user_message, cleanup?.message, 'removed')}`);
+                        completedCleanupGroupIds.add(groupId);
+                    } catch (cleanupError) {
+                        cleanupMessages.push(`${selectedAction1GroupMap?.[groupId] || groupId}: ${cleanupError.response?.data?.error?.message || cleanupError.message}`);
+                    }
+                }
+                endpoint.provisioningCleanupStatus = cleanupMessages.some(message => !/success|removed/i.test(message)) ? 'warning' : 'completed';
+                endpoint.provisioningCleanupMessage = cleanupMessages.join('; ');
+                endpoint.provisioningCleanupGroupIds = Array.from(completedCleanupGroupIds);
+                await updateProgress(`Provisioned endpoint ${endpoint.deviceName} removed from provisioning group${groupsToRemove.length === 1 ? '' : 's'}: ${endpoint.provisioningCleanupMessage}`);
+            }
         }
     } catch (provisioningError) {
         provisioningStatus = 'failed';
@@ -1349,7 +1589,8 @@ async function runSync() {
                 selectedGroupIds,
                 selectedGroupMap,
                 selectedAction1GroupIds,
-                selectedAction1GroupMap
+                selectedAction1GroupMap,
+                previousEndpointRegistration
             });
             if (endpointRegistration.status === 'failed' && previousEndpointRegistration?.endpoints?.length) {
                 endpointRegistration = {

@@ -1,11 +1,11 @@
 {
   "id": "intune",
-  "name": "Microsoft Intune",
+  "name": "Enrollment and Provisioning",
   "vendor": "Microsoft",
   "version": "1.0.0",
   "marketplaceApiVersion": "1.0",
   "minimumMarketplaceVersion": "1.0.0",
-  "description": "Sync Intune managed devices and compliance status with Action1.",
+  "description": "Deploy the Action1 Agent with Intune, track enrollment, and monitor provisioning automations.",
   "category": "Endpoint Management",
   "icon_color": "#00A4EF",
   "entry": "index.js",
@@ -52,10 +52,10 @@
     {
       "id": "sync",
       "kind": "sync",
-      "label": "Check Agent Version",
+      "label": "Sync Enrollment and Provisioning",
       "buttonLabel": "Check Now",
       "runningLabel": "Checking...",
-      "description": "Checks and updates the Action1 Agent package in Microsoft Intune.",
+      "description": "Updates the Action1 Agent package, syncs enrollment status, and refreshes provisioning automation results.",
       "placement": "dashboard",
       "history": false
     }
