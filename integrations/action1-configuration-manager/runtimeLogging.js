@@ -75,12 +75,24 @@ function getDefaultAction1RuntimeLogger() {
   return defaultLogger;
 }
 
+function writeAction1RuntimeLog(context, level, message) {
+  try {
+    const logger = context?.action1ConfigurationManagerRuntimeLogger || getDefaultAction1RuntimeLogger();
+    const writer = logger?.[level];
+    if (typeof writer !== 'function') return Promise.resolve();
+    return Promise.resolve(writer.call(logger, message)).catch(() => {});
+  } catch {
+    return Promise.resolve();
+  }
+}
+
 module.exports = {
   DEFAULT_FILE_NAME,
   LOG_DIR_ENV,
   createAction1RuntimeLogger,
   formatAction1RuntimeLogLine,
   getDefaultAction1RuntimeLogger,
+  writeAction1RuntimeLog,
   resolveAction1RuntimeLogDir,
   sanitizeRuntimeText
 };

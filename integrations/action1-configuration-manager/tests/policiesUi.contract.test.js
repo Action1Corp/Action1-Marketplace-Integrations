@@ -54,7 +54,7 @@ function run() {
 
   const editorViewSource = readSource('ui/policies/PolicyEditorView.jsx');
   assert(editorViewSource.includes('updateRunEveryHours'), 'PolicyEditorView should use the shared Run every synchronization helper');
-  assert(editorViewSource.includes('updateCompletionDeadline'), 'PolicyEditorView should use the shared deadline override helper');
+  assert(editorViewSource.includes('updateCompletionDeadlineHours'), 'PolicyEditorView should normalize the single deadline field as hours');
   assert(editorViewSource.includes('Save and apply'), 'PolicyEditorView should use Save and apply as the primary action label');
   assert(!editorViewSource.includes('Save changes'), 'PolicyEditorView should not use the stale Save changes label');
   assert(editorViewSource.includes('Save and apply Policy'), 'PolicyEditorView should render a final Save and apply confirmation');
@@ -67,9 +67,15 @@ function run() {
   assert(editorViewSource.includes('Back'), 'PolicyEditorView should render the wizard Back action');
   assert(editorViewSource.includes('Automation completion deadline'), 'PolicyEditorView should render the completion deadline field');
   assert(editorViewSource.includes('Run every'), 'PolicyEditorView should render the Run every field');
-  assert(editorViewSource.includes('Timezone'), 'PolicyEditorView should render the timezone field');
+  assert(editorViewSource.includes('Current Timezone'), 'PolicyEditorView should render the current timezone field');
+  assert(editorViewSource.includes('formatUtcOffset'), 'PolicyEditorView should display the effective UTC offset from the internal IANA timezone');
   assert(editorViewSource.includes('Start date'), 'PolicyEditorView should render the start date field');
   assert(editorViewSource.includes('Start time'), 'PolicyEditorView should render the start time field');
+  assert(editorViewSource.includes('input id="start-date" type="date"'), 'PolicyEditorView should keep date-picker functionality');
+  assert(editorViewSource.includes('input id="start-time" type="time"'), 'PolicyEditorView should keep time-picker functionality');
+  assert(!editorViewSource.includes('Completion deadline unit'), 'PolicyEditorView should not expose a deadline unit selector');
+  assert(!editorViewSource.includes('<select aria-label="Completion deadline unit"'), 'PolicyEditorView should not render a deadline unit selector');
+  assert(editorViewSource.includes('Hours offline endpoints keep retrying'), 'PolicyEditorView should identify the deadline field as hours');
   assert(editorViewSource.includes('Advanced settings'), 'PolicyEditorView should place Run schedule inside the approved Advanced settings section');
   assert(editorViewSource.includes('Action1 automations'), 'PolicyEditorView summary should preserve the Action1 automation count');
   assert(editorViewSource.includes('Control Family'), 'PolicyEditorView should use Control Family terminology');
@@ -124,6 +130,9 @@ function run() {
   const detailsViewSource = readSource('ui/policies/PolicyDetailsView.jsx');
   assert(detailsViewSource.includes('Policy Details'), 'PolicyDetailsView should render the Policy Details heading');
   assert(detailsViewSource.includes('Open automation in Action1'), 'PolicyDetailsView should expose deterministic Action1 automation links');
+  assert(!detailsViewSource.includes('Action1 automation {familyGroup.automationLink.automationId}'), 'PolicyDetailsView should not show the persisted Action1 automation id');
+  assert(detailsViewSource.includes('target="_blank"'), 'PolicyDetailsView should open Action1 links in a new tab');
+  assert(!detailsViewSource.includes('/api/3.0/'), 'PolicyDetailsView should not use an Action1 API URL as a customer link');
   assert(detailsViewSource.includes('Enable'), 'PolicyDetailsView should expose the Enable lifecycle action');
   assert(detailsViewSource.includes('Disable'), 'PolicyDetailsView should expose the Disable lifecycle action');
   assert(detailsViewSource.includes('Delete'), 'PolicyDetailsView should expose the Delete lifecycle action');
@@ -136,6 +145,25 @@ function run() {
   assert(detailsViewSource.includes('statusBadge'), 'PolicyDetailsView should render status and mode badges in the Overview section');
   assert(detailsViewSource.includes('CompactControlSummaryGroups'), 'PolicyDetailsView should reuse the shared compact Control summary presentation');
   assert(!detailsViewSource.includes('deterministic demo Action1 automation records'), 'PolicyDetailsView should not leak customer-facing demo automation wording');
+
+  const pageSource = readSource('ui/policies/PolicyPage.jsx');
+  assert(pageSource.includes('OperationStatus'), 'PolicyPage should render the shared operation indicator');
+  assert(pageSource.includes('Creating Action1 automations'), 'PolicyPage should identify Create progress');
+  assert(pageSource.includes('Applying Policy changes'), 'PolicyPage should identify Edit progress');
+  assert(pageSource.includes('Disabling Policy'), 'PolicyPage should identify Disable progress');
+  assert(pageSource.includes('Enabling Policy'), 'PolicyPage should identify Enable progress');
+  assert(pageSource.includes('Deleting Policy'), 'PolicyPage should identify Delete progress');
+
+  const operationStatusSource = readSource('ui/policies/OperationStatus.jsx');
+  assert(operationStatusSource.includes("position: 'fixed'"), 'OperationStatus should be viewport-fixed');
+  assert(operationStatusSource.includes('inset: 0'), 'OperationStatus should cover the current viewport');
+  assert(operationStatusSource.includes('aria-busy="true"'), 'OperationStatus should expose its busy state');
+  assert(operationStatusSource.includes('@keyframes a1cm-operation-spin'), 'OperationStatus should define a native spinner animation');
+  assert(operationStatusSource.includes('prefers-reduced-motion'), 'OperationStatus should respect reduced motion');
+  assert(!operationStatusSource.includes('styles.notice'), 'OperationStatus should not render the old page-flow status strip');
+
+  const editorSource = readSource('ui/policies/PolicyEditorView.jsx');
+  assert(editorSource.includes('disabled={nextDisabled || busy}'), 'PolicyEditorView should prevent duplicate Save/Next submission while busy');
 
   const actionMenuSource = readSource('ui/policies/PolicyActionMenu.jsx');
   assert(actionMenuSource.includes('createPortal'), 'PolicyActionMenu should render through a portal so menus are not clipped by table surfaces');

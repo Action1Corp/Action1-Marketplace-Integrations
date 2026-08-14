@@ -1,12 +1,14 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const { pathToFileURL } = require('url');
 
 function createFakeDb() {
   const state = {
     policies: [],
     controls: [],
     reservations: [],
+    correlations: [],
     nextPolicyRowId: 1,
     nextControlRowId: 1,
     nextReservationRowId: 1,
@@ -45,6 +47,7 @@ function createFakeDb() {
   }
 
   return {
+    raw: { provider: 'sqlite' },
     async run(sql, params = []) {
       if (sql.startsWith('BEGIN') || sql.startsWith('COMMIT') || sql.startsWith('ROLLBACK')) {
         return { changes: 0 };
@@ -133,6 +136,43 @@ function createFakeDb() {
         return { changes: 1 };
       }
 
+      if (sql.includes('INSERT INTO action1_configuration_manager_automation_correlations')) {
+        state.correlations.push({
+          policy_id: params[0], automation_group_id: params[1], automation_group_version: params[2],
+          control_family_name_snapshot: params[3], action1_organization_id: params[4],
+          action1_automation_id: params[5], action1_automation_name: params[6], action1_automation_self: params[7],
+          desired_definition_fingerprint: params[8], active: 1, last_applied_at: params[9], last_error: params[10],
+          created_at: '2026-08-12T01:00:00.000Z', updated_at: '2026-08-12T01:00:00.000Z'
+        });
+        return { changes: 1 };
+      }
+
+      if (sql.includes('UPDATE action1_configuration_manager_automation_correlations') && sql.includes('SET active = 0')) {
+        const row = state.correlations.find((entry) => entry.policy_id === params[1] && entry.automation_group_id === params[2]);
+        if (row) { row.active = 0; row.last_error = params[0]; }
+        return { changes: row ? 1 : 0 };
+      }
+
+      if (sql.includes('UPDATE action1_configuration_manager_automation_correlations') && sql.includes('SET automation_group_version')) {
+        const row = state.correlations.find((entry) => entry.policy_id === params[8] && entry.automation_group_id === params[9]);
+        if (row) {
+          row.automation_group_version = params[0];
+          row.control_family_name_snapshot = params[1];
+          row.action1_automation_name = params[2];
+          row.action1_automation_self = params[3] || row.action1_automation_self;
+          row.desired_definition_fingerprint = params[4];
+          row.active = 1;
+          row.last_applied_at = params[5];
+          row.last_error = params[6];
+        }
+        return { changes: row ? 1 : 0 };
+      }
+
+      if (sql.includes('DELETE FROM action1_configuration_manager_automation_correlations')) {
+        state.correlations = state.correlations.filter((entry) => entry.policy_id !== params[0]);
+        return { changes: 1 };
+      }
+
       if (sql.includes('DELETE FROM action1_configuration_manager_policies')) {
         state.policies = state.policies.filter((entry) => entry.policy_id !== params[0]);
         return { changes: 1 };
@@ -171,14 +211,26 @@ function createFakeDb() {
         return clone(state.reservations.filter((entry) => entry.organization_id === params[0]));
       }
 
+      if (sql.includes('FROM action1_configuration_manager_automation_correlations') && sql.includes('WHERE policy_id = ?')) {
+        return clone(state.correlations.filter((entry) => entry.policy_id === params[0]));
+      }
+
       throw new Error(`Unhandled SQL in fake db.all: ${sql}`);
     }
   };
 }
 
 function createFakeContext() {
+  let automationNumber = 0;
   return {
     db: createFakeDb(),
+    action1: { async getCredentials() { return { baseUrl: 'https://action1.test/api/3.0', apiKey: 'test-key', apiSecret: 'test-secret' }; } },
+    async http(options) {
+      if (options.url.endsWith('/oauth2/token')) return { status: 200, data: { access_token: 'token', expires_in: 3600 }, headers: {} };
+      automationNumber += 1;
+      return { status: 201, data: { id: `auto-${automationNumber}`, self: `https://action1.test/api/3.0/automations/schedules/org-acme/auto-${automationNumber}`, name: `A1CM - Workstation Security - Finance Workstations - ${automationNumber}` }, headers: {} };
+    },
+    raw: { provider: 'sqlite' },
     logger: {
       info() {},
       warn() {},
@@ -257,6 +309,46 @@ async function run() {
   const validationFailure = await actions['save-policy'](context, { payload: { draft: { ...createValidDraft(), organizationId: '' } } });
   assert.strictEqual(validationFailure.ok, false);
   assert(/organization is required/i.test(validationFailure.message));
+
+  const multiContext = createFakeContext();
+  const multiDraft = createValidDraft();
+  multiDraft.baseName = 'Multi Family Policy';
+  multiDraft.selectedControls = [
+    ...multiDraft.selectedControls,
+    {
+      controlId: 'audit.policy.audit-policy-change',
+      controlVersion: '0.1.0',
+      automationGroupId: 'audit-policy.policy-and-firewall-changes',
+      automationGroupVersion: '0.1.0',
+      parameters: { auditing: 'success' }
+    }
+  ];
+  const multiResult = await actions['save-policy'](multiContext, { payload: { draft: multiDraft } });
+  assert.strictEqual(multiResult.ok, true);
+  assert.strictEqual(multiResult.policy.enabled, true);
+  assert.strictEqual(multiResult.policy.action1Automations.length, 2, 'initial apply should persist one correlation per selected family');
+  const { formatPolicyDetails } = await import(pathToFileURL(path.join(__dirname, '..', 'ui', 'policies', 'policyViewModel.js')).href);
+  const { loadReleasedControlCatalog } = await import(pathToFileURL(path.join(__dirname, '..', 'ui', 'catalog', 'controlPackCatalog.js')).href);
+  const projected = formatPolicyDetails(multiResult.policy, loadReleasedControlCatalog());
+  assert.strictEqual(projected.controlFamilyGroups.length, 2, 'hydrated family correlations should project one group per selected family');
+  assert(projected.controlFamilyGroups.every((group) => group.automationLink?.automationId && group.automationLink?.action1Url), 'hydrated correlations should expose real Action1 ids and self links');
+
+  const editDraft = {
+    ...multiResult.policy,
+    mode: 'edit',
+    enabled: true,
+    selectedControls: multiResult.policy.selectedControls.map((control, index) => index === 0 ? { ...control, parameters: { ...control.parameters, minimumLength: 13 } } : control)
+  };
+  const editResult = await actions['save-policy'](multiContext, { payload: { draft: editDraft } });
+  assert.strictEqual(editResult.ok, true, editResult.message);
+  assert.strictEqual(editResult.policy.enabled, true);
+
+  const disabled = await actions['set-policy-enabled'](multiContext, { payload: { policyId: multiResult.policy.policyId, enabled: false } });
+  assert.strictEqual(disabled.ok, true, disabled.message);
+  assert.strictEqual(disabled.policy.enabled, false);
+  const enabled = await actions['set-policy-enabled'](multiContext, { payload: { policyId: multiResult.policy.policyId, enabled: true } });
+  assert.strictEqual(enabled.ok, true, enabled.message);
+  assert.strictEqual(enabled.policy.enabled, true);
 }
 
 try {

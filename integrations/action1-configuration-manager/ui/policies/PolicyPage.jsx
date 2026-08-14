@@ -3,6 +3,7 @@ import { loadReleasedControlCatalog, countExpectedAutomations, countSelectedCont
 import PolicyDetailsView from './PolicyDetailsView.jsx';
 import PolicyEditorView from './PolicyEditorView.jsx';
 import PolicyListView from './PolicyListView.jsx';
+import OperationStatus from './OperationStatus.jsx';
 import { createPolicyApi } from './policyApi.js';
 import { createPolicyDiscoveryApi } from './policyDiscoveryApi.js';
 import { createAction1OrganizationRepository } from './action1OrganizationRepository.js';
@@ -170,6 +171,7 @@ function PolicyPage({ integration }) {
   const [draft, setDraft] = useState(null);
   const [validationResult, setValidationResult] = useState({ fieldErrors: {}, sectionErrors: [], blockingMessage: '' });
   const [pendingAction, setPendingAction] = useState(null);
+  const [busyOperation, setBusyOperation] = useState('');
   const [policies, setPolicies] = useState([]);
   const [loadingPolicies, setLoadingPolicies] = useState(true);
   const [pageError, setPageError] = useState('');
@@ -341,6 +343,7 @@ function PolicyPage({ integration }) {
     }
 
     void (async () => {
+      setBusyOperation(nextDraft.mode === 'edit' ? 'Applying Policy changes…' : 'Creating Action1 automations…');
       try {
         const savedPolicy = await policyApiRef.current.savePolicy(buildPolicyDraftPayload(nextDraft, catalog));
         await refreshPolicies();
@@ -351,6 +354,8 @@ function PolicyPage({ integration }) {
         }
       } catch (error) {
         setPageError(error?.message || 'Unable to save the Policy.');
+      } finally {
+        setBusyOperation('');
       }
     })();
 
@@ -358,6 +363,8 @@ function PolicyPage({ integration }) {
   }
 
   function togglePolicyEnabled(policyId, enabled) {
+    if (busyOperation) return;
+    setBusyOperation(enabled ? 'Enabling Policy…' : 'Disabling Policy…');
     void (async () => {
       try {
         const updatedPolicy = await policyApiRef.current.setPolicyEnabled(policyId, enabled);
@@ -367,11 +374,15 @@ function PolicyPage({ integration }) {
         }
       } catch (error) {
         setPageError(error?.message || 'Unable to update the Policy status.');
+      } finally {
+        setBusyOperation('');
       }
     })();
   }
 
   function deletePolicy(policyId) {
+    if (busyOperation) return;
+    setBusyOperation('Deleting Policy…');
     void (async () => {
       try {
         await policyApiRef.current.deletePolicy(policyId);
@@ -379,6 +390,8 @@ function PolicyPage({ integration }) {
         returnToList();
       } catch (error) {
         setPageError(error?.message || 'Unable to delete the Policy.');
+      } finally {
+        setBusyOperation('');
       }
     })();
   }
@@ -391,6 +404,8 @@ function PolicyPage({ integration }) {
     if (!pendingAction) {
       return;
     }
+
+    if (busyOperation) return;
 
     if (pendingAction.kind === 'enable') {
       togglePolicyEnabled(pendingAction.policyId, true);
@@ -435,6 +450,7 @@ function PolicyPage({ integration }) {
       <p style={styles.description}>
         Create and manage Windows configuration policies that assess and remediate endpoints through scheduled Action1 automations.
       </p>
+      <OperationStatus label={busyOperation} />
       {pageError ? <div style={styles.errorNotice}>{pageError}</div> : null}
       {loadingPolicies ? <div style={styles.notice}>Loading Policies…</div> : null}
       {mode.kind === 'list' ? (
@@ -446,6 +462,7 @@ function PolicyPage({ integration }) {
           onEnable={(policyId) => openLifecycleConfirmation('enable', policyId)}
           onOpen={openDetails}
           onEdit={openEdit}
+          busy={Boolean(busyOperation)}
         />
       ) : null}
       {mode.kind === 'details' && selectedPolicy ? (
@@ -457,6 +474,7 @@ function PolicyPage({ integration }) {
           onDisable={() => openLifecycleConfirmation('disable', selectedPolicy.policyId)}
           onEdit={() => openEdit(selectedPolicy.policyId)}
           onEnable={() => openLifecycleConfirmation('enable', selectedPolicy.policyId)}
+          busy={Boolean(busyOperation)}
         />
       ) : null}
       {(mode.kind === 'create' || mode.kind === 'edit') && draft ? (
@@ -475,6 +493,7 @@ function PolicyPage({ integration }) {
           organizationsError={organizationsError}
           organizationsLoading={organizationsLoading}
           validationResult={validationResult}
+          busy={Boolean(busyOperation)}
         />
       ) : null}
       {pendingAction && pendingPolicy ? (

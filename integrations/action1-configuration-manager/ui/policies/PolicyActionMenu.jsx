@@ -68,7 +68,7 @@ function resolveMenuPosition(triggerRect, menuRect) {
   };
 }
 
-function PolicyActionMenu({ items, label = 'Policy actions' }) {
+function PolicyActionMenu({ items, label = 'Policy actions', disabled = false }) {
   const triggerRef = useRef(null);
   const menuRef = useRef(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -138,6 +138,7 @@ function PolicyActionMenu({ items, label = 'Policy actions' }) {
         style={styles.trigger}
         aria-label={label}
         aria-haspopup="menu"
+        disabled={disabled}
         aria-expanded={isOpen}
         onClick={() => setIsOpen((value) => !value)}
       >
@@ -160,6 +161,7 @@ function PolicyActionMenu({ items, label = 'Policy actions' }) {
               key={item.label}
               type="button"
               role="menuitem"
+              disabled={disabled || item.disabled}
               style={item.destructive ? styles.destructiveMenuButton : styles.menuButton}
               onClick={() => {
                 setIsOpen(false);

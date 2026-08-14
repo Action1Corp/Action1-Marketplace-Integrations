@@ -5,6 +5,7 @@ import {
   policyUiTokens,
   textareaControlStyle
 } from './policyUiStyles.js';
+import { getParameterRendererKind } from '../../parameterRenderer.js';
 
 const styles = {
   fieldStack: {
@@ -138,6 +139,14 @@ function renderTimeInput(parameter, value, onChange, disabled, compact) {
 function ParameterField({ parameter, value, onChange, disabled = false, compact = false, errorMessage = '' }) {
   let input = null;
 
+  if (!getParameterRendererKind(parameter.type)) {
+    return (
+      <div className="policy-parameter-field policy-parameter-field-error" role="alert">
+        Unsupported parameter type: {parameter.type}
+      </div>
+    );
+  }
+
   switch (parameter.type) {
     case 'boolean':
       input = renderCheckbox(parameter, value, onChange, disabled);
@@ -157,12 +166,6 @@ function ParameterField({ parameter, value, onChange, disabled = false, compact 
     case 'time':
       input = renderTimeInput(parameter, value, onChange, disabled, compact);
       break;
-    default:
-      return (
-        <div className="policy-parameter-field policy-parameter-field-error" role="alert">
-          Unsupported parameter type: {parameter.type}
-        </div>
-      );
   }
 
   return (

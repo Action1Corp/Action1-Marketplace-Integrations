@@ -1,3 +1,5 @@
+import { getParameterRendererKind } from '../../parameterRenderer.js';
+
 function normalizeInteger(value) {
   if (typeof value === 'number' && Number.isInteger(value)) {
     return value;
@@ -42,6 +44,9 @@ function validateParameter(fieldErrors, control, parameter, value) {
     if (parameter.maximum !== undefined && normalized > parameter.maximum) {
       addFieldError(fieldErrors, fieldName, `${parameter.label} must be at most ${parameter.maximum}.`);
     }
+    if (parameter.minimum !== undefined && parameter.step !== undefined && (normalized - parameter.minimum) % parameter.step !== 0) {
+      addFieldError(fieldErrors, fieldName, `${parameter.label} must align to increments of ${parameter.step}.`);
+    }
     return;
   }
 
@@ -67,6 +72,9 @@ function validateParameter(fieldErrors, control, parameter, value) {
     }
     if (parameter.maximumLength !== undefined && value.length > parameter.maximumLength) {
       addFieldError(fieldErrors, fieldName, `${parameter.label} is too long.`);
+    }
+    if (parameter.pattern !== undefined && !(new RegExp(parameter.pattern)).test(value)) {
+      addFieldError(fieldErrors, fieldName, `${parameter.label} has an invalid format.`);
     }
     return;
   }
@@ -141,6 +149,9 @@ export function validatePolicyDraft(draft, catalog) {
     }
 
     for (const parameter of control.parameters || []) {
+      if (!getParameterRendererKind(parameter.type)) {
+        blockingMessage = `Unsupported parameter type: ${parameter.type}`;
+      }
       validateParameter(fieldErrors, control, parameter, selectedControl.parameters?.[parameter.id]);
     }
   }

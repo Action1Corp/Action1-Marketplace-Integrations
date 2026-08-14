@@ -1,0 +1,64 @@
+const assert = require('assert');
+const path = require('path');
+
+async function run() {
+  const { createAction1AutomationClient } = require(path.join(__dirname, '..', 'action1AutomationClient.js'));
+  const requests = [];
+  const context = {
+    action1: { async getCredentials() { return { apiKey: 'test-key', apiSecret: 'test-secret' }; } },
+    async http(options) {
+      requests.push(options);
+      if (options.url.endsWith('/oauth2/token')) return { status: 200, data: { access_token: 'token', expires_in: 3600 }, headers: {} };
+      return { status: 201, data: { id: 'auto-1', self: 'https://app.action1.com/api/3.0/automations/schedules/org-1/auto-1', name: 'A1CM — Policy — Family' }, headers: {} };
+    },
+    logger: { info() {}, warn() {}, error() {} }
+  };
+  const client = createAction1AutomationClient(context);
+  const result = await client.createAutomation('org-1', {
+    payload: {
+      name: 'A1CM — Policy — Family', endpoints: [{ id: 'ALL', type: 'EndpointGroup' }],
+      actions: [{ name: 'Run PowerShell', template_id: 'run_script', params: { run_script_params: [], run_script_text: 'script', run_script_language: 'PowerShell' } }],
+      settings: 'ENABLED EVERY:360 AT:15-07-00 DATE:2026-08-13', settings_timezone: 'America/Los_Angeles', retry_minutes: '360'
+    }
+  });
+  assert.deepStrictEqual(result, { id: 'auto-1', self: 'https://app.action1.com/api/3.0/automations/schedules/org-1/auto-1', name: 'A1CM — Policy — Family' });
+  const createRequest = requests.find((request) => request.url.endsWith('/automations/schedules/org-1'));
+  assert.strictEqual(createRequest.method, 'POST');
+  assert.strictEqual(createRequest.data.name, 'A1CM — Policy — Family');
+  assert.deepStrictEqual(createRequest.data.endpoints, [{ id: 'ALL', type: 'EndpointGroup' }]);
+  assert.deepStrictEqual(createRequest.data.actions[0].params.run_script_params, []);
+  assert.strictEqual(createRequest.data.retry_minutes, '360');
+  const definition = { name: 'A1CM — Renamed — Family', payload: { name: 'A1CM — Renamed — Family', endpoints: [{ id: 'ALL', type: 'EndpointGroup' }], actions: [], settings: 'ENABLED EVERY:720 AT:15-07-00 DATE:2026-08-13', retry_minutes: '720' } };
+  const updated = await client.updateAutomation('org-1', 'auto-1', definition);
+  assert.strictEqual(updated.id, 'auto-1');
+  const patchRequest = requests.find((request) => request.method === 'PATCH');
+  assert.strictEqual(patchRequest.url.endsWith('/automations/schedules/org-1/auto-1'), true);
+  assert.strictEqual(patchRequest.data.name, 'A1CM — Renamed — Family');
+  const deleted = await client.deleteAutomation('org-1', 'auto-1');
+  assert.deepStrictEqual(deleted, { status: 'deleted' });
+  const deleteRequest = requests.find((request) => request.method === 'DELETE');
+  assert.strictEqual(deleteRequest.url.endsWith('/automations/schedules/org-1/auto-1'), true);
+  assert(!JSON.stringify(requests).includes('test-secret'));
+
+  function errorContext(payload, status = 400, contentType = 'application/json') {
+    return {
+      action1: { async getCredentials() { return { baseUrl: 'https://app.action1.com/api/3.0', apiKey: 'test-key', apiSecret: 'test-secret' }; } },
+      async http(options) {
+        if (options.url.endsWith('/oauth2/token')) return { status: 200, data: { access_token: 'token', expires_in: 3600 }, headers: {} };
+        return { status, data: payload, headers: { 'content-type': contentType } };
+      },
+      logger: { info() {}, warn() {}, error() {} }
+    };
+  }
+
+  const absentClient = createAction1AutomationClient(errorContext({ type: 'Error', status: 400, developer_message: 'Automation with id=gone-1 does not exists' }));
+  assert.deepStrictEqual(await absentClient.deleteAutomation('org-1', 'gone-1'), { status: 'alreadyAbsent' });
+
+  const other400Client = createAction1AutomationClient(errorContext({ type: 'Error', status: 400, developer_message: 'Malformed request' }));
+  await assert.rejects(() => other400Client.deleteAutomation('org-1', 'gone-1'));
+
+  const differentIdClient = createAction1AutomationClient(errorContext({ type: 'Error', status: 400, developer_message: 'Automation with id=other-1 does not exists' }));
+  await assert.rejects(() => differentIdClient.deleteAutomation('org-1', 'gone-1'));
+}
+
+run().catch((error) => { console.error(error); process.exit(1); });

@@ -6,6 +6,7 @@ function createFakeDb(options = {}) {
     policies: [],
     controls: [],
     reservations: [],
+    correlations: [],
     nextPolicyRowId: 1,
     nextControlRowId: 1,
     nextReservationRowId: 1,
@@ -141,6 +142,22 @@ function createFakeDb(options = {}) {
         return { changes: 1 };
       }
 
+      if (sql.includes('INSERT INTO action1_configuration_manager_automation_correlations')) {
+        state.correlations.push({
+          policy_id: params[0], automation_group_id: params[1], automation_group_version: params[2],
+          control_family_name_snapshot: params[3], action1_organization_id: params[4],
+          action1_automation_id: params[5], action1_automation_name: params[6], action1_automation_self: params[7],
+          desired_definition_fingerprint: params[8], last_applied_at: params[9], last_error: params[10],
+          created_at: '2026-08-12T01:00:00.000Z', updated_at: '2026-08-12T01:00:00.000Z'
+        });
+        return { changes: 1 };
+      }
+
+      if (sql.includes('DELETE FROM action1_configuration_manager_automation_correlations')) {
+        state.correlations = state.correlations.filter((entry) => entry.policy_id !== params[0]);
+        return { changes: 1 };
+      }
+
       if (sql.includes('DELETE FROM action1_configuration_manager_policies')) {
         const before = state.policies.length;
         state.policies = state.policies.filter((entry) => entry.policy_id !== params[0]);
@@ -186,6 +203,10 @@ function createFakeDb(options = {}) {
         return clone(state.reservations.filter((entry) => entry.organization_id === params[0]));
       }
 
+      if (sql.includes('FROM action1_configuration_manager_automation_correlations') && sql.includes('WHERE policy_id = ?')) {
+        return clone(state.correlations.filter((entry) => entry.policy_id === params[0]));
+      }
+
       throw new Error(`Unhandled SQL in fake db.all: ${sql}`);
     },
 
@@ -194,8 +215,15 @@ function createFakeDb(options = {}) {
 }
 
 function createFakeContext(options = {}) {
+  let automationNumber = 0;
   return {
     db: createFakeDb(options),
+    action1: { async getCredentials() { return { baseUrl: 'https://action1.test/api/3.0', apiKey: 'test-key', apiSecret: 'test-secret' }; } },
+    async http(options) {
+      if (options.url.endsWith('/oauth2/token')) return { status: 200, data: { access_token: 'token', expires_in: 3600 }, headers: {} };
+      automationNumber += 1;
+      return { status: 201, data: { id: `auto-${automationNumber}`, self: `https://action1.test/api/3.0/automations/schedules/org-action/auto-${automationNumber}`, name: `A1CM - Workstation Security - Finance - ${automationNumber}` }, headers: {} };
+    },
     logger: {
       info() {},
       warn() {},
@@ -238,7 +266,9 @@ function createValidInput(overrides = {}) {
 
 async function run() {
   const { createDbPolicyStore } = require(path.join(__dirname, '..', 'policyStore.js'));
-  const store = createDbPolicyStore(createFakeContext());
+  const { savePolicyAction } = require(path.join(__dirname, '..', 'policyActions.js'));
+  const context = createFakeContext();
+  const store = createDbPolicyStore(context);
 
   const saved = await store.savePolicy(createValidInput());
   assert.strictEqual(saved.policyId, 'POL-000001');
@@ -249,6 +279,20 @@ async function run() {
   const listed = await store.listPolicies();
   assert.strictEqual(listed.length, 1, 'listPolicies should return the saved policy');
   assert.strictEqual(listed[0].policyId, 'POL-000001', 'listPolicies should preserve stable policy ids');
+
+  const actionContext = createFakeContext();
+  const actionSaved = await savePolicyAction(actionContext, {
+    payload: { draft: createValidInput({ organizationId: 'org-action', organizationName: 'Action Org', endpointGroupId: 'group-action', endpointGroupName: 'Action Group' }) }
+  });
+  assert.strictEqual(actionSaved.ok, true, 'save-policy should persist a valid complete draft');
+  assert.deepStrictEqual(actionSaved.policy.selectedControls[0].parameters, { minimumLength: 14 });
+
+  const beforeRejectedAction = JSON.stringify(actionContext.db._state);
+  const rejectedAction = await savePolicyAction(actionContext, {
+    payload: { draft: createValidInput({ organizationId: 'org-rejected', endpointGroupId: 'group-rejected', endpointGroupName: 'Rejected Group', selectedControls: [{ controlId: 'identity.password.minimum-length', controlVersion: '0.1.0', automationGroupId: 'identity.password-policy', automationGroupVersion: '0.1.0', parameters: { minimumLength: 999 } }] }) }
+  });
+  assert.strictEqual(rejectedAction.ok, false, 'save-policy should reject invalid catalog values');
+  assert.strictEqual(JSON.stringify(actionContext.db._state), beforeRejectedAction, 'rejected save-policy must not mutate durable state');
 
   await assert.rejects(
     () => store.savePolicy(createValidInput({ baseName: 'Second Policy' })),

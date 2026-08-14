@@ -34,7 +34,7 @@ function createFakeContext(options = {}) {
     db: createFakeDb(),
     action1: {
       async getCredentials() {
-        return options.credentials || { apiKey: 'client-id', apiSecret: 'client-secret' };
+        return options.credentials || { baseUrl: 'https://app.action1.com/api/3.0', apiKey: 'client-id', apiSecret: 'client-secret' };
       }
     },
     http: async (requestOptions = {}) => {

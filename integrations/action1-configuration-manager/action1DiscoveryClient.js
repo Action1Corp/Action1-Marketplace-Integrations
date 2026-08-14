@@ -47,7 +47,7 @@ function toSafeExcerpt(value) {
 function extractSafeSummary(payload) {
   const objectPayload = payload && typeof payload === 'object' ? payload : {};
   const errorCodeKeys = ['error_code', 'errorCode', 'code', 'error'];
-  const errorMessageKeys = ['error_description', 'errorDescription', 'message', 'error_message'];
+  const errorMessageKeys = ['error_description', 'errorDescription', 'message', 'error_message', 'developer_message'];
 
   function firstNonEmpty(keys) {
     for (const key of keys) {
@@ -136,6 +136,8 @@ function formatRuntimeMessage(event, fields) {
       return 'Acquiring Action1 access token';
     case 'action1-discovery-token-response-accepted':
       return `Action1 access token accepted; ${Math.floor(Number(fields.ttlMs || 0) / 1000)}s lifetime`;
+    case 'action1-discovery-credentials-resolved':
+      return `Action1 credentials resolved; apiKeyPresent=${fields.hasApiKey} apiSecretPresent=${fields.hasApiSecret} baseUrlPresent=${fields.hasBaseUrl}`;
     case 'action1-discovery-page-complete':
       return `Loaded Action1 page ${fields.page || 0}; ${fields.itemCount || 0} items`;
     case 'action1-discovery-rate-limit-detected':
@@ -222,12 +224,16 @@ async function resolveCanonicalConnection(context, explicitConnection) {
 
   const hasApiKey = !!trimString(credentials?.clientId || credentials?.apiKey);
   const hasApiSecret = !!trimString(credentials?.clientSecret || credentials?.apiSecret);
+  // Marketplace's canonical credential contract supplies API credentials; the
+  // base URL is optional connection metadata and must not gate API access.
   const baseUrl = credentials?.baseUrl || DEFAULT_ACTION1_BASE_URL;
   logDiscovery(context, 'info', 'action1-discovery-credentials-resolved', {
     stage: 'credential-resolution',
     credentialsResolved: !!credentials && typeof credentials === 'object',
     hasApiKey,
     hasApiSecret,
+    hasOrganizationId: !!trimString(credentials?.organizationId),
+    hasBaseUrl: !!trimString(credentials?.baseUrl),
     ...safeBaseDetails(baseUrl)
   });
 
@@ -268,6 +274,21 @@ async function resolveCanonicalConnection(context, explicitConnection) {
 
 function getTokenCacheKey(connection) {
   return `${connection.baseUrl}|${connection.clientId}|${connection.clientSecret}`;
+}
+
+async function resolveAction1ConsoleOrigin(context) {
+  let credentials;
+  try {
+    credentials = await context.action1.getCredentials();
+  } catch (error) {
+    return null;
+  }
+  const suppliedBaseUrl = trimString(credentials?.baseUrl);
+  if (!suppliedBaseUrl) {
+    return null;
+  }
+  const parsed = new URL(normalizeBaseUrl(suppliedBaseUrl));
+  return `${parsed.protocol}//${parsed.host}`;
 }
 
 function resolveTokenLifetimeMs(expiresIn) {
@@ -751,9 +772,43 @@ function createAction1DiscoveryClient(context, options = {}) {
     return rows;
   }
 
+  async function requestAction1Mutation(input = {}) {
+    const connection = await resolveConnection();
+    let retryAttempt = 0;
+    let consecutive429 = 0;
+    for (;;) {
+      const accessToken = await resolveAccessToken();
+      try {
+        const response = await requestJson({
+          operation: input.operation || 'action1-automation-mutation',
+          method: input.method,
+          url: joinUrl(connection.baseUrl, input.path),
+          path: input.path,
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: input.body,
+          maxAttempts: 1,
+          requestAttempt: retryAttempt + 1
+        });
+        consecutive429 = 0;
+        return response.payload;
+      } catch (error) {
+        if (!isRateLimitedError(error)) throw error;
+        if (retryAttempt >= maxRetries) throw error;
+        retryAttempt += 1;
+        consecutive429 += 1;
+        const retryAfterMs = resolveRetryAfterMs(error, now);
+        const delayMs = (options.computeAction1RateLimitDelayMs || computeAction1RateLimitDelayMs)(retryAfterMs, consecutive429);
+        logRetryDiagnostic(context, { organizationId: input.organizationId, retryAttempt, consecutive429Count: consecutive429, delayMs, retryAfterMs, retryBudget: maxRetries });
+        await sleep(delayMs);
+      }
+    }
+  }
+
   return {
     listOrganizations,
-    listEndpointGroups
+    listEndpointGroups,
+    requestAction1Mutation,
+    resolveAction1ConsoleOrigin: () => resolveAction1ConsoleOrigin(context)
   };
 }
 
@@ -761,6 +816,7 @@ module.exports = {
   DiscoveryRequestError,
   computeAction1RateLimitDelayMs,
   createAction1DiscoveryClient,
+  resolveAction1ConsoleOrigin,
   resolveRetryAfterMs,
   sanitizeMessage
 };

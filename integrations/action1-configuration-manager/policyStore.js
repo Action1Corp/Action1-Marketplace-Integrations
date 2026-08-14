@@ -1,10 +1,14 @@
 const crypto = require('crypto');
-const { loadPolicyCatalogContract } = require('./policyCatalogContract');
+const { loadPolicyCatalogContract, normalizeParameterValues } = require('./policyCatalogContract');
 const {
   POLICIES_TABLE,
   POLICY_CONTROLS_TABLE,
-  SCOPE_RESERVATIONS_TABLE
+  SCOPE_RESERVATIONS_TABLE,
+  AUTOMATION_CORRELATIONS_TABLE
 } = require('./policyTables');
+const { createAutomationCorrelationStore } = require('./automationCorrelationStore');
+const { createAction1DiscoveryClient } = require('./action1DiscoveryClient');
+const { writeAction1RuntimeLog } = require('./runtimeLogging');
 
 const POLICY_ID_PREFIX = 'POL-';
 const POLICY_ID_WIDTH = 6;
@@ -88,67 +92,7 @@ function normalizeSelectedControls(selectedControls, catalogContract) {
     }
     seenControlIds.add(controlId);
 
-    const parameters = {};
-    for (const parameter of control.parameters || []) {
-      const rawValue = selectedControl?.parameters?.[parameter.id];
-      if (parameter.required && (rawValue === undefined || rawValue === null || rawValue === '')) {
-        throw new Error(`${parameter.label} is required.`);
-      }
-
-      if (rawValue === undefined) {
-        continue;
-      }
-
-      if (parameter.type === 'boolean') {
-        if (typeof rawValue !== 'boolean') {
-          throw new Error(`${parameter.label} must be true or false.`);
-        }
-        parameters[parameter.id] = rawValue;
-        continue;
-      }
-
-      if (parameter.type === 'integer') {
-        const normalized = normalizeInteger(rawValue, parameter.label);
-        if (parameter.minimum !== undefined && normalized < parameter.minimum) {
-          throw new Error(`${parameter.label} must be at least ${parameter.minimum}.`);
-        }
-        if (parameter.maximum !== undefined && normalized > parameter.maximum) {
-          throw new Error(`${parameter.label} must be at most ${parameter.maximum}.`);
-        }
-        parameters[parameter.id] = normalized;
-        continue;
-      }
-
-      if (parameter.type === 'enum') {
-        const allowedValues = (parameter.options || []).map((option) => option.value);
-        if (!allowedValues.includes(rawValue)) {
-          throw new Error(`${parameter.label} must use a supported option.`);
-        }
-        parameters[parameter.id] = rawValue;
-        continue;
-      }
-
-      if (parameter.type === 'string' || parameter.type === 'multiline-string') {
-        if (typeof rawValue !== 'string') {
-          throw new Error(`${parameter.label} must be text.`);
-        }
-        if (parameter.required && rawValue.trim() === '') {
-          throw new Error(`${parameter.label} is required.`);
-        }
-        parameters[parameter.id] = rawValue;
-        continue;
-      }
-
-      if (parameter.type === 'time') {
-        if (!isValidTime(rawValue)) {
-          throw new Error(`${parameter.label} must use HH:mm.`);
-        }
-        parameters[parameter.id] = rawValue;
-        continue;
-      }
-
-      throw new Error(`Unsupported parameter type: ${parameter.type}`);
-    }
+    const parameters = normalizeParameterValues(control, selectedControl?.parameters || {});
 
     return {
       controlId,
@@ -307,6 +251,7 @@ async function runInTransaction(context, work) {
 }
 
 async function getHydratedPolicy(context, policyId) {
+  await writeAction1RuntimeLog(context, 'debug', `Hydrating Policy ${policyId}`);
   const row = await context.db.get(
     `SELECT policy_sequence, policy_id, base_name, display_name, description, organization_id, organization_name_snapshot,
             scope_type, endpoint_group_id, endpoint_group_name_snapshot, policy_mode, run_every_hours, start_date, start_time,
@@ -329,6 +274,23 @@ async function getHydratedPolicy(context, policyId) {
     [policyId]
   );
 
+  let action1Automations;
+  try {
+    action1Automations = await createAutomationCorrelationStore(context).listCorrelations(policyId);
+    await writeAction1RuntimeLog(context, 'debug', `Loaded ${action1Automations.length} automation correlations for Policy ${policyId}`);
+  } catch (error) {
+    await writeAction1RuntimeLog(context, 'error', `Correlation hydration failed: Policy ${policyId}, stage=hydrate-correlations, message=${String(error.message || error).slice(0, 240)}`);
+    throw error;
+  }
+  await writeAction1RuntimeLog(context, 'debug', `Projected ${action1Automations.length} automation correlations into Policy Details`);
+  let action1ConsoleOrigin = '';
+  try {
+    action1ConsoleOrigin = await createAction1DiscoveryClient(context).resolveAction1ConsoleOrigin();
+    await writeAction1RuntimeLog(context, 'debug', `Action1 console host resolved: ${action1ConsoleOrigin}`);
+  } catch (error) {
+    await writeAction1RuntimeLog(context, 'debug', `Action1 console host unavailable: ${String(error.message || error).slice(0, 160)}`);
+  }
+
   return {
     ...policy,
     selectedControls: (Array.isArray(controlRows) ? controlRows : []).map((controlRow) => ({
@@ -338,8 +300,22 @@ async function getHydratedPolicy(context, policyId) {
       automationGroupVersion: String(controlRow.automation_group_version),
       parameters: JSON.parse(controlRow.parameters_json || '{}')
     })),
-    action1Automations: []
+    action1Automations: action1Automations.map((automation) => ({
+      ...automation,
+      action1ConsoleUrl: action1ConsoleOrigin
+        ? buildAction1ConsoleAutomationUrl(action1ConsoleOrigin, automation.action1OrganizationId, automation.action1AutomationName)
+        : null
+    }))
   };
+}
+
+function buildAction1ConsoleAutomationUrl(origin, organizationId, automationName) {
+  const url = new URL('/console/automations', origin);
+  url.search = new URLSearchParams({
+    limit: '200', from: '0', 'add_endpoints-limit': '200', 'add_endpoints-from': '0', org: organizationId,
+    filter: encodeURIComponent(automationName)
+  }).toString();
+  return url.toString();
 }
 
 async function assertNoScopeConflict(context, normalized) {
@@ -672,6 +648,7 @@ function createDbPolicyStore(context, options = {}) {
       }
 
       await runInTransaction(context, async () => {
+        await context.db.run(`DELETE FROM ${AUTOMATION_CORRELATIONS_TABLE} WHERE policy_id = ?`, [normalizedPolicyId]);
         await context.db.run(`DELETE FROM ${POLICY_CONTROLS_TABLE} WHERE policy_id = ?`, [normalizedPolicyId]);
         await context.db.run(`DELETE FROM ${SCOPE_RESERVATIONS_TABLE} WHERE policy_id = ?`, [normalizedPolicyId]);
         await context.db.run(`DELETE FROM ${POLICIES_TABLE} WHERE policy_id = ?`, [normalizedPolicyId]);
@@ -686,6 +663,7 @@ function createDbPolicyStore(context, options = {}) {
 }
 
 module.exports = {
+  buildAction1ConsoleAutomationUrl,
   createDbPolicyStore,
   createTemporaryPolicyIdentity,
   formatPolicyId,

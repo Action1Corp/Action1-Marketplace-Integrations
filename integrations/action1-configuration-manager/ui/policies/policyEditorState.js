@@ -106,6 +106,15 @@ export function updateCompletionDeadline(draft, value) {
   };
 }
 
+export function updateCompletionDeadlineHours(draft, value) {
+  const hours = normalizePositiveInteger(value, deriveCompletionDeadlineMinutes(draft.runSchedule?.runEveryHours) / 60);
+
+  return {
+    ...clone(draft),
+    completionDeadlineMinutes: hours * 60
+  };
+}
+
 export function getInitialOpenControlFamilies(draft, catalog) {
   const nextState = {};
   const selectedAutomationGroupIds = new Set((draft.selectedControls || []).map((entry) => entry.automationGroupId));

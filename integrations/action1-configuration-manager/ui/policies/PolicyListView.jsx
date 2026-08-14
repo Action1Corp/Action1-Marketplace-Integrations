@@ -138,14 +138,14 @@ function buildActionItems({ actions, policyId, onDelete, onDisable, onEnable, on
   return items;
 }
 
-function PolicyListView({ policies, onCreate, onDelete, onDisable, onEnable, onOpen, onEdit }) {
+function PolicyListView({ policies, onCreate, onDelete, onDisable, onEnable, onOpen, onEdit, busy = false }) {
   const [hoveredPolicyId, setHoveredPolicyId] = useState('');
 
   return (
     <section style={styles.section}>
       <div style={styles.actionRow}>
         <div />
-        <button type="button" style={styles.createButton} onClick={onCreate}>
+        <button type="button" style={styles.createButton} disabled={busy} onClick={onCreate}>
           Create Policy
         </button>
       </div>
@@ -215,7 +215,7 @@ function PolicyListView({ policies, onCreate, onDelete, onDisable, onEnable, onO
                     <span style={styles.scheduleChip}>{row.scheduleLabel.toLowerCase()}</span>
                   </td>
                   <td style={{ ...resolveCellStyle(), ...styles.actionsCell }}>
-                    <PolicyActionMenu items={actionItems} label="Policy actions" />
+                    <PolicyActionMenu items={actionItems} label="Policy actions" disabled={busy} />
                   </td>
                 </tr>
               );

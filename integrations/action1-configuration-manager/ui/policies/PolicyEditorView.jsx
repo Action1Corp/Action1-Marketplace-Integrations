@@ -9,7 +9,7 @@ import {
   applyControlSelection,
   clearAllSelectedControls,
   createInitialWizardState,
-  updateCompletionDeadline,
+  updateCompletionDeadlineHours,
   updateRunEveryHours,
   updateControlParameter
 } from './policyEditorState.js';
@@ -21,6 +21,16 @@ import {
 import { validatePolicyDraft } from './policyValidation.js';
 import { deriveDisplayName, formatParameterValue } from './policyViewModel.js';
 import CompactControlSummaryGroups from './CompactControlSummaryGroups.jsx';
+import ParameterField from './ParameterField.jsx';
+import { formatUtcOffset } from './timezoneModel.js';
+
+function getCurrentTimezoneLabel(schedule = {}) {
+  try {
+    return formatUtcOffset(schedule.startDate, schedule.startTime, schedule.timezone);
+  } catch {
+    return 'UTC';
+  }
+}
 
 const WIZARD_STEPS = [
   { number: 1, label: 'Details & Target' },
@@ -83,6 +93,8 @@ const WIZARD_CSS = `
 .a1-policy-wizard .req { color: var(--danger); }
 .a1-policy-wizard input[type="text"],
 .a1-policy-wizard input[type="number"],
+.a1-policy-wizard input[type="date"],
+.a1-policy-wizard input[type="time"],
 .a1-policy-wizard select,
 .a1-policy-wizard textarea {
   width: 100%;
@@ -297,51 +309,9 @@ function getBaselineRecommendation(catalog, baselineId, control) {
 }
 
 function renderConfigInput({ parameter, value, onChange, errorMessage }) {
-  const inputProps = {
-    value: value ?? '',
-    onChange: (event) => onChange(event.target.value)
-  };
-
-  let input = null;
-
-  if (parameter.type === 'boolean') {
-    input = (
-      <label className="radio-item" style={{ marginTop: 6 }}>
-        <input
-          type="checkbox"
-          checked={Boolean(value)}
-          onChange={(event) => onChange(event.target.checked)}
-        />
-        <span>{parameter.label}</span>
-      </label>
-    );
-  } else if (parameter.type === 'enum') {
-    input = (
-      <select {...inputProps}>
-        {(parameter.options || []).map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    );
-  } else if (parameter.type === 'integer') {
-    input = <input type="number" {...inputProps} min={parameter.minimum} max={parameter.maximum} step={parameter.step || 1} />;
-  } else if (parameter.type === 'multiline-string') {
-    input = <textarea rows={3} {...inputProps} />;
-  } else if (parameter.type === 'time') {
-    input = <input type="text" {...inputProps} />;
-  } else {
-    input = <input type="text" {...inputProps} />;
-  }
-
-  return (
-    <div className="control-config field" key={parameter.id} onClick={(event) => event.stopPropagation()}>
-      {parameter.type === 'boolean' ? null : <label>{parameter.label}</label>}
-      {input}
-      {errorMessage ? <p className="hint error">{errorMessage}</p> : null}
-    </div>
-  );
+  return <div className="control-config field" key={parameter.id} onClick={(event) => event.stopPropagation()}>
+    <ParameterField parameter={parameter} value={value} onChange={onChange} errorMessage={errorMessage} />
+  </div>;
 }
 
 function PolicyEditorView({
@@ -359,6 +329,7 @@ function PolicyEditorView({
   organizationsError = '',
   organizationsLoading = false,
   validationResult
+  ,busy = false
 }) {
   const [wizardState, setWizardState] = useState(() => createInitialWizardState({ isEditMode }));
   const [openCategories, setOpenCategories] = useState(() => getInitialOpenCategories(catalog));
@@ -366,7 +337,10 @@ function PolicyEditorView({
   const [pendingPolicyMode, setPendingPolicyMode] = useState('');
   const [pendingSaveConfirmation, setPendingSaveConfirmation] = useState(false);
   const [runEveryInput, setRunEveryInput] = useState(String(draft.runSchedule?.runEveryHours ?? ''));
-  const [completionDeadlineInput, setCompletionDeadlineInput] = useState(String(draft.completionDeadlineMinutes ?? ''));
+  const initialDeadlineMinutes = Number(draft.completionDeadlineMinutes || 0);
+  const [completionDeadlineInput, setCompletionDeadlineInput] = useState(
+    initialDeadlineMinutes > 0 ? String(initialDeadlineMinutes / 60) : ''
+  );
 
   useEffect(() => {
     setOpenCategories(getInitialOpenCategories(catalog));
@@ -381,7 +355,8 @@ function PolicyEditorView({
   }, [draft.runSchedule?.runEveryHours]);
 
   useEffect(() => {
-    setCompletionDeadlineInput(String(draft.completionDeadlineMinutes ?? ''));
+    const minutes = Number(draft.completionDeadlineMinutes || 0);
+    setCompletionDeadlineInput(minutes > 0 ? String(minutes / 60) : '');
   }, [draft.completionDeadlineMinutes]);
 
   const treeModel = useMemo(
@@ -442,6 +417,9 @@ function PolicyEditorView({
   function canAdvanceCurrentStep() {
     const nextValidationResult = validatePolicyDraft(draft, catalog);
     const requiredFields = getWizardValidationFields(wizardState.currentStep);
+    if (wizardState.currentStep >= 3 && Object.keys(nextValidationResult.fieldErrors || {}).length > 0) {
+      return false;
+    }
     return requiredFields.every((fieldName) => !nextValidationResult.fieldErrors?.[fieldName]);
   }
 
@@ -504,7 +482,7 @@ function PolicyEditorView({
   function handleCompletionDeadlineChange(value) {
     setCompletionDeadlineInput(value);
     if (/^\d+$/.test(String(value)) && Number.parseInt(value, 10) > 0) {
-      onChange(updateCompletionDeadline(draft, value));
+      onChange(updateCompletionDeadlineHours(draft, Number.parseInt(value, 10)));
       return;
     }
 
@@ -907,26 +885,26 @@ function PolicyEditorView({
                   </p>
                 </div>
                 <div className="field">
-                  <label>Start date <span className="req">*</span></label>
-                  <input type="text" value={draft.runSchedule?.startDate || ''} onChange={(event) => updateRunScheduleField(draft, onChange, 'startDate', event.target.value)} />
+                  <label htmlFor="start-date">Start date <span className="req">*</span></label>
+                  <input id="start-date" type="date" value={draft.runSchedule?.startDate || ''} onChange={(event) => updateRunScheduleField(draft, onChange, 'startDate', event.target.value)} />
                   {fieldError('startDate') ? <p className="hint error">{fieldError('startDate')}</p> : null}
                 </div>
                 <div className="field">
-                  <label>Start time <span className="req">*</span></label>
-                  <input type="text" value={draft.runSchedule?.startTime || ''} onChange={(event) => updateRunScheduleField(draft, onChange, 'startTime', event.target.value)} />
+                  <label htmlFor="start-time">Start time <span className="req">*</span></label>
+                  <input id="start-time" type="time" value={draft.runSchedule?.startTime || ''} onChange={(event) => updateRunScheduleField(draft, onChange, 'startTime', event.target.value)} />
                   {fieldError('startTime') ? <p className="hint error">{fieldError('startTime')}</p> : null}
                 </div>
               </div>
               <div className="grid-3">
                 <div className="field span-2">
-                  <label>Timezone</label>
-                  <input type="text" value={draft.runSchedule?.timezone || ''} onChange={(event) => updateRunScheduleField(draft, onChange, 'timezone', event.target.value)} />
+                  <label>Current Timezone</label>
+                  <input type="text" value={getCurrentTimezoneLabel(draft.runSchedule)} readOnly aria-readonly="true" />
                   {fieldError('timezone') ? <p className="hint error">{fieldError('timezone')}</p> : null}
                 </div>
                 <div className="field">
-                  <label>Automation completion deadline <span className="req">*</span></label>
-                  <input type="number" value={completionDeadlineInput} min="1" onChange={(event) => handleCompletionDeadlineChange(event.target.value)} />
-                  <p className="hint">Minutes offline endpoints keep retrying</p>
+                  <label htmlFor="completion-deadline">Automation completion deadline <span className="req">*</span></label>
+                  <input id="completion-deadline" type="number" value={completionDeadlineInput} min="1" onChange={(event) => handleCompletionDeadlineChange(event.target.value)} />
+                  <p className="hint">Hours offline endpoints keep retrying</p>
                   {fieldError('completionDeadlineMinutes') ? <p className="hint error">{fieldError('completionDeadlineMinutes')}</p> : null}
                 </div>
               </div>
@@ -1079,13 +1057,13 @@ function PolicyEditorView({
 
         <div className="wizard-footer">
           {wizardState.currentStep > 1 ? (
-            <button type="button" className="btn btn-secondary" onClick={prevStep}>Back</button>
+          <button type="button" className="btn btn-secondary" disabled={busy} onClick={prevStep}>Back</button>
           ) : (
             <span />
           )}
           <div className="spacer" />
-          <button type="button" className="btn btn-secondary" onClick={onCancel}>Cancel</button>
-          <button type="button" className="btn btn-primary" id="btn-next" disabled={nextDisabled} onClick={nextStep}>
+          <button type="button" className="btn btn-secondary" disabled={busy} onClick={onCancel}>Cancel</button>
+          <button type="button" className="btn btn-primary" id="btn-next" disabled={nextDisabled || busy} onClick={nextStep}>
             {wizardState.currentStep === 4 ? 'Save and apply' : 'Next'}
           </button>
         </div>
@@ -1118,8 +1096,8 @@ function PolicyEditorView({
               <div className="s-value">{countLabel(expectedAutomationCount, 'Action1 automation')}</div>
             </div>
             <div className="modal-actions">
-              <button type="button" className="btn btn-secondary" onClick={() => setPendingSaveConfirmation(false)}>Cancel</button>
-              <button type="button" className="btn btn-primary" onClick={confirmSave}>Save and apply</button>
+              <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => setPendingSaveConfirmation(false)}>Cancel</button>
+              <button type="button" className="btn btn-primary" disabled={busy} onClick={confirmSave}>Save and apply</button>
             </div>
           </div>
         </div>

@@ -137,13 +137,13 @@ function buildActionItems({ policy, onDelete, onDisable, onEdit, onEnable }) {
   ];
 }
 
-function PolicyDetailsView({ catalog, policy, onBack, onDelete, onDisable, onEdit, onEnable }) {
+function PolicyDetailsView({ catalog, policy, onBack, onDelete, onDisable, onEdit, onEnable, busy = false }) {
   const details = formatPolicyDetails(policy, catalog);
   const actionItems = buildActionItems({ policy, onDelete, onDisable, onEdit, onEnable });
 
   return (
     <section style={styles.shell}>
-      <button type="button" style={styles.backLink} onClick={onBack}>
+      <button type="button" style={styles.backLink} disabled={busy} onClick={onBack}>
         Back to Policies
       </button>
 
@@ -152,7 +152,7 @@ function PolicyDetailsView({ catalog, policy, onBack, onDelete, onDisable, onEdi
           <h2 style={styles.title}>Policy Details</h2>
           <p style={styles.subtitle}>Inspect the saved Policy, its current schedule, and its Action1 automations.</p>
         </div>
-        <PolicyActionMenu items={actionItems} label="Policy actions" />
+        <PolicyActionMenu items={actionItems} label="Policy actions" disabled={busy} />
       </div>
 
       <hr style={styles.sectionDivider} />
@@ -227,9 +227,9 @@ function PolicyDetailsView({ catalog, policy, onBack, onDelete, onDisable, onEdi
               <CompactControlSummaryGroups
                 groups={[group]}
                 renderFamilyAction={(familyGroup) =>
-                  familyGroup.automationLink ? (
-                    <a href={familyGroup.automationLink.action1Url} style={styles.link}>
-                      Open automation in Action1
+                  familyGroup.automationLink?.action1Url ? (
+                    <a href={familyGroup.automationLink.action1Url} target="_blank" rel="noopener noreferrer" style={styles.link}>
+                        Open automation in Action1
                     </a>
                   ) : null
                 }

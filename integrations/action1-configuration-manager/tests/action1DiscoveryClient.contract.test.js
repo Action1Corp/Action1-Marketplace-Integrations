@@ -30,6 +30,7 @@ function createFakeContext(options = {}) {
     action1: {
       async getCredentials() {
         return options.credentials || {
+          baseUrl: 'https://app.action1.com/api/3.0',
           apiKey: 'client-id',
           apiSecret: 'client-secret'
         };
@@ -60,6 +61,7 @@ async function run() {
   const {
     computeAction1RateLimitDelayMs,
     createAction1DiscoveryClient,
+    resolveAction1ConsoleOrigin,
     resolveRetryAfterMs
   } = require(path.join(__dirname, '..', 'action1DiscoveryClient.js'));
 
@@ -77,6 +79,7 @@ async function run() {
     const calls = [];
     const client = createAction1DiscoveryClient(
       createFakeContext({
+        credentials: { apiKey: 'client-id', apiSecret: 'client-secret' },
         http: async (requestOptions = {}) => {
           calls.push(requestOptions);
           const url = String(requestOptions.url || '');
@@ -118,6 +121,16 @@ async function run() {
     assert(orgCall, 'organization request should be issued');
     assert.strictEqual(orgCall.headers.Authorization, 'Bearer token-a');
   }
+
+  assert.strictEqual(
+    await resolveAction1ConsoleOrigin(createFakeContext({ credentials: { apiKey: 'client-id', apiSecret: 'client-secret' } })),
+    null,
+    'missing optional console metadata must not block API credentials'
+  );
+  assert.strictEqual(
+    await resolveAction1ConsoleOrigin(createFakeContext({ credentials: { apiKey: 'client-id', apiSecret: 'client-secret', baseUrl: 'https://eu.action1.test/api/3.0' } })),
+    'https://eu.action1.test'
+  );
 
   {
     const tokenCalls = [];
@@ -171,15 +184,15 @@ async function run() {
       });
     }
 
-    await createAction1DiscoveryClient(createCachedContext({ apiKey: 'same-id', apiSecret: 'same-secret' }), {
+    await createAction1DiscoveryClient(createCachedContext({ baseUrl: 'https://app.action1.com/api/3.0', apiKey: 'same-id', apiSecret: 'same-secret' }), {
       tokenCache: sharedCache,
       now: () => 0
     }).listOrganizations();
-    await createAction1DiscoveryClient(createCachedContext({ apiKey: 'same-id', apiSecret: 'same-secret' }), {
+    await createAction1DiscoveryClient(createCachedContext({ baseUrl: 'https://app.action1.com/api/3.0', apiKey: 'same-id', apiSecret: 'same-secret' }), {
       tokenCache: sharedCache,
       now: () => 1000
     }).listOrganizations();
-    await createAction1DiscoveryClient(createCachedContext({ apiKey: 'other-id', apiSecret: 'other-secret' }), {
+    await createAction1DiscoveryClient(createCachedContext({ baseUrl: 'https://app.action1.com/api/3.0', apiKey: 'other-id', apiSecret: 'other-secret' }), {
       tokenCache: sharedCache,
       now: () => 1000
     }).listOrganizations();
