@@ -70,6 +70,7 @@ function buildUiBundle() {
   const buildRoot = path.join(packageRoot, '_ui-build');
   const entryPath = path.join(buildRoot, 'remote-entry.mjs');
   const configPath = path.join(buildRoot, 'vite.remote.config.mjs');
+  const jsxRuntimeShimPath = path.join(buildRoot, 'react-jsx-runtime-shim.mjs');
   const outDir = path.join(packageDir, 'ui-dist');
   fs.mkdirSync(buildRoot, { recursive: true });
 
@@ -80,7 +81,21 @@ function buildUiBundle() {
     `registry[${jsString(id)}] = integrationModule.views || {};`
   ].join('\n'));
 
+  fs.writeFileSync(jsxRuntimeShimPath, [
+    "import React from 'react';",
+    '',
+    'export const Fragment = React.Fragment;',
+    '',
+    'export function jsx(type, props, key) {',
+    '  return React.createElement(type, key === undefined ? props : { ...props, key });',
+    '}',
+    '',
+    'export const jsxs = jsx;',
+    ''
+  ].join('\n'));
+
   const aliases = {
+    'react/jsx-runtime': jsxRuntimeShimPath,
     react: path.join(repoRoot, 'node_modules', 'react'),
     'react-dom': path.join(repoRoot, 'node_modules', 'react-dom'),
     'react-router-dom': path.join(repoRoot, 'node_modules', 'react-router-dom'),
@@ -130,6 +145,11 @@ function buildUiBundle() {
   });
   if (result.status !== 0) {
     throw new Error('Vite failed while building integration UI bundle.');
+  }
+  const remotePath = path.join(outDir, 'remote.js');
+  const remoteSource = fs.readFileSync(remotePath, 'utf8');
+  if (/\brequire\s*\(/.test(remoteSource)) {
+    throw new Error(`Integration UI bundle for ${id} contains CommonJS require(), which cannot run as a browser remote.`);
   }
   return true;
 }
