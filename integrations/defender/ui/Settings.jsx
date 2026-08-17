@@ -139,7 +139,7 @@ function Settings({ integration }) {
               </div>
             ))}
             {supportsValidation && groupName.toLowerCase().includes('configuration') && (
-              <button className="btn-primary" type="button" onClick={validate} disabled={validating}>
+              <button className="btn-section-action action1-action" type="button" onClick={validate} disabled={validating}>
                 {validating ? 'Validating...' : 'Validate Credentials'}
               </button>
             )}

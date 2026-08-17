@@ -1,5 +1,13 @@
+const DEFAULT_ACTION1_BASE_URL = 'https://app.action1.com/api/3.0';
+
+function action1BaseUrl(credentials = {}) {
+  return String(credentials.baseUrl || DEFAULT_ACTION1_BASE_URL).replace(/\/+$/, '');
+}
+
 async function validateAction1(action1) {
-  const { apiKey, apiSecret } = await action1.getCredentials();
+  const credentials = await action1.getCredentials();
+  const { apiKey, apiSecret } = credentials;
+  const baseUrl = action1BaseUrl(credentials);
 
   if (!apiKey || !apiSecret) {
     return { ok: false, message: 'Missing Action1 API key or secret' };
@@ -11,7 +19,7 @@ async function validateAction1(action1) {
     tokenParams.append('client_secret', apiSecret);
     tokenParams.append('grant_type', 'client_credentials');
 
-    const response = await fetch('https://app.action1.com/api/3.0/oauth2/token', {
+    const response = await fetch(`${baseUrl}/oauth2/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: tokenParams

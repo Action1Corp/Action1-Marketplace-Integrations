@@ -1,7 +1,15 @@
+const DEFAULT_ACTION1_BASE_URL = 'https://app.action1.com/api/3.0';
+
+function action1BaseUrl(credentials = {}) {
+  return String(credentials.baseUrl || DEFAULT_ACTION1_BASE_URL).replace(/\/+$/, '');
+}
+
 async function validate({ settings, action1 }) {
   const accessKey = settings.TenableAccessKey;
   const secretKey = settings.TenableSecretKey;
-  const { apiKey: action1ApiKey, apiSecret: action1ApiSecret } = await action1.getCredentials();
+  const action1Credentials = await action1.getCredentials();
+  const { apiKey: action1ApiKey, apiSecret: action1ApiSecret } = action1Credentials;
+  const action1Base = action1BaseUrl(action1Credentials);
   const results = { tenable: null, action1: null };
 
   if (!accessKey || !secretKey) {
@@ -33,7 +41,7 @@ async function validate({ settings, action1 }) {
       tokenParams.append('client_id', action1ApiKey);
       tokenParams.append('client_secret', action1ApiSecret);
       tokenParams.append('grant_type', 'client_credentials');
-      const response = await fetch('https://app.action1.com/api/3.0/oauth2/token', {
+      const response = await fetch(`${action1Base}/oauth2/token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: tokenParams

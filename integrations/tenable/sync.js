@@ -1,5 +1,10 @@
 // Wait utility
 const delay = ms => new Promise(res => setTimeout(res, ms));
+const DEFAULT_ACTION1_BASE_URL = 'https://app.action1.com/api/3.0';
+
+function action1BaseUrl(credentials = {}) {
+    return String(credentials.baseUrl || DEFAULT_ACTION1_BASE_URL).replace(/\/+$/, '');
+}
 
 function firstString(...values) {
     for (const value of values) {
@@ -52,7 +57,8 @@ async function sync(context) {
     try {
         const TenableAccessKey = await getSetting('TenableAccessKey');
         const TenableSecretKey = await getSetting('TenableSecretKey');
-        const { apiKey: action1ApiKey, apiSecret: action1ApiSecret, organizationId: action1OrgId } = await getAction1Credentials();
+        const action1Credentials = await getAction1Credentials();
+        const { apiKey: action1ApiKey, apiSecret: action1ApiSecret, organizationId: action1OrgId } = action1Credentials;
 
         if (!TenableAccessKey || !action1ApiKey || !action1OrgId) {
             throw new Error('API keys are not fully configured in settings.');
@@ -65,7 +71,7 @@ async function sync(context) {
         };
         const tenableApiBase = "https://cloud.tenable.com";
 
-        const a1Base = "https://app.action1.com/api/3.0";
+        const a1Base = action1BaseUrl(action1Credentials);
 
         await updateProgress("Authenticating with Action1...");
         let a1Token = null;
@@ -73,7 +79,7 @@ async function sync(context) {
             const tokenParams = new URLSearchParams();
             tokenParams.append('client_id', action1ApiKey);
             tokenParams.append('client_secret', action1ApiSecret);
-            const tokenRes = await axios.post('https://app.action1.com/api/3.0/oauth2/token', tokenParams, {
+            const tokenRes = await axios.post(`${a1Base}/oauth2/token`, tokenParams, {
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
             });
             a1Token = tokenRes.data.access_token;

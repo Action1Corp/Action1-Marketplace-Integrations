@@ -1,7 +1,11 @@
 const GRAPH_BASE = 'https://graph.microsoft.com/beta';
 const ASSIGNMENT_MODE_ALL_DEVICES = 'allDevices';
 const ASSIGNMENT_MODE_SELECTED_GROUPS = 'selectedGroups';
-const ACTION1_BASE = 'https://app.action1.com/api/3.0';
+const DEFAULT_ACTION1_BASE_URL = 'https://app.action1.com/api/3.0';
+
+function action1BaseUrl(credentials = {}) {
+  return String(credentials.baseUrl || DEFAULT_ACTION1_BASE_URL).replace(/\/+$/, '');
+}
 
 function parseSelectedGroupIds(value) {
   if (Array.isArray(value)) return value.map(String).map(item => item.trim()).filter(Boolean);
@@ -86,6 +90,7 @@ function action1Items(payload) {
 async function getAction1Token(credentials) {
   const apiKey = credentials?.apiKey;
   const apiSecret = credentials?.apiSecret;
+  const baseUrl = action1BaseUrl(credentials);
   if (!apiKey || !apiSecret) throw new Error('Action1 API key and secret are required.');
 
   const tokenBody = new URLSearchParams();
@@ -93,7 +98,7 @@ async function getAction1Token(credentials) {
   tokenBody.append('client_id', apiKey);
   tokenBody.append('client_secret', apiSecret);
 
-  const response = await fetch(`${ACTION1_BASE}/oauth2/token`, {
+  const response = await fetch(`${baseUrl}/oauth2/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: tokenBody
@@ -119,7 +124,7 @@ async function action1Get(token, url) {
   return data;
 }
 
-async function action1GetAll(token, firstUrl) {
+async function action1GetAll(token, firstUrl, baseUrl = DEFAULT_ACTION1_BASE_URL) {
   const rows = [];
   let url = firstUrl;
   let pages = 0;
@@ -131,7 +136,7 @@ async function action1GetAll(token, firstUrl) {
 
     const nextUrl = data.next || data.next_link || data.nextLink || '';
     if (nextUrl) {
-      url = String(nextUrl).startsWith('http') ? nextUrl : `${ACTION1_BASE}${nextUrl}`;
+      url = String(nextUrl).startsWith('http') ? nextUrl : `${baseUrl}${nextUrl}`;
       continue;
     }
 
@@ -200,10 +205,12 @@ async function listAction1EndpointGroups(credentials) {
   const organizationId = credentials?.organizationId;
   if (!organizationId) throw new Error('Action1 organization ID is required.');
 
+  const baseUrl = action1BaseUrl(credentials);
   const token = await getAction1Token(credentials);
   const groups = await action1GetAll(
     token,
-    `${ACTION1_BASE}/endpoints/groups/${encodeURIComponent(organizationId)}?limit=500&from=0`
+    `${baseUrl}/endpoints/groups/${encodeURIComponent(organizationId)}?limit=500&from=0`,
+    baseUrl
   );
 
   return groups

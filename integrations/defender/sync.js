@@ -4,6 +4,11 @@ let getSetting;
 let getAction1Credentials;
 let computeAndSaveRunMetrics;
 let nvdService;
+const DEFAULT_ACTION1_BASE_URL = 'https://app.action1.com/api/3.0';
+
+function action1BaseUrl(credentials = {}) {
+    return String(credentials.baseUrl || DEFAULT_ACTION1_BASE_URL).replace(/\/+$/, '');
+}
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -232,7 +237,8 @@ async function runSync() {
         let DefenderBaseUrl = await getSetting('DefenderBaseUrl');
         DefenderBaseUrl = cleanBaseUrl(DefenderBaseUrl, 'https://api.securitycenter.microsoft.com');
 
-        const { apiKey: action1Id, apiSecret: action1Secret, organizationId: action1Org } = await getAction1Credentials();
+        const action1Credentials = await getAction1Credentials();
+        const { apiKey: action1Id, apiSecret: action1Secret, organizationId: action1Org } = action1Credentials;
 
         if (!DefenderTenantId || !DefenderClientId || !DefenderClientSecret) throw new Error("Defender credentials missing.");
         if (!action1Id || !action1Secret || !action1Org) throw new Error("Action1 credentials missing.");
@@ -252,7 +258,7 @@ async function runSync() {
 
         // 2. Auth Action1
         await updateProgress("Authenticating to Action1...");
-        const a1Base = 'https://app.action1.com/api/3.0';
+        const a1Base = action1BaseUrl(action1Credentials);
         let a1Token = null;
         try {
             const a1Params = new URLSearchParams();
