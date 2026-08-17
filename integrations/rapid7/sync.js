@@ -74,8 +74,11 @@ async function runSync() {
         const action1Credentials = await getAction1Credentials();
         const { apiKey: action1ApiKey, apiSecret: action1ApiSecret, organizationId: action1OrgId } = action1Credentials;
 
-        if (!Rapid7ApiKey || !Rapid7Region || !action1ApiKey || !action1OrgId) {
-            throw new Error('Rapid7 or Action1 API keys are not fully configured.');
+        if (!Rapid7ApiKey || !Rapid7Region) {
+            throw new Error('Rapid7 API key or region is not configured in integration settings.');
+        }
+        if (!action1ApiKey || !action1ApiSecret || !action1OrgId) {
+            throw new Error('Action1 credentials are not configured. Configure and validate Action1 in Marketplace Settings.');
         }
 
         const r7Headers = {

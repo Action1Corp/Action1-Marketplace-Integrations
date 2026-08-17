@@ -1,16 +1,7 @@
-const DEFAULT_ACTION1_BASE_URL = 'https://app.action1.com/api/3.0';
-
-function action1BaseUrl(credentials = {}) {
-  return String(credentials.baseUrl || DEFAULT_ACTION1_BASE_URL).replace(/\/+$/, '');
-}
-
-async function validate({ settings, action1 }) {
+async function validate({ settings }) {
   const accessKey = settings.TenableAccessKey;
   const secretKey = settings.TenableSecretKey;
-  const action1Credentials = await action1.getCredentials();
-  const { apiKey: action1ApiKey, apiSecret: action1ApiSecret } = action1Credentials;
-  const action1Base = action1BaseUrl(action1Credentials);
-  const results = { tenable: null, action1: null };
+  const results = { tenable: null };
 
   if (!accessKey || !secretKey) {
     results.tenable = { ok: false, message: 'Missing Tenable access key or secret key' };
@@ -30,29 +21,6 @@ async function validate({ settings, action1 }) {
       results.tenable = { ok: true, message: `Connected - ${data.username || 'authenticated'}` };
     } catch (error) {
       results.tenable = { ok: false, message: `Failed: ${error.message}` };
-    }
-  }
-
-  if (!action1ApiKey || !action1ApiSecret) {
-    results.action1 = { ok: false, message: 'Missing Action1 API key or secret' };
-  } else {
-    try {
-      const tokenParams = new URLSearchParams();
-      tokenParams.append('client_id', action1ApiKey);
-      tokenParams.append('client_secret', action1ApiSecret);
-      tokenParams.append('grant_type', 'client_credentials');
-      const response = await fetch(`${action1Base}/oauth2/token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: tokenParams
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.access_token) {
-        throw new Error(data.error_description || data.error || `HTTP ${response.status}`);
-      }
-      results.action1 = { ok: true, message: 'Connected - token acquired' };
-    } catch (error) {
-      results.action1 = { ok: false, message: `Failed: ${error.message}` };
     }
   }
 

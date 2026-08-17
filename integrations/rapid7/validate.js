@@ -1,40 +1,3 @@
-const DEFAULT_ACTION1_BASE_URL = 'https://app.action1.com/api/3.0';
-
-function action1BaseUrl(credentials = {}) {
-  return String(credentials.baseUrl || DEFAULT_ACTION1_BASE_URL).replace(/\/+$/, '');
-}
-
-async function validateAction1(action1) {
-  const credentials = await action1.getCredentials();
-  const { apiKey, apiSecret } = credentials;
-  const baseUrl = action1BaseUrl(credentials);
-
-  if (!apiKey || !apiSecret) {
-    return { ok: false, message: 'Missing Action1 API key or secret' };
-  }
-
-  try {
-    const tokenParams = new URLSearchParams();
-    tokenParams.append('client_id', apiKey);
-    tokenParams.append('client_secret', apiSecret);
-    tokenParams.append('grant_type', 'client_credentials');
-
-    const response = await fetch(`${baseUrl}/oauth2/token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: tokenParams
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || !data.access_token) {
-      throw new Error(data.error_description || data.error || `HTTP ${response.status}`);
-    }
-
-    return { ok: true, message: 'Connected - token acquired' };
-  } catch (error) {
-    return { ok: false, message: `Failed: ${error.message}` };
-  }
-}
-
 async function validateRapid7(settings) {
   const apiKey = settings.Rapid7ApiKey;
   const region = settings.Rapid7Region;
@@ -72,10 +35,9 @@ async function validateRapid7(settings) {
   }
 }
 
-async function validate({ settings, action1 }) {
+async function validate({ settings }) {
   return {
-    rapid7: await validateRapid7(settings),
-    action1: await validateAction1(action1)
+    rapid7: await validateRapid7(settings)
   };
 }
 

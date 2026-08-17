@@ -172,8 +172,11 @@ async function runSync() {
         const action1Credentials = await getAction1Credentials();
         const { apiKey: action1ApiKey, apiSecret: action1ApiSecret, organizationId: action1OrgId } = action1Credentials;
 
-        if (!QualysUsername || !QualysPassword || !action1ApiKey || !action1OrgId) {
-            throw new Error('Qualys or Action1 API keys are not fully configured.');
+        if (!QualysUsername || !QualysPassword) {
+            throw new Error('Qualys username or password is not configured in integration settings.');
+        }
+        if (!action1ApiKey || !action1ApiSecret || !action1OrgId) {
+            throw new Error('Action1 credentials are not configured. Configure and validate Action1 in Marketplace Settings.');
         }
 
         const qualysAuth = Buffer.from(`${QualysUsername}:${QualysPassword}`).toString('base64');

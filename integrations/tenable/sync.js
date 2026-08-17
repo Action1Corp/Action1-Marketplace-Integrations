@@ -60,8 +60,11 @@ async function sync(context) {
         const action1Credentials = await getAction1Credentials();
         const { apiKey: action1ApiKey, apiSecret: action1ApiSecret, organizationId: action1OrgId } = action1Credentials;
 
-        if (!TenableAccessKey || !action1ApiKey || !action1OrgId) {
-            throw new Error('API keys are not fully configured in settings.');
+        if (!TenableAccessKey || !TenableSecretKey) {
+            throw new Error('Tenable access key or secret key is not configured in integration settings.');
+        }
+        if (!action1ApiKey || !action1ApiSecret || !action1OrgId) {
+            throw new Error('Action1 credentials are not configured. Configure and validate Action1 in Marketplace Settings.');
         }
 
         const tenableHeaders = {

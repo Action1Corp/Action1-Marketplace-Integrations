@@ -240,8 +240,12 @@ async function runSync() {
         const action1Credentials = await getAction1Credentials();
         const { apiKey: action1Id, apiSecret: action1Secret, organizationId: action1Org } = action1Credentials;
 
-        if (!DefenderTenantId || !DefenderClientId || !DefenderClientSecret) throw new Error("Defender credentials missing.");
-        if (!action1Id || !action1Secret || !action1Org) throw new Error("Action1 credentials missing.");
+        if (!DefenderTenantId || !DefenderClientId || !DefenderClientSecret) {
+            throw new Error('Defender tenant ID, client ID, or client secret is not configured in integration settings.');
+        }
+        if (!action1Id || !action1Secret || !action1Org) {
+            throw new Error('Action1 credentials are not configured. Configure and validate Action1 in Marketplace Settings.');
+        }
 
         // 1. Auth Defender
         await updateProgress("Authenticating to Microsoft Defender...");
