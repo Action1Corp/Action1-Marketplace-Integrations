@@ -4,6 +4,11 @@ let getSetting;
 let getAction1Credentials;
 let computeAndSaveRunMetrics;
 let nvdService;
+const DEFAULT_ACTION1_BASE_URL = 'https://app.action1.com/api/3.0';
+
+function action1BaseUrl(credentials = {}) {
+    return String(credentials.baseUrl || DEFAULT_ACTION1_BASE_URL).replace(/\/+$/, '');
+}
 
 function firstString(...values) {
     for (const value of values) {
@@ -66,10 +71,14 @@ async function runSync() {
         const Rapid7Region = await getSetting('Rapid7Region');
         const Rapid7BaseUrl = `https://${Rapid7Region}.api.insight.rapid7.com/vm/v4`;
 
-        const { apiKey: action1ApiKey, apiSecret: action1ApiSecret, organizationId: action1OrgId } = await getAction1Credentials();
+        const action1Credentials = await getAction1Credentials();
+        const { apiKey: action1ApiKey, apiSecret: action1ApiSecret, organizationId: action1OrgId } = action1Credentials;
 
-        if (!Rapid7ApiKey || !Rapid7Region || !action1ApiKey || !action1OrgId) {
-            throw new Error('Rapid7 or Action1 API keys are not fully configured.');
+        if (!Rapid7ApiKey || !Rapid7Region) {
+            throw new Error('Rapid7 API key or region is not configured in integration settings.');
+        }
+        if (!action1ApiKey || !action1ApiSecret || !action1OrgId) {
+            throw new Error('Action1 credentials are not configured. Configure and validate Action1 in Marketplace Settings.');
         }
 
         const r7Headers = {
@@ -78,7 +87,7 @@ async function runSync() {
             'Content-Type': 'application/json'
         };
 
-        const a1Base = "https://app.action1.com/api/3.0";
+        const a1Base = action1BaseUrl(action1Credentials);
 
         // 1. Authenticate with Action1
         await updateProgress("Authenticating with Action1...");
@@ -87,7 +96,7 @@ async function runSync() {
             const tokenParams = new URLSearchParams();
             tokenParams.append('client_id', action1ApiKey);
             tokenParams.append('client_secret', action1ApiSecret);
-            const tokenRes = await axios.post('https://app.action1.com/api/3.0/oauth2/token', tokenParams, {
+            const tokenRes = await axios.post(`${a1Base}/oauth2/token`, tokenParams, {
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
             });
             a1Token = tokenRes.data.access_token;

@@ -329,11 +329,7 @@ function Settings({ integration }) {
                       ))}
                     </div>
                   </>
-                ) : (
-                  <div style={{ padding: '0.85rem', border: '1px solid #BFDBFE', borderRadius: 4, background: '#EFF6FF', color: '#1E3A8A', fontSize: '0.85rem' }}>
-                    The single Action1 Agent Win32 app will be assigned as required to Intune All devices.
-                  </div>
-                )}
+                ) : null}
                 <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginTop: '1rem' }}>
                   <button className="btn-section-action action1-action" type="button" onClick={validateAssignments} disabled={validatingAssignments}>
                     {validatingAssignments ? 'Validating assignments...' : 'Validate Assignments'}

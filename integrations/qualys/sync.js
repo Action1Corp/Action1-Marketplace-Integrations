@@ -4,6 +4,11 @@ let getSetting;
 let getAction1Credentials;
 let computeAndSaveRunMetrics;
 let nvdService;
+const DEFAULT_ACTION1_BASE_URL = 'https://app.action1.com/api/3.0';
+
+function action1BaseUrl(credentials = {}) {
+    return String(credentials.baseUrl || DEFAULT_ACTION1_BASE_URL).replace(/\/+$/, '');
+}
 
 
 
@@ -164,10 +169,14 @@ async function runSync() {
         if (!QualysBaseUrl) QualysBaseUrl = 'https://qualysapi.qg3.apps.qualys.com';
         QualysBaseUrl = QualysBaseUrl.replace(/\/$/, '');
 
-        const { apiKey: action1ApiKey, apiSecret: action1ApiSecret, organizationId: action1OrgId } = await getAction1Credentials();
+        const action1Credentials = await getAction1Credentials();
+        const { apiKey: action1ApiKey, apiSecret: action1ApiSecret, organizationId: action1OrgId } = action1Credentials;
 
-        if (!QualysUsername || !QualysPassword || !action1ApiKey || !action1OrgId) {
-            throw new Error('Qualys or Action1 API keys are not fully configured.');
+        if (!QualysUsername || !QualysPassword) {
+            throw new Error('Qualys username or password is not configured in integration settings.');
+        }
+        if (!action1ApiKey || !action1ApiSecret || !action1OrgId) {
+            throw new Error('Action1 credentials are not configured. Configure and validate Action1 in Marketplace Settings.');
         }
 
         const qualysAuth = Buffer.from(`${QualysUsername}:${QualysPassword}`).toString('base64');
@@ -177,7 +186,7 @@ async function runSync() {
             'Accept': 'application/json'
         };
 
-        const a1Base = "https://app.action1.com/api/3.0";
+        const a1Base = action1BaseUrl(action1Credentials);
 
         // 1. Authenticate with Action1
         await updateProgress("Authenticating with Action1...");
@@ -186,7 +195,7 @@ async function runSync() {
             const tokenParams = new URLSearchParams();
             tokenParams.append('client_id', action1ApiKey);
             tokenParams.append('client_secret', action1ApiSecret);
-            const tokenRes = await axios.post('https://app.action1.com/api/3.0/oauth2/token', tokenParams, {
+            const tokenRes = await axios.post(`${a1Base}/oauth2/token`, tokenParams, {
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
             });
             a1Token = tokenRes.data.access_token;

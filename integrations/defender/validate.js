@@ -1,32 +1,3 @@
-async function validateAction1(action1) {
-  const { apiKey, apiSecret } = await action1.getCredentials();
-
-  if (!apiKey || !apiSecret) {
-    return { ok: false, message: 'Missing Action1 API key or secret' };
-  }
-
-  try {
-    const tokenParams = new URLSearchParams();
-    tokenParams.append('client_id', apiKey);
-    tokenParams.append('client_secret', apiSecret);
-    tokenParams.append('grant_type', 'client_credentials');
-
-    const response = await fetch('https://app.action1.com/api/3.0/oauth2/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: tokenParams
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || !data.access_token) {
-      throw new Error(data.error_description || data.error || `HTTP ${response.status}`);
-    }
-
-    return { ok: true, message: 'Connected - token acquired' };
-  } catch (error) {
-    return { ok: false, message: `Failed: ${error.message}` };
-  }
-}
-
 async function validateDefender(settings) {
   const tenantId = settings.DefenderTenantId;
   const clientId = settings.DefenderClientId;
@@ -59,10 +30,9 @@ async function validateDefender(settings) {
   }
 }
 
-async function validate({ settings, action1 }) {
+async function validate({ settings }) {
   return {
-    defender: await validateDefender(settings),
-    action1: await validateAction1(action1)
+    defender: await validateDefender(settings)
   };
 }
 

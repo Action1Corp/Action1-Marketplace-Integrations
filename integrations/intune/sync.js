@@ -24,6 +24,22 @@ const ACTION1_API_BASE_BACKOFF_MS = 2000;
 const ACTION1_API_MAX_BACKOFF_MS = 60000;
 const ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE = 'Action1 Provisioning Status';
 const ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE = 'Completed';
+const DEFAULT_ACTION1_BASE_URL = 'https://app.action1.com/api/3.0';
+const DEFAULT_ACTION1_CONSOLE_URL = 'https://app.action1.com';
+
+function action1BaseUrl(credentials = {}) {
+    return String(credentials.baseUrl || DEFAULT_ACTION1_BASE_URL).replace(/\/+$/, '');
+}
+
+function action1ConsoleUrl(credentials = {}) {
+    const configured = String(credentials.consoleUrl || '').trim().replace(/\/+$/, '');
+    if (configured) return configured;
+    try {
+        return new URL(action1BaseUrl(credentials)).origin;
+    } catch {
+        return DEFAULT_ACTION1_CONSOLE_URL;
+    }
+}
 
 
 function updateProgress(details, status = 'Running') {
@@ -77,11 +93,11 @@ function extractMsiProductCode(buffer) {
     return m ? m[1] : null;
 }
 
-function buildAction1AgentDownloadUrl(agentId, orgName) {
+function buildAction1AgentDownloadUrl(agentId, orgName, consoleBaseUrl = DEFAULT_ACTION1_CONSOLE_URL) {
     const msiFileName = `agent(${orgName}).msi`;
     return {
         msiFileName,
-        downloadUrl: `https://app.action1.com/agent/${encodeURIComponent(agentId)}/Windows/${encodeURIComponent(msiFileName)}`
+        downloadUrl: `${String(consoleBaseUrl || DEFAULT_ACTION1_CONSOLE_URL).replace(/\/+$/, '')}/agent/${encodeURIComponent(agentId)}/Windows/${encodeURIComponent(msiFileName)}`
     };
 }
 
@@ -446,25 +462,25 @@ async function fetchGraphCollection(graphHeaders, url) {
     return rows;
 }
 
-async function getAction1Headers(action1ApiKey, action1ApiSecret) {
+async function getAction1Headers(action1ApiKey, action1ApiSecret, action1ApiBase = DEFAULT_ACTION1_BASE_URL) {
     const tokenParams = new URLSearchParams();
     tokenParams.append('client_id', action1ApiKey);
     tokenParams.append('client_secret', action1ApiSecret);
     tokenParams.append('grant_type', 'client_credentials');
     const tokenRes = await requestAction1({
         method: 'post',
-        url: 'https://app.action1.com/api/3.0/oauth2/token',
+        url: `${action1ApiBase}/oauth2/token`,
         data: tokenParams,
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
     }, 'Action1 token request');
     return { Authorization: `Bearer ${tokenRes.data.access_token}`, Accept: 'application/json' };
 }
 
-async function fetchAction1ManagedEndpoints(action1ApiKey, action1ApiSecret, action1OrgId) {
-    const headers = await getAction1Headers(action1ApiKey, action1ApiSecret);
+async function fetchAction1ManagedEndpoints(action1ApiKey, action1ApiSecret, action1OrgId, action1ApiBase = DEFAULT_ACTION1_BASE_URL) {
+    const headers = await getAction1Headers(action1ApiKey, action1ApiSecret, action1ApiBase);
     const response = await requestAction1({
         method: 'get',
-        url: `https://app.action1.com/api/3.0/endpoints/managed/${action1OrgId}?limit=9999`,
+        url: `${action1ApiBase}/endpoints/managed/${action1OrgId}?limit=9999`,
         headers
     }, 'Action1 managed endpoints request');
     const payload = response.data;
@@ -477,7 +493,7 @@ function action1Items(payload) {
     return payload?.items || payload?.data || payload?.results || payload?.rows || [];
 }
 
-async function fetchAction1Collection(headers, firstUrl, { limit = 500, pageLimit = ACTION1_AUTOMATION_PAGE_LIMIT } = {}) {
+async function fetchAction1Collection(headers, firstUrl, { limit = 500, pageLimit = ACTION1_AUTOMATION_PAGE_LIMIT, action1ApiBase = DEFAULT_ACTION1_BASE_URL } = {}) {
     const rows = [];
     let url = firstUrl;
     let pages = 0;
@@ -494,7 +510,7 @@ async function fetchAction1Collection(headers, firstUrl, { limit = 500, pageLimi
 
         const nextUrl = payload.next || payload.next_link || payload.nextLink || '';
         if (nextUrl) {
-            url = String(nextUrl).startsWith('http') ? nextUrl : `https://app.action1.com/api/3.0${nextUrl}`;
+            url = String(nextUrl).startsWith('http') ? nextUrl : `${action1ApiBase}${nextUrl}`;
             continue;
         }
 
@@ -595,21 +611,21 @@ async function fetchAction1Schedule(headers, scheduleUrl) {
     return response.data || null;
 }
 
-async function removeAction1EndpointFromGroup(headers, action1OrgId, groupId, endpointId) {
+async function removeAction1EndpointFromGroup(headers, action1OrgId, groupId, endpointId, action1ApiBase = DEFAULT_ACTION1_BASE_URL) {
     const response = await requestAction1({
         method: 'post',
-        url: `https://app.action1.com/api/3.0/endpoints/groups/${encodeURIComponent(action1OrgId)}/${encodeURIComponent(groupId)}/contents`,
+        url: `${action1ApiBase}/endpoints/groups/${encodeURIComponent(action1OrgId)}/${encodeURIComponent(groupId)}/contents`,
         headers: { ...headers, 'Content-Type': 'application/json' },
         data: [{ method: 'DELETE', endpoint_id: endpointId }]
     }, 'Action1 endpoint group removal request');
     return response.data || {};
 }
 
-async function ensureAction1ProvisioningCustomAttribute(headers) {
+async function ensureAction1ProvisioningCustomAttribute(headers, action1ApiBase = DEFAULT_ACTION1_BASE_URL) {
     const settings = await fetchAction1Collection(
         headers,
-        'https://app.action1.com/api/3.0/settings/all?limit=100&from=0',
-        { limit: 100, pageLimit: 5 }
+        `${action1ApiBase}/settings/all?limit=100&from=0`,
+        { limit: 100, pageLimit: 5, action1ApiBase }
     );
     const setting = settings.find(item => (
         item?.template_id === 'endpoint_custom_attributes' ||
@@ -629,7 +645,7 @@ async function ensureAction1ProvisioningCustomAttribute(headers) {
         const updatedAttributes = [...attributes, { name: desired }];
         await requestAction1({
             method: 'patch',
-            url: `https://app.action1.com/api/3.0/settings/all/${encodeURIComponent(setting.id)}`,
+            url: `${action1ApiBase}/settings/all/${encodeURIComponent(setting.id)}`,
             headers: { ...headers, 'Content-Type': 'application/json' },
             data: {
                 value: JSON.stringify(updatedAttributes),
@@ -641,7 +657,7 @@ async function ensureAction1ProvisioningCustomAttribute(headers) {
 
     await requestAction1({
         method: 'post',
-        url: 'https://app.action1.com/api/3.0/settings/all',
+        url: `${action1ApiBase}/settings/all`,
         headers: { ...headers, 'Content-Type': 'application/json' },
         data: {
             template_id: 'endpoint_custom_attributes',
@@ -652,10 +668,10 @@ async function ensureAction1ProvisioningCustomAttribute(headers) {
     return { changed: true, message: `${desired} custom attribute setting was created.` };
 }
 
-async function fetchAction1EndpointGroup(headers, action1OrgId, groupId) {
+async function fetchAction1EndpointGroup(headers, action1OrgId, groupId, action1ApiBase = DEFAULT_ACTION1_BASE_URL) {
     const response = await requestAction1({
         method: 'get',
-        url: `https://app.action1.com/api/3.0/endpoints/groups/${encodeURIComponent(action1OrgId)}/${encodeURIComponent(groupId)}`,
+        url: `${action1ApiBase}/endpoints/groups/${encodeURIComponent(action1OrgId)}/${encodeURIComponent(groupId)}`,
         headers
     }, 'Action1 endpoint group request');
     return response.data || {};
@@ -671,8 +687,8 @@ function hasProvisionedAttributeExclusion(filters = []) {
     ));
 }
 
-async function ensureAction1ProvisioningGroupExclusion(headers, action1OrgId, groupId) {
-    const group = await fetchAction1EndpointGroup(headers, action1OrgId, groupId);
+async function ensureAction1ProvisioningGroupExclusion(headers, action1OrgId, groupId, action1ApiBase = DEFAULT_ACTION1_BASE_URL) {
+    const group = await fetchAction1EndpointGroup(headers, action1OrgId, groupId, action1ApiBase);
     const excludeFilter = Array.isArray(group.exclude_filter) ? group.exclude_filter : [];
     if (hasProvisionedAttributeExclusion(excludeFilter)) {
         return { changed: false, message: `${group.name || groupId} already excludes provisioned endpoints.` };
@@ -693,17 +709,17 @@ async function ensureAction1ProvisioningGroupExclusion(headers, action1OrgId, gr
     ];
     await requestAction1({
         method: 'patch',
-        url: `https://app.action1.com/api/3.0/endpoints/groups/${encodeURIComponent(action1OrgId)}/${encodeURIComponent(groupId)}`,
+        url: `${action1ApiBase}/endpoints/groups/${encodeURIComponent(action1OrgId)}/${encodeURIComponent(groupId)}`,
         headers: { ...headers, 'Content-Type': 'application/json' },
         data: { exclude_filter: updatedExcludeFilter }
     }, 'Action1 endpoint group exclusion request');
     return { changed: true, message: `${group.name || groupId} now excludes provisioned endpoints.` };
 }
 
-async function setAction1EndpointProvisioningAttribute(headers, action1OrgId, endpointId) {
+async function setAction1EndpointProvisioningAttribute(headers, action1OrgId, endpointId, action1ApiBase = DEFAULT_ACTION1_BASE_URL) {
     const response = await requestAction1({
         method: 'patch',
-        url: `https://app.action1.com/api/3.0/endpoints/managed/${encodeURIComponent(action1OrgId)}/${encodeURIComponent(endpointId)}`,
+        url: `${action1ApiBase}/endpoints/managed/${encodeURIComponent(action1OrgId)}/${encodeURIComponent(endpointId)}`,
         headers: { ...headers, 'Content-Type': 'application/json' },
         data: {
             [`custom:${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE}`]: ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE
@@ -790,16 +806,16 @@ function summarizeProvisioningResults(results) {
     return { status: 'N/A', detail: '', automationResults: latestResults };
 }
 
-async function fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecret, action1OrgId, endpointIds, selectedAction1GroupIds = []) {
+async function fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecret, action1OrgId, endpointIds, selectedAction1GroupIds = [], action1ApiBase = DEFAULT_ACTION1_BASE_URL) {
     const targetIds = new Set(endpointIds.map(id => String(id || '').trim()).filter(Boolean));
     const provisioningByEndpoint = new Map();
     if (!targetIds.size) return provisioningByEndpoint;
 
-    const headers = await getAction1Headers(action1ApiKey, action1ApiSecret);
+    const headers = await getAction1Headers(action1ApiKey, action1ApiSecret, action1ApiBase);
     const instances = await fetchAction1Collection(
         headers,
-        `https://app.action1.com/api/3.0/automations/instances/${encodeURIComponent(action1OrgId)}?sortby=${encodeURIComponent('-end_time')}&limit=${ACTION1_AUTOMATION_INSTANCE_SCAN_LIMIT}&from=0`,
-        { limit: ACTION1_AUTOMATION_INSTANCE_SCAN_LIMIT, pageLimit: 1 }
+        `${action1ApiBase}/automations/instances/${encodeURIComponent(action1OrgId)}?sortby=${encodeURIComponent('-end_time')}&limit=${ACTION1_AUTOMATION_INSTANCE_SCAN_LIMIT}&from=0`,
+        { limit: ACTION1_AUTOMATION_INSTANCE_SCAN_LIMIT, pageLimit: 1, action1ApiBase }
     );
     const provisioningInstances = await selectLatestProvisioningInstances(headers, instances, selectedAction1GroupIds);
 
@@ -809,8 +825,8 @@ async function fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecre
         if (!instanceId) continue;
         const results = await fetchAction1Collection(
             headers,
-            `https://app.action1.com/api/3.0/automations/instances/${encodeURIComponent(action1OrgId)}/${encodeURIComponent(instanceId)}/endpoint-results?limit=${ACTION1_AUTOMATION_ENDPOINT_RESULT_LIMIT}&from=0`,
-            { limit: ACTION1_AUTOMATION_ENDPOINT_RESULT_LIMIT }
+            `${action1ApiBase}/automations/instances/${encodeURIComponent(action1OrgId)}/${encodeURIComponent(instanceId)}/endpoint-results?limit=${ACTION1_AUTOMATION_ENDPOINT_RESULT_LIMIT}&from=0`,
+            { limit: ACTION1_AUTOMATION_ENDPOINT_RESULT_LIMIT, action1ApiBase }
         );
         for (const result of results) {
             const endpointId = firstString(result?.id, result?.endpoint_id, result?.endpointId);
@@ -900,25 +916,25 @@ function getAction1EndpointGroupNames(endpoint, endpointGroupsByKey) {
     return Array.from(names).sort((a, b) => a.localeCompare(b));
 }
 
-async function fetchAction1EndpointGroupMembership(action1ApiKey, action1ApiSecret, action1OrgId, selectedAction1GroupIds = [], selectedAction1GroupMap = {}) {
+async function fetchAction1EndpointGroupMembership(action1ApiKey, action1ApiSecret, action1OrgId, selectedAction1GroupIds = [], selectedAction1GroupMap = {}, action1ApiBase = DEFAULT_ACTION1_BASE_URL) {
     const endpointGroupsByKey = new Map();
     const groupIds = selectedAction1GroupIds.map(String).filter(Boolean);
     if (!groupIds.length) return endpointGroupsByKey;
 
-    const headers = await getAction1Headers(action1ApiKey, action1ApiSecret);
+    const headers = await getAction1Headers(action1ApiKey, action1ApiSecret, action1ApiBase);
     for (const groupId of groupIds) {
         const groupName = String(selectedAction1GroupMap?.[groupId] || groupId).trim();
         const encodedOrgId = encodeURIComponent(action1OrgId);
         const encodedGroupId = encodeURIComponent(groupId);
         const candidateUrls = [
-            `https://app.action1.com/api/3.0/endpoints/groups/${encodedOrgId}/${encodedGroupId}/endpoints?limit=500&from=0`,
-            `https://app.action1.com/api/3.0/endpoints/groups/${encodedOrgId}/${encodedGroupId}/members?limit=500&from=0`,
-            `https://app.action1.com/api/3.0/endpoints/managed/${encodedOrgId}?group_id=${encodedGroupId}&limit=500&from=0`
+            `${action1ApiBase}/endpoints/groups/${encodedOrgId}/${encodedGroupId}/endpoints?limit=500&from=0`,
+            `${action1ApiBase}/endpoints/groups/${encodedOrgId}/${encodedGroupId}/members?limit=500&from=0`,
+            `${action1ApiBase}/endpoints/managed/${encodedOrgId}?group_id=${encodedGroupId}&limit=500&from=0`
         ];
 
         for (const url of candidateUrls) {
             try {
-                const members = await fetchAction1Collection(headers, url, { limit: 500 });
+                const members = await fetchAction1Collection(headers, url, { limit: 500, action1ApiBase });
                 if (!members.length) continue;
                 for (const member of members) {
                     for (const key of action1EndpointKeys(member)) {
@@ -993,7 +1009,9 @@ function getDeviceGroupNames(device, groupMembershipByDeviceKey) {
 }
 
 async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = ASSIGNMENT_MODE_ALL_DEVICES, selectedGroupIds = [], selectedGroupMap = {}, selectedAction1GroupIds = [], selectedAction1GroupMap = {}, previousEndpointRegistration = null } = {}) {
-    const { apiKey: action1ApiKey, apiSecret: action1ApiSecret, organizationId: action1OrgId } = await getAction1Credentials();
+    const action1Credentials = await getAction1Credentials();
+    const { apiKey: action1ApiKey, apiSecret: action1ApiSecret, organizationId: action1OrgId } = action1Credentials;
+    const action1ApiBase = action1BaseUrl(action1Credentials);
     if (!action1ApiKey || !action1ApiSecret || !action1OrgId) {
         return {
             status: 'skipped',
@@ -1012,9 +1030,9 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
 
     const [intuneDevices, action1Endpoints, groupMembership, action1EndpointGroupMembership] = await Promise.all([
         fetchGraphCollection(graphHeaders, `${INTUNE_GRAPH_BASE}/deviceManagement/managedDevices?$top=999`),
-        fetchAction1ManagedEndpoints(action1ApiKey, action1ApiSecret, action1OrgId),
+        fetchAction1ManagedEndpoints(action1ApiKey, action1ApiSecret, action1OrgId, action1ApiBase),
         fetchDeviceGroupMembership(graphHeaders, selectedGroupIds),
-        fetchAction1EndpointGroupMembership(action1ApiKey, action1ApiSecret, action1OrgId, selectedAction1GroupIds, selectedAction1GroupMap)
+        fetchAction1EndpointGroupMembership(action1ApiKey, action1ApiSecret, action1OrgId, selectedAction1GroupIds, selectedAction1GroupMap, action1ApiBase)
     ]);
     const groupMembershipByDeviceKey = groupMembership.groupMembershipByDeviceKey;
     const groupMembershipStatus = groupMembership.redactedDeviceMembers > 0 ? 'limited_permissions' : 'checked';
@@ -1105,7 +1123,7 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
         const targetAction1EndpointIds = endpoints
             .filter(endpoint => endpoint.inAssignmentTarget && endpoint.source === 'Synced' && endpoint.action1EndpointId)
             .map(endpoint => endpoint.action1EndpointId);
-        const provisioningByEndpoint = await fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecret, action1OrgId, targetAction1EndpointIds, selectedAction1GroupIds);
+        const provisioningByEndpoint = await fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecret, action1OrgId, targetAction1EndpointIds, selectedAction1GroupIds, action1ApiBase);
         for (const endpoint of endpoints) {
             if (endpoint.inAssignmentTarget && endpoint.source === 'Intune' && !endpoint.action1EndpointId) {
                 endpoint.provisioningStatus = 'Awaiting Enrollment';
@@ -1150,16 +1168,16 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
             endpoint.provisioningStatus === 'Completed'
         ));
         if (completedEndpoints.length && selectedAction1GroupSet.size) {
-            const headers = await getAction1Headers(action1ApiKey, action1ApiSecret);
+            const headers = await getAction1Headers(action1ApiKey, action1ApiSecret, action1ApiBase);
             try {
-                const attributeDefinition = await ensureAction1ProvisioningCustomAttribute(headers);
+                const attributeDefinition = await ensureAction1ProvisioningCustomAttribute(headers, action1ApiBase);
                 if (attributeDefinition.changed) await updateProgress(attributeDefinition.message);
             } catch (attributeDefinitionError) {
                 await updateProgress(`Warning: Could not verify Action1 provisioning custom attribute definition: ${attributeDefinitionError.response?.data?.error?.message || attributeDefinitionError.message}`);
             }
             for (const groupId of selectedAction1GroupIds.map(id => String(id || '').trim()).filter(Boolean)) {
                 try {
-                    const exclusion = await ensureAction1ProvisioningGroupExclusion(headers, action1OrgId, groupId);
+                    const exclusion = await ensureAction1ProvisioningGroupExclusion(headers, action1OrgId, groupId, action1ApiBase);
                     if (exclusion.changed) await updateProgress(exclusion.message);
                 } catch (exclusionError) {
                     await updateProgress(`Warning: Could not add provisioned-endpoint exclusion to ${selectedAction1GroupMap?.[groupId] || groupId}: ${exclusionError.response?.data?.error?.message || exclusionError.message}`);
@@ -1169,7 +1187,7 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
                 const previous = findPreviousProvisioning(endpoint, previousProvisioning);
                 if (previous?.provisioningAttributeStatus !== 'completed') {
                     try {
-                        await setAction1EndpointProvisioningAttribute(headers, action1OrgId, endpoint.action1EndpointId);
+                        await setAction1EndpointProvisioningAttribute(headers, action1OrgId, endpoint.action1EndpointId, action1ApiBase);
                         endpoint.provisioningAttributeStatus = 'completed';
                         endpoint.provisioningAttributeMessage = `${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE} set to ${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE}.`;
                         await updateProgress(`Marked ${endpoint.deviceName} as provisioned with Action1 custom attribute.`);
@@ -1203,7 +1221,7 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
                 const completedCleanupGroupIds = new Set(previousCleanupGroupIds);
                 for (const groupId of groupsToRemove) {
                     try {
-                        const cleanup = await removeAction1EndpointFromGroup(headers, action1OrgId, groupId, endpoint.action1EndpointId);
+                        const cleanup = await removeAction1EndpointFromGroup(headers, action1OrgId, groupId, endpoint.action1EndpointId, action1ApiBase);
                         cleanupMessages.push(`${selectedAction1GroupMap?.[groupId] || groupId}: ${firstString(cleanup?.user_message, cleanup?.message, 'removed')}`);
                         completedCleanupGroupIds.add(groupId);
                     } catch (cleanupError) {
@@ -1432,6 +1450,7 @@ async function runSync() {
         const selectedGroupMap = parseSelectedGroupMap(await getSetting('IntuneDeviceGroupMap'));
         const selectedAction1GroupIds = parseSelectedGroupIds(await getSetting('IntuneProvisioningAction1GroupIds'));
         const selectedAction1GroupMap = parseSelectedGroupMap(await getSetting('IntuneProvisioningAction1GroupMap'));
+        const action1Credentials = await getAction1Credentials();
 
         if (!IntuneTenantId || !IntuneClientId || !IntuneClientSecret) throw new Error("Intune credentials missing.");
         if (!IntuneAgentId || !IntuneOrgName) throw new Error("Action1 Agent ID and Org Name are required.");
@@ -1453,7 +1472,7 @@ async function runSync() {
 
         // 2. Download latest Action1 Agent MSI
         await updateProgress("Downloading latest Action1 Agent MSI...");
-        const { msiFileName, downloadUrl } = buildAction1AgentDownloadUrl(IntuneAgentId, IntuneOrgName);
+        const { msiFileName, downloadUrl } = buildAction1AgentDownloadUrl(IntuneAgentId, IntuneOrgName, action1ConsoleUrl(action1Credentials));
 
         const msiRes = await axios.get(downloadUrl, { responseType: 'arraybuffer', timeout: 120000, validateStatus: () => true });
         const msiBuffer = Buffer.from(msiRes.data);
