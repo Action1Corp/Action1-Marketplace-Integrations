@@ -59,6 +59,25 @@ async function run() {
 
   const differentIdClient = createAction1AutomationClient(errorContext({ type: 'Error', status: 400, developer_message: 'Automation with id=other-1 does not exists' }));
   await assert.rejects(() => differentIdClient.deleteAutomation('org-1', 'gone-1'));
+
+  const missingClient = createAction1AutomationClient(errorContext({ type: 'Error', status: 404, developer_message: 'Automation with id=gone-1 does not exists' }, 404));
+  assert.deepStrictEqual(await missingClient.observeAutomation('org-1', 'gone-1'), { state: 'MISSING' });
+
+  const liveMissingClient = createAction1AutomationClient(errorContext({ type: 'Error', status: 400, developer_message: 'Automation with id=gone-1 not found' }));
+  assert.deepStrictEqual(await liveMissingClient.observeAutomation('org-1', 'gone-1'), { state: 'MISSING' });
+
+  const liveDifferentIdClient = createAction1AutomationClient(errorContext({ type: 'Error', status: 400, developer_message: 'Automation with id=other-1 not found' }));
+  assert.strictEqual((await liveDifferentIdClient.observeAutomation('org-1', 'gone-1')).state, 'UNRESOLVED');
+
+  const arbitrary400Client = createAction1AutomationClient(errorContext({ type: 'Error', status: 400, developer_message: 'Malformed request' }));
+  assert.strictEqual((await arbitrary400Client.observeAutomation('org-1', 'gone-1')).state, 'UNRESOLVED');
+
+  const unresolvedClient = createAction1AutomationClient(errorContext({ type: 'Error', status: 404, developer_message: 'Automation with id=other-1 does not exists' }, 404));
+  assert.strictEqual((await unresolvedClient.observeAutomation('org-1', 'gone-1')).state, 'UNRESOLVED');
+
+  const existsContext = errorContext({ id: 'auto-1', self: 'https://action1.test/auto-1', name: 'A1CM — Policy — Family' }, 200);
+  const existsClient = createAction1AutomationClient(existsContext);
+  assert.strictEqual((await existsClient.observeAutomation('org-1', 'auto-1')).state, 'EXISTS');
 }
 
 run().catch((error) => { console.error(error); process.exit(1); });

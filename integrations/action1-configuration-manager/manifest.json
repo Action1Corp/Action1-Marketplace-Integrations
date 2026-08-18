@@ -2,7 +2,7 @@
   "id": "action1-configuration-manager",
   "name": "Configuration Management",
   "vendor": "Action1",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "marketplaceApiVersion": "1.0",
   "minimumMarketplaceVersion": "1.0.0",
   "description": "Create and manage Windows configuration policies through scheduled Action1 automations.",
@@ -39,6 +39,26 @@
       "history": false
     },
     {
+      "id": "create-policy",
+      "kind": "action",
+      "label": "Policy created",
+      "buttonLabel": "Create Policy",
+      "runningLabel": "Creating Policy...",
+      "description": "Creates and initially applies a Configuration Manager Policy.",
+      "placement": "policies",
+      "history": true
+    },
+    {
+      "id": "update-policy",
+      "kind": "action",
+      "label": "Policy updated",
+      "buttonLabel": "Save and apply",
+      "runningLabel": "Applying Policy changes...",
+      "description": "Updates and applies a Configuration Manager Policy.",
+      "placement": "policies",
+      "history": true
+    },
+    {
       "id": "set-policy-enabled",
       "kind": "action",
       "label": "Set Policy Enabled",
@@ -48,13 +68,33 @@
       "history": false
     },
     {
+      "id": "disable-policy",
+      "kind": "action",
+      "label": "Policy disabled",
+      "buttonLabel": "Disable Policy",
+      "runningLabel": "Disabling Policy...",
+      "description": "Disables a Configuration Manager Policy and removes its owned automations.",
+      "placement": "policies",
+      "history": true
+    },
+    {
+      "id": "enable-policy",
+      "kind": "action",
+      "label": "Policy enabled",
+      "buttonLabel": "Enable Policy",
+      "runningLabel": "Enabling Policy...",
+      "description": "Enables a Configuration Manager Policy and recreates its owned automations.",
+      "placement": "policies",
+      "history": true
+    },
+    {
       "id": "delete-policy",
       "kind": "action",
       "label": "Delete Policy",
       "buttonLabel": "Delete Policy",
       "description": "Deletes a persisted Configuration Manager policy.",
       "placement": "policies",
-      "history": false
+      "history": true
     },
     {
       "id": "discover-policy-organizations",
@@ -73,6 +113,16 @@
       "description": "Loads Action1 endpoint groups for the selected Configuration Manager organization.",
       "placement": "policies",
       "history": false
+    },
+    {
+      "id": "reconcile-policies",
+      "kind": "sync",
+      "label": "Scheduled reconciliation",
+      "buttonLabel": "Reconcile now",
+      "runningLabel": "Reconciling Policies...",
+      "description": "Reconciles missing owned Action1 automations for Enabled Policies.",
+      "history": true,
+      "retry": false
     }
   ]
 }

@@ -1,0 +1,37 @@
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+
+const root = path.join(__dirname, '..');
+const source = fs.readFileSync(path.join(root, 'ui', 'Settings.jsx'), 'utf8').replace(/\r\n/g, '\n');
+const display = require(path.join(root, 'display.json'));
+const manifest = require(path.join(root, 'manifest.json'));
+
+assert(display.navigation.some(item => item.id === 'settings' && item.path === 'settings'), 'Settings must be in integration navigation');
+assert(source.includes('Policy reconciliation'), 'Settings must render Policy reconciliation');
+assert(source.includes('Reporting'), 'Settings must render Reporting');
+assert(source.includes("'/api/settings'"), 'scheduler settings must use the Marketplace settings endpoint');
+assert(source.includes('CronSchedule_action1-configuration-manager'), 'scheduler must use the canonical schedule key');
+assert(source.includes('CronTimezone_action1-configuration-manager'), 'scheduler must use the canonical timezone key');
+assert(source.includes('0 */${hours} * * *'), 'scheduler must persist Marketplace cron values');
+assert(source.includes('useState(6)'), 'default interval must be six hours');
+assert(source.includes('const INTERVALS = [3, 6, 12, 24]'), 'interval choices must be compact and supported');
+assert(source.includes('/actions/reconcile-policies'), 'Reconcile now must invoke the tracked reconciliation action');
+assert(source.includes('Reconciliation in progress…'), 'Reconcile now must use the blocking operation UX');
+assert(source.includes('Not configured'), 'Reporting must expose future resource status');
+assert(source.includes('Set up reporting'), 'Reporting must expose the single future setup action');
+assert(source.includes('Manage reconciliation scheduling and reporting for Action1 Configuration Manager.'), 'Settings header copy must match the approved page design');
+assert(source.includes('Automatically checks enabled policies and restores Action1 automations that were deleted outside Marketplace.'), 'reconciliation description must match the approved page design');
+assert(source.includes('How reconciliation works'), 'Settings must include the reconciliation information panel');
+assert(source.includes('Only Enabled policies are checked.'), 'reconciliation information must state the enabled-only boundary');
+assert(source.includes('Set up Action1 Data Source and Reports to view Configuration Manager results in the Action1 Console.'), 'reporting description must match the approved page design');
+assert(source.includes('Enable reporting in Action1'), 'Reporting must include the not-configured onboarding callout');
+assert(source.includes('Required to collect and store Configuration Manager data in Action1.'), 'Data source supporting text must be present');
+assert(source.includes('Custom Action1 reports for viewing Configuration Manager data.'), 'Reports supporting text must be present');
+assert(source.includes("reporting.dataSource === 'Configured' && reporting.reports === 'Configured'"), 'Reporting must model the fully configured state');
+assert(source.includes('disabled>Set up reporting</button>'), 'Future reporting setup must remain non-functional in this UI-only task');
+assert(!source.includes('Marketplace manages these resources on your behalf'), 'Excluded management panel must not be implemented');
+assert(!source.includes('Refresh status'), 'Excluded refresh control must not be implemented');
+assert(!source.includes("'Report'"), 'Reporting resource must use the plural Reports label');
+assert.strictEqual(manifest.actions.find(action => action.id === 'reconcile-policies').kind, 'sync');
+console.log('settings UI contract tests passed');

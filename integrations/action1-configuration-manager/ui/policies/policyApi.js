@@ -19,8 +19,8 @@ export function createPolicyApi(integration) {
   return {
     listPolicies: async () => (await invoke('list-policies')).policies || [],
     getPolicy: async (policyId) => (await invoke('get-policy', { policyId })).policy,
-    savePolicy: async (draft) => (await invoke('save-policy', { draft })).policy,
-    setPolicyEnabled: async (policyId, enabled) => (await invoke('set-policy-enabled', { policyId, enabled })).policy,
+    savePolicy: async (draft) => (await invoke(draft?.mode === 'create' ? 'create-policy' : 'update-policy', { draft })).policy,
+    setPolicyEnabled: async (policyId, enabled) => (await invoke(enabled ? 'enable-policy' : 'disable-policy', { policyId, enabled })).policy,
     deletePolicy: async (policyId) => invoke('delete-policy', { policyId })
   };
 }

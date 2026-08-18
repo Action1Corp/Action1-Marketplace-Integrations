@@ -1,11 +1,9 @@
 import { useState } from 'react';
 import PolicyActionMenu from './PolicyActionMenu.jsx';
 import {
-  getStatusBadgeStyle,
   pageSurfaceStyle,
   policyUiTokens,
-  primaryButtonStyle,
-  scheduleChipStyle
+  primaryButtonStyle
 } from './policyUiStyles.js';
 import { formatPolicyListRow, getPolicyRowActions } from './policyViewModel.js';
 
@@ -37,7 +35,7 @@ const styles = {
     fontWeight: 600,
     color: policyUiTokens.textMuted,
     borderBottom: `1px solid ${policyUiTokens.borderColor}`,
-    background: policyUiTokens.surfaceBackground
+    background: policyUiTokens.mutedBackground
   },
   cell: {
     padding: '0.7rem 0.8rem',
@@ -74,20 +72,15 @@ const styles = {
     color: policyUiTokens.textMuted,
     lineHeight: 1.35
   },
-  statusBadge: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 5
+  statusText: {
+    fontSize: policyUiTokens.fontSizes.label,
+    fontWeight: 600
   },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: '50%',
-    background: 'currentColor',
-    flex: '0 0 auto'
-  },
-  scheduleChip: {
-    ...scheduleChipStyle
+  scheduleText: {
+    fontSize: policyUiTokens.fontSizes.label,
+    color: policyUiTokens.textSecondary,
+    fontVariantNumeric: 'tabular-nums',
+    whiteSpace: 'nowrap'
   },
   actionsCell: {
     width: 56
@@ -199,9 +192,8 @@ function PolicyListView({ policies, onCreate, onDelete, onDisable, onEnable, onO
                     <p style={styles.policyName}>{row.policyName}</p>
                   </td>
                   <td style={resolveCellStyle()}>
-                    <span style={getStatusBadgeStyle(policy.enabled)}>
-                      {policy.enabled ? <span style={styles.statusDot} aria-hidden="true" /> : null}
-                      <span style={styles.statusBadge}>{row.status}</span>
+                    <span style={{ ...styles.statusText, color: policy.enabled ? policyUiTokens.success : policyUiTokens.textMuted }}>
+                      {row.status}
                     </span>
                   </td>
                   <td style={resolveCellStyle()}>
@@ -212,7 +204,7 @@ function PolicyListView({ policies, onCreate, onDelete, onDisable, onEnable, onO
                     <p style={{ ...styles.valueText, color: policyUiTokens.textSecondary }}>{row.modeLabel}</p>
                   </td>
                   <td style={resolveCellStyle()}>
-                    <span style={styles.scheduleChip}>{row.scheduleLabel.toLowerCase()}</span>
+                    <span style={styles.scheduleText}>{row.scheduleLabel.toLowerCase()}</span>
                   </td>
                   <td style={{ ...resolveCellStyle(), ...styles.actionsCell }}>
                     <PolicyActionMenu items={actionItems} label="Policy actions" disabled={busy} />

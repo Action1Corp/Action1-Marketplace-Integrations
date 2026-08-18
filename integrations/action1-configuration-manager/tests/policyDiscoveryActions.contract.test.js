@@ -67,7 +67,10 @@ async function run() {
   const actionIds = manifest.actions.map((action) => action.id);
   assert(actionIds.includes('discover-policy-organizations'));
   assert(actionIds.includes('discover-policy-endpoint-groups'));
-  assert(manifest.actions.filter((action) => action.history === false).length >= 7);
+  assert.deepStrictEqual(
+    manifest.actions.filter((action) => action.history === false).map((action) => action.id).sort(),
+    ['discover-policy-endpoint-groups', 'discover-policy-organizations', 'get-policy', 'list-policies', 'save-policy', 'set-policy-enabled']
+  );
 
   const source = fs.readFileSync(path.join(__dirname, '..', 'policyDiscoveryActions.js'), 'utf8');
   assert.strictEqual(source.includes('request.run'), false);

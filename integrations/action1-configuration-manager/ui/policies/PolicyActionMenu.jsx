@@ -13,7 +13,16 @@ const styles = {
     display: 'inline-flex'
   },
   trigger: {
-    ...menuTriggerButtonStyle
+    ...menuTriggerButtonStyle,
+    width: 'auto',
+    height: 'auto',
+    minHeight: 0,
+    padding: '4px 8px',
+    border: 'none',
+    background: 'transparent',
+    color: policyUiTokens.textMuted,
+    fontSize: 16,
+    lineHeight: 1
   },
   menu: {
     position: 'fixed',

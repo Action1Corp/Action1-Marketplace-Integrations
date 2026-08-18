@@ -47,8 +47,10 @@ function run() {
   assert(!listViewSource.includes('<details'), 'PolicyListView should not rely on the clipped details/summary menu pattern');
   assert(listViewSource.includes('Policy actions'), 'PolicyListView should provide an accessible label for the row ellipsis menu');
   assert(listViewSource.includes('\u2026') || listViewSource.includes('...'), 'PolicyListView should render a compact ellipsis-style menu trigger');
-  assert(listViewSource.includes('statusBadge'), 'PolicyListView should render the compact badge treatment for Policy status');
-  assert(listViewSource.includes('scheduleChip'), 'PolicyListView should render the compact schedule chip treatment');
+  assert(listViewSource.includes('statusText'), 'PolicyListView should render status as compact text');
+  assert(!listViewSource.includes('getStatusBadgeStyle'), 'PolicyListView should not render status as a badge');
+  assert(listViewSource.includes('scheduleText'), 'PolicyListView should render schedule as compact text');
+  assert(!listViewSource.includes('scheduleChip'), 'PolicyListView should not render schedule as a chip');
   assert(listViewSource.includes('targetScope'), 'PolicyListView should render the muted target scope line beneath the organization');
   assert(!listViewSource.includes('demo Action1 automations'), 'PolicyListView should not leak customer-facing demo automation copy');
 

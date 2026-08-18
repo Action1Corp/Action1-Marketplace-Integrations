@@ -1,6 +1,7 @@
 {
   "navigation": [
     { "id": "policies", "label": "Policies", "path": "policies", "icon": "ShieldCheck" },
-    { "id": "history", "label": "History", "path": "history", "icon": "History" }
+    { "id": "history", "label": "History", "path": "history", "icon": "History" },
+    { "id": "settings", "label": "Settings", "path": "settings", "icon": "Settings" }
   ]
 }

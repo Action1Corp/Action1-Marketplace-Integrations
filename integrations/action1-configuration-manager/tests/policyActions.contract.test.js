@@ -227,6 +227,10 @@ function createFakeContext() {
     action1: { async getCredentials() { return { baseUrl: 'https://action1.test/api/3.0', apiKey: 'test-key', apiSecret: 'test-secret' }; } },
     async http(options) {
       if (options.url.endsWith('/oauth2/token')) return { status: 200, data: { access_token: 'token', expires_in: 3600 }, headers: {} };
+      if (options.method === 'GET' && /\/automations\/schedules\/[^/]+\/[^/]+$/.test(options.url)) {
+        const automationId = decodeURIComponent(options.url.split('/').pop());
+        return { status: 200, data: { id: automationId, self: `https://action1.test/api/3.0/automations/schedules/org-acme/${automationId}`, name: 'A1CM - Existing automation' }, headers: {} };
+      }
       automationNumber += 1;
       return { status: 201, data: { id: `auto-${automationNumber}`, self: `https://action1.test/api/3.0/automations/schedules/org-acme/auto-${automationNumber}`, name: `A1CM - Workstation Security - Finance Workstations - ${automationNumber}` }, headers: {} };
     },
