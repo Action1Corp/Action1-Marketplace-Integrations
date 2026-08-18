@@ -1264,7 +1264,7 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
                 }
                 const groupsToRemove = selectedAction1GroupIds
                     .map(id => String(id || '').trim())
-                    .filter(groupId => selectedAction1GroupSet.has(groupId) && endpointGroupIds.has(groupId) && !previousCleanupGroupIds.has(groupId));
+                    .filter(groupId => selectedAction1GroupSet.has(groupId) && endpointGroupIds.has(groupId));
 
                 if (!groupsToRemove.length) continue;
                 const cleanupMessages = [];

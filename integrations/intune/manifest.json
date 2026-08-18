@@ -2,7 +2,7 @@
   "id": "intune",
   "name": "Enrollment and Provisioning",
   "vendor": "Microsoft",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "marketplaceApiVersion": "1.0",
   "minimumMarketplaceVersion": "1.0.0",
   "description": "Deploy the Action1 Agent with Intune, track enrollment, and monitor provisioning automations.",
