@@ -124,6 +124,7 @@ function ProvisioningStatusPill({ status }) {
     Completed: { color: '#166534', bg: '#DCFCE7' },
     Failed: { color: '#991B1B', bg: '#FEE2E2' },
     'Awaiting Enrollment': { color: '#0B4EA2', bg: '#EAF3FF' },
+    'No automation result': { color: '#374151', bg: '#F3F4F6' },
     'N/A': { color: '#374151', bg: '#F3F4F6' }
   }[status] || { color: '#374151', bg: '#F3F4F6' };
 

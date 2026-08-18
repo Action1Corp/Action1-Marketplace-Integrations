@@ -24,6 +24,7 @@ const ACTION1_API_BASE_BACKOFF_MS = 2000;
 const ACTION1_API_MAX_BACKOFF_MS = 60000;
 const ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE = 'Action1 Provisioning Status';
 const ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE = 'Completed';
+const NO_AUTOMATION_RESULT_STATUS = 'No automation result';
 const DEFAULT_ACTION1_BASE_URL = 'https://app.action1.com/api/3.0';
 const DEFAULT_ACTION1_CONSOLE_URL = 'https://app.action1.com';
 
@@ -402,6 +403,42 @@ function firstString(...values) {
         if (typeof value === 'string' && value.trim()) return value.trim();
     }
     return '';
+}
+
+function endpointCustomAttributeValue(endpoint, attributeName) {
+    const customKey = `custom:${attributeName}`;
+    const directValue = firstString(endpoint?.[customKey], endpoint?.[customKey.toLowerCase()], endpoint?.[attributeName]);
+    if (directValue) return directValue;
+
+    const containers = [
+        endpoint?.custom_attributes,
+        endpoint?.customAttributes,
+        endpoint?.custom,
+        endpoint?.attributes
+    ];
+
+    for (const container of containers) {
+        if (!container) continue;
+        if (Array.isArray(container)) {
+            for (const attribute of container) {
+                const name = firstString(attribute?.name, attribute?.field_name, attribute?.fieldName, attribute?.key, attribute?.id);
+                if (name.toLowerCase() === attributeName.toLowerCase() || name.toLowerCase() === customKey.toLowerCase()) {
+                    return firstString(attribute?.value, attribute?.field_value, attribute?.fieldValue, attribute?.text);
+                }
+            }
+            continue;
+        }
+        if (typeof container === 'object') {
+            const objectValue = firstString(container[attributeName], container[customKey], container[customKey.toLowerCase()]);
+            if (objectValue) return objectValue;
+        }
+    }
+    return '';
+}
+
+function hasCompletedProvisioningAttribute(endpoint) {
+    return endpointCustomAttributeValue(endpoint, ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE).toLowerCase() ===
+        ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE.toLowerCase();
 }
 
 function formatEndpointDate(value) {
@@ -799,11 +836,11 @@ function findPreviousProvisioning(endpoint, previousByEndpoint) {
 
 function summarizeProvisioningResults(results) {
     const latestResults = latestProvisioningResults(results);
-    if (!latestResults.length) return { status: 'N/A', detail: '', automationResults: [] };
+    if (!latestResults.length) return { status: NO_AUTOMATION_RESULT_STATUS, detail: 'No Action1 provisioning automation result was found for this endpoint.', automationResults: [] };
     if (latestResults.some(result => result.status === 'Failed')) return { status: 'Failed', detail: 'One or more latest Action1 provisioning automation runs failed.', automationResults: latestResults };
     if (latestResults.some(result => result.status === 'In progress')) return { status: 'In progress', detail: 'One or more Action1 provisioning automations are still running.', automationResults: latestResults };
     if (latestResults.every(result => result.status === 'Completed')) return { status: 'Completed', detail: 'Latest Action1 provisioning automation runs completed successfully.', automationResults: latestResults };
-    return { status: 'N/A', detail: '', automationResults: latestResults };
+    return { status: NO_AUTOMATION_RESULT_STATUS, detail: 'No conclusive Action1 provisioning automation result was found for this endpoint.', automationResults: latestResults };
 }
 
 async function fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecret, action1OrgId, endpointIds, selectedAction1GroupIds = [], action1ApiBase = DEFAULT_ACTION1_BASE_URL) {
@@ -1073,6 +1110,7 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
             intuneDeviceId: device.id || '',
             action1EndpointId: firstString(action1Endpoint?.id, action1Endpoint?.endpoint_id),
             action1EndpointGroups: action1Endpoint ? getAction1EndpointGroupNames(action1Endpoint, action1EndpointGroupMembership) : [],
+            provisioningCompletedByAttribute: action1Endpoint ? hasCompletedProvisioningAttribute(action1Endpoint) : false,
             deviceGroups: deviceGroupNames,
             os: firstString(device.operatingSystem, device.osVersion),
             userPrincipalName: firstString(device.userPrincipalName, device.emailAddress),
@@ -1098,6 +1136,7 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
             intuneDeviceId: '',
             action1EndpointId: firstString(endpoint.id, endpoint.endpoint_id),
             action1EndpointGroups: getAction1EndpointGroupNames(endpoint, action1EndpointGroupMembership),
+            provisioningCompletedByAttribute: hasCompletedProvisioningAttribute(endpoint),
             deviceGroups: [],
             os: firstString(endpoint.os, endpoint.operating_system, endpoint.os_name, endpoint.platform),
             userPrincipalName: firstString(endpoint.user, endpoint.username, endpoint.last_logged_on_user),
@@ -1125,6 +1164,18 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
             .map(endpoint => endpoint.action1EndpointId);
         const provisioningByEndpoint = await fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecret, action1OrgId, targetAction1EndpointIds, selectedAction1GroupIds, action1ApiBase);
         for (const endpoint of endpoints) {
+            const previous = findPreviousProvisioning(endpoint, previousProvisioning);
+            if (endpoint.action1EndpointId && endpoint.provisioningCompletedByAttribute) {
+                endpoint.provisioningStatus = 'Completed';
+                endpoint.provisioningDetail = `${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE} is ${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE}.`;
+                endpoint.automationResults = previous?.automationResults || [];
+                endpoint.provisioningCleanupStatus = previous?.provisioningCleanupStatus || '';
+                endpoint.provisioningCleanupMessage = previous?.provisioningCleanupMessage || '';
+                endpoint.provisioningCleanupGroupIds = previous?.provisioningCleanupGroupIds || [];
+                endpoint.provisioningAttributeStatus = 'completed';
+                endpoint.provisioningAttributeMessage = `${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE} is ${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE}.`;
+                continue;
+            }
             if (endpoint.inAssignmentTarget && endpoint.source === 'Intune' && !endpoint.action1EndpointId) {
                 endpoint.provisioningStatus = 'Awaiting Enrollment';
                 endpoint.provisioningDetail = 'Device is assigned but has not enrolled into Action1 yet.';
@@ -1137,9 +1188,8 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
                 endpoint.automationResults = [];
                 continue;
             }
-            const provisioning = provisioningByEndpoint.get(endpoint.action1EndpointId) || { status: 'N/A', detail: '', automationResults: [] };
-            const previous = findPreviousProvisioning(endpoint, previousProvisioning);
-            if (provisioning.status === 'N/A' && previous?.provisioningStatus === 'Completed') {
+            const provisioning = provisioningByEndpoint.get(endpoint.action1EndpointId) || { status: NO_AUTOMATION_RESULT_STATUS, detail: 'No Action1 provisioning automation result was found for this endpoint.', automationResults: [] };
+            if ((provisioning.status === 'N/A' || provisioning.status === NO_AUTOMATION_RESULT_STATUS) && previous?.provisioningStatus === 'Completed') {
                 endpoint.provisioningStatus = 'Completed';
                 endpoint.provisioningDetail = previous.provisioningDetail || 'Provisioning previously completed successfully.';
                 endpoint.automationResults = previous.automationResults || [];
@@ -1185,7 +1235,7 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
             }
             for (const endpoint of completedEndpoints) {
                 const previous = findPreviousProvisioning(endpoint, previousProvisioning);
-                if (previous?.provisioningAttributeStatus !== 'completed') {
+                if (!endpoint.provisioningCompletedByAttribute && previous?.provisioningAttributeStatus !== 'completed') {
                     try {
                         await setAction1EndpointProvisioningAttribute(headers, action1OrgId, endpoint.action1EndpointId, action1ApiBase);
                         endpoint.provisioningAttributeStatus = 'completed';
@@ -1238,7 +1288,13 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
         provisioningStatus = 'failed';
         provisioningMessage = `Unable to load Action1 automation results: ${provisioningError.message}`;
         for (const endpoint of endpoints) {
-            if (endpoint.inAssignmentTarget && endpoint.source === 'Intune' && !endpoint.action1EndpointId) {
+            if (endpoint.action1EndpointId && endpoint.provisioningCompletedByAttribute) {
+                endpoint.provisioningStatus = 'Completed';
+                endpoint.provisioningDetail = `${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE} is ${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE}.`;
+                endpoint.automationResults = [];
+                endpoint.provisioningAttributeStatus = 'completed';
+                endpoint.provisioningAttributeMessage = `${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE} is ${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE}.`;
+            } else if (endpoint.inAssignmentTarget && endpoint.source === 'Intune' && !endpoint.action1EndpointId) {
                 endpoint.provisioningStatus = 'Awaiting Enrollment';
                 endpoint.provisioningDetail = 'Device is assigned but has not enrolled into Action1 yet.';
                 endpoint.automationResults = [];
