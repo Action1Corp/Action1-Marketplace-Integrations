@@ -1269,14 +1269,24 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
                 if (!groupsToRemove.length) continue;
                 const cleanupMessages = [];
                 const completedCleanupGroupIds = new Set(previousCleanupGroupIds);
+                const successfulCleanupGroupIds = new Set();
                 for (const groupId of groupsToRemove) {
                     try {
                         const cleanup = await removeAction1EndpointFromGroup(headers, action1OrgId, groupId, endpoint.action1EndpointId, action1ApiBase);
                         cleanupMessages.push(`${selectedAction1GroupMap?.[groupId] || groupId}: ${firstString(cleanup?.user_message, cleanup?.message, 'removed')}`);
                         completedCleanupGroupIds.add(groupId);
+                        successfulCleanupGroupIds.add(groupId);
                     } catch (cleanupError) {
                         cleanupMessages.push(`${selectedAction1GroupMap?.[groupId] || groupId}: ${cleanupError.response?.data?.error?.message || cleanupError.message}`);
                     }
+                }
+                if (successfulCleanupGroupIds.size) {
+                    const successfulCleanupGroupNames = new Set(Array.from(successfulCleanupGroupIds)
+                        .map(groupId => selectedAction1GroupMap?.[groupId] || groupId)
+                        .map(groupName => String(groupName || '').trim().toLowerCase())
+                        .filter(Boolean));
+                    endpoint.action1EndpointGroups = (endpoint.action1EndpointGroups || [])
+                        .filter(groupName => !successfulCleanupGroupNames.has(String(groupName || '').trim().toLowerCase()));
                 }
                 endpoint.provisioningCleanupStatus = cleanupMessages.some(message => !/success|removed/i.test(message)) ? 'warning' : 'completed';
                 endpoint.provisioningCleanupMessage = cleanupMessages.join('; ');
