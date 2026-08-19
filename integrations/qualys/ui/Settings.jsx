@@ -135,7 +135,7 @@ function Settings({ integration }) {
                     style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: 4 }}
                   />
                 )}
-                {storedSecrets[setting.key] && <div style={{ marginTop: '0.3rem', fontSize: '0.78rem', color: '#6B7280' }}>A secret value is stored. Keep *** to leave it unchanged.</div>}
+                {storedSecrets[setting.key] && <div style={{ marginTop: '0.3rem', fontSize: '0.78rem', color: '#8A8A8A' }}>A secret value is stored. Keep *** to leave it unchanged.</div>}
               </div>
             ))}
             {supportsValidation && groupName.toLowerCase().includes('configuration') && (

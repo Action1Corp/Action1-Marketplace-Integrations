@@ -34,19 +34,19 @@ const defaultDashboard = {
     {
       "label": "ASSET SYNC RATE",
       "metric": "syncRate",
-      "color": "#1D8EE6",
+      "color": "#0337A1",
       "tone": "blue"
     },
     {
       "label": "PATCHABILITY RATE",
       "metric": "patchRate",
-      "color": "#10b981",
+      "color": "#60AC39",
       "tone": "green"
     },
     {
       "label": "TOTAL VULNERABILITIES",
       "metric": "totalCves",
-      "color": "#111827",
+      "color": "#090A0B",
       "tone": "gray",
       "to": "vulnerabilities"
     }
@@ -58,7 +58,7 @@ const defaultDashboard = {
         {
           "label": "{integrationName} Inventory",
           "metric": "totalIntegrationAssets",
-          "color": "#1D8EE6",
+          "color": "#0337A1",
           "to": "endpoints?filter=appAssets",
           "icon": "Globe",
           "subtitle": "Active assets identified in {integrationName}"
@@ -66,7 +66,7 @@ const defaultDashboard = {
         {
           "label": "Action1 Managed",
           "metric": "totalAction1Assets",
-          "color": "#10b981",
+          "color": "#60AC39",
           "to": "endpoints?filter=action1Assets",
           "icon": "Server",
           "subtitle": "Endpoints under Action1 management"
@@ -74,7 +74,7 @@ const defaultDashboard = {
         {
           "label": "Audit Gap: {integrationName}",
           "metric": "missingFromIntegration",
-          "color": "#f97316",
+          "color": "#FFD84D",
           "to": "endpoints?filter=missingApp",
           "icon": "Activity",
           "subtitle": "In Action1 but not found in {integrationName}"
@@ -82,7 +82,7 @@ const defaultDashboard = {
         {
           "label": "Audit Gap: Action1",
           "metric": "missingFromAction1",
-          "color": "#ef4444",
+          "color": "#E33B3B",
           "to": "endpoints?filter=missingAction1",
           "icon": "AlertTriangle",
           "subtitle": "In {integrationName} but missing Action1 agent"
@@ -95,7 +95,7 @@ const defaultDashboard = {
         {
           "label": "Critical",
           "metric": "totalCritical",
-          "color": "#ef4444",
+          "color": "#E33B3B",
           "to": "vulnerabilities?severity=Critical",
           "icon": "ShieldAlert",
           "subtitle": "Immediate corrective action required"
@@ -103,7 +103,7 @@ const defaultDashboard = {
         {
           "label": "High",
           "metric": "totalHigh",
-          "color": "#f97316",
+          "color": "#FFD84D",
           "to": "vulnerabilities?severity=High",
           "icon": "AlertTriangle",
           "subtitle": "Significant risk of exploitation"
@@ -111,7 +111,7 @@ const defaultDashboard = {
         {
           "label": "Medium",
           "metric": "totalMedium",
-          "color": "#eab308",
+          "color": "#FFD84D",
           "to": "vulnerabilities?severity=Medium",
           "icon": "Activity",
           "subtitle": "Targeted remediation recommended"
@@ -119,7 +119,7 @@ const defaultDashboard = {
         {
           "label": "Low",
           "metric": "totalLow",
-          "color": "#3b82f6",
+          "color": "#B6D9FC",
           "to": "vulnerabilities?severity=Low",
           "icon": "BarChart3",
           "subtitle": "Minor security anomalies"
@@ -137,7 +137,7 @@ const defaultDashboard = {
         {
           "label": "Patch Available",
           "metric": "totalPatchable",
-          "color": "#10b981",
+          "color": "#60AC39",
           "to": "vulnerabilities?status=Patch Available",
           "icon": "CheckCircle2",
           "subtitle": "CVEs with an Action1 deployable software patch"
@@ -145,7 +145,7 @@ const defaultDashboard = {
         {
           "label": "Non Patchable",
           "metric": "totalNotPatchable",
-          "color": "#ef4444",
+          "color": "#E33B3B",
           "to": "vulnerabilities?status=Non Patchable",
           "icon": "AlertTriangle",
           "subtitle": "CVEs without an Action1 deployable software patch"
@@ -317,7 +317,7 @@ function buildImagePdf(imagePages) {
 async function downloadDashboardSnapshotPdf(element, filename) {
   if (!element) return;
   const canvas = await html2canvas(element, {
-    backgroundColor: '#F7F8FC',
+    backgroundColor: '#F7F7F7',
     scale: Math.max(4, window.devicePixelRatio || 1),
     useCORS: true,
     ignoreElements: node => node?.dataset?.exportHidden === 'true'
@@ -336,7 +336,7 @@ async function downloadDashboardSnapshotPdf(element, filename) {
     pageCanvas.width = canvas.width;
     pageCanvas.height = sliceHeight;
     const pageContext = pageCanvas.getContext('2d');
-    pageContext.fillStyle = '#F7F8FC';
+    pageContext.fillStyle = '#F7F7F7';
     pageContext.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
     pageContext.drawImage(canvas, 0, sourceY, canvas.width, sliceHeight, 0, 0, pageCanvas.width, pageCanvas.height);
     pages.push({ width: pageCanvas.width, height: pageCanvas.height, dataUrl: pageCanvas.toDataURL('image/jpeg', 0.98) });
@@ -517,12 +517,12 @@ function openPrintableTable({ title, subtitle, columns, rows }) {
       <head>
         <title>${htmlEscape(title)}</title>
         <style>
-          body { font-family: Arial, sans-serif; color: #111827; padding: 24px; }
+          body { font-family: Arial, sans-serif; color: #090A0B; padding: 24px; }
           h1 { font-size: 22px; margin: 0 0 4px; }
-          p { color: #4B5563; margin: 0 0 18px; }
+          p { color: #8A8A8A; margin: 0 0 18px; }
           table { border-collapse: collapse; width: 100%; font-size: 12px; }
-          th, td { border: 1px solid #D1D5DB; padding: 7px 8px; text-align: left; vertical-align: top; }
-          th { background: #F3F4F6; color: #374151; }
+          th, td { border: 1px solid #D4D4D4; padding: 7px 8px; text-align: left; vertical-align: top; }
+          th { background: #F7F7F7; color: #090A0B; }
           @page { margin: 0.45in; }
         </style>
       </head>
@@ -647,9 +647,9 @@ function Dashboard({ syncing, runSync, canRunSync, integrationMeta }) {
   if (loading) return <div style={{ padding: '2rem' }}>Loading Dashboard...</div>;
   if (error) {
     return (
-      <div className="glass-panel" style={{ borderLeft: '4px solid #ef4444', background: '#FEF2F2' }}>
+      <div className="glass-panel" style={{ borderLeft: '4px solid #E33B3B', background: '#FEF2F2' }}>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-          <AlertTriangle color="#ef4444" size={20} />
+          <AlertTriangle color="#E33B3B" size={20} />
           <strong style={{ color: '#991B1B' }}>Unable to load dashboard</strong>
         </div>
         <p style={{ margin: '0.4rem 0 0 1.75rem', fontSize: '0.85rem', color: '#B91C1C' }}>{error}</p>
@@ -675,13 +675,13 @@ function Dashboard({ syncing, runSync, canRunSync, integrationMeta }) {
   const alertTitle = isInterrupted ? 'Previous Sync Was Interrupted' : 'Operational Alert: Last Synchronization Failed';
   const alertColor = isInterrupted ? '#92400E' : '#991B1B';
   const alertBackground = isInterrupted ? '#FFFBEB' : '#FEF2F2';
-  const alertBorder = isInterrupted ? '#f59e0b' : '#ef4444';
+  const alertBorder = isInterrupted ? '#f59e0b' : '#E33B3B';
   const alertMessageColor = isInterrupted ? '#B45309' : '#B91C1C';
   const pieData = [
-    { name: 'Critical', value: stats.totalCritical || 0, color: '#ef4444' },
-    { name: 'High', value: stats.totalHigh || 0, color: '#f97316' },
-    { name: 'Medium', value: stats.totalMedium || 0, color: '#eab308' },
-    { name: 'Low', value: stats.totalLow || 0, color: '#3b82f6' }
+    { name: 'Critical', value: stats.totalCritical || 0, color: '#E33B3B' },
+    { name: 'High', value: stats.totalHigh || 0, color: '#FFD84D' },
+    { name: 'Medium', value: stats.totalMedium || 0, color: '#FFD84D' },
+    { name: 'Low', value: stats.totalLow || 0, color: '#B6D9FC' }
   ];
   const hasSeverityData = pieData.some(item => item.value > 0);
   const totalSeverity = pieData.reduce((sum, item) => sum + item.value, 0);
@@ -710,14 +710,14 @@ function Dashboard({ syncing, runSync, canRunSync, integrationMeta }) {
     return (
       <div
         className="stat-card glass-panel"
-        style={{ borderTop: `4px solid ${card.color || '#1D8EE6'}`, cursor: 'pointer', transition: 'transform 0.12s' }}
+        style={{ borderTop: `4px solid ${card.color || '#0337A1'}`, cursor: 'pointer', transition: 'transform 0.12s' }}
         onClick={() => navigate(targetPath(integration, card.to))}
         onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
         onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
       >
         {Icon && <Icon className="card-icon" size={48} />}
         <h3>{tokenText(card.label, integrationName)}</h3>
-        <div className="value" style={{ color: card.color || '#1D8EE6' }}>{value ?? 0}</div>
+        <div className="value" style={{ color: card.color || '#0337A1' }}>{value ?? 0}</div>
         {card.subtitle && <div className="subtitle">{tokenText(card.subtitle, integrationName)}</div>}
       </div>
     );
@@ -764,7 +764,7 @@ function Dashboard({ syncing, runSync, canRunSync, integrationMeta }) {
             </g>
           </svg>
         ) : (
-          <div style={{ height: '100%', minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#9CA3AF', fontSize: '0.85rem', padding: '1rem' }}>
+          <div style={{ height: '100%', minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#757575', fontSize: '0.85rem', padding: '1rem' }}>
             {hasCompletedMetrics ? 'No severity data was reported in the latest successful sync.' : 'Severity distribution will appear after the first successful sync.'}
           </div>
         )}
@@ -833,12 +833,12 @@ function Dashboard({ syncing, runSync, canRunSync, integrationMeta }) {
       </div>
 
       {isRunning && !hasCompletedMetrics && (
-        <div className="glass-panel" style={{ borderLeft: '4px solid #1D8EE6', background: '#EFF6FF' }}>
+        <div className="glass-panel" style={{ borderLeft: '4px solid #0337A1', background: '#E7F2FE' }}>
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-            <RefreshCw color="#1D8EE6" size={20} style={{ animation: 'spin 1s linear infinite' }} />
+            <RefreshCw color="#0337A1" size={20} style={{ animation: 'spin 1s linear infinite' }} />
             <strong style={{ color: '#1E3A8A' }}>{runningTitle}</strong>
           </div>
-          <p style={{ margin: '0.4rem 0 0 1.75rem', fontSize: '0.85rem', color: '#1D4ED8' }}>
+          <p style={{ margin: '0.4rem 0 0 1.75rem', fontSize: '0.85rem', color: '#0337A1' }}>
             {runningMessage}
           </p>
         </div>

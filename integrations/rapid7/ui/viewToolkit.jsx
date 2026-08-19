@@ -99,7 +99,7 @@ export function DataTable({ title, columns, rows, emptyText, integration }) {
       <h1 className="page-title">{title}</h1>
       <div className="glass-panel">
         {rows.length === 0 ? (
-          <div style={{ color: '#6B7280' }}>{emptyText || 'No records found.'}</div>
+          <div style={{ color: '#8A8A8A' }}>{emptyText || 'No records found.'}</div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table className="data-table">

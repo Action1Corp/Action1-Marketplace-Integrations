@@ -11,34 +11,37 @@ const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 250];
 
 const colors = {
-  blue: '#0337A0',
-  blueHover: '#002F87',
-  activeBlue: '#CFE3FF',
-  activeBorder: '#0A3280',
-  page: '#F7F8FC',
-  border: '#E5E7EB',
-  muted: '#6B7280',
-  text: '#2F3544',
+  blue: '#0337A1',
+  blueHover: '#1D59D3',
+  activeBlue: '#B6D9FC',
+  activeHover: '#E7F2FE',
+  activeBorder: '#1A4FBC',
+  page: '#F7F7F7',
+  border: '#D4D4D4',
+  muted: '#8A8A8A',
+  text: '#090A0B',
   icon: '#B6D9FC',
-  header: '#9CA3AF',
-  green: '#27AE60',
+  header: '#757575',
+  green: '#60AC39',
   yellow: '#FFD84D',
-  red: '#E54040',
-  pale: '#FCFDFF'
+  red: '#E33B3B',
+  pale: '#FFFFFF',
+  disabled: '#D4D4D4',
+  disabledText: '#757575'
 };
 
-const fontFamily = 'Roboto, Inter, Arial, sans-serif';
+const fontFamily = 'RooftopBook, Helvetica, Arial, sans-serif';
 
 const button = {
-  border: '1px solid transparent',
-  borderRadius: 4,
-  padding: '0 12px',
+  border: `1px solid ${colors.activeBorder}`,
+  borderRadius: 6,
+  padding: '0 20px',
   fontSize: 13,
   fontWeight: 600,
   display: 'inline-flex',
   alignItems: 'center',
   gap: '0.35rem',
-  minHeight: 32,
+  minHeight: 44,
   fontFamily
 };
 
@@ -50,16 +53,16 @@ const blueButton = {
 
 const disabledButton = {
   ...button,
-  color: '#8A94A6',
-  background: '#E5E7EB',
-  borderColor: '#E5E7EB'
+  color: colors.disabledText,
+  background: colors.disabled,
+  borderColor: colors.disabled
 };
 
 const filterButton = {
   ...button,
   color: colors.text,
   background: '#fff',
-  borderColor: '#AEB7C6',
+  borderColor: colors.border,
   fontWeight: 500,
   minWidth: 158,
   justifyContent: 'space-between'
@@ -327,9 +330,9 @@ function openPrintWindow(title = 'Preparing export') {
     <!doctype html>
     <html>
       <head><title>${htmlEscape(title)}</title></head>
-      <body style="font-family: Arial, sans-serif; padding: 24px; color: #111827;">
+      <body style="font-family: Arial, sans-serif; padding: 24px; color: #090A0B;">
         <h1 style="font-size: 20px;">Preparing PDF export...</h1>
-        <p style="color: #4B5563;">Collecting rows for the report.</p>
+        <p style="color: #8A8A8A;">Collecting rows for the report.</p>
       </body>
     </html>
   `);
@@ -346,12 +349,12 @@ function openPrintableRows({ title, subtitle, columns, rows, popup: existingPopu
       <head>
         <title>${htmlEscape(title)}</title>
         <style>
-          body { font-family: Arial, sans-serif; color: #111827; padding: 24px; }
+          body { font-family: Arial, sans-serif; color: #090A0B; padding: 24px; }
           h1 { font-size: 22px; margin: 0 0 4px; }
-          p { color: #4B5563; margin: 0 0 18px; }
+          p { color: #8A8A8A; margin: 0 0 18px; }
           table { border-collapse: collapse; width: 100%; font-size: 11px; }
-          th, td { border: 1px solid #D1D5DB; padding: 6px 7px; text-align: left; vertical-align: top; }
-          th { background: #F3F4F6; color: #374151; }
+          th, td { border: 1px solid #D4D4D4; padding: 6px 7px; text-align: left; vertical-align: top; }
+          th { background: #F7F7F7; color: #090A0B; }
           @page { margin: 0.4in; }
         </style>
       </head>

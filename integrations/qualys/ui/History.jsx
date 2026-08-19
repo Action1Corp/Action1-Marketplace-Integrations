@@ -23,7 +23,7 @@ function Pagination({ page, totalPages, onPageChange }) {
 
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem', gap: '1rem', flexWrap: 'wrap' }}>
-      <span style={{ fontSize: '0.85rem', color: '#6B7280' }}>Page {page} of {totalPages}</span>
+      <span style={{ fontSize: '0.85rem', color: '#8A8A8A' }}>Page {page} of {totalPages}</span>
       <div style={{ display: 'flex', gap: '0.5rem' }}>
         <button className="btn-secondary" onClick={() => onPageChange(page - 1)} disabled={page <= 1}>Previous</button>
         <button className="btn-secondary" onClick={() => onPageChange(page + 1)} disabled={page >= totalPages}>Next</button>
@@ -182,11 +182,11 @@ function History() {
             }}
           />
           {lastRefreshedAt && (
-            <span style={{ fontSize: '0.8rem', color: '#9CA3AF', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: '0.8rem', color: '#757575', whiteSpace: 'nowrap' }}>
               {isAutoRefreshing ? 'Auto-refreshing' : 'Updated'} {lastRefreshedAt.toLocaleTimeString()}
             </span>
           )}
-          <span style={{ fontSize: '0.85rem', color: '#9CA3AF' }}>{total} result{total !== 1 ? 's' : ''}</span>
+          <span style={{ fontSize: '0.85rem', color: '#757575' }}>{total} result{total !== 1 ? 's' : ''}</span>
         </div>
       </div>
 
@@ -219,8 +219,8 @@ function History() {
                         <pre style={{
                           margin: 0,
                           padding: '1rem',
-                          background: '#1F2937',
-                          color: '#F3F4F6',
+                          background: '#090A0B',
+                          color: '#F7F7F7',
                           borderRadius: '4px',
                           whiteSpace: 'pre-wrap',
                           fontFamily: 'monospace',
