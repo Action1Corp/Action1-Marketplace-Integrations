@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "publishedAt": "2026-08-19T14:41:00.409Z",
+  "publishedAt": "2026-08-19T15:00:46.849Z",
   "integrations": [
     {
       "id": "action1-configuration-manager",
@@ -13,8 +13,8 @@
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-30/action1-integration-action1-configuration-manager-0.1.0.tgz",
-        "sha256": "25b3d196cf680e1f3e202f97549c3a4f80dbc876e8c5dfe3306ba134853c6737",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-31/action1-integration-action1-configuration-manager-0.1.0.tgz",
+        "sha256": "eeb1340448359bd2801c63b7a2513ea1da61a4856075e3ae96e430850555ea67",
         "signatureUrl": ""
       }
     },
@@ -24,13 +24,13 @@
       "vendor": "Microsoft",
       "description": "Correlate Microsoft Defender vulnerabilities with Action1 endpoint and patch context.",
       "category": "EDR / XDR",
-      "latestVersion": "1.0.4",
+      "latestVersion": "1.0.5",
       "minimumMarketplaceVersion": "1.0.0",
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-30/action1-integration-defender-1.0.4.tgz",
-        "sha256": "9d33294ae9b957a353dae4ae956af4ae6f6419b24f486165a8ab3e99998073a5",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-31/action1-integration-defender-1.0.5.tgz",
+        "sha256": "205ca4a150a9863952cf41cd820cd40790c463b6a7aedae1791587c0b9119170",
         "signatureUrl": ""
       }
     },
@@ -45,8 +45,8 @@
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-30/action1-integration-entra-id-1.0.0.tgz",
-        "sha256": "8f96935f31a2ff9d8be1976c28c298b30fb7790fede9c4744a8a5d73a7521796",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-31/action1-integration-entra-id-1.0.0.tgz",
+        "sha256": "175183164a224271be314a22a73c54719bb377132a1cb74b9c8e44a5d449d5fe",
         "signatureUrl": ""
       }
     },
@@ -61,8 +61,8 @@
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-30/action1-integration-halo-psa-1.0.0.tgz",
-        "sha256": "03e86b037e9b148e65defc08a6eff139e13807ee383e3105e697a8cd68216e8f",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-31/action1-integration-halo-psa-1.0.0.tgz",
+        "sha256": "3828a274e2d2cea24b93174d18dc4dfd8511937a9588263e8fd9310d327b2f71",
         "signatureUrl": ""
       }
     },
@@ -72,13 +72,13 @@
       "vendor": "Microsoft",
       "description": "Deploy the Action1 Agent with Intune, track enrollment, and monitor provisioning automations.",
       "category": "Endpoint Management",
-      "latestVersion": "1.0.6",
+      "latestVersion": "1.0.7",
       "minimumMarketplaceVersion": "1.0.0",
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-30/action1-integration-intune-1.0.6.tgz",
-        "sha256": "d6aef3200becffbadd113fe099f7dd0993d9b1c73b0db8f2aa7afc6a16d4cf76",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-31/action1-integration-intune-1.0.7.tgz",
+        "sha256": "7d89ea1218c53f0cc40062ac7eaa0ef46183084343ca136c8f36c4241db52fbe",
         "signatureUrl": ""
       }
     },
@@ -93,8 +93,8 @@
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-30/action1-integration-jira-cloud-1.0.0.tgz",
-        "sha256": "e71fa95b0e1524c927517944859038c66efcbe19395fb8fcbd90466cc0622f58",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-31/action1-integration-jira-cloud-1.0.0.tgz",
+        "sha256": "c86627bcb507d1d5ec044f7724e946aaf9eb378e36746f30b4b3e0945e8090d2",
         "signatureUrl": ""
       }
     },
@@ -104,13 +104,13 @@
       "vendor": "Qualys",
       "description": "Correlate Qualys VMDR findings with Action1 endpoint and patch context.",
       "category": "Vulnerability Management",
-      "latestVersion": "1.0.4",
+      "latestVersion": "1.0.5",
       "minimumMarketplaceVersion": "1.0.0",
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-30/action1-integration-qualys-1.0.4.tgz",
-        "sha256": "0819e136956a566dc63b52ba8f2e28e6ffefce3f8d374aa9edad81793e2fb0c0",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-31/action1-integration-qualys-1.0.5.tgz",
+        "sha256": "2aca8e888f3c20f18feeeea109552c4e019b389d613f5f34a37202a4c2c9f716",
         "signatureUrl": ""
       }
     },
@@ -120,13 +120,13 @@
       "vendor": "Rapid7",
       "description": "Correlate Rapid7 InsightVM exposure data with Action1 endpoint and patch context.",
       "category": "Vulnerability Management",
-      "latestVersion": "1.0.4",
+      "latestVersion": "1.0.5",
       "minimumMarketplaceVersion": "1.0.0",
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-30/action1-integration-rapid7-1.0.4.tgz",
-        "sha256": "ff1e3bcb5c06e911a899afde4663d3a8618b4dc9e0bf57798c00129302371618",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-31/action1-integration-rapid7-1.0.5.tgz",
+        "sha256": "a000b6ed948df7aedb66402dd317159e08d7c97203e643fb4e0564177d111256",
         "signatureUrl": ""
       }
     },
@@ -136,13 +136,13 @@
       "vendor": "Tenable",
       "description": "Correlate Tenable vulnerability data with Action1 endpoint and patch context.",
       "category": "Vulnerability Management",
-      "latestVersion": "1.0.4",
+      "latestVersion": "1.0.5",
       "minimumMarketplaceVersion": "1.0.0",
       "status": "production",
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
-        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-30/action1-integration-tenable-1.0.4.tgz",
-        "sha256": "8048938aac2189955067f2e6c02d25860e95bf71ed26612c3dc09003ec990e8a",
+        "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-31/action1-integration-tenable-1.0.5.tgz",
+        "sha256": "e1ac3ee1fccaa3fc7cf79391190a31d7bbaa86113f035f582977f782a959b3b0",
         "signatureUrl": ""
       }
     }
