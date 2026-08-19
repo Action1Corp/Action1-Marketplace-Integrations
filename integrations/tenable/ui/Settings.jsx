@@ -97,7 +97,7 @@ function Settings({ integration }) {
 
   return (
     <div style={{ maxWidth: 760 }}>
-      <form onSubmit={save}>
+      <form className="settings-form-with-sticky-save" onSubmit={save}>
         {Object.entries(grouped).map(([groupName, fields]) => (
           <div key={groupName} className="glass-panel">
             <h3>{groupName}</h3>
@@ -167,8 +167,10 @@ function Settings({ integration }) {
             <input type="time" value={scheduleUi.time} onChange={e => updateSchedule({ enabled: true, time: e.target.value })} />
           </div>
         )}
-        <button className="btn-primary" type="submit">Save Settings</button>
-        {message && <span style={{ marginLeft: '1rem', color: message.includes('Unable') ? '#DC2626' : '#15803D' }}>{message}</span>}
+        <div className="sticky-save-actions">
+          <button className="btn-primary" type="submit">Save Settings</button>
+          {message && <span style={{ color: message.includes('Unable') ? '#DC2626' : '#15803D' }}>{message}</span>}
+        </div>
       </form>
     </div>
   );
