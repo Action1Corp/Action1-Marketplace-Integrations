@@ -29,7 +29,14 @@ assert(source.includes('Enable reporting in Action1'), 'Reporting must include t
 assert(source.includes('Required to collect and store Configuration Manager data in Action1.'), 'Data source supporting text must be present');
 assert(source.includes('Custom Action1 reports for viewing Configuration Manager data.'), 'Reports supporting text must be present');
 assert(source.includes("reporting.dataSource === 'Configured' && reporting.reports === 'Configured'"), 'Reporting must model the fully configured state');
-assert(source.includes('disabled>Set up reporting</button>'), 'Future reporting setup must remain non-functional in this UI-only task');
+assert(source.includes('onClick={setupReporting}'), 'Reporting setup must invoke the single setup action');
+assert(source.includes("const REPORTING_CHECKING = 'Checking...';"), 'Reporting must expose a lightweight checking state');
+assert(source.includes('/actions/get-reporting-state'), 'Settings must load persisted reporting state separately from remote verification');
+assert(source.includes('dataSource: REPORTING_CHECKING') && source.includes('reports: REPORTING_CHECKING'), 'Reporting must show Checking while remote verification is pending');
+assert(source.includes('!reportingConfigured && !reportingChecking'), 'Reporting setup CTA must be hidden while verification is pending');
+assert(source.includes('const reportingChecking'), 'Settings must derive a Reporting verification-pending state');
+assert(source.includes('setLoading(false);'), 'Settings page loading must complete before Reporting remote verification');
+assert(source.includes('disabled={settingUpReporting}'), 'Reporting setup must retain duplicate-click protection when available');
 assert(!source.includes('Marketplace manages these resources on your behalf'), 'Excluded management panel must not be implemented');
 assert(!source.includes('Refresh status'), 'Excluded refresh control must not be implemented');
 assert(!source.includes("'Report'"), 'Reporting resource must use the plural Reports label');

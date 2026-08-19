@@ -1,8 +1,8 @@
 const PREFIX = 'A1CM_HISTORY_V1';
-const OPERATIONS = new Set(['POLICY_CREATED', 'POLICY_UPDATED', 'POLICY_ENABLED', 'POLICY_DISABLED', 'POLICY_DELETED', 'SCHEDULED_RECONCILIATION']);
+const OPERATIONS = new Set(['POLICY_CREATED', 'POLICY_UPDATED', 'POLICY_ENABLED', 'POLICY_DISABLED', 'POLICY_DELETED', 'SCHEDULED_RECONCILIATION', 'REPORTING_SETUP']);
 const LABELS = {
   POLICY_CREATED: 'Policy created', POLICY_UPDATED: 'Policy updated', POLICY_ENABLED: 'Policy enabled',
-  POLICY_DISABLED: 'Policy disabled', POLICY_DELETED: 'Policy deleted', SCHEDULED_RECONCILIATION: 'Scheduled reconciliation'
+  POLICY_DISABLED: 'Policy disabled', POLICY_DELETED: 'Policy deleted', SCHEDULED_RECONCILIATION: 'Scheduled reconciliation', REPORTING_SETUP: 'Reporting setup'
 };
 
 function bounded(value, fallback = '') {

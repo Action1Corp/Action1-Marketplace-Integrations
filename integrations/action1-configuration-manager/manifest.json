@@ -123,6 +123,33 @@
       "description": "Reconciles missing owned Action1 automations for Enabled Policies.",
       "history": true,
       "retry": false
+    },
+    {
+      "id": "get-reporting-state",
+      "kind": "action",
+      "label": "Get Reporting State",
+      "description": "Loads persisted Configuration Management reporting identities without remote verification.",
+      "placement": "settings",
+      "history": false
+    },
+    {
+      "id": "get-reporting-status",
+      "kind": "action",
+      "label": "Get Reporting Status",
+      "description": "Verifies Configuration Management reporting resources.",
+      "placement": "settings",
+      "history": false
+    },
+    {
+      "id": "setup-reporting",
+      "kind": "action",
+      "label": "Reporting setup",
+      "buttonLabel": "Set up reporting",
+      "runningLabel": "Setting up reporting...",
+      "description": "Creates or repairs the Configuration Management Data Source and Reports.",
+      "placement": "settings",
+      "history": true,
+      "retry": false
     }
   ]
 }

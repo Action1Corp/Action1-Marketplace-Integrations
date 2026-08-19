@@ -34,6 +34,15 @@ function run() {
   assert.strictEqual(reconciliation.counts.automationsChecked, 8);
   assert.strictEqual(reconciliation.operationLabel, 'Scheduled reconciliation');
 
+  const reporting = extractHistoryEnvelope(resultDetails(createHistoryEnvelope({
+    operation: 'REPORTING_SETUP',
+    summary: 'Data source and reports configured'
+  })));
+  assert.strictEqual(reporting.operationLabel, 'Reporting setup');
+  assert.strictEqual(reporting.summary, 'Data source and reports configured');
+  assert.strictEqual(reporting.policyNameSnapshot, undefined);
+  assert.strictEqual(reporting.organizationNameSnapshot, undefined);
+
   const projected = extractHistoryEnvelope(resultDetails(createHistoryEnvelope({
     operation: 'SCHEDULED_RECONCILIATION',
     policyNameSnapshot: '1 policies',

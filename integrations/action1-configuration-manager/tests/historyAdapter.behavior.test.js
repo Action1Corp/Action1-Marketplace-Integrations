@@ -9,6 +9,20 @@ async function run() {
     () => ({ operationLabel: 'Scheduled reconciliation', policyNameSnapshot: 'Policy', organizationNameSnapshot: 'Org', summary: '4 unchanged', counts: { unchanged: 4 }, familyOutcomes: [], errors: [] })
   );
   assert.strictEqual(reconciliationRow.operation, 'Reconciliation');
+  const reportingSuccess = parseHistoryRow(
+    { id: 100, timestamp: '2026-08-14T15:00:00.000Z', action_label: 'Reporting setup', status: 'Success', details: 'reporting' },
+    () => ({ operation: 'REPORTING_SETUP', operationLabel: 'Reporting setup', summary: 'Data source and reports configured', counts: {}, familyOutcomes: [], policies: [], errors: [] })
+  );
+  assert.deepStrictEqual({ operation: reportingSuccess.operation, policy: reportingSuccess.policyName, organization: reportingSuccess.organizationName, result: reportingSuccess.result, summary: reportingSuccess.summary }, { operation: 'Reporting setup', policy: '—', organization: '—', result: 'Success', summary: 'Data source and reports configured' });
+  const reportingFailure = parseHistoryRow(
+    { id: 101, timestamp: '2026-08-14T16:00:00.000Z', action_label: 'Reporting setup', status: 'Failed', details: 'reporting' },
+    () => ({ operation: 'REPORTING_SETUP', operationLabel: 'Reporting setup', summary: 'Reporting setup failed', counts: {}, familyOutcomes: [], policies: [], errors: [] })
+  );
+  assert.strictEqual(reportingFailure.operation, 'Reporting setup');
+  assert.strictEqual(reportingFailure.policyName, '—');
+  assert.strictEqual(reportingFailure.organizationName, '—');
+  assert.strictEqual(reportingFailure.result, 'Failed');
+  assert(!JSON.stringify(reportingFailure).includes('Unavailable'));
   const rows = [
     { id: 3, timestamp: '2026-08-14T13:00:00.000Z', action_label: 'Policy deleted', status: 'Success', details: 'A1CM_HISTORY_V1 deleted' },
     { id: 2, timestamp: '2026-08-14T12:00:00.000Z', action_label: 'Policy updated', status: 'Failed', details: 'malformed details' },

@@ -9,7 +9,8 @@ const OPERATION_LABELS = {
   POLICY_ENABLED: 'Policy enabled',
   POLICY_DISABLED: 'Policy disabled',
   POLICY_DELETED: 'Policy deleted',
-  SCHEDULED_RECONCILIATION: 'Scheduled reconciliation'
+  SCHEDULED_RECONCILIATION: 'Scheduled reconciliation',
+  REPORTING_SETUP: 'Reporting setup'
 };
 
 function boundedText(value, fallback = '') {

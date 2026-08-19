@@ -4,7 +4,8 @@ const ACTION_LABEL_OPERATIONS = {
   'Policy disabled': 'Policy disabled',
   'Policy enabled': 'Policy enabled',
   'Policy deleted': 'Policy deleted',
-  'Scheduled reconciliation': 'Reconciliation'
+  'Scheduled reconciliation': 'Reconciliation',
+  'Reporting setup': 'Reporting setup'
 };
 
 function customerOperationLabel(label) {
@@ -21,20 +22,21 @@ function formatTimestamp(timestamp) {
 
 function fallbackRow(row) {
   const operation = ACTION_LABEL_OPERATIONS[row?.action_label] || 'Policy operation';
+  const reporting = row?.action_label === 'Reporting setup';
   return {
     id: row?.id,
     timestamp: row?.timestamp || null,
     timestampLabel: formatTimestamp(row?.timestamp),
     operation,
-    policyName: 'Unavailable',
-    organizationName: 'Unavailable',
+    policyName: reporting ? '—' : 'Unavailable',
+    organizationName: reporting ? '—' : 'Unavailable',
     result: SAFE_STATUSES.has(row?.status) ? row.status : 'Failed',
-    summary: 'History details are unavailable for this entry.',
+    summary: reporting ? (row?.status === 'Success' ? 'Data source and reports configured' : 'Reporting setup failed') : 'History details are unavailable for this entry.',
     counts: {},
     familyOutcomes: [],
     policies: [],
     errors: [],
-    detailsAvailable: false
+    detailsAvailable: reporting
   };
 }
 
@@ -50,7 +52,7 @@ function parseHistoryRow(row, extractEnvelope) {
     policyName: envelope.policyNameSnapshot || '—',
     organizationName: envelope.organizationNameSnapshot || '—',
     result,
-    summary: envelope.summary || 'Policy operation completed.',
+    summary: envelope.summary || (envelope.operation === 'REPORTING_SETUP' ? 'Reporting setup failed' : 'Policy operation completed.'),
     counts: envelope.counts || {},
     familyOutcomes: envelope.familyOutcomes || [],
     policies: envelope.policies || [],

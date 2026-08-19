@@ -6,6 +6,8 @@ const SCHEDULE_KEY = 'CronSchedule_action1-configuration-manager';
 const TIMEZONE_KEY = 'CronTimezone_action1-configuration-manager';
 const INTERVALS = [3, 6, 12, 24];
 const REPORTING_NOT_CONFIGURED = 'Not configured';
+const REPORTING_CHECKING = 'Checking...';
+const REPORTING_FAILED = 'Failed';
 
 function browserTimezone() { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; }
 function cronForHours(hours) { return `0 */${hours} * * *`; }
@@ -54,16 +56,28 @@ export default function Settings({ integration }) {
   const [saving, setSaving] = useState(false);
   const [reconciling, setReconciling] = useState(false);
   const [message, setMessage] = useState(null);
-  const [reporting, setReporting] = useState({ dataSource: REPORTING_NOT_CONFIGURED, reports: REPORTING_NOT_CONFIGURED });
+  const [reporting, setReporting] = useState({ dataSource: REPORTING_CHECKING, reports: REPORTING_CHECKING });
+  const [settingUpReporting, setSettingUpReporting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/settings').then(response => response.json()).then(data => {
+    Promise.all([
+      fetch('/api/settings').then(response => response.json()),
+      fetch(`/api/integrations/${integration}/actions/get-reporting-state`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }).then(response => response.json())
+    ]).then(([data, stateResult]) => {
       if (cancelled) return;
       const settings = data.settings || {};
       setInterval(hoursFromCron(settings[SCHEDULE_KEY]));
       setTimezone(settings[TIMEZONE_KEY] || browserTimezone());
+      const state = stateResult.reporting || {};
+      const hasPersistedIds = Boolean(state.hasDataSourceId) || Boolean(state.reportIdsPresent?.length);
+      setReporting(hasPersistedIds ? { dataSource: REPORTING_CHECKING, reports: REPORTING_CHECKING } : { dataSource: REPORTING_NOT_CONFIGURED, reports: REPORTING_NOT_CONFIGURED });
       setLoading(false);
+      if (hasPersistedIds) {
+        fetch(`/api/integrations/${integration}/actions/get-reporting-status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+          .then(response => response.json()).then(result => { if (!cancelled) setReporting(result.reporting || { dataSource: REPORTING_FAILED, reports: REPORTING_FAILED }); })
+          .catch(() => { if (!cancelled) setReporting({ dataSource: REPORTING_FAILED, reports: REPORTING_FAILED }); });
+      }
     }).catch(() => {
       if (!cancelled) { setMessage({ ok: false, text: 'Unable to load reconciliation settings.' }); setLoading(false); }
     });
@@ -79,6 +93,18 @@ export default function Settings({ integration }) {
     finally { setSaving(false); }
   }
 
+  async function setupReporting() {
+    setSettingUpReporting(true); setMessage(null);
+    try {
+      const response = await fetch(`/api/integrations/${integration}/actions/setup-reporting`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.ok === false) throw new Error(result.message || 'Reporting setup failed.');
+      setReporting(result.reporting || { dataSource: 'Configured', reports: 'Configured' });
+      setMessage({ ok: true, text: 'Reporting setup completed.' });
+    } catch (error) { setMessage({ ok: false, text: error.message || 'Reporting setup failed.' }); }
+    finally { setSettingUpReporting(false); }
+  }
+
   async function reconcileNow() {
     setReconciling(true); setMessage(null);
     try {
@@ -90,6 +116,7 @@ export default function Settings({ integration }) {
   }
 
   const reportingConfigured = reporting.dataSource === 'Configured' && reporting.reports === 'Configured';
+  const reportingChecking = reporting.dataSource === REPORTING_CHECKING || reporting.reports === REPORTING_CHECKING;
   if (loading) return <div style={{ maxWidth: 960, margin: '0 auto' }}>Loading settings...</div>;
 
   return (
@@ -127,12 +154,12 @@ export default function Settings({ integration }) {
         <h2 style={styles.sectionTitle}>Reporting</h2>
         <p style={styles.sectionDescription}>Set up Action1 Data Source and Reports to view Configuration Manager results in the Action1 Console.</p>
         <div style={styles.reportingPanel}>
-          {!reportingConfigured ? <div className="a1cm-settings-reporting-callout" style={styles.reportingCallout}>
+          {!reportingConfigured && !reportingChecking ? <div className="a1cm-settings-reporting-callout" style={styles.reportingCallout}>
             <div>
               <h3 style={styles.calloutTitle}>Enable reporting in Action1</h3>
               <p style={styles.calloutText}>We will create the Data Source and Reports required to view Configuration Manager results in the Action1 Console. After setup, open the Action1 Console to view your reports.</p>
             </div>
-            <button style={primaryButtonStyle} type="button" disabled>Set up reporting</button>
+            <button style={primaryButtonStyle} type="button" onClick={setupReporting} disabled={settingUpReporting}>{settingUpReporting ? 'Setting up reporting...' : 'Set up reporting'}</button>
           </div> : null}
           <div style={styles.reportingRow}><div><div style={styles.resourceName}>Data source</div><p style={styles.resourceHelp}>Required to collect and store Configuration Manager data in Action1.</p></div><span style={styles.status}>{reporting.dataSource}</span></div>
           <div style={{ ...styles.reportingRow, ...styles.reportingRowDivider }}><div><div style={styles.resourceName}>Reports</div><p style={styles.resourceHelp}>Custom Action1 reports for viewing Configuration Manager data.</p></div><span style={styles.status}>{reporting.reports}</span></div>
