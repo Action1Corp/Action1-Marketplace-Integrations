@@ -1,7 +1,7 @@
 const assert = require('assert');
 const { buildAction1ConsoleAutomationUrl } = require('../policyStore');
 
-const name = 'A1CM — Workstation Security — Removable Storage';
+const name = 'A1CM — POL-000123 — Workstation Security — Removable Storage';
 const url = buildAction1ConsoleAutomationUrl('https://eu.action1.example', 'org-1', name);
 const parsed = new URL(url);
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { loadReleasedControlCatalog, countExpectedAutomations, countSelectedControlFamilies } from '../catalog/controlPackCatalog.js';
 import PolicyDetailsView from './PolicyDetailsView.jsx';
 import PolicyEditorView from './PolicyEditorView.jsx';
@@ -17,6 +18,7 @@ import {
 } from './policyUiStyles.js';
 import { createDraftFromPolicy, createPolicyDraft } from './policyEditorState.js';
 import { validatePolicyDraft } from './policyValidation.js';
+import { buildPolicyDetailsPath, buildPoliciesListPath, getPolicyIdFromSearch } from './policyRouting.js';
 
 const styles = {
   shell: {
@@ -39,6 +41,12 @@ const styles = {
     ...pageSurfaceStyle,
     padding: '0.875rem 1rem',
     color: policyUiTokens.textSecondary
+  },
+  notFound: {
+    ...pageSurfaceStyle,
+    padding: '1.5rem',
+    display: 'grid',
+    gap: '0.65rem'
   },
   errorNotice: {
     ...pageSurfaceStyle,
@@ -160,6 +168,9 @@ function formatLifecycleMessage(kind, policy) {
 }
 
 function PolicyPage({ integration }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const routePolicyId = getPolicyIdFromSearch(location.search);
   const catalogRef = useRef(loadReleasedControlCatalog());
   const policyApiRef = useRef(createPolicyApi(integration));
   const discoveryApiRef = useRef(createPolicyDiscoveryApi(integration));
@@ -167,7 +178,7 @@ function PolicyPage({ integration }) {
     organizationRepository: createAction1OrganizationRepository(discoveryApiRef.current),
     endpointGroupRepository: createAction1EndpointGroupRepository(discoveryApiRef.current)
   });
-  const [mode, setMode] = useState({ kind: 'list', policyId: null });
+  const [mode, setMode] = useState(() => ({ kind: routePolicyId ? 'details' : 'list', policyId: routePolicyId }));
   const [draft, setDraft] = useState(null);
   const [validationResult, setValidationResult] = useState({ fieldErrors: {}, sectionErrors: [], blockingMessage: '' });
   const [pendingAction, setPendingAction] = useState(null);
@@ -175,6 +186,7 @@ function PolicyPage({ integration }) {
   const [policies, setPolicies] = useState([]);
   const [loadingPolicies, setLoadingPolicies] = useState(true);
   const [pageError, setPageError] = useState('');
+  const [routeResolution, setRouteResolution] = useState(routePolicyId ? 'loading' : 'ready');
   const [organizations, setOrganizations] = useState([]);
   const [organizationsLoading, setOrganizationsLoading] = useState(false);
   const [organizationsError, setOrganizationsError] = useState('');
@@ -184,6 +196,19 @@ function PolicyPage({ integration }) {
 
   const catalog = catalogRef.current;
   const selectedPolicy = mode.policyId ? policies.find((policy) => policy.policyId === mode.policyId) || null : null;
+
+  useEffect(() => {
+    if (routePolicyId) {
+      setMode({ kind: 'details', policyId: routePolicyId });
+      setDraft(null);
+      setRouteResolution('loading');
+      return;
+    }
+
+    setMode({ kind: 'list', policyId: null });
+    setDraft(null);
+    setRouteResolution('ready');
+  }, [routePolicyId]);
 
   async function refreshPolicies() {
     setLoadingPolicies(true);
@@ -226,6 +251,42 @@ function PolicyPage({ integration }) {
       cancelled = true;
     };
   }, [integration]);
+
+  useEffect(() => {
+    if (!routePolicyId || loadingPolicies) {
+      return;
+    }
+
+    const loadedPolicy = policies.find((policy) => policy.policyId === routePolicyId);
+    if (loadedPolicy) {
+      setRouteResolution('found');
+      return;
+    }
+
+    let cancelled = false;
+    setRouteResolution('loading');
+    void (async () => {
+      try {
+        const policy = await policyApiRef.current.getPolicy(routePolicyId);
+        if (cancelled) return;
+        if (policy) {
+          setPolicies((current) => current.some((entry) => entry.policyId === policy.policyId) ? current : [...current, attachPolicyMetrics(policy)]);
+          setRouteResolution('found');
+        } else {
+          setRouteResolution('not-found');
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setRouteResolution('not-found');
+          setPageError(error?.message || 'Unable to load the requested Policy.');
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadingPolicies, policies, routePolicyId]);
 
   async function loadOrganizations() {
     setOrganizationsLoading(true);
@@ -304,6 +365,8 @@ function PolicyPage({ integration }) {
     setMode({ kind: 'details', policyId });
     setDraft(null);
     setValidationResult({ fieldErrors: {}, sectionErrors: [], blockingMessage: '' });
+    setRouteResolution('found');
+    navigate(buildPolicyDetailsPath(integration, policyId, location.search));
   }
 
   async function openEdit(policyId) {
@@ -328,6 +391,8 @@ function PolicyPage({ integration }) {
     setDraft(null);
     setPendingAction(null);
     setValidationResult({ fieldErrors: {}, sectionErrors: [], blockingMessage: '' });
+    setRouteResolution('ready');
+    navigate(buildPoliciesListPath(integration, location.search));
   }
 
   function saveDraft(nextDraft) {
@@ -476,6 +541,15 @@ function PolicyPage({ integration }) {
           onEnable={() => openLifecycleConfirmation('enable', selectedPolicy.policyId)}
           busy={Boolean(busyOperation)}
         />
+      ) : null}
+      {mode.kind === 'details' && !selectedPolicy && routeResolution === 'not-found' ? (
+        <div style={styles.notFound} role="status">
+          <h2 style={styles.dialogTitle}>Policy not found</h2>
+          <p style={styles.dialogText}>The requested Policy may have been deleted or is no longer available.</p>
+          <div>
+            <button type="button" style={styles.button} onClick={returnToList}>Back to Policies</button>
+          </div>
+        </div>
       ) : null}
       {(mode.kind === 'create' || mode.kind === 'edit') && draft ? (
         <PolicyEditorView

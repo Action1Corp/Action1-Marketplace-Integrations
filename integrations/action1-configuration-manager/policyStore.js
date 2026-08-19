@@ -9,6 +9,7 @@ const {
 const { createAutomationCorrelationStore } = require('./automationCorrelationStore');
 const { createAction1DiscoveryClient } = require('./action1DiscoveryClient');
 const { writeAction1RuntimeLog } = require('./runtimeLogging');
+const { buildAutomationDisplayName } = require('./automationNaming');
 
 const POLICY_ID_PREFIX = 'POL-';
 const POLICY_ID_WIDTH = 6;
@@ -302,8 +303,21 @@ async function getHydratedPolicy(context, policyId) {
     })),
     action1Automations: action1Automations.map((automation) => ({
       ...automation,
+      canonicalAutomationName: buildAutomationDisplayName({
+        policyId: policy.policyId,
+        policyName: policy.baseName || policy.displayName,
+        controlFamilyName: automation.controlFamilyNameSnapshot
+      }),
       action1ConsoleUrl: action1ConsoleOrigin
-        ? buildAction1ConsoleAutomationUrl(action1ConsoleOrigin, automation.action1OrganizationId, automation.action1AutomationName)
+        ? buildAction1ConsoleAutomationUrl(
+          action1ConsoleOrigin,
+          automation.action1OrganizationId,
+          buildAutomationDisplayName({
+            policyId: policy.policyId,
+            policyName: policy.baseName || policy.displayName,
+            controlFamilyName: automation.controlFamilyNameSnapshot
+          })
+        )
         : null
     }))
   };

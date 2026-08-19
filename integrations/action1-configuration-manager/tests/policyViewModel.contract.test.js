@@ -120,12 +120,14 @@ async function run() {
       action1AutomationId: 'auto-002',
       action1OrganizationId: 'org',
       controlFamilyNameSnapshot: 'Password Policy',
+      canonicalAutomationName: 'A1CM — POL-000001 — Workstation Security — Password Policy',
       action1AutomationName: 'A1CM — Workstation Security — Password Policy',
       action1AutomationSelf: 'https://app.action1.com/api/3.0/automations/schedules/org/auto-002'
     }]
   }, catalog);
   assert(hydratedDetails.automationRows[0].action1Url.includes('/console/automations'));
   assert(!hydratedDetails.automationRows[0].action1Url.includes('/api/3.0/'));
+  assert(hydratedDetails.automationRows[0].action1Url.includes(encodeURIComponent('POL-000001')));
   assert.strictEqual(hydratedDetails.controlFamilyGroups[0].automationLink.action1Url, hydratedDetails.automationRows[0].action1Url);
   assert.strictEqual(
     details.controlFamilyGroups[0].controls[0].controlName,

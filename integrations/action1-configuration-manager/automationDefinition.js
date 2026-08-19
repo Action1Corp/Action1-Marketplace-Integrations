@@ -4,6 +4,7 @@ const path = require('path');
 const { loadPolicyCatalogContract } = require('./policyCatalogContract');
 const { normalizeDateValue, normalizeTimeValue, positiveInteger, serializeAction1Time } = require('./scheduleModel.cjs');
 const { formatUtcSchedule } = require('./timezoneModel.cjs');
+const { buildAutomationDisplayName } = require('./automationNaming');
 
 const PACK_ID = 'windows-endpoint-configuration';
 const PACK_VERSION = '0.5.0';
@@ -75,7 +76,11 @@ function buildAutomationDefinitions(policy, options = {}) {
     const envelopeBase64 = Buffer.from(envelopeJson, 'utf8').toString('base64');
     const scriptText = bundle.replace(PLACEHOLDER, envelopeBase64);
     const familyName = String(group.name || group.controlFamilyName || group.automationGroupId);
-    const name = `A1CM — ${policy.baseName || policy.displayName} — ${familyName}`;
+    const name = buildAutomationDisplayName({
+      policyId: policy.policyId,
+      policyName: policy.baseName || policy.displayName,
+      controlFamilyName: familyName
+    });
     const target = [{ id: policy.scopeType === 'ALL_ENDPOINTS' ? 'ALL' : policy.endpointGroupId, type: 'EndpointGroup' }];
     const payload = {
       name,
@@ -96,4 +101,4 @@ function buildAutomationDefinitions(policy, options = {}) {
   });
 }
 
-module.exports = { PACK_ID, PACK_VERSION, PLACEHOLDER, buildAutomationDefinitions, serializeAction1Schedule };
+module.exports = { PACK_ID, PACK_VERSION, PLACEHOLDER, buildAutomationDefinitions, buildAutomationDisplayName, serializeAction1Schedule };

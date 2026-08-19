@@ -19,6 +19,12 @@ function run() {
   assert(!policyPageSource.includes('Demo state resets when the Marketplace page is refreshed.'), 'PolicyPage should remove the prototype reset notice from the customer-facing UI');
   assert(policyPageSource.includes('openCreate'), 'PolicyPage should own the Create Policy shell transition');
   assert(policyPageSource.includes('openDetails'), 'PolicyPage should own the Policy Details shell transition');
+  assert(policyPageSource.includes('useLocation') && policyPageSource.includes('useNavigate'), 'PolicyPage should use the Marketplace router for Policy navigation');
+  assert(policyPageSource.includes('getPolicyIdFromSearch'), 'PolicyPage should derive the selected Policy from the canonical query link');
+  assert(policyPageSource.includes('buildPolicyDetailsPath'), 'PolicyPage should navigate Open details to the canonical query link');
+  assert(policyPageSource.includes('getPolicy(routePolicyId)'), 'PolicyPage should resolve direct details navigation through the Policy API');
+  assert(policyPageSource.includes('Policy not found'), 'PolicyPage should render a safe unknown Policy state');
+  assert(policyPageSource.includes('buildPoliciesListPath'), 'PolicyPage should navigate Back to Policies to the canonical list route');
   assert(policyPageSource.includes('openEdit'), 'PolicyPage should own the Edit Policy shell transition');
   assert(policyPageSource.includes('saveDraft'), 'PolicyPage should own the save flow');
   assert(policyPageSource.includes('togglePolicyEnabled'), 'PolicyPage should own the enable/disable lifecycle transition');

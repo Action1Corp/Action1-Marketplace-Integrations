@@ -33,15 +33,30 @@ export function formatPolicySchedule(runSchedule = {}) {
 }
 
 function buildConsoleUrlFromCorrelation(row) {
+  const automationName = row.canonicalAutomationName || row.action1AutomationName;
+  if (row.canonicalAutomationName && row.action1AutomationSelf && row.action1OrganizationId) {
+    try {
+      const origin = new URL(row.action1AutomationSelf).origin;
+      const url = new URL('/console/automations', origin);
+      url.search = new URLSearchParams({
+        limit: '200', from: '0', 'add_endpoints-limit': '200', 'add_endpoints-from': '0',
+        org: row.action1OrganizationId,
+        filter: encodeURIComponent(automationName)
+      }).toString();
+      return url.toString();
+    } catch {
+      return '';
+    }
+  }
   if (row.action1ConsoleUrl) return row.action1ConsoleUrl;
-  if (!row.action1AutomationSelf || !row.action1AutomationName || !row.action1OrganizationId) return '';
+  if (!row.action1AutomationSelf || !automationName || !row.action1OrganizationId) return '';
   try {
     const origin = new URL(row.action1AutomationSelf).origin;
     const url = new URL('/console/automations', origin);
     url.search = new URLSearchParams({
       limit: '200', from: '0', 'add_endpoints-limit': '200', 'add_endpoints-from': '0',
       org: row.action1OrganizationId,
-      filter: encodeURIComponent(row.action1AutomationName)
+      filter: encodeURIComponent(automationName)
     }).toString();
     return url.toString();
   } catch {
