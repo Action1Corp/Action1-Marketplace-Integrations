@@ -42,8 +42,10 @@ async function run() {
     async activateCorrelation(input) { calls.replacement = input; }
   };
   const missingPatchClient = {
-    async updateAutomation() {
+    async updateAutomation(orgId, automationId, definition) {
       calls.update += 1;
+      assert.strictEqual(definition.envelope.policyId, 'POL-EDIT');
+      assert.strictEqual(definition.envelope.policyName, 'Edit Policy');
       const error = new Error('Action1 automation request failed.');
       error.statusCode = 404;
       error.diagnostics = { errorMessage: 'Automation with id=auto-old does not exists', responseContentType: 'application/json' };
@@ -59,6 +61,8 @@ async function run() {
   assert.strictEqual(patched.history.counts.created, 1);
   assert.strictEqual(calls.update, 1);
   assert.strictEqual(calls.create[0].definition.fingerprint, desiredDefinition.fingerprint);
+  assert.strictEqual(calls.create[0].definition.envelope.policyId, 'POL-EDIT');
+  assert.strictEqual(calls.create[0].definition.envelope.policyName, 'Edit Policy');
   assert.strictEqual(calls.replacement.action1AutomationId, 'auto-new');
 
   const unchanged = basePolicy();
@@ -79,6 +83,7 @@ async function run() {
   const applied = await applyEdit(context(), unchanged, unchanged, { client: unchangedClient, correlations: unchangedCorrelations });
   assert.strictEqual(applied.history.counts.created, 1);
   assert.strictEqual(unchangedCreatePayload.definition.fingerprint, unchangedDefinition.fingerprint);
+  assert.strictEqual(unchangedCreatePayload.definition.envelope.policyName, 'Edit Policy');
   assert.strictEqual(unchangedCorrelations.replacement.action1AutomationId, 'auto-recreated');
 }
 

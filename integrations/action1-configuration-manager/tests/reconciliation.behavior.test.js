@@ -62,6 +62,8 @@ async function run() {
   assert.deepStrictEqual(result.aggregate, { policiesChecked: 2, automationsChecked: 2, created: 1, unchanged: 1, failed: 0 });
   assert.deepStrictEqual(calls.observe, [['org-1', 'auto-exists'], ['org-1', 'auto-missing']]);
   assert.strictEqual(calls.create.length, 1);
+  assert.strictEqual(calls.create[0].definition.envelope.policyId, 'POL-MISSING');
+  assert.strictEqual(calls.create[0].definition.envelope.policyName, 'POL-MISSING');
   assert.strictEqual(calls.update.length, 0);
   assert.strictEqual(calls.delete.length, 0);
   assert.strictEqual(calls.saved.length, 2);

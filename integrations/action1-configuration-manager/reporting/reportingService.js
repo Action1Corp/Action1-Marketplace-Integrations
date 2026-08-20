@@ -42,6 +42,12 @@ async function observe(client, kind, id) {
 }
 function draftPayload(script) { return { name: DATA_SOURCE.name, description: DATA_SOURCE.description, language: DATA_SOURCE.language, status: 'Draft', columns: [], script_text: script }; }
 function publishedPayload(script) { return { name: DATA_SOURCE.name, description: DATA_SOURCE.description, language: DATA_SOURCE.language, status: 'Published', columns: REPORTING_DATA_SOURCE_COLUMNS, script_text: script }; }
+function validatePublishedDataSourcePayload(payload) {
+  if (JSON.stringify(payload.columns) !== JSON.stringify(REPORTING_DATA_SOURCE_COLUMNS)) throw new Error('Reporting Data Source columns do not match the canonical schema.');
+  if (payload.columns.includes('A1_Key')) throw new Error('Reporting Data Source published columns must not include A1_Key.');
+  if (!String(payload.script_text || '').includes("$row.'Policy Name' = [string]$state.policyName")) throw new Error('Reporting Data Source script does not project Policy Name.');
+  return payload;
+}
 
 async function ensureDataSource(context, request, state, client) {
   const script = scriptText();
@@ -61,7 +67,8 @@ async function ensureDataSource(context, request, state, client) {
     log(context, 'info', 'reporting-data-source-draft-created', { dataSourceId: id });
   }
   await runLog(request, 'Publishing Reporting Data Source.');
-  const published = await client.requestAction1Mutation({ operation: 'publish-reporting-data-source', method: 'PATCH', path: `/data-sources/all/${encodeURIComponent(id)}`, body: publishedPayload(script) });
+  const publishedBody = validatePublishedDataSourcePayload(publishedPayload(script));
+  const published = await client.requestAction1Mutation({ operation: 'publish-reporting-data-source', method: 'PATCH', path: `/data-sources/all/${encodeURIComponent(id)}`, body: publishedBody });
   if (!isPublished(published) && String(published?.id || id) !== id) throw new Error('Action1 Data Source publish response was invalid.');
   const confirmed = await observe(client, 'data-source', id);
   if (confirmed.state !== EXISTENCE.EXISTS || !isPublished(confirmed.payload)) throw confirmed.error instanceof Error ? confirmed.error : new Error('Action1 Data Source was not confirmed Published.');

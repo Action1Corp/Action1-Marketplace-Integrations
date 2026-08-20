@@ -37,7 +37,7 @@ function buildEnvelope(policy, group, controls) {
   return {
     schemaVersion: 1,
     policyId: String(policy.policyId),
-    policyName: String(policy.displayName),
+    policyName: String(policy.baseName),
     policyMode: String(policy.policyMode),
     automationGroupId: String(group.automationGroupId),
     automationGroupVersion: String(group.version),

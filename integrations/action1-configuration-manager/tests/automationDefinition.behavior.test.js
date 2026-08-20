@@ -3,7 +3,7 @@ const path = require('path');
 
 function policy(overrides = {}) {
   return {
-    policyId: 'POL-000001', displayName: 'Workstation Security — All endpoints', policyMode: 'ASSESS_ONLY',
+    policyId: 'POL-000001', baseName: 'Workstation Security', displayName: 'Workstation Security — All endpoints', policyMode: 'ASSESS_ONLY',
     organizationId: 'org-1', scopeType: 'ALL_ENDPOINTS', endpointGroupId: '',
     runSchedule: { runEveryHours: 6, startDate: '2026-08-13', startTime: '15:07', timezone: 'America/Los_Angeles' },
     completionDeadlineMinutes: 360, selectedControls: [{
@@ -33,13 +33,22 @@ async function run() {
   assert.deepStrictEqual(definition.payload.actions[0].params.run_script_params, []);
   assert.strictEqual((definition.scriptText.match(/__A1CM_POLICY_CONFIGURATION_BASE64__/g) || []).length, 0);
   const decoded = Buffer.from(definition.envelopeBase64, 'base64').toString('utf8');
-  assert.deepStrictEqual(JSON.parse(decoded).controls[0].parameters, { minimumLength: 14 });
+  const envelope = JSON.parse(decoded);
+  assert.strictEqual(envelope.policyId, 'POL-000001');
+  assert.strictEqual(envelope.policyName, 'Workstation Security');
+  assert.notStrictEqual(envelope.policyName, policy({ baseName: 'Workstation Security' }).displayName);
+  assert(definition.payload.actions[0].params.run_script_text.includes(definition.envelopeBase64));
+  assert.deepStrictEqual(envelope.controls[0].parameters, { minimumLength: 14 });
   assert(definition.fingerprint.startsWith('sha256:'));
   assert.strictEqual(definition.name, 'A1CM — POL-000001 — Workstation Security — Password Policy');
   assert(!definition.name.includes('All endpoints'));
   const renamedDefinition = buildAutomationDefinitions(policy({ baseName: 'Finance Hardening' }))[0];
   assert.strictEqual(renamedDefinition.name, 'A1CM — POL-000001 — Finance Hardening — Password Policy');
+  assert.strictEqual(renamedDefinition.envelope.policyId, 'POL-000001');
+  assert.strictEqual(renamedDefinition.envelope.policyName, 'Finance Hardening');
   assert.strictEqual(renamedDefinition.name.split(' — ').at(-1), 'Password Policy');
+  const scopeOnlyDefinition = buildAutomationDefinitions(policy({ baseName: 'Workstation Security', displayName: 'Workstation Security — Finance Workstations' }))[0];
+  assert.strictEqual(scopeOnlyDefinition.envelope.policyName, 'Workstation Security');
   const groupPolicy = policy({ scopeType: 'ENDPOINT_GROUP', endpointGroupId: 'group-1', baseName: 'Workstation Security' });
   const [groupDefinition] = buildAutomationDefinitions(groupPolicy);
   assert.deepStrictEqual(groupDefinition.target, [{ id: 'group-1', type: 'EndpointGroup' }]);

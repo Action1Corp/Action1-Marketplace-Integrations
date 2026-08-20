@@ -15,8 +15,9 @@ foreach ($stateFile in $stateFiles) {
         if ([string]::IsNullOrWhiteSpace($rawJson)) { continue }
         $state = $rawJson | ConvertFrom-Json -ErrorAction Stop
         if ([string]::IsNullOrWhiteSpace([string]$state.policyId) -or [string]::IsNullOrWhiteSpace([string]$state.controlId)) { continue }
-        $row = '' | Select-Object 'Policy ID','Control ID','Control Version','Control Name','Configuration Status','Last Checked At','Remediation Attempted','Last Remediated At','Message','State File','A1_Key'
+        $row = '' | Select-Object 'Policy ID','Policy Name','Control ID','Control Version','Control Name','Configuration Status','Last Checked At','Remediation Attempted','Last Remediated At','Message','State File','A1_Key'
         $row.'Policy ID' = [string]$state.policyId
+        $row.'Policy Name' = [string]$state.policyName
         $row.'Control ID' = [string]$state.controlId
         $row.'Control Version' = [string]$state.controlVersion
         $row.'Control Name' = [string]$state.controlName
