@@ -930,11 +930,12 @@ function addEndpointGroupKey(endpointGroupsByKey, key, groupName) {
 }
 
 function action1EndpointKeys(endpoint) {
-    const endpointName = firstString(endpoint?.device_name, endpoint?.name, endpoint?.hostname, endpoint?.endpoint_name);
+    const endpointName = firstString(endpoint?.device_name, endpoint?.deviceName, endpoint?.name, endpoint?.hostname, endpoint?.endpoint_name);
     return [
         endpoint?.id,
         endpoint?.endpoint_id,
         endpoint?.endpointId,
+        endpoint?.action1EndpointId,
         endpoint?.device_id,
         endpoint?.deviceId,
         endpointName,
@@ -951,6 +952,24 @@ function getAction1EndpointGroupNames(endpoint, endpointGroupsByKey) {
         if (matches) matches.forEach(name => names.add(name));
     }
     return Array.from(names).sort((a, b) => a.localeCompare(b));
+}
+
+async function action1EndpointStillInGroup(action1ApiKey, action1ApiSecret, action1OrgId, endpoint, groupId, groupName, action1ApiBase = DEFAULT_ACTION1_BASE_URL) {
+    const membership = await fetchAction1EndpointGroupMembership(
+        action1ApiKey,
+        action1ApiSecret,
+        action1OrgId,
+        [groupId],
+        { [groupId]: groupName },
+        action1ApiBase
+    );
+    return getAction1EndpointGroupNames({
+        id: endpoint.action1EndpointId,
+        endpoint_id: endpoint.action1EndpointId,
+        endpointId: endpoint.action1EndpointId,
+        deviceName: endpoint.deviceName,
+        name: endpoint.deviceName
+    }, membership).some(name => String(name || '').trim().toLowerCase() === String(groupName || groupId).trim().toLowerCase());
 }
 
 async function fetchAction1EndpointGroupMembership(action1ApiKey, action1ApiSecret, action1OrgId, selectedAction1GroupIds = [], selectedAction1GroupMap = {}, action1ApiBase = DEFAULT_ACTION1_BASE_URL) {
@@ -1271,13 +1290,19 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
                 const completedCleanupGroupIds = new Set(previousCleanupGroupIds);
                 const successfulCleanupGroupIds = new Set();
                 for (const groupId of groupsToRemove) {
+                    const groupName = selectedAction1GroupMap?.[groupId] || groupId;
                     try {
                         const cleanup = await removeAction1EndpointFromGroup(headers, action1OrgId, groupId, endpoint.action1EndpointId, action1ApiBase);
-                        cleanupMessages.push(`${selectedAction1GroupMap?.[groupId] || groupId}: ${firstString(cleanup?.user_message, cleanup?.message, 'removed')}`);
-                        completedCleanupGroupIds.add(groupId);
-                        successfulCleanupGroupIds.add(groupId);
+                        const stillInGroup = await action1EndpointStillInGroup(action1ApiKey, action1ApiSecret, action1OrgId, endpoint, groupId, groupName, action1ApiBase);
+                        if (stillInGroup) {
+                            cleanupMessages.push(`${groupName}: removal requested but endpoint is still present in Action1`);
+                        } else {
+                            cleanupMessages.push(`${groupName}: ${firstString(cleanup?.user_message, cleanup?.message, 'removed')}`);
+                            completedCleanupGroupIds.add(groupId);
+                            successfulCleanupGroupIds.add(groupId);
+                        }
                     } catch (cleanupError) {
-                        cleanupMessages.push(`${selectedAction1GroupMap?.[groupId] || groupId}: ${cleanupError.response?.data?.error?.message || cleanupError.message}`);
+                        cleanupMessages.push(`${groupName}: ${cleanupError.response?.data?.error?.message || cleanupError.message}`);
                     }
                 }
                 if (successfulCleanupGroupIds.size) {
