@@ -11,13 +11,12 @@ import {
 } from 'lucide-react';
 
 const endpointColumns = [
-  { key: 'deviceName', label: 'Endpoint', width: '13%' },
-  { key: 'source', label: 'Enrollment Status', width: '12%' },
-  { key: 'provisioningStatus', label: 'Provisioning Status', width: '13%' },
-  { key: 'action1EndpointGroups', label: 'Endpoint Groups', width: '15%' },
-  { key: 'deviceGroups', label: 'Device Groups', width: '17%' },
-  { key: 'os', label: 'OS', width: '8%' },
-  { key: 'userPrincipalName', label: 'User', width: '22%' }
+  { key: 'deviceName', label: 'Endpoint', minWidth: 220, maxWidth: 360 },
+  { key: 'source', label: 'Enrollment Status', nowrap: true },
+  { key: 'provisioningStatus', label: 'Provisioning Status', nowrap: true },
+  { key: 'action1EndpointGroups', label: 'Endpoint Groups', minWidth: 150, maxWidth: 260 },
+  { key: 'deviceGroups', label: 'Device Groups', minWidth: 180, maxWidth: 320 },
+  { key: 'os', label: 'OS', nowrap: true }
 ];
 
 const DASHBOARD_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
@@ -30,8 +29,12 @@ const baseTableCellStyle = {
 function columnCellStyle(column, extra = {}) {
   return {
     ...baseTableCellStyle,
-    width: column.width,
-    whiteSpace: column.nowrap ? 'nowrap' : undefined,
+    width: column.nowrap ? '1%' : undefined,
+    minWidth: column.minWidth,
+    maxWidth: column.maxWidth,
+    whiteSpace: column.nowrap ? 'nowrap' : 'normal',
+    overflowWrap: column.nowrap ? undefined : 'anywhere',
+    verticalAlign: 'middle',
     ...extra
   };
 }
@@ -445,9 +448,9 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
                             style={{ cursor: 'pointer', background: expanded ? '#F8FBFF' : '#fff' }}
                           >
                             <td style={columnCellStyle(endpointColumns[0], { fontWeight: 600 })}>
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'flex-start', gap: '0.35rem', minWidth: 0 }}>
                                 {expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-                                {device.deviceName}
+                                <span style={{ overflowWrap: 'anywhere' }}>{device.deviceName}</span>
                               </span>
                             </td>
                             <td style={columnCellStyle(endpointColumns[1])}><SourcePill source={device.source} /></td>
@@ -455,7 +458,6 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
                             <td style={columnCellStyle(endpointColumns[3])}>{Array.isArray(device.action1EndpointGroups) && device.action1EndpointGroups.length ? device.action1EndpointGroups.join(', ') : 'N/A'}</td>
                             <td style={columnCellStyle(endpointColumns[4])}>{Array.isArray(device.deviceGroups) && device.deviceGroups.length ? device.deviceGroups.join(', ') : groupMembershipLimited && device.source !== 'Action1' ? 'Permission required' : 'N/A'}</td>
                             <td style={columnCellStyle(endpointColumns[5])}>{device.os || 'N/A'}</td>
-                            <td style={columnCellStyle(endpointColumns[6])}>{device.userPrincipalName || 'N/A'}</td>
                           </tr>
                           {expanded && (
                             <tr>
