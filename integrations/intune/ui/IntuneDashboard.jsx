@@ -20,6 +20,8 @@ const endpointColumns = [
   { key: 'userPrincipalName', label: 'User', width: '22%' }
 ];
 
+const DASHBOARD_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
+
 const baseTableCellStyle = {
   padding: '0.6rem',
   borderBottom: '1px solid var(--border-color)'
@@ -155,8 +157,8 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
   useEffect(() => {
     let cancelled = false;
 
-    const loadDashboard = async (retry = true) => {
-      setLoading(true);
+    const loadDashboard = async ({ retry = true, showLoading = false } = {}) => {
+      if (showLoading) setLoading(true);
       setError('');
       try {
         const response = await fetch('/api/intune/status');
@@ -176,9 +178,20 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
       }
     };
 
-    loadDashboard();
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') loadDashboard({ retry: false });
+    };
+
+    loadDashboard({ showLoading: true });
+    const refreshTimer = window.setInterval(() => loadDashboard({ retry: false }), DASHBOARD_REFRESH_INTERVAL_MS);
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+
     return () => {
       cancelled = true;
+      window.clearInterval(refreshTimer);
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
   }, [syncing]);
 
