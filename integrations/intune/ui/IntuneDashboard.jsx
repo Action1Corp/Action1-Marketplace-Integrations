@@ -478,7 +478,21 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
                                       <tbody>
                                         {automationResults.map((result, resultIndex) => (
                                           <tr key={`${key}-automation-${resultIndex}`}>
-                                            <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', fontWeight: 600 }}>{result.automationName || 'Unnamed automation'}</td>
+                                            <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', fontWeight: 600 }}>
+                                              {result.automationUrl ? (
+                                                <a
+                                                  href={result.automationUrl}
+                                                  target="_blank"
+                                                  rel="noreferrer"
+                                                  onClick={(event) => event.stopPropagation()}
+                                                  style={{ color: '#003DA6', textDecoration: 'none' }}
+                                                >
+                                                  {result.automationName || 'Unnamed automation'}
+                                                </a>
+                                              ) : (
+                                                result.automationName || 'Unnamed automation'
+                                              )}
+                                            </td>
                                             <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6' }}><ProvisioningStatusPill status={result.status || 'N/A'} /></td>
                                             <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6' }}>{result.actionName || 'N/A'}</td>
                                             <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6' }}>{result.percentCompleted ? `${result.percentCompleted}%` : 'N/A'}</td>
