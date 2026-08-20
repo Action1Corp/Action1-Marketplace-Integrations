@@ -42,11 +42,11 @@ function action1ConsoleUrl(credentials = {}) {
     }
 }
 
-function action1AutomationConsoleUrl(action1ConsoleBase, action1OrgId, scheduleId) {
-    const id = firstString(scheduleId);
+function action1AutomationHistoryUrl(action1ConsoleBase, action1OrgId, instanceId) {
+    const id = firstString(instanceId);
     const org = firstString(action1OrgId);
     if (!id || !org) return '';
-    return `${String(action1ConsoleBase || DEFAULT_ACTION1_CONSOLE_URL).replace(/\/+$/, '')}/console/new-policy-deploy-package/step-1?id=${encodeURIComponent(id)}&org=${encodeURIComponent(org)}`;
+    return `${String(action1ConsoleBase || DEFAULT_ACTION1_CONSOLE_URL).replace(/\/+$/, '')}/console/automations/history/${encodeURIComponent(id)}/details?limit=50&from=0&org=${encodeURIComponent(org)}`;
 }
 
 
@@ -844,16 +844,18 @@ function findPreviousProvisioning(endpoint, previousByEndpoint) {
 function provisioningRequirementFromInstance(provisioningInstance, action1OrgId, action1ConsoleBase) {
     const instance = provisioningInstance?.instance || {};
     const schedule = provisioningInstance?.schedule || {};
+    const instanceId = firstString(instance?.id, instance?.instance_id, instance?.instanceId);
     const scheduleId = firstString(schedule?.id);
     return {
         scheduleKey: action1InstanceScheduleKey(instance),
+        automationInstanceId: instanceId,
         automationName: firstString(instance?.name, instance?.action_name, schedule?.name, 'Unnamed automation'),
         actionName: firstString(instance?.action_name, schedule?.action_name),
         runFrequencyMinutes: provisioningInstance?.frequencyMinutes,
         scheduleId,
         scheduleSettings: firstString(schedule?.settings),
         provisioningEndpointGroups: provisioningInstance?.scheduleGroupIds || [],
-        automationUrl: action1AutomationConsoleUrl(action1ConsoleBase, action1OrgId, scheduleId)
+        automationUrl: action1AutomationHistoryUrl(action1ConsoleBase, action1OrgId, instanceId)
     };
 }
 
@@ -886,7 +888,7 @@ async function fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecre
         if (!instanceId) continue;
         const scheduleKey = action1InstanceScheduleKey(instance);
         const scheduleId = firstString(provisioningInstance.schedule?.id);
-        const automationUrl = action1AutomationConsoleUrl(action1ConsoleBase, action1OrgId, scheduleId);
+        const automationUrl = action1AutomationHistoryUrl(action1ConsoleBase, action1OrgId, instanceId);
         const results = await fetchAction1Collection(
             headers,
             `${action1ApiBase}/automations/instances/${encodeURIComponent(action1OrgId)}/${encodeURIComponent(instanceId)}/endpoint-results?limit=${ACTION1_AUTOMATION_ENDPOINT_RESULT_LIMIT}&from=0`,
@@ -901,6 +903,7 @@ async function fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecre
             provisioningByEndpoint.get(endpointId).push({
                 status,
                 scheduleKey,
+                automationInstanceId: instanceId,
                 automationName: firstString(instance?.name, instance?.action_name, result?.action_name, result?.automation_name, 'Unnamed automation'),
                 startedAt: firstString(instance?.start_time, instance?.started_at, result?.start_time, result?.started_at),
                 completedAt: firstString(result?.time, result?.end_time, result?.completed_at, instance?.end_time, instance?.completed_at),
@@ -928,6 +931,7 @@ async function fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecre
             results.push({
                 status: 'In progress',
                 scheduleKey: requirement.scheduleKey,
+                automationInstanceId: requirement.automationInstanceId,
                 automationName: requirement.automationName,
                 actionName: requirement.actionName,
                 percentCompleted: '',
@@ -1231,8 +1235,21 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
     let provisioningMessage = '';
     const previousProvisioning = previousProvisioningByEndpoint(previousEndpointRegistration);
     try {
+        const selectedAction1GroupNames = new Set(selectedAction1GroupIds
+            .flatMap(groupId => [groupId, selectedAction1GroupMap?.[groupId]])
+            .map(value => String(value || '').trim().toLowerCase())
+            .filter(Boolean));
+        const isInSelectedAction1ProvisioningGroup = (endpoint) => (
+            (endpoint.action1EndpointGroups || [])
+                .some(groupName => selectedAction1GroupNames.has(String(groupName || '').trim().toLowerCase()))
+        );
         const targetAction1EndpointIds = endpoints
-            .filter(endpoint => endpoint.inAssignmentTarget && endpoint.source === 'Synced' && endpoint.action1EndpointId)
+            .filter(endpoint => (
+                endpoint.inAssignmentTarget &&
+                endpoint.source === 'Synced' &&
+                endpoint.action1EndpointId &&
+                isInSelectedAction1ProvisioningGroup(endpoint)
+            ))
             .map(endpoint => endpoint.action1EndpointId);
         const provisioningByEndpoint = await fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecret, action1OrgId, targetAction1EndpointIds, selectedAction1GroupIds, action1ApiBase, action1ConsoleBase);
         for (const endpoint of endpoints) {
@@ -1247,6 +1264,21 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
                 endpoint.provisioningStatus = 'N/A';
                 endpoint.provisioningDetail = '';
                 endpoint.automationResults = [];
+                continue;
+            }
+            if (!isInSelectedAction1ProvisioningGroup(endpoint)) {
+                endpoint.provisioningStatus = endpoint.provisioningCompletedByAttribute ? 'Completed' : 'N/A';
+                endpoint.provisioningDetail = endpoint.provisioningCompletedByAttribute
+                    ? `${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE} is ${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE}.`
+                    : 'Endpoint is not in a selected Action1 provisioning group.';
+                endpoint.automationResults = [];
+                endpoint.provisioningCleanupStatus = previous?.provisioningCleanupStatus || '';
+                endpoint.provisioningCleanupMessage = previous?.provisioningCleanupMessage || '';
+                endpoint.provisioningCleanupGroupIds = previous?.provisioningCleanupGroupIds || [];
+                endpoint.provisioningAttributeStatus = endpoint.provisioningCompletedByAttribute ? 'completed' : '';
+                endpoint.provisioningAttributeMessage = endpoint.provisioningCompletedByAttribute
+                    ? `${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE} is ${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE}.`
+                    : '';
                 continue;
             }
             const provisioning = provisioningByEndpoint.get(endpoint.action1EndpointId) || { status: NO_AUTOMATION_RESULT_STATUS, detail: 'No Action1 provisioning automation result was found for this endpoint.', automationResults: [] };
