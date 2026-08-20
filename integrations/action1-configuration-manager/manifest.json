@@ -2,12 +2,154 @@
   "id": "action1-configuration-manager",
   "name": "Configuration Management",
   "vendor": "Action1",
-  "version": "0.1.0",
+  "version": "0.1.4",
   "marketplaceApiVersion": "1.0",
   "minimumMarketplaceVersion": "1.0.0",
   "description": "Create and manage Windows configuration policies through scheduled Action1 automations.",
   "category": "Endpoint Management",
   "icon_color": "#2E8CEB",
   "entry": "index.js",
-  "actions": []
+  "actions": [
+    {
+      "id": "list-policies",
+      "kind": "action",
+      "label": "List Policies",
+      "buttonLabel": "List Policies",
+      "description": "Lists persisted Configuration Manager policies.",
+      "placement": "policies",
+      "history": false
+    },
+    {
+      "id": "get-policy",
+      "kind": "action",
+      "label": "Get Policy",
+      "buttonLabel": "Get Policy",
+      "description": "Loads one persisted Configuration Manager policy.",
+      "placement": "policies",
+      "history": false
+    },
+    {
+      "id": "save-policy",
+      "kind": "action",
+      "label": "Save Policy",
+      "buttonLabel": "Save Policy",
+      "runningLabel": "Saving...",
+      "description": "Creates or updates the persisted Configuration Manager policy record.",
+      "placement": "policies",
+      "history": false
+    },
+    {
+      "id": "create-policy",
+      "kind": "action",
+      "label": "Policy created",
+      "buttonLabel": "Create Policy",
+      "runningLabel": "Creating Policy...",
+      "description": "Creates and initially applies a Configuration Manager Policy.",
+      "placement": "policies",
+      "history": true
+    },
+    {
+      "id": "update-policy",
+      "kind": "action",
+      "label": "Policy updated",
+      "buttonLabel": "Save and apply",
+      "runningLabel": "Applying Policy changes...",
+      "description": "Updates and applies a Configuration Manager Policy.",
+      "placement": "policies",
+      "history": true
+    },
+    {
+      "id": "set-policy-enabled",
+      "kind": "action",
+      "label": "Set Policy Enabled",
+      "buttonLabel": "Update Policy",
+      "description": "Enables or disables a persisted Configuration Manager policy.",
+      "placement": "policies",
+      "history": false
+    },
+    {
+      "id": "disable-policy",
+      "kind": "action",
+      "label": "Policy disabled",
+      "buttonLabel": "Disable Policy",
+      "runningLabel": "Disabling Policy...",
+      "description": "Disables a Configuration Manager Policy and removes its owned automations.",
+      "placement": "policies",
+      "history": true
+    },
+    {
+      "id": "enable-policy",
+      "kind": "action",
+      "label": "Policy enabled",
+      "buttonLabel": "Enable Policy",
+      "runningLabel": "Enabling Policy...",
+      "description": "Enables a Configuration Manager Policy and recreates its owned automations.",
+      "placement": "policies",
+      "history": true
+    },
+    {
+      "id": "delete-policy",
+      "kind": "action",
+      "label": "Delete Policy",
+      "buttonLabel": "Delete Policy",
+      "description": "Deletes a persisted Configuration Manager policy.",
+      "placement": "policies",
+      "history": true
+    },
+    {
+      "id": "discover-policy-organizations",
+      "kind": "action",
+      "label": "Discover Policy Organizations",
+      "buttonLabel": "Discover Policy Organizations",
+      "description": "Loads Action1 organizations for the Configuration Manager Policies wizard.",
+      "placement": "policies",
+      "history": false
+    },
+    {
+      "id": "discover-policy-endpoint-groups",
+      "kind": "action",
+      "label": "Discover Policy Endpoint Groups",
+      "buttonLabel": "Discover Policy Endpoint Groups",
+      "description": "Loads Action1 endpoint groups for the selected Configuration Manager organization.",
+      "placement": "policies",
+      "history": false
+    },
+    {
+      "id": "reconcile-policies",
+      "kind": "sync",
+      "label": "Scheduled reconciliation",
+      "buttonLabel": "Reconcile now",
+      "runningLabel": "Reconciling Policies...",
+      "description": "Reconciles missing owned Action1 automations for Enabled Policies.",
+      "history": true,
+      "retry": false
+    },
+    {
+      "id": "get-reporting-state",
+      "kind": "action",
+      "label": "Get Reporting State",
+      "description": "Loads persisted Configuration Management reporting identities without remote verification.",
+      "placement": "settings",
+      "history": false
+    },
+    {
+      "id": "get-reporting-status",
+      "kind": "action",
+      "label": "Get Reporting Status",
+      "description": "Verifies Configuration Management reporting resources.",
+      "placement": "settings",
+      "history": false
+    },
+    {
+      "id": "setup-reporting",
+      "kind": "action",
+      "label": "Reporting setup",
+      "buttonLabel": "Set up reporting",
+      "runningLabel": "Setting up reporting...",
+      "description": "Creates or repairs the Configuration Management Data Source and Reports.",
+      "placement": "settings",
+      "history": true,
+      "retry": false
+    }
+  ]
 }

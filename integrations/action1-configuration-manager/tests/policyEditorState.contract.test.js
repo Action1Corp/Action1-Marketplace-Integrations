@@ -21,6 +21,7 @@ async function run() {
     updateControlParameter,
     updateRunEveryHours,
     updateCompletionDeadline,
+    updateCompletionDeadlineHours,
     getInitialOpenControlFamilies
   } = await import(pathToFileURL(path.join(__dirname, '..', 'ui', 'policies', 'policyEditorState.js')).href);
   const { deriveDisplayName } = await import(
@@ -52,6 +53,10 @@ async function run() {
     420,
     'manually editing the completion deadline should preserve the operator override'
   );
+
+  const hoursDeadlineDraft = updateCompletionDeadlineHours(resyncedDraft, 6);
+  assert.strictEqual(hoursDeadlineDraft.completionDeadlineMinutes, 360, 'the hours-only deadline UI should normalize 6 hours to canonical minutes');
+  assert.strictEqual(updateCompletionDeadlineHours(resyncedDraft, 24).completionDeadlineMinutes, 1440, 'the hours-only deadline UI should normalize 24 hours to canonical minutes');
 
   const resyncedAfterManualEditDraft = updateRunEveryHours(manuallyEditedDeadlineDraft, 12);
   assert.strictEqual(

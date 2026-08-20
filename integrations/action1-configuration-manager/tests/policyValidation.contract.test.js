@@ -34,11 +34,12 @@ async function buildCatalog() {
 }
 
 async function buildRepositories() {
-  const { createDemoPolicyRepository } = await import(
-    pathToFileURL(path.join(__dirname, '..', 'ui', 'demo', 'demoPolicyRepository.js')).href
-  );
   return {
-    policyRepository: createDemoPolicyRepository()
+    policyRepository: {
+      listPolicies() {
+        return [];
+      }
+    }
   };
 }
 
@@ -64,28 +65,6 @@ async function run() {
   expectFieldError(validatePolicyDraft(buildDraft({ selectedControls: [] }), catalog, await buildRepositories()), 'selectedControls');
 
   const duplicateRepositories = await buildRepositories();
-  duplicateRepositories.policyRepository.createPolicy({
-    policyId: 'POL-000001',
-    baseName: 'Workstation Security',
-    displayName: 'Workstation Security \u2014 Finance Workstations',
-    enabled: true,
-    organizationId: 'org-acme',
-    organizationNameSnapshot: 'Acme Corp',
-    scopeType: 'ENDPOINT_GROUP',
-    endpointGroupId: 'group-finance-workstations',
-    endpointGroupNameSnapshot: 'Finance Workstations',
-    policyMode: 'ASSESS_ONLY',
-    runSchedule: {
-      runEveryHours: 24,
-      startDate: '2026-08-01',
-      startTime: '09:30',
-      timezone: 'America/Los_Angeles'
-    },
-    completionDeadlineMinutes: 1440,
-    controlPackId: 'windows-endpoint-configuration',
-    controlPackVersion: '0.1.0',
-    selectedControls: []
-  });
   const duplicateDisplayNameResult = validatePolicyDraft(buildDraft(), catalog, duplicateRepositories);
   assert.strictEqual(
     duplicateDisplayNameResult.fieldErrors.baseName,

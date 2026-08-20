@@ -32,6 +32,38 @@ export function formatPolicySchedule(runSchedule = {}) {
   return `Every ${runEveryHours} h`;
 }
 
+function buildConsoleUrlFromCorrelation(row) {
+  const automationName = row.canonicalAutomationName || row.action1AutomationName;
+  if (row.canonicalAutomationName && row.action1AutomationSelf && row.action1OrganizationId) {
+    try {
+      const origin = new URL(row.action1AutomationSelf).origin;
+      const url = new URL('/console/automations', origin);
+      url.search = new URLSearchParams({
+        limit: '200', from: '0', 'add_endpoints-limit': '200', 'add_endpoints-from': '0',
+        org: row.action1OrganizationId,
+        filter: encodeURIComponent(automationName)
+      }).toString();
+      return url.toString();
+    } catch {
+      return '';
+    }
+  }
+  if (row.action1ConsoleUrl) return row.action1ConsoleUrl;
+  if (!row.action1AutomationSelf || !automationName || !row.action1OrganizationId) return '';
+  try {
+    const origin = new URL(row.action1AutomationSelf).origin;
+    const url = new URL('/console/automations', origin);
+    url.search = new URLSearchParams({
+      limit: '200', from: '0', 'add_endpoints-limit': '200', 'add_endpoints-from': '0',
+      org: row.action1OrganizationId,
+      filter: encodeURIComponent(automationName)
+    }).toString();
+    return url.toString();
+  } catch {
+    return '';
+  }
+}
+
 function formatCountLabel(count, singularLabel, pluralLabel = `${singularLabel}s`) {
   const normalizedCount = Number(count || 0);
   return `${normalizedCount} ${normalizedCount === 1 ? singularLabel : pluralLabel}`;
@@ -90,8 +122,18 @@ export function buildCompactControlFamilyGroups({ selectedControls, action1Autom
     return [];
   }
 
+  const normalizedAutomationRows = action1Automations.map((automationRow) => ({
+    ...automationRow,
+    automationId: automationRow.automationId || automationRow.action1AutomationId,
+    controlFamilyName: automationRow.controlFamilyName || automationRow.controlFamilyNameSnapshot,
+    automationName: automationRow.automationName || automationRow.action1AutomationName,
+    action1Url: buildConsoleUrlFromCorrelation(automationRow) || (automationRow.action1Url && !automationRow.action1Url.includes('/api/3.0/') ? automationRow.action1Url : '')
+  }));
   const automationRowsByFamilyName = new Map(
-    action1Automations.map((automationRow) => [automationRow.controlFamilyName, automationRow])
+    normalizedAutomationRows.map((automationRow) => [automationRow.controlFamilyName, automationRow])
+  );
+  const automationRowsByFamilyId = new Map(
+    normalizedAutomationRows.map((automationRow) => [automationRow.automationGroupId, automationRow])
   );
   const groups = new Map();
 
@@ -108,7 +150,7 @@ export function buildCompactControlFamilyGroups({ selectedControls, action1Autom
         automationGroupId: controlFamily.automationGroupId,
         familyId: controlFamily.automationGroupId,
         familyName: controlFamily.name,
-        automationLink: automationRowsByFamilyName.get(controlFamily.name) || null,
+        automationLink: automationRowsByFamilyId.get(controlFamily.automationGroupId) || automationRowsByFamilyName.get(controlFamily.name) || null,
         selectedCount: 0,
         controls: []
       });
@@ -159,7 +201,13 @@ export function formatPolicyDetails(policy, catalog) {
     controlsCountLabel: formatCountLabel(selectedControls.length, 'selected Control'),
     controlFamiliesCountLabel: formatCountLabel(policy.selectedFamilyCount || 0, 'Control Family', 'Control Families'),
     automationsCountLabel: formatCountLabel(policy.expectedAutomationCount || 0, 'Action1 automation'),
-    automationRows: action1Automations,
+    automationRows: action1Automations.map((automationRow) => ({
+      ...automationRow,
+      automationId: automationRow.automationId || automationRow.action1AutomationId,
+      controlFamilyName: automationRow.controlFamilyName || automationRow.controlFamilyNameSnapshot,
+      automationName: automationRow.automationName || automationRow.action1AutomationName,
+      action1Url: buildConsoleUrlFromCorrelation(automationRow) || (automationRow.action1Url && !automationRow.action1Url.includes('/api/3.0/') ? automationRow.action1Url : '')
+    })),
     controlFamilyGroups: buildCompactControlFamilyGroups({
       selectedControls,
       action1Automations,

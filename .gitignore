@@ -41,4 +41,5 @@ qualys-out.txt
 # Local runtime artifacts
 .runtime-logs/
 /integrations/halo-psa/.runtime-logs/
+/integrations/action1-configuration-manager/.runtime-logs/
 /integrations/halo-psa/tests/HALO_CLIENT_TEST_DATA.md
