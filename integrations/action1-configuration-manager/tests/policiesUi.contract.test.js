@@ -183,9 +183,13 @@ function run() {
   assert(styleTokensSource.includes('controlHeight: 34'), 'policyUiStyles should centralize the compact 34px control height');
   assert(styleTokensSource.includes('surfaceRadius: 8'), 'policyUiStyles should centralize the 8px card/dialog radius');
   assert(styleTokensSource.includes('borderRadius: 4'), 'policyUiStyles should use the reference 4px rectangular control geometry');
-  assert(styleTokensSource.includes('#e4e8ec'), 'policyUiStyles should use the reference neutral border color');
-  assert(styleTokensSource.includes('#cfd6dd'), 'policyUiStyles should use the reference control border color');
-  assert(styleTokensSource.includes('#1f2328'), 'policyUiStyles should use the reference primary text color');
+  assert(styleTokensSource.includes("borderColor: '#D1D7E2'"), 'policyUiStyles should use the Action1 neutral border color');
+  assert(styleTokensSource.includes("inputBorderColor: '#D1D7E2'"), 'policyUiStyles should use the Action1 control border color');
+  assert(styleTokensSource.includes("textPrimary: '#313752'"), 'policyUiStyles should use the Action1 primary text color');
+  assert(styleTokensSource.includes("accent: '#0337A1'"), 'policyUiStyles should use the Action1 primary accent color');
+  assert(styleTokensSource.includes("accentBackground: '#CEE5FD'"), 'policyUiStyles should use the Action1 selection background color');
+  assert(styleTokensSource.includes("controlSelectionBackground: '#EAF4FF'"), 'policyUiStyles should use a lighter selected Control card background');
+  assert(styleTokensSource.includes("editorNeutralBackground: '#f6f8fa'"), 'policyUiStyles should restore the editor neutral surface background');
 }
 
 try {

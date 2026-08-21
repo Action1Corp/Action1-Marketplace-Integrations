@@ -26,7 +26,8 @@ const styles = {
     maxWidth: 960,
     margin: '0 auto',
     display: 'grid',
-    gap: '0.75rem'
+    gap: '0.75rem',
+    fontFamily: policyUiTokens.fontFamily
   },
   title: {
     margin: 0

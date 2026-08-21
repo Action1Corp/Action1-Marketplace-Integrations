@@ -33,7 +33,8 @@ const styles = {
     textAlign: 'left',
     fontSize: policyUiTokens.fontSizes.hint,
     fontWeight: 600,
-    color: policyUiTokens.textMuted,
+    color: policyUiTokens.textPrimary,
+    textTransform: 'none',
     borderBottom: `1px solid ${policyUiTokens.borderColor}`,
     background: policyUiTokens.mutedBackground
   },

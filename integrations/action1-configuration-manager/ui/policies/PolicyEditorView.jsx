@@ -23,6 +23,7 @@ import { deriveDisplayName, formatParameterValue } from './policyViewModel.js';
 import CompactControlSummaryGroups from './CompactControlSummaryGroups.jsx';
 import ParameterField from './ParameterField.jsx';
 import { formatUtcOffset } from './timezoneModel.js';
+import { policyUiTokens } from './policyUiStyles.js';
 
 function getCurrentTimezoneLabel(schedule = {}) {
   try {
@@ -41,19 +42,21 @@ const WIZARD_STEPS = [
 
 const WIZARD_CSS = `
 .a1-policy-wizard {
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --accent-bg: #eff6ff;
-  --accent-border: #bfdbfe;
+  --accent: ${policyUiTokens.accent};
+  --accent-hover: ${policyUiTokens.accentHover};
+  --accent-bg: ${policyUiTokens.accentBackground};
+  --accent-border: ${policyUiTokens.accentBorder};
+  --control-selected-bg: ${policyUiTokens.controlSelectionBackground};
+  --editor-neutral-bg: ${policyUiTokens.editorNeutralBackground};
   --danger: #b91c1c;
   --danger-bg: #fee2e2;
-  --text: #1f2328;
-  --text-2: #57606a;
-  --text-3: #8b949e;
+  --text: ${policyUiTokens.textPrimary};
+  --text-2: ${policyUiTokens.textSecondary};
+  --text-3: ${policyUiTokens.textMuted};
   --bg-card: #ffffff;
-  --bg-muted: #f6f8fa;
-  --border: #e4e8ec;
-  --border-input: #cfd6dd;
+  --bg-muted: ${policyUiTokens.mutedBackground};
+  --border: ${policyUiTokens.borderColor};
+  --border-input: ${policyUiTokens.inputBorderColor};
   --radius: 4px;
   --radius-card: 8px;
   --fs-title: 18px;
@@ -61,7 +64,7 @@ const WIZARD_CSS = `
   --fs-body: 14px;
   --fs-label: 13px;
   --fs-hint: 12px;
-  --font: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font: RooftopBook, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
   font-family: var(--font);
   font-size: var(--fs-body);
@@ -135,13 +138,13 @@ const WIZARD_CSS = `
 .a1-policy-wizard .adv-body { display: none; margin-top: 16px; }
 .a1-policy-wizard .adv.open .adv-body { display: block; }
 .a1-policy-wizard .validation-notice { margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--danger-bg); background: #fff7f7; color: var(--danger); border-radius: var(--radius); font-size: var(--fs-label); }
-.a1-policy-wizard .baseline-bar { display: flex; align-items: center; gap: 10px; background: var(--bg-muted); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.a1-policy-wizard .baseline-bar { display: flex; align-items: center; gap: 10px; background: var(--editor-neutral-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 12px; flex-wrap: wrap; }
 .a1-policy-wizard .baseline-bar .b-label { font-size: var(--fs-label); font-weight: 600; }
 .a1-policy-wizard .baseline-bar select { width: auto; min-width: 260px; height: 30px; font-size: var(--fs-label); background: var(--bg-card); }
 .a1-policy-wizard .baseline-bar .btn { height: 30px; padding: 0 12px; }
 .a1-policy-wizard .baseline-bar .b-note { font-size: var(--fs-hint); color: var(--text-3); flex-basis: 100%; margin: 0; }
 .a1-policy-wizard .controls-layout { display: grid; grid-template-columns: 264px 1fr; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; height: 560px; }
-.a1-policy-wizard .tree { background: var(--bg-muted); border-right: 1px solid var(--border); padding: 12px; overflow-y: auto; }
+.a1-policy-wizard .tree { background: var(--editor-neutral-bg); border-right: 1px solid var(--border); padding: 12px; overflow-y: auto; }
 .a1-policy-wizard .tree-search { margin-bottom: 10px; }
 .a1-policy-wizard .tree-search input { background: var(--bg-card); height: 30px; font-size: var(--fs-label); }
 .a1-policy-wizard .tree-toolbar { font-size: var(--fs-hint); color: var(--text-2); margin-bottom: 10px; }
@@ -177,7 +180,7 @@ const WIZARD_CSS = `
 .a1-policy-wizard .detail-sub { font-size: var(--fs-hint); color: var(--text-3); margin: 0 0 12px; }
 .a1-policy-wizard .control-row { display: flex; gap: 10px; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 6px; cursor: pointer; }
 .a1-policy-wizard .control-row:hover { border-color: var(--border-input); }
-.a1-policy-wizard .control-row.selected { background: var(--accent-bg); border-color: var(--accent-border); }
+.a1-policy-wizard .control-row.selected { background: var(--control-selected-bg); border-color: var(--accent-border); }
 .a1-policy-wizard .control-name { font-size: var(--fs-label); font-weight: 600; }
 .a1-policy-wizard .control-desc { font-size: var(--fs-hint); color: var(--text-3); margin-top: 2px; }
 .a1-policy-wizard .control-meta { display: flex; align-items: center; gap: 8px; margin-top: 5px; flex-wrap: wrap; }

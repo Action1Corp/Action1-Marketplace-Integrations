@@ -1,22 +1,23 @@
 export const policyUiTokens = {
-  accent: '#2563eb',
-  accentHover: '#1d4ed8',
-  accentBackground: '#eff6ff',
-  accentBorder: '#bfdbfe',
+  accent: '#0337A1',
+  accentHover: '#022d87',
+  accentBackground: '#CEE5FD',
+  accentBorder: '#9fc9f3',
+  controlSelectionBackground: '#EAF4FF',
+  editorNeutralBackground: '#f6f8fa',
   success: '#4d7c0f',
   successBackground: '#ecfccb',
   danger: '#b91c1c',
   dangerSoftBorder: '#f1c0c4',
   dangerSoftBackground: '#fff4f5',
-  textPrimary: '#1f2328',
+  textPrimary: '#313752',
   textSecondary: '#57606a',
   textMuted: '#8b949e',
-  pageBackground: '#f6f8fa',
   surfaceBackground: '#ffffff',
-  mutedBackground: '#f6f8fa',
-  lockedBackground: '#f6f8fa',
-  borderColor: '#e4e8ec',
-  inputBorderColor: '#cfd6dd',
+  mutedBackground: '#F0F2F7',
+  lockedBackground: '#F0F2F7',
+  borderColor: '#D1D7E2',
+  inputBorderColor: '#D1D7E2',
   controlHeight: 34,
   radius: 4,
   surfaceRadius: 8,
@@ -27,13 +28,15 @@ export const policyUiTokens = {
     body: 14,
     label: 13,
     hint: 12
-  }
+  },
+  fontFamily: 'RooftopBook, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
 };
 
 export const pageSurfaceStyle = {
   background: policyUiTokens.surfaceBackground,
   border: `1px solid ${policyUiTokens.borderColor}`,
-  borderRadius: policyUiTokens.surfaceRadius
+  borderRadius: policyUiTokens.surfaceRadius,
+  fontFamily: policyUiTokens.fontFamily
 };
 
 export const sectionDividerStyle = {

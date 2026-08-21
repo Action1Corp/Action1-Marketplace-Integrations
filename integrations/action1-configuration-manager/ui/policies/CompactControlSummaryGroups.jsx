@@ -1,3 +1,5 @@
+import { policyUiTokens } from './policyUiStyles.js';
+
 const styles = {
   groups: {
     display: 'grid',
@@ -24,11 +26,11 @@ const styles = {
     margin: 0,
     fontSize: '13px',
     fontWeight: 600,
-    color: '#1f2328'
+    color: policyUiTokens.textPrimary
   },
   count: {
     fontSize: '12px',
-    color: '#8b949e'
+    color: policyUiTokens.textMuted
   },
   chips: {
     display: 'flex',
@@ -40,9 +42,9 @@ const styles = {
     alignItems: 'baseline',
     gap: '6px',
     fontSize: '12px',
-    color: '#57606a',
-    background: '#f6f8fa',
-    border: '1px solid #e4e8ec',
+    color: policyUiTokens.textSecondary,
+    background: policyUiTokens.mutedBackground,
+    border: `1px solid ${policyUiTokens.borderColor}`,
     borderRadius: 4,
     padding: '2px 8px',
     margin: 0
@@ -50,7 +52,7 @@ const styles = {
   chipValue: {
     fontFamily: 'ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace',
     fontWeight: 600,
-    color: '#1f2328'
+    color: policyUiTokens.textPrimary
   }
 };
 

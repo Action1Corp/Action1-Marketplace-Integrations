@@ -18,7 +18,7 @@ import {
 } from './policies/policyUiStyles.js';
 
 const styles = {
-  shell: { width: '100%', maxWidth: 1080, margin: '0 auto', display: 'grid', gap: '0.75rem' },
+  shell: { width: '100%', maxWidth: 1080, margin: '0 auto', display: 'grid', gap: '0.75rem', fontFamily: policyUiTokens.fontFamily },
   header: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' },
   title: { margin: 0, color: policyUiTokens.textPrimary, fontSize: 24, lineHeight: 1.2, fontWeight: 600 },
   description: { margin: '0.25rem 0 0', color: policyUiTokens.textSecondary, fontSize: 14, lineHeight: 1.45 },
@@ -29,7 +29,7 @@ const styles = {
   tableSurface: { ...pageSurfaceStyle, overflowX: 'auto' },
   table: { width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: 12, lineHeight: 1.35, color: policyUiTokens.textPrimary },
   columnWidths: { 'Date & time': '18%', Operation: '16%', Policy: '22%', Organization: '12%', Result: '8%', Summary: '17%', Actions: '7%' },
-  th: { padding: '9px 14px', textAlign: 'left', color: policyUiTokens.textMuted, fontSize: 11, lineHeight: 1.35, fontWeight: 600, whiteSpace: 'nowrap', borderBottom: `1px solid ${policyUiTokens.borderColor}` },
+  th: { padding: '9px 14px', textAlign: 'left', color: policyUiTokens.textPrimary, fontSize: 11, lineHeight: 1.35, fontWeight: 600, textTransform: 'none', whiteSpace: 'nowrap', borderBottom: `1px solid ${policyUiTokens.borderColor}` },
   td: { padding: '8px 14px', verticalAlign: 'middle', borderBottom: `1px solid ${policyUiTokens.borderColor}`, overflowWrap: 'anywhere', lineHeight: 1.35, whiteSpace: 'nowrap' },
   auditValue: { fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis' },
   dateValue: { color: policyUiTokens.textSecondary, fontVariantNumeric: 'tabular-nums', overflow: 'visible', textOverflow: 'clip' },
@@ -48,7 +48,7 @@ const styles = {
   error: { ...pageSurfaceStyle, padding: '1rem', color: policyUiTokens.danger, background: policyUiTokens.dangerSoftBackground },
   pagination: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.35rem' },
   pageButton: { minWidth: 30, minHeight: 30, padding: '0.25rem 0.5rem', fontSize: 12 },
-  pageCurrent: { background: policyUiTokens.accentBackground, borderColor: policyUiTokens.accentBorder, color: policyUiTokens.accent },
+  pageCurrent: { background: policyUiTokens.accent, borderColor: policyUiTokens.accent, color: '#ffffff' },
   overlay: { position: 'fixed', inset: 0, zIndex: 1000, display: 'grid', placeItems: 'center', padding: '1rem', background: 'rgba(31, 35, 40, 0.45)' },
   dialog: { ...pageSurfaceStyle, width: 'min(620px, 100%)', maxHeight: '82vh', overflowY: 'auto', padding: '0 1.35rem 1.25rem', boxShadow: policyUiTokens.shadowOverlay },
   dialogHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', padding: '1.05rem 0 0.85rem', borderBottom: `1px solid ${policyUiTokens.borderColor}` },
