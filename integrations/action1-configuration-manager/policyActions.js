@@ -208,7 +208,7 @@ async function performDeletePolicy(context, request = {}, tracked) {
     await writeAction1RuntimeLog(context, 'info', 'Scope reservation released');
     await writeAction1RuntimeLog(context, 'info', 'Policy Delete completed');
     const response = { ok: true, message: result.deleted ? 'Policy deleted.' : 'Policy was not found.', ...result };
-    return tracked ? historyResult(response, 'POLICY_DELETED', existing, 'Policy deleted. Automations removed: ' + history.counts.deleted + '.', history) : response;
+    return tracked ? historyResult(response, 'POLICY_DELETED', existing, 'Policy deleted. Automations removed: ' + history.counts.deleted + '. Endpoint cleanup scheduled.', history) : response;
   } catch (error) {
     return tracked ? historyFailure('POLICY_DELETED', existing, error) : { ok: false, message: sanitizePersistenceMessage(error.message) };
   }

@@ -36,6 +36,24 @@ async function run() {
   assert.strictEqual(patchRequest.data.name, 'A1CM — Renamed — Family');
   const deleted = await client.deleteAutomation('org-1', 'auto-1');
   assert.deepStrictEqual(deleted, { status: 'deleted' });
+
+  const instance = await client.createAutomationInstance('org-1', {
+    payload: { name: 'A1CM — POL-000037 — State Cleanup', endpoints: [{ id: 'group-1', type: 'EndpointGroup' }], actions: [{ name: 'Run PowerShell', template_id: 'run_script' }], retry_minutes: '10080' }
+  });
+  assert.deepStrictEqual(instance, { id: 'auto-1', type: 'AutomationInstance', status: null });
+  assert.strictEqual(requests.filter((entry) => entry.method === 'POST' && entry.url.includes('/automations/instances/org-1')).length, 1);
+  let ambiguousAttempts = 0;
+  const ambiguousContext = {
+    action1: { async getCredentials() { return { apiKey: 'test-key', apiSecret: 'test-secret' }; } },
+    async http(options) {
+      if (options.url.endsWith('/oauth2/token')) return { status: 200, data: { access_token: 'token', expires_in: 3600 }, headers: {} };
+      ambiguousAttempts += 1;
+      throw new Error('socket timeout');
+    },
+    logger: { info() {}, warn() {}, error() {} }
+  };
+  await assert.rejects(() => createAction1AutomationClient(ambiguousContext).createAutomationInstance('org-1', { payload: { name: 'cleanup' } }), /socket timeout/);
+  assert.strictEqual(ambiguousAttempts, 1, 'ambiguous instance POST must not be blindly retried');
   const deleteRequest = requests.find((request) => request.method === 'DELETE');
   assert.strictEqual(deleteRequest.url.endsWith('/automations/schedules/org-1/auto-1'), true);
   assert(!JSON.stringify(requests).includes('test-secret'));

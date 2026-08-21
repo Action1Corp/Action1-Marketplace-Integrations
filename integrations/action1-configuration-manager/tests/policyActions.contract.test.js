@@ -222,10 +222,12 @@ function createFakeDb() {
 
 function createFakeContext() {
   let automationNumber = 0;
+  const requests = [];
   return {
     db: createFakeDb(),
     action1: { async getCredentials() { return { baseUrl: 'https://action1.test/api/3.0', apiKey: 'test-key', apiSecret: 'test-secret' }; } },
     async http(options) {
+      requests.push(options);
       if (options.url.endsWith('/oauth2/token')) return { status: 200, data: { access_token: 'token', expires_in: 3600 }, headers: {} };
       if (options.method === 'GET' && /\/automations\/schedules\/[^/]+\/[^/]+$/.test(options.url)) {
         const automationId = decodeURIComponent(options.url.split('/').pop());
@@ -239,7 +241,8 @@ function createFakeContext() {
       info() {},
       warn() {},
       error() {}
-    }
+    },
+    requests
   };
 }
 
@@ -309,6 +312,21 @@ async function run() {
   const deleteResult = await actions['delete-policy'](context, { payload: { policyId: 'POL-000001' } });
   assert.strictEqual(deleteResult.ok, true);
   assert.strictEqual(deleteResult.deleted, true);
+  const cleanupRequests = context.requests.filter((request) => request.method === 'POST' && request.url.includes('/automations/instances/org-acme'));
+  assert.strictEqual(cleanupRequests.length, 1, 'Delete should create exactly one cleanup instance');
+  assert.strictEqual(cleanupRequests[0].data.retry_minutes, '10080');
+  assert.strictEqual(cleanupRequests[0].data.settings, undefined, 'cleanup instance must not be scheduled');
+  assert.deepStrictEqual(Object.keys(cleanupRequests[0].data.actions[0].params).sort(), [
+    'condition_script_language',
+    'condition_script_text',
+    'display_summary',
+    'run_script_language',
+    'run_script_params',
+    'run_script_text'
+  ]);
+  assert.strictEqual(cleanupRequests[0].data.actions[0].params.condition_script_text, '');
+  assert.strictEqual(cleanupRequests[0].data.actions[0].params.condition_script_language, 'PowerShell');
+  assert.strictEqual(cleanupRequests[0].data.actions[0].params.run_script_language, 'PowerShell');
 
   const validationFailure = await actions['save-policy'](context, { payload: { draft: { ...createValidDraft(), organizationId: '' } } });
   assert.strictEqual(validationFailure.ok, false);
@@ -350,6 +368,7 @@ async function run() {
   const disabled = await actions['set-policy-enabled'](multiContext, { payload: { policyId: multiResult.policy.policyId, enabled: false } });
   assert.strictEqual(disabled.ok, true, disabled.message);
   assert.strictEqual(disabled.policy.enabled, false);
+  assert.strictEqual(multiContext.requests.some((request) => request.method === 'POST' && request.url.includes('/automations/instances/')), false, 'Disable must not launch endpoint cleanup');
   const enabled = await actions['set-policy-enabled'](multiContext, { payload: { policyId: multiResult.policy.policyId, enabled: true } });
   assert.strictEqual(enabled.ok, true, enabled.message);
   assert.strictEqual(enabled.policy.enabled, true);

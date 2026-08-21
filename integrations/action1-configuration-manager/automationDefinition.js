@@ -5,6 +5,7 @@ const { loadPolicyCatalogContract } = require('./policyCatalogContract');
 const { normalizeDateValue, normalizeTimeValue, positiveInteger, serializeAction1Time } = require('./scheduleModel.cjs');
 const { formatUtcSchedule } = require('./timezoneModel.cjs');
 const { buildAutomationDisplayName } = require('./automationNaming');
+const { buildRunPowerShellParams } = require('./action1RunScript');
 
 const PACK_ID = 'windows-endpoint-configuration';
 const PACK_VERSION = '0.5.0';
@@ -86,11 +87,7 @@ function buildAutomationDefinitions(policy, options = {}) {
       name,
       endpoints: target,
       actions: [{
-        name: 'Run PowerShell', template_id: 'run_script', params: {
-          display_summary: '', condition_script_text: '', condition_script_language: 'PowerShell',
-          run_script_params: [], run_script_text: scriptText, run_script_language: 'PowerShell',
-          reboot_exit_codes: '', reboot_options: { auto_reboot: 'no', show_message: 'no', message_text: '', timeout: 240 }
-        }
+        name: 'Run PowerShell', template_id: 'run_script', params: buildRunPowerShellParams(scriptText, { includeReboot: true })
       }],
       settings: schedule.settings,
       settings_timezone: schedule.settings_timezone,

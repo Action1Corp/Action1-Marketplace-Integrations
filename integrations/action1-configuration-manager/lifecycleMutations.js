@@ -4,6 +4,7 @@ const { createAutomationCorrelationStore } = require('./automationCorrelationSto
 const { planLifecycleDiff, summarizeLifecycleDiff } = require('./lifecyclePlanner');
 const { writeAction1RuntimeLog } = require('./runtimeLogging');
 const { classifyMissingAutomationGet } = require('./action1AutomationClient');
+const { buildPolicyEndpointCleanupInstance } = require('./policyEndpointCleanup');
 
 function safeError(error) {
   return String(error?.message || error || 'Lifecycle mutation failed').slice(0, 1000);
@@ -192,9 +193,9 @@ async function enablePolicy(context, policy) {
   }
 }
 
-async function cleanupPolicy(context, policy) {
-  const client = createAction1AutomationClient(context);
-  const correlations = createAutomationCorrelationStore(context);
+async function cleanupPolicy(context, policy, options = {}) {
+  const client = options.client || createAction1AutomationClient(context);
+  const correlations = options.correlations || createAutomationCorrelationStore(context);
   const owned = await correlations.listCorrelations(policy.policyId, { includeInactive: true });
   const history = { counts: { deleted: 0, failed: 0 }, familyOutcomes: [] };
   let currentFamilyName = '';
@@ -215,6 +216,22 @@ async function cleanupPolicy(context, policy) {
     error.history = { counts: { ...history.counts, failed: Math.max(1, owned.filter((entry) => entry.active !== false).length - history.familyOutcomes.filter((outcome) => outcome.outcome !== 'Failed').length) }, familyOutcomes: history.familyOutcomes };
     throw error;
   }
+  const cleanupInstance = buildPolicyEndpointCleanupInstance(policy);
+  let accepted;
+  try {
+    accepted = await client.createAutomationInstance(policy.organizationId, cleanupInstance);
+    if (!accepted?.id) throw new Error('Action1 endpoint cleanup instance was not accepted.');
+  } catch (error) {
+    error.history = {
+      counts: { ...history.counts, failed: 1 },
+      familyOutcomes: history.familyOutcomes,
+      errorCategory: 'Endpoint cleanup instance create failed'
+    };
+    await log(context, 'error', `Policy endpoint cleanup instance was not accepted: ${safeError(error)}`);
+    throw error;
+  }
+  history.cleanup = { scheduled: true, instanceId: accepted.id };
+  await log(context, 'info', `Policy endpoint cleanup instance accepted: ${accepted.id}`);
   await log(context, 'info', `Policy external cleanup completed: ${policy.policyId}`);
   return history;
 }

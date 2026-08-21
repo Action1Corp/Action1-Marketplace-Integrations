@@ -66,6 +66,18 @@ function createAction1AutomationClient(context, options = {}) {
       });
       return normalizeAutomationResponse(payload);
     },
+    async createAutomationInstance(organizationId, instance) {
+      const orgId = required(organizationId, 'Action1 organization id');
+      const payload = await discoveryClient.requestAction1Mutation({
+        operation: 'create-automation-instance',
+        method: 'POST',
+        organizationId: orgId,
+        path: `/automations/instances/${encodeURIComponent(orgId)}`,
+        body: instance.payload
+      });
+      const id = required(payload?.id, 'Action1 automation instance id');
+      return { id, type: payload?.type || 'AutomationInstance', status: payload?.status || null };
+    },
     async listAutomations(organizationId) {
       const orgId = required(organizationId, 'Action1 organization id');
       return discoveryClient.requestAction1Mutation({ operation: 'list-automations', method: 'GET', organizationId: orgId, path: `/automations/schedules/${encodeURIComponent(orgId)}` });
