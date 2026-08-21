@@ -194,6 +194,8 @@ function PolicyPage({ integration }) {
   const [endpointGroupsByOrganization, setEndpointGroupsByOrganization] = useState({});
   const [endpointGroupStateByOrganization, setEndpointGroupStateByOrganization] = useState({});
   const [allEndpointsAvailableByOrganization, setAllEndpointsAvailableByOrganization] = useState({});
+  const [organizationBlockedByAllEndpointsByOrganization, setOrganizationBlockedByAllEndpointsByOrganization] = useState({});
+  const [hasGroupReservationsByOrganization, setHasGroupReservationsByOrganization] = useState({});
 
   const catalog = catalogRef.current;
   const selectedPolicy = mode.policyId ? policies.find((policy) => policy.policyId === mode.policyId) || null : null;
@@ -323,6 +325,14 @@ function PolicyPage({ integration }) {
         ...current,
         [organizationId]: result.allEndpointsAvailable !== false
       }));
+      setOrganizationBlockedByAllEndpointsByOrganization((current) => ({
+        ...current,
+        [organizationId]: result.organizationBlockedByAllEndpoints === true
+      }));
+      setHasGroupReservationsByOrganization((current) => ({
+        ...current,
+        [organizationId]: result.hasAnyGroupReservations === true
+      }));
       setEndpointGroupStateByOrganization((current) => ({
         ...current,
         [organizationId]: { loading: false, error: '' }
@@ -333,6 +343,14 @@ function PolicyPage({ integration }) {
         [organizationId]: []
       }));
       setAllEndpointsAvailableByOrganization((current) => ({
+        ...current,
+        [organizationId]: false
+      }));
+      setOrganizationBlockedByAllEndpointsByOrganization((current) => ({
+        ...current,
+        [organizationId]: false
+      }));
+      setHasGroupReservationsByOrganization((current) => ({
         ...current,
         [organizationId]: false
       }));
@@ -357,6 +375,11 @@ function PolicyPage({ integration }) {
       })
     );
     setValidationResult({ fieldErrors: {}, sectionErrors: [], blockingMessage: '' });
+    setEndpointGroupsByOrganization({});
+    setEndpointGroupStateByOrganization({});
+    setAllEndpointsAvailableByOrganization({});
+    setOrganizationBlockedByAllEndpointsByOrganization({});
+    setHasGroupReservationsByOrganization({});
     if (!organizationsLoading && organizations.length === 0 && !organizationsError) {
       void loadOrganizations();
     }
@@ -490,6 +513,8 @@ function PolicyPage({ integration }) {
   const endpointGroups = currentOrganizationId ? endpointGroupsByOrganization[currentOrganizationId] || [] : [];
   const endpointGroupState = currentOrganizationId ? endpointGroupStateByOrganization[currentOrganizationId] || { loading: false, error: '' } : { loading: false, error: '' };
   const allEndpointsAvailable = currentOrganizationId ? allEndpointsAvailableByOrganization[currentOrganizationId] !== false : false;
+  const organizationBlockedByAllEndpoints = currentOrganizationId ? organizationBlockedByAllEndpointsByOrganization[currentOrganizationId] === true : false;
+  const hasAnyGroupReservations = currentOrganizationId ? hasGroupReservationsByOrganization[currentOrganizationId] === true : false;
 
   useEffect(() => {
     if (mode.kind !== 'create') {
@@ -557,6 +582,8 @@ function PolicyPage({ integration }) {
           catalog={catalog}
           draft={draft}
           allEndpointsAvailable={allEndpointsAvailable}
+          organizationBlockedByAllEndpoints={organizationBlockedByAllEndpoints}
+          hasAnyGroupReservations={hasAnyGroupReservations}
           endpointGroups={endpointGroups}
           endpointGroupsError={endpointGroupState.error}
           endpointGroupsLoading={endpointGroupState.loading}

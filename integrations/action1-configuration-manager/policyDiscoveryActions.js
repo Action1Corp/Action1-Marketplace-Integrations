@@ -84,23 +84,29 @@ async function discoverPolicyEndpointGroupsAction(context, request = {}) {
       client.listEndpointGroups(organizationId)
     ]);
 
-    const availableEndpointGroups = endpointGroups.filter(
-      (entry) => !availability.reservedPolicyIdByEndpointGroupId[String(entry.endpointGroupId || '').trim()]
-    );
+    const projectedEndpointGroups = availability.organizationBlockedByAllEndpoints
+      ? []
+      : endpointGroups.map((entry) => ({
+        ...entry,
+        reserved: Boolean(availability.reservedPolicyIdByEndpointGroupId[String(entry.endpointGroupId || '').trim()])
+      }));
     context.logger?.info?.({
       event: 'action1-policy-discovery-action-complete',
       action: 'discover-policy-endpoint-groups',
       organizationId,
-      endpointGroupsDiscovered: availableEndpointGroups.length,
+      endpointGroupsDiscovered: projectedEndpointGroups.length,
       allEndpointsAvailable: availability.allEndpointsAvailable
     });
     const runtimeLogger = context?.action1ConfigurationManagerRuntimeLogger || getDefaultAction1RuntimeLogger();
-    Promise.resolve(runtimeLogger.info(`Loaded ${availableEndpointGroups.length} endpoint groups for organization ${organizationId}`)).catch(() => {});
+    Promise.resolve(runtimeLogger.info(`Loaded ${projectedEndpointGroups.length} endpoint groups for organization ${organizationId}`)).catch(() => {});
     return {
       ok: true,
       organizationId,
       allEndpointsAvailable: availability.allEndpointsAvailable,
-      endpointGroups: availableEndpointGroups
+      organizationBlockedByAllEndpoints: availability.organizationBlockedByAllEndpoints,
+      hasAnyGroupReservations: availability.hasAnyGroupReservations,
+      reservedEndpointGroupIds: availability.reservedEndpointGroupIds,
+      endpointGroups: projectedEndpointGroups
     };
   } catch (error) {
     logDiscoveryFailure(context, 'endpoint-groups', error);

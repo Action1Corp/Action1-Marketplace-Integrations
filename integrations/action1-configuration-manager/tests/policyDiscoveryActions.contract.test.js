@@ -130,8 +130,12 @@ async function run() {
     assert.strictEqual(result.ok, true);
     assert.strictEqual(result.organizationId, 'org-acme');
     assert.strictEqual(result.allEndpointsAvailable, false);
+    assert.strictEqual(result.organizationBlockedByAllEndpoints, false);
+    assert.strictEqual(result.hasAnyGroupReservations, true);
+    assert.deepStrictEqual(result.reservedEndpointGroupIds, ['group-reserved']);
     assert.deepStrictEqual(result.endpointGroups, [
-      { organizationId: 'org-acme', endpointGroupId: 'group-open', endpointGroupName: 'Open Group', endpointCount: 12 }
+      { organizationId: 'org-acme', endpointGroupId: 'group-reserved', endpointGroupName: 'Reserved Group', endpointCount: 10, reserved: true },
+      { organizationId: 'org-acme', endpointGroupId: 'group-open', endpointGroupName: 'Open Group', endpointCount: 12, reserved: false }
     ]);
   }
 
@@ -156,8 +160,10 @@ async function run() {
     });
     assert.strictEqual(result.ok, true);
     assert.strictEqual(result.allEndpointsAvailable, true);
+    assert.strictEqual(result.organizationBlockedByAllEndpoints, false);
+    assert.strictEqual(result.hasAnyGroupReservations, false);
     assert.deepStrictEqual(result.endpointGroups, [
-      { organizationId: 'org-acme', endpointGroupId: 'group-reserved', endpointGroupName: 'Reserved Group', endpointCount: 10 }
+      { organizationId: 'org-acme', endpointGroupId: 'group-reserved', endpointGroupName: 'Reserved Group', endpointCount: 10, reserved: false }
     ]);
   }
 

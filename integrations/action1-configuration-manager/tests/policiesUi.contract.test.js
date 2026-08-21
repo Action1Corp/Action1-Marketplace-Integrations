@@ -171,6 +171,9 @@ function run() {
   assert(!operationStatusSource.includes('styles.notice'), 'OperationStatus should not render the old page-flow status strip');
 
   const editorSource = readSource('ui/policies/PolicyEditorView.jsx');
+  assert(editorSource.includes('organizationBlockedByAllEndpoints'), 'PolicyEditorView should disable both target modes for an All endpoints reservation');
+  assert(editorSource.includes('Used by another Policy'), 'PolicyEditorView should explain reserved endpoint groups');
+  assert(editorSource.includes('targetAvailabilityError'), 'PolicyEditorView should block Next for invalid reserved targets');
   assert(editorSource.includes('disabled={nextDisabled || busy}'), 'PolicyEditorView should prevent duplicate Save/Next submission while busy');
 
   const actionMenuSource = readSource('ui/policies/PolicyActionMenu.jsx');

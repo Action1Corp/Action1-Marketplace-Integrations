@@ -26,6 +26,9 @@ export function createPolicyDiscoveryApi(integration) {
       return {
         organizationId: result.organizationId || organizationId,
         allEndpointsAvailable: result.allEndpointsAvailable !== false,
+        organizationBlockedByAllEndpoints: result.organizationBlockedByAllEndpoints === true,
+        hasAnyGroupReservations: result.hasAnyGroupReservations === true,
+        reservedEndpointGroupIds: result.reservedEndpointGroupIds || [],
         endpointGroups: result.endpointGroups || []
       };
     }

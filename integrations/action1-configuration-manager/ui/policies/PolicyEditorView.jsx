@@ -24,6 +24,7 @@ import CompactControlSummaryGroups from './CompactControlSummaryGroups.jsx';
 import ParameterField from './ParameterField.jsx';
 import { formatUtcOffset } from './timezoneModel.js';
 import { policyUiTokens } from './policyUiStyles.js';
+import { buildPolicyScopeAvailability } from './policyScopeAvailability.js';
 
 function getCurrentTimezoneLabel(schedule = {}) {
   try {
@@ -270,6 +271,9 @@ function updateScopeType(draft, onChange, scopeType) {
 
 function updateEndpointGroup(draft, endpointGroups, onChange, endpointGroupId) {
   const endpointGroup = endpointGroups.find((entry) => entry.endpointGroupId === endpointGroupId);
+  if (endpointGroup?.reserved) {
+    return;
+  }
   onChange({
     ...draft,
     endpointGroupId,
@@ -319,6 +323,8 @@ function renderConfigInput({ parameter, value, onChange, errorMessage }) {
 
 function PolicyEditorView({
   allEndpointsAvailable = true,
+  organizationBlockedByAllEndpoints = false,
+  hasAnyGroupReservations = false,
   catalog,
   draft,
   endpointGroups,
@@ -378,6 +384,18 @@ function PolicyEditorView({
   const displayName = deriveDisplayName(draft.baseName, getScopeLabel(draft));
   const selectedBaseline = findBaselineById(catalog.baselines, wizardState.selectedBaselineId);
   const expectedAutomationCount = countExpectedAutomations(draft.selectedControls || []);
+  const scopeAvailability = useMemo(
+    () => buildPolicyScopeAvailability({
+      allEndpointsAvailable,
+      organizationBlockedByAllEndpoints,
+      hasAnyGroupReservations,
+      endpointGroups
+    }),
+    [allEndpointsAvailable, organizationBlockedByAllEndpoints, hasAnyGroupReservations, endpointGroups]
+  );
+  const targetAvailabilityError = !isEditMode && draft.organizationId
+    ? scopeAvailability.targetError(draft.scopeType, draft.endpointGroupId)
+    : '';
   const reviewModel = useMemo(
     () =>
       buildReviewViewModel({
@@ -418,6 +436,9 @@ function PolicyEditorView({
   }
 
   function canAdvanceCurrentStep() {
+    if (wizardState.currentStep === 1 && targetAvailabilityError) {
+      return false;
+    }
     const nextValidationResult = validatePolicyDraft(draft, catalog);
     const requiredFields = getWizardValidationFields(wizardState.currentStep);
     if (wizardState.currentStep >= 3 && Object.keys(nextValidationResult.fieldErrors || {}).length > 0) {
@@ -695,7 +716,8 @@ function PolicyEditorView({
 
   const wizardErrors = validationResult.sectionErrors || [];
   const runEveryInvalid = !runEveryInput || Number.parseInt(runEveryInput, 10) < 1;
-  const nextDisabled = wizardState.currentStep === 2 && runEveryInvalid;
+  const nextDisabled = (wizardState.currentStep === 1 && Boolean(targetAvailabilityError))
+    || (wizardState.currentStep === 2 && runEveryInvalid);
 
   return (
     <div className="a1-policy-wizard">
@@ -788,7 +810,7 @@ function PolicyEditorView({
                       name="scopeType"
                       checked={draft.scopeType === 'ALL_ENDPOINTS'}
                       onChange={() => updateScopeType(draft, onChange, 'ALL_ENDPOINTS')}
-                      disabled={isEditMode || !draft.organizationId || endpointGroupsLoading || !allEndpointsAvailable}
+                      disabled={isEditMode || !draft.organizationId || endpointGroupsLoading || !scopeAvailability.allEndpointsAvailable}
                     />
                     All endpoints
                   </label>
@@ -798,14 +820,14 @@ function PolicyEditorView({
                       name="scopeType"
                       checked={draft.scopeType === 'ENDPOINT_GROUP'}
                       onChange={() => updateScopeType(draft, onChange, 'ENDPOINT_GROUP')}
-                      disabled={isEditMode || !draft.organizationId || endpointGroupsLoading}
+                      disabled={isEditMode || !draft.organizationId || endpointGroupsLoading || !scopeAvailability.endpointGroupModeAvailable}
                     />
                     Endpoint group
                   </label>
                 </div>
                 {fieldError('scopeType') ? <p className="hint error">{fieldError('scopeType')}</p> : null}
-                {!isEditMode && draft.organizationId && !allEndpointsAvailable && draft.scopeType === 'ALL_ENDPOINTS' ? (
-                  <p className="hint error">All endpoints is unavailable because this organization already has reserved target scopes.</p>
+                {!isEditMode && targetAvailabilityError && draft.scopeType !== 'ENDPOINT_GROUP' ? (
+                  <p className="hint error">{targetAvailabilityError}</p>
                 ) : null}
               </div>
 
@@ -827,15 +849,18 @@ function PolicyEditorView({
                             : 'Choose Endpoint group'}
                       </option>
                       {endpointGroups.map((endpointGroup) => (
-                        <option key={endpointGroup.endpointGroupId} value={endpointGroup.endpointGroupId}>
-                          {endpointGroup.endpointGroupName}
+                        <option key={endpointGroup.endpointGroupId} value={endpointGroup.endpointGroupId} disabled={endpointGroup.reserved === true}>
+                          {endpointGroup.endpointGroupName}{endpointGroup.reserved ? ' — Used by another Policy' : ''}
                         </option>
                       ))}
                     </select>
                 )}
                 {fieldError('endpointGroupId') ? <p className="hint error">{fieldError('endpointGroupId')}</p> : null}
                 {endpointGroupsError ? <p className="hint error">{endpointGroupsError}</p> : null}
-                {!isEditMode && draft.scopeType === 'ENDPOINT_GROUP' && !endpointGroupsLoading && !endpointGroupsError && endpointGroups.length === 0 ? (
+                {!isEditMode && targetAvailabilityError && draft.scopeType === 'ENDPOINT_GROUP' ? (
+                  <p className="hint error">{targetAvailabilityError}</p>
+                ) : null}
+                {!isEditMode && draft.scopeType === 'ENDPOINT_GROUP' && !endpointGroupsLoading && !endpointGroupsError && scopeAvailability.selectableEndpointGroups.length === 0 && !organizationBlockedByAllEndpoints ? (
                   <p className="hint">No endpoint groups are currently available for a new Policy in this organization.</p>
                 ) : null}
               </div>

@@ -646,6 +646,9 @@ function createDbPolicyStore(context, options = {}) {
 
       return {
         allEndpointsAvailable,
+        organizationBlockedByAllEndpoints: reservations.some((row) => trimString(row.scope_type) === 'ALL_ENDPOINTS'),
+        hasAnyGroupReservations: reservations.some((row) => trimString(row.scope_type) === 'ENDPOINT_GROUP'),
+        reservedEndpointGroupIds: Object.keys(reservedPolicyIdByEndpointGroupId),
         reservedPolicyIdByEndpointGroupId
       };
     },

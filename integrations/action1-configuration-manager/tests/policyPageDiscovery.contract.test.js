@@ -16,6 +16,9 @@ function run() {
   assert(source.includes('loadEndpointGroupsForOrganization'), 'PolicyPage should load endpoint groups asynchronously');
   assert(source.includes('endpointGroupStateByOrganization'), 'PolicyPage should track endpoint-group loading state by organization');
   assert(source.includes('allEndpointsAvailableByOrganization'), 'PolicyPage should track all-endpoints availability by organization');
+  assert(source.includes('organizationBlockedByAllEndpointsByOrganization'), 'PolicyPage should track organization-wide All endpoints reservations');
+  assert(source.includes('hasGroupReservationsByOrganization'), 'PolicyPage should track group reservations by organization');
+  assert(source.includes('setEndpointGroupsByOrganization({})'), 'Create should refresh endpoint reservation projections when reopened');
   assert(source.includes("mode.kind === 'create'"), 'PolicyPage should limit target rediscovery to create mode');
   assert(!source.includes('createDemoOrganizationRepository'), 'PolicyPage should remove the demo organization repository seam');
   assert(!source.includes('createDemoEndpointGroupRepository'), 'PolicyPage should remove the demo endpoint-group repository seam');
