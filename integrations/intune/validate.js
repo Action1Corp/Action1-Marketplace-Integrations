@@ -84,7 +84,7 @@ async function graphGetAll(token, url) {
 
 function action1Items(payload) {
   if (Array.isArray(payload)) return payload;
-  return payload?.items || payload?.data || payload?.results || payload?.rows || payload?.endpoint_groups || payload?.groups || [];
+  return payload?.items || payload?.data || payload?.results || payload?.rows || payload?.organizations || payload?.endpoint_groups || payload?.groups || [];
 }
 
 async function getAction1Token(credentials) {
@@ -152,6 +152,71 @@ async function action1GetAll(token, firstUrl, baseUrl = DEFAULT_ACTION1_BASE_URL
     break;
   }
   return rows;
+}
+
+function normalizeAction1Organization(row) {
+  const id = String(row?.id || row?.org_id || row?.organizationId || row?.organization_id || '').trim();
+  const name = String(row?.name || row?.org_name || row?.organizationName || row?.organization_name || '').trim();
+  const agentId = String(
+    row?.agent_id ||
+    row?.agentId ||
+    row?.installer_id ||
+    row?.installerId ||
+    row?.download_id ||
+    row?.downloadId ||
+    row?.agent_download_id ||
+    row?.agentDownloadId ||
+    ''
+  ).trim();
+  if (!id || !name) return null;
+  return {
+    id,
+    name,
+    agentId
+  };
+}
+
+function extractAgentIdFromDownloadUrl(downloadUrl) {
+  const match = String(downloadUrl || '').match(/\/agent\/([^/]+)\//i);
+  return match ? decodeURIComponent(match[1]) : '';
+}
+
+async function getAction1AgentIdForOrganization(token, baseUrl, organizationId) {
+  if (!organizationId) return '';
+  try {
+    const data = await action1Get(
+      token,
+      `${baseUrl}/endpoints/agent-installation/${encodeURIComponent(organizationId)}/windowsMSI`
+    );
+    return extractAgentIdFromDownloadUrl(data.download_URL || data.downloadUrl || data.url || '');
+  } catch {
+    return '';
+  }
+}
+
+async function listAction1Organizations(credentials) {
+  const baseUrl = action1BaseUrl(credentials);
+  const token = await getAction1Token(credentials);
+  const organizations = await action1GetAll(
+    token,
+    `${baseUrl}/organizations?limit=500&from=0`,
+    baseUrl
+  );
+  const seen = new Set();
+  const normalizedOrganizations = organizations
+    .map(normalizeAction1Organization)
+    .filter(Boolean)
+    .filter(organization => {
+      if (seen.has(organization.id)) return false;
+      seen.add(organization.id);
+      return true;
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  return Promise.all(normalizedOrganizations.map(async organization => ({
+    ...organization,
+    agentId: organization.agentId || await getAction1AgentIdForOrganization(token, baseUrl, organization.id)
+  })));
 }
 
 async function findAction1App(token) {
@@ -302,6 +367,7 @@ async function validate({ settings }) {
 
 module.exports = {
   listAction1EndpointGroups,
+  listAction1Organizations,
   listDeviceGroups,
   validate,
   validateAssignments

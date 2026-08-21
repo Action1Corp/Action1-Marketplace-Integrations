@@ -17,9 +17,13 @@ function Settings({ integration }) {
   const [loadingAction1Groups, setLoadingAction1Groups] = useState(false);
   const [action1GroupMessage, setAction1GroupMessage] = useState('');
   const [action1EndpointGroups, setAction1EndpointGroups] = useState([]);
+  const [loadingAction1Organizations, setLoadingAction1Organizations] = useState(false);
+  const [action1OrganizationMessage, setAction1OrganizationMessage] = useState('');
+  const [action1Organizations, setAction1Organizations] = useState([]);
   const [validatingAssignments, setValidatingAssignments] = useState(false);
   const [assignmentValidation, setAssignmentValidation] = useState(null);
   const [validationResult, setValidationResult] = useState(null);
+  const [attemptedAutoLoadAction1Organizations, setAttemptedAutoLoadAction1Organizations] = useState(false);
   const [attemptedAutoLoadGroups, setAttemptedAutoLoadGroups] = useState(false);
   const [attemptedAutoLoadAction1Groups, setAttemptedAutoLoadAction1Groups] = useState(false);
   const sensitiveSettings = useMemo(() => new Set(settingsSchema.filter(setting => setting.type === 'secret' || setting.sensitive).map(setting => setting.key)), [settingsSchema]);
@@ -94,6 +98,23 @@ function Settings({ integration }) {
   const parseSelectedAction1GroupIds = () => parseJsonListSetting('IntuneProvisioningAction1GroupIds');
   const parseSelectedAction1GroupMap = () => parseJsonMapSetting('IntuneProvisioningAction1GroupMap');
 
+  const selectAction1Organization = (organizationId, organizations = action1Organizations) => {
+    const organization = organizations.find(item => item.id === organizationId);
+    setSettings(current => ({
+      ...current,
+      IntuneAction1OrgId: organizationId,
+      IntuneOrgName: organization?.name || current.IntuneOrgName || '',
+      IntuneAgentId: organization?.agentId || current.IntuneAgentId || '',
+      IntuneProvisioningAction1GroupIds: organizationId === current.IntuneAction1OrgId ? current.IntuneProvisioningAction1GroupIds : '[]',
+      IntuneProvisioningAction1GroupMap: organizationId === current.IntuneAction1OrgId ? current.IntuneProvisioningAction1GroupMap : '{}'
+    }));
+    if (organization?.agentId) {
+      setAction1OrganizationMessage(`Selected ${organization.name}.`);
+    } else if (organization) {
+      setAction1OrganizationMessage(`Selected ${organization.name}. Action1 did not return an agent installer ID.`);
+    }
+  };
+
   const setSelectedGroupIds = (ids) => {
     const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
     const groupMap = {};
@@ -166,13 +187,47 @@ function Settings({ integration }) {
       }
       setAction1EndpointGroups(groups);
       setSettings(current => ({ ...current, IntuneProvisioningAction1GroupMap: JSON.stringify(nextGroupMap) }));
-      setAction1GroupMessage(data.message || `Loaded ${groups.length} endpoint groups.`);
+      setAction1GroupMessage('');
     } catch (error) {
       setAction1GroupMessage(error.message);
     } finally {
       setLoadingAction1Groups(false);
     }
   };
+
+  const loadAction1Organizations = async () => {
+    setLoadingAction1Organizations(true);
+    setAction1OrganizationMessage('');
+    try {
+      const response = await fetch(`/api/integrations/${integration}/actions/list-action1-organizations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: validationPayload(), trackHistory: false })
+      });
+      const data = await response.json();
+      if (!response.ok || data.ok === false) throw new Error(data.message || 'Unable to load Action1 organizations.');
+      const organizations = data.organizations || [];
+      setAction1Organizations(organizations);
+      const currentOrgId = settings.IntuneAction1OrgId || data.selectedOrganizationId || '';
+      const selectedOrgId = organizations.some(organization => organization.id === currentOrgId)
+        ? currentOrgId
+        : organizations[0]?.id || '';
+      if (selectedOrgId) selectAction1Organization(selectedOrgId, organizations);
+      setAction1OrganizationMessage(organizations.length
+        ? 'Select the Action1 organization where devices should be registered.'
+        : 'No Action1 organizations were found for the configured Marketplace credentials.');
+    } catch (error) {
+      setAction1OrganizationMessage(error.message);
+    } finally {
+      setLoadingAction1Organizations(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!meta || attemptedAutoLoadAction1Organizations || loadingAction1Organizations || action1Organizations.length > 0) return;
+    setAttemptedAutoLoadAction1Organizations(true);
+    loadAction1Organizations();
+  }, [meta, attemptedAutoLoadAction1Organizations, loadingAction1Organizations, action1Organizations.length]);
 
   useEffect(() => {
     if (!meta || attemptedAutoLoadGroups || loadingGroups) return;
@@ -184,10 +239,10 @@ function Settings({ integration }) {
 
   useEffect(() => {
     if (!meta || attemptedAutoLoadAction1Groups || loadingAction1Groups) return;
-    if (parseSelectedAction1GroupIds().length === 0 || action1EndpointGroups.length > 0) return;
+    if (!settings.IntuneAction1OrgId || action1EndpointGroups.length > 0) return;
     setAttemptedAutoLoadAction1Groups(true);
     loadAction1EndpointGroups();
-  }, [meta, settings.IntuneProvisioningAction1GroupIds, attemptedAutoLoadAction1Groups, loadingAction1Groups, action1EndpointGroups.length]);
+  }, [meta, settings.IntuneAction1OrgId, attemptedAutoLoadAction1Groups, loadingAction1Groups, action1EndpointGroups.length]);
 
   const validateAssignments = async () => {
     setValidatingAssignments(true);
@@ -240,7 +295,7 @@ function Settings({ integration }) {
     .filter(groupId => !action1EndpointGroups.some(group => group.id === groupId))
     .map(groupId => ({ id: groupId, name: selectedAction1GroupMap[groupId] || groupId }));
   const displayedAction1EndpointGroups = action1EndpointGroups.length ? action1EndpointGroups : savedAction1Groups;
-  const hiddenSettingKeys = new Set(['IntuneDeviceGroupIds', 'IntuneProvisioningAction1GroupIds', 'IntuneProvisioningAction1GroupMap']);
+  const hiddenSettingKeys = new Set(['IntuneAction1OrgId', 'IntuneAgentId', 'IntuneOrgName', 'IntuneDeviceGroupIds', 'IntuneProvisioningAction1GroupIds', 'IntuneProvisioningAction1GroupMap']);
 
   return (
     <div style={{ maxWidth: 760 }}>
@@ -342,17 +397,42 @@ function Settings({ integration }) {
                 </div>
               </div>
             )}
+            {groupName === 'Action1 Agent Settings' && (
+              <div style={{ marginTop: '0.5rem' }}>
+                {loadingAction1Organizations || action1OrganizationMessage ? (
+                  <div style={{ marginBottom: '0.75rem', fontSize: '0.82rem', color: action1OrganizationMessage.includes('Unable') || action1OrganizationMessage.includes('did not return') ? '#DC2626' : '#6B7280' }}>
+                    {loadingAction1Organizations ? 'Loading Action1 organizations...' : action1OrganizationMessage}
+                  </div>
+                ) : null}
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 700 }}>Action1 Organization<span style={{ color: '#DC2626' }}> *</span></label>
+                  <select
+                    value={settings.IntuneAction1OrgId || ''}
+                    onChange={event => selectAction1Organization(event.target.value)}
+                    style={{ width: '100%', padding: '0.6rem', border: '1px solid #D1D5DB', borderRadius: 4, background: '#fff', color: '#111827', boxSizing: 'border-box' }}
+                  >
+                    <option value="">{loadingAction1Organizations ? 'Loading organizations...' : 'Select organization'}</option>
+                    {action1Organizations.map(organization => (
+                      <option key={organization.id} value={organization.id}>{organization.name}</option>
+                    ))}
+                    {!action1Organizations.some(organization => organization.id === settings.IntuneAction1OrgId) && settings.IntuneAction1OrgId ? (
+                      <option value={settings.IntuneAction1OrgId}>{settings.IntuneOrgName || settings.IntuneAction1OrgId}</option>
+                    ) : null}
+                  </select>
+                </div>
+                <input type="hidden" value={settings.IntuneOrgName || ''} readOnly />
+              </div>
+            )}
             {groupName === 'Action1 Provisioning' && (
               <div style={{ marginTop: '0.5rem' }}>
                 <p style={{ marginTop: 0, color: '#4B5563', fontSize: '0.9rem', lineHeight: 1.45 }}>
                   Select the Action1 endpoint groups whose automations should be treated as provisioning automations.
                 </p>
-                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '0.75rem' }}>
-                  <button className="btn-section-action action1-action" type="button" onClick={loadAction1EndpointGroups} disabled={loadingAction1Groups}>
-                    {loadingAction1Groups ? 'Loading endpoint groups...' : 'Load Action1 Endpoint Groups'}
-                  </button>
-                  <span style={{ fontSize: '0.82rem', color: action1GroupMessage.includes('Unable') || action1GroupMessage.includes('Failed') || action1GroupMessage.includes('required') ? '#DC2626' : '#6B7280' }}>{action1GroupMessage}</span>
-                </div>
+                {loadingAction1Groups || action1GroupMessage ? (
+                  <div style={{ marginBottom: '0.75rem', fontSize: '0.82rem', color: action1GroupMessage.includes('Unable') || action1GroupMessage.includes('Failed') || action1GroupMessage.includes('required') ? '#DC2626' : '#6B7280' }}>
+                    {loadingAction1Groups ? 'Loading Action1 endpoint groups...' : action1GroupMessage}
+                  </div>
+                ) : null}
                 {selectedAction1GroupIds.length > 0 && (
                   <div style={{ marginBottom: '0.75rem', fontSize: '0.85rem', color: '#374151' }}>
                     Selected: {selectedAction1GroupLabels.join(', ')}

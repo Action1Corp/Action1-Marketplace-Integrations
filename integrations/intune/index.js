@@ -1,4 +1,4 @@
-const { listAction1EndpointGroups, listDeviceGroups, validate, validateAssignments } = require('./validate');
+const { listAction1EndpointGroups, listAction1Organizations, listDeviceGroups, validate, validateAssignments } = require('./validate');
 const { sync } = require('./sync');
 
 function summarizeValidationResult(result) {
@@ -50,8 +50,11 @@ async function validateAssignmentsAction(context, request) {
   };
 }
 
-async function listAction1EndpointGroupsAction(context) {
-  const groups = await listAction1EndpointGroups(await context.action1.getCredentials());
+async function listAction1EndpointGroupsAction(context, request) {
+  const credentials = await context.action1.getCredentials();
+  const selectedOrganizationId = String(request.settings?.IntuneAction1OrgId || '').trim();
+  if (selectedOrganizationId) credentials.organizationId = selectedOrganizationId;
+  const groups = await listAction1EndpointGroups(credentials);
   return {
     ok: true,
     message: `Loaded ${groups.length} Action1 endpoint group${groups.length === 1 ? '' : 's'}.`,
@@ -59,9 +62,21 @@ async function listAction1EndpointGroupsAction(context) {
   };
 }
 
+async function listAction1OrganizationsAction(context) {
+  const credentials = await context.action1.getCredentials();
+  const organizations = await listAction1Organizations(credentials);
+  return {
+    ok: true,
+    message: `Loaded ${organizations.length} Action1 organization${organizations.length === 1 ? '' : 's'}.`,
+    organizations,
+    selectedOrganizationId: credentials.organizationId || ''
+  };
+}
+
 module.exports = {
   actions: {
     'validate-configuration': validateConfiguration,
+    'list-action1-organizations': listAction1OrganizationsAction,
     'list-action1-endpoint-groups': listAction1EndpointGroupsAction,
     'list-device-groups': listDeviceGroupsAction,
     'validate-assignments': validateAssignmentsAction,

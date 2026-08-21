@@ -21,6 +21,12 @@
     "required": true
   },
   {
+    "key": "IntuneAction1OrgId",
+    "label": "Action1 Organization ID",
+    "type": "text",
+    "group": "Action1 Agent Settings"
+  },
+  {
     "key": "IntuneAgentId",
     "label": "Action1 Agent ID",
     "type": "text",

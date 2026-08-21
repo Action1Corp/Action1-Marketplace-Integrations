@@ -72,6 +72,18 @@ function formatDateTime(value) {
   return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString();
 }
 
+function getConfigurationPolicyLink(automationName) {
+  const text = String(automationName || '').trim();
+  if (!/^A1CM\b/i.test(text)) return null;
+  const match = text.match(/\bPOL-\d{6,}\b/i);
+  if (!match) return null;
+  const policyId = match[0].toUpperCase();
+  return {
+    policyId,
+    url: `/apps/action1-configuration-manager/policies?policyId=${encodeURIComponent(policyId)}`
+  };
+}
+
 function FilterCard({ label, value, icon: Icon, active, onClick, tone = '#0B4EA2' }) {
   return (
     <button
@@ -469,6 +481,7 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
                                       <thead>
                                         <tr style={{ background: '#F9FAFB', color: '#6B7280', textAlign: 'left' }}>
                                           <th style={{ padding: '0.5rem', borderBottom: '1px solid #E5E7EB' }}>Automation</th>
+                                          <th style={{ padding: '0.5rem', borderBottom: '1px solid #E5E7EB', width: 180 }}>Configuration Policy</th>
                                           <th style={{ padding: '0.5rem', borderBottom: '1px solid #E5E7EB', width: 140 }}>Status</th>
                                           <th style={{ padding: '0.5rem', borderBottom: '1px solid #E5E7EB', width: 160 }}>Action</th>
                                           <th style={{ padding: '0.5rem', borderBottom: '1px solid #E5E7EB', width: 90 }}>Complete</th>
@@ -478,31 +491,45 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
                                         </tr>
                                       </thead>
                                       <tbody>
-                                        {automationResults.map((result, resultIndex) => (
-                                          <tr key={`${key}-automation-${resultIndex}`}>
-                                            <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', fontWeight: 600 }}>
-                                              {result.automationUrl ? (
-                                                <a
-                                                  href={result.automationUrl}
-                                                  target="_blank"
-                                                  rel="noreferrer"
-                                                  onClick={(event) => event.stopPropagation()}
-                                                  style={{ color: '#003DA6', textDecoration: 'none' }}
-                                                >
-                                                  {result.automationName || 'Unnamed automation'}
-                                                </a>
-                                              ) : (
-                                                result.automationName || 'Unnamed automation'
-                                              )}
-                                            </td>
-                                            <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6' }}><ProvisioningStatusPill status={result.status || 'N/A'} /></td>
-                                            <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6' }}>{result.actionName || 'N/A'}</td>
-                                            <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6' }}>{result.percentCompleted ? `${result.percentCompleted}%` : 'N/A'}</td>
-                                            <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', whiteSpace: 'nowrap' }}>{formatDateTime(result.startedAt)}</td>
-                                            <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', whiteSpace: 'nowrap' }}>{formatDateTime(result.completedAt)}</td>
-                                            <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', color: '#4B5563' }}>{result.statusDetail || 'N/A'}</td>
-                                          </tr>
-                                        ))}
+                                        {automationResults.map((result, resultIndex) => {
+                                          const policyLink = getConfigurationPolicyLink(result.automationName);
+                                          return (
+                                            <tr key={`${key}-automation-${resultIndex}`}>
+                                              <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', fontWeight: 600 }}>
+                                                {result.automationUrl ? (
+                                                  <a
+                                                    href={result.automationUrl}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    onClick={(event) => event.stopPropagation()}
+                                                    style={{ color: '#003DA6', textDecoration: 'none' }}
+                                                  >
+                                                    {result.automationName || 'Unnamed automation'}
+                                                  </a>
+                                                ) : (
+                                                  result.automationName || 'Unnamed automation'
+                                                )}
+                                              </td>
+                                              <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                                {policyLink ? (
+                                                  <a
+                                                    href={policyLink.url}
+                                                    onClick={(event) => event.stopPropagation()}
+                                                    style={{ color: '#003DA6', textDecoration: 'none' }}
+                                                  >
+                                                    {policyLink.policyId}
+                                                  </a>
+                                                ) : 'N/A'}
+                                              </td>
+                                              <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6' }}><ProvisioningStatusPill status={result.status || 'N/A'} /></td>
+                                              <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6' }}>{result.actionName || 'N/A'}</td>
+                                              <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6' }}>{result.percentCompleted ? `${result.percentCompleted}%` : 'N/A'}</td>
+                                              <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', whiteSpace: 'nowrap' }}>{formatDateTime(result.startedAt)}</td>
+                                              <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', whiteSpace: 'nowrap' }}>{formatDateTime(result.completedAt)}</td>
+                                              <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', color: '#4B5563' }}>{result.statusDetail || 'N/A'}</td>
+                                            </tr>
+                                          );
+                                        })}
                                       </tbody>
                                     </table>
                                   ) : (

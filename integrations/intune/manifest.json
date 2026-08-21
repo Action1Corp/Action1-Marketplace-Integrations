@@ -40,6 +40,16 @@
       "history": false
     },
     {
+      "id": "list-action1-organizations",
+      "kind": "read",
+      "label": "List Action1 Organizations",
+      "buttonLabel": "Load Organizations",
+      "runningLabel": "Loading...",
+      "description": "Reads available Action1 organizations for enrollment package configuration.",
+      "placement": "settings",
+      "history": false
+    },
+    {
       "id": "list-action1-endpoint-groups",
       "kind": "read",
       "label": "List Action1 Endpoint Groups",

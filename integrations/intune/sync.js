@@ -776,14 +776,12 @@ async function selectLatestProvisioningInstances(headers, instances, selectedAct
     const selectedGroupSet = new Set(selectedAction1GroupIds.map(id => String(id || '').trim()).filter(Boolean));
     if (!selectedGroupSet.size) return [];
 
-    const matchingInstances = instances.filter(instance => (
-        action1InstanceGroupIds(instance).some(groupId => selectedGroupSet.has(groupId))
-    ));
     const scheduleCache = new Map();
     const latestBySchedule = new Map();
 
-    for (const instance of matchingInstances) {
+    for (const instance of instances) {
         const scheduleUrl = firstString(instance?.schedule);
+        if (!scheduleUrl) continue;
         const scheduleKey = action1InstanceScheduleKey(instance);
         let schedule = scheduleCache.get(scheduleKey);
         if (!schedule && scheduleUrl) {
@@ -794,9 +792,10 @@ async function selectLatestProvisioningInstances(headers, instances, selectedAct
             }
             scheduleCache.set(scheduleKey, schedule || null);
         }
+        if (!schedule) continue;
 
         const scheduleGroups = action1GroupIds(schedule?.endpoints || schedule?.endpoint_groups || schedule?.endpointGroups || schedule?.targets);
-        if (scheduleGroups.length && !scheduleGroups.some(groupId => selectedGroupSet.has(groupId))) continue;
+        if (!scheduleGroups.some(groupId => selectedGroupSet.has(groupId))) continue;
 
         const frequencyMinutes = action1ScheduleFrequencyMinutes(schedule, instance);
         const current = latestBySchedule.get(scheduleKey);
@@ -805,7 +804,7 @@ async function selectLatestProvisioningInstances(headers, instances, selectedAct
                 instance,
                 schedule,
                 frequencyMinutes,
-                scheduleGroupIds: scheduleGroups.length ? scheduleGroups : action1InstanceGroupIds(instance)
+                scheduleGroupIds: scheduleGroups
             });
         }
     }
@@ -841,24 +840,6 @@ function findPreviousProvisioning(endpoint, previousByEndpoint) {
     return null;
 }
 
-function provisioningRequirementFromInstance(provisioningInstance, action1OrgId, action1ConsoleBase) {
-    const instance = provisioningInstance?.instance || {};
-    const schedule = provisioningInstance?.schedule || {};
-    const instanceId = firstString(instance?.id, instance?.instance_id, instance?.instanceId);
-    const scheduleId = firstString(schedule?.id);
-    return {
-        scheduleKey: action1InstanceScheduleKey(instance),
-        automationInstanceId: instanceId,
-        automationName: firstString(instance?.name, instance?.action_name, schedule?.name, 'Unnamed automation'),
-        actionName: firstString(instance?.action_name, schedule?.action_name),
-        runFrequencyMinutes: provisioningInstance?.frequencyMinutes,
-        scheduleId,
-        scheduleSettings: firstString(schedule?.settings),
-        provisioningEndpointGroups: provisioningInstance?.scheduleGroupIds || [],
-        automationUrl: action1AutomationHistoryUrl(action1ConsoleBase, action1OrgId, instanceId)
-    };
-}
-
 function summarizeProvisioningResults(results) {
     const latestResults = latestProvisioningResults(results);
     if (!latestResults.length) return { status: NO_AUTOMATION_RESULT_STATUS, detail: 'No Action1 provisioning automation result was found for this endpoint.', automationResults: [] };
@@ -880,7 +861,6 @@ async function fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecre
         { limit: ACTION1_AUTOMATION_INSTANCE_SCAN_LIMIT, pageLimit: 1, action1ApiBase }
     );
     const provisioningInstances = await selectLatestProvisioningInstances(headers, instances, selectedAction1GroupIds);
-    const provisioningRequirements = provisioningInstances.map(instance => provisioningRequirementFromInstance(instance, action1OrgId, action1ConsoleBase));
 
     for (const provisioningInstance of provisioningInstances) {
         const instance = provisioningInstance.instance;
@@ -919,33 +899,10 @@ async function fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecre
         }
     }
 
+    const summarized = new Map();
     for (const endpointId of targetIds) {
         if (!provisioningByEndpoint.has(endpointId)) provisioningByEndpoint.set(endpointId, []);
-        const results = provisioningByEndpoint.get(endpointId);
-        const resultScheduleKeys = new Set(results
-            .map(result => String(result.scheduleKey || result.scheduleId || result.automationName || '').trim().toLowerCase())
-            .filter(Boolean));
-        for (const requirement of provisioningRequirements) {
-            const requirementKey = String(requirement.scheduleKey || requirement.scheduleId || requirement.automationName || '').trim().toLowerCase();
-            if (!requirementKey || resultScheduleKeys.has(requirementKey)) continue;
-            results.push({
-                status: 'In progress',
-                scheduleKey: requirement.scheduleKey,
-                automationInstanceId: requirement.automationInstanceId,
-                automationName: requirement.automationName,
-                actionName: requirement.actionName,
-                percentCompleted: '',
-                statusDetail: 'No endpoint result was found yet for this provisioning automation.',
-                runFrequencyMinutes: requirement.runFrequencyMinutes,
-                scheduleId: requirement.scheduleId,
-                scheduleSettings: requirement.scheduleSettings,
-                provisioningEndpointGroups: requirement.provisioningEndpointGroups,
-                automationUrl: requirement.automationUrl
-            });
-        }
     }
-
-    const summarized = new Map();
     for (const [endpointId, results] of provisioningByEndpoint.entries()) {
         summarized.set(endpointId, summarizeProvisioningResults(results));
     }
@@ -1120,9 +1077,10 @@ function getDeviceGroupNames(device, groupMembershipByDeviceKey) {
     return Array.from(names).sort((a, b) => a.localeCompare(b));
 }
 
-async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = ASSIGNMENT_MODE_ALL_DEVICES, selectedGroupIds = [], selectedGroupMap = {}, selectedAction1GroupIds = [], selectedAction1GroupMap = {}, previousEndpointRegistration = null } = {}) {
+async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = ASSIGNMENT_MODE_ALL_DEVICES, selectedGroupIds = [], selectedGroupMap = {}, selectedAction1GroupIds = [], selectedAction1GroupMap = {}, selectedAction1OrgId = '', previousEndpointRegistration = null } = {}) {
     const action1Credentials = await getAction1Credentials();
-    const { apiKey: action1ApiKey, apiSecret: action1ApiSecret, organizationId: action1OrgId } = action1Credentials;
+    const { apiKey: action1ApiKey, apiSecret: action1ApiSecret } = action1Credentials;
+    const action1OrgId = String(selectedAction1OrgId || action1Credentials.organizationId || '').trim();
     const action1ApiBase = action1BaseUrl(action1Credentials);
     const action1ConsoleBase = action1ConsoleUrl(action1Credentials);
     if (!action1ApiKey || !action1ApiSecret || !action1OrgId) {
@@ -1617,6 +1575,7 @@ async function runSync() {
         const IntuneClientSecret = await getSetting('IntuneClientSecret');
         const IntuneAgentId = await getSetting('IntuneAgentId');
         const IntuneOrgName = await getSetting('IntuneOrgName');
+        const IntuneAction1OrgId = await getSetting('IntuneAction1OrgId');
         const assignmentMode = normalizeAssignmentMode(await getSetting('IntuneAssignmentTargetMode'));
         const selectedGroupIds = parseSelectedGroupIds(await getSetting('IntuneDeviceGroupIds'));
         const selectedGroupMap = parseSelectedGroupMap(await getSetting('IntuneDeviceGroupMap'));
@@ -1781,6 +1740,7 @@ async function runSync() {
                 selectedGroupMap,
                 selectedAction1GroupIds,
                 selectedAction1GroupMap,
+                selectedAction1OrgId: IntuneAction1OrgId,
                 previousEndpointRegistration
             });
             if (endpointRegistration.status === 'failed' && previousEndpointRegistration?.endpoints?.length) {
