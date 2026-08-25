@@ -60,6 +60,16 @@
       "history": false
     },
     {
+      "id": "mark-provisioning-complete",
+      "kind": "action",
+      "label": "Mark Provisioning Complete",
+      "buttonLabel": "Mark Complete",
+      "runningLabel": "Marking...",
+      "description": "Sets the Action1 provisioning custom attribute for a selected endpoint.",
+      "placement": "dashboard",
+      "history": false
+    },
+    {
       "id": "sync",
       "kind": "sync",
       "label": "Sync Enrollment and Provisioning",

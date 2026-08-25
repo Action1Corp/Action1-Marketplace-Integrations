@@ -72,14 +72,18 @@ function formatDateTime(value) {
   return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString();
 }
 
-function getConfigurationPolicyLink(automationName) {
-  const text = String(automationName || '').trim();
+function getConfigurationPolicyInfo(result) {
+  const text = String(result?.automationName || '').trim();
   if (!/^A1CM\b/i.test(text)) return null;
   const match = text.match(/\bPOL-\d{6,}\b/i);
   if (!match) return null;
   const policyId = match[0].toUpperCase();
+  const parts = text.split(/\s+[—-]\s+/).map(part => part.trim()).filter(Boolean);
+  const policyIndex = parts.findIndex(part => part.toUpperCase() === policyId);
+  const policyName = result?.configurationPolicyName || result?.policyControls?.find(control => control.policyName)?.policyName || (policyIndex >= 0 ? parts[policyIndex + 1] : '') || policyId;
   return {
     policyId,
+    policyName,
     url: `/apps/action1-configuration-manager/policies?policyId=${encodeURIComponent(policyId)}`
   };
 }
@@ -168,6 +172,8 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
   const [endpointFilter, setEndpointFilter] = useState('all');
   const [columnFilters, setColumnFilters] = useState({});
   const [expandedEndpointId, setExpandedEndpointId] = useState('');
+  const [markingEndpointId, setMarkingEndpointId] = useState('');
+  const [markCompleteMessage, setMarkCompleteMessage] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -305,6 +311,60 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
   const toggleEndpointFilter = filter => setEndpointFilter(current => current === filter ? 'all' : filter);
   const rowKey = (device, index) => device.id || device.intuneDeviceId || device.action1EndpointId || `${device.deviceName}-${index}`;
   const toggleEndpointDetails = key => setExpandedEndpointId(current => current === key ? '' : key);
+  const markProvisioningComplete = async (device) => {
+    const endpointId = String(device?.action1EndpointId || '').trim();
+    const endpointName = String(device?.deviceName || '').trim();
+    if (!endpointId) {
+      setMarkCompleteMessage('This endpoint does not have an Action1 endpoint ID.');
+      return;
+    }
+
+    setMarkingEndpointId(endpointId);
+    setMarkCompleteMessage('');
+    try {
+      const response = await fetch('/api/integrations/intune/actions/mark-provisioning-complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          payload: { endpointId, endpointName },
+          trackHistory: false
+        })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.ok === false) {
+        throw new Error(result.error || result.message || 'Unable to mark provisioning complete.');
+      }
+
+      setData(current => {
+        if (!current?.endpointRegistration?.endpoints) return current;
+        return {
+          ...current,
+          endpointRegistration: {
+            ...current.endpointRegistration,
+            endpoints: current.endpointRegistration.endpoints.map(endpoint => {
+              const idMatches = String(endpoint.action1EndpointId || '').trim() === endpointId;
+              const nameMatches = endpointName && String(endpoint.deviceName || '').trim().toLowerCase() === endpointName.toLowerCase();
+              if (!idMatches && !nameMatches) return endpoint;
+              return {
+                ...endpoint,
+                provisioningCompletedByAttribute: true,
+                provisioningStatus: 'Completed',
+                provisioningDetail: 'Action1 Provisioning Status set to Completed by manual override.',
+                provisioningAttributeStatus: 'completed',
+                provisioningAttributeMessage: 'Action1 Provisioning Status set to Completed by manual override.',
+                automationResults: []
+              };
+            })
+          }
+        };
+      });
+      setMarkCompleteMessage(result.message || `${endpointName || 'Endpoint'} was marked as provisioning complete.`);
+    } catch (markError) {
+      setMarkCompleteMessage(markError.message);
+    } finally {
+      setMarkingEndpointId('');
+    }
+  };
 
   return (
     <div style={{ width: '100%', maxWidth: '100%', margin: 0 }}>
@@ -475,13 +535,33 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
                             <tr>
                               <td colSpan={endpointColumns.length} style={{ padding: 0, borderBottom: '1px solid var(--border-color)', background: '#F8FBFF' }}>
                                 <div style={{ padding: '0.85rem 1rem 1rem 2.1rem' }}>
-                                  <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#374151', marginBottom: '0.55rem' }}>Action1 Automations</div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.55rem' }}>
+                                    <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#374151' }}>Provisioning Items</div>
+                                    {device.action1EndpointId && device.provisioningStatus !== 'Completed' && (
+                                      <button
+                                        type="button"
+                                        className="btn-primary"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          markProvisioningComplete(device);
+                                        }}
+                                        disabled={markingEndpointId === device.action1EndpointId}
+                                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem', whiteSpace: 'nowrap' }}
+                                      >
+                                        {markingEndpointId === device.action1EndpointId ? 'Marking...' : 'Mark Provisioning Complete'}
+                                      </button>
+                                    )}
+                                  </div>
+                                  {markCompleteMessage && (
+                                    <div style={{ padding: '0.55rem 0.7rem', marginBottom: '0.7rem', background: '#EAF3FF', border: '1px solid #BFDBFE', borderRadius: 6, color: '#0B4EA2', fontSize: '0.8rem', fontWeight: 600 }}>
+                                      {markCompleteMessage}
+                                    </div>
+                                  )}
                                   {automationResults.length ? (
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', background: '#fff', border: '1px solid #E5E7EB' }}>
                                       <thead>
                                         <tr style={{ background: '#F9FAFB', color: '#6B7280', textAlign: 'left' }}>
-                                          <th style={{ padding: '0.5rem', borderBottom: '1px solid #E5E7EB' }}>Automation</th>
-                                          <th style={{ padding: '0.5rem', borderBottom: '1px solid #E5E7EB', width: 180 }}>Configuration Policy</th>
+                                          <th style={{ padding: '0.5rem', borderBottom: '1px solid #E5E7EB' }}>Item</th>
                                           <th style={{ padding: '0.5rem', borderBottom: '1px solid #E5E7EB', width: 140 }}>Status</th>
                                           <th style={{ padding: '0.5rem', borderBottom: '1px solid #E5E7EB', width: 160 }}>Action</th>
                                           <th style={{ padding: '0.5rem', borderBottom: '1px solid #E5E7EB', width: 90 }}>Complete</th>
@@ -492,42 +572,70 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
                                       </thead>
                                       <tbody>
                                         {automationResults.map((result, resultIndex) => {
-                                          const policyLink = getConfigurationPolicyLink(result.automationName);
+                                          const policyInfo = getConfigurationPolicyInfo(result);
+                                          const nonCompliantControls = Array.isArray(result.nonCompliantControls) ? result.nonCompliantControls : [];
+                                          const details = [result.statusDetail, result.policyComplianceDetail].filter(Boolean).join(' ');
                                           return (
-                                            <tr key={`${key}-automation-${resultIndex}`}>
-                                              <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', fontWeight: 600 }}>
-                                                {result.automationUrl ? (
-                                                  <a
-                                                    href={result.automationUrl}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    onClick={(event) => event.stopPropagation()}
-                                                    style={{ color: '#003DA6', textDecoration: 'none' }}
-                                                  >
-                                                    {result.automationName || 'Unnamed automation'}
-                                                  </a>
-                                                ) : (
-                                                  result.automationName || 'Unnamed automation'
-                                                )}
-                                              </td>
-                                              <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                                                {policyLink ? (
-                                                  <a
-                                                    href={policyLink.url}
-                                                    onClick={(event) => event.stopPropagation()}
-                                                    style={{ color: '#003DA6', textDecoration: 'none' }}
-                                                  >
-                                                    {policyLink.policyId}
-                                                  </a>
-                                                ) : 'N/A'}
-                                              </td>
-                                              <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6' }}><ProvisioningStatusPill status={result.status || 'N/A'} /></td>
-                                              <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6' }}>{result.actionName || 'N/A'}</td>
-                                              <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6' }}>{result.percentCompleted ? `${result.percentCompleted}%` : 'N/A'}</td>
-                                              <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', whiteSpace: 'nowrap' }}>{formatDateTime(result.startedAt)}</td>
-                                              <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', whiteSpace: 'nowrap' }}>{formatDateTime(result.completedAt)}</td>
-                                              <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', color: '#4B5563' }}>{result.statusDetail || 'N/A'}</td>
-                                            </tr>
+                                            <Fragment key={`${key}-automation-${resultIndex}`}>
+                                              <tr>
+                                                <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', fontWeight: 600 }}>
+                                                  {policyInfo ? (
+                                                    <a
+                                                      href={policyInfo.url}
+                                                      onClick={(event) => event.stopPropagation()}
+                                                      style={{ color: '#003DA6', textDecoration: 'none' }}
+                                                    >
+                                                      {policyInfo.policyName}
+                                                    </a>
+                                                  ) : result.automationUrl ? (
+                                                    <a
+                                                      href={result.automationUrl}
+                                                      target="_blank"
+                                                      rel="noreferrer"
+                                                      onClick={(event) => event.stopPropagation()}
+                                                      style={{ color: '#003DA6', textDecoration: 'none' }}
+                                                    >
+                                                      {result.automationName || 'Unnamed automation'}
+                                                    </a>
+                                                  ) : (
+                                                    result.automationName || 'Unnamed automation'
+                                                  )}
+                                                </td>
+                                                <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6' }}><ProvisioningStatusPill status={result.status || 'N/A'} /></td>
+                                                <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6' }}>{result.actionName || 'N/A'}</td>
+                                                <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6' }}>{result.percentCompleted ? `${result.percentCompleted}%` : 'N/A'}</td>
+                                                <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', whiteSpace: 'nowrap' }}>{formatDateTime(result.startedAt)}</td>
+                                                <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', whiteSpace: 'nowrap' }}>{formatDateTime(result.completedAt)}</td>
+                                                <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', color: '#4B5563' }}>{details || 'N/A'}</td>
+                                              </tr>
+                                              {nonCompliantControls.length > 0 && (
+                                                <tr>
+                                                  <td colSpan={7} style={{ padding: '0.55rem 0.75rem 0.85rem', borderBottom: '1px solid #F3F4F6', background: '#FEF2F2' }}>
+                                                    <div style={{ fontWeight: 800, color: '#991B1B', marginBottom: '0.45rem' }}>Non-compliant policy controls</div>
+                                                    <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', border: '1px solid #FECACA' }}>
+                                                      <thead>
+                                                        <tr style={{ background: '#FFF1F2', color: '#7F1D1D', textAlign: 'left' }}>
+                                                          <th style={{ padding: '0.45rem', borderBottom: '1px solid #FECACA' }}>Control</th>
+                                                          <th style={{ padding: '0.45rem', borderBottom: '1px solid #FECACA', width: 120 }}>Status</th>
+                                                          <th style={{ padding: '0.45rem', borderBottom: '1px solid #FECACA', width: 170 }}>Last Checked</th>
+                                                          <th style={{ padding: '0.45rem', borderBottom: '1px solid #FECACA' }}>Message</th>
+                                                        </tr>
+                                                      </thead>
+                                                      <tbody>
+                                                        {nonCompliantControls.map((control, controlIndex) => (
+                                                          <tr key={`${key}-automation-${resultIndex}-control-${controlIndex}`}>
+                                                            <td style={{ padding: '0.45rem', borderBottom: '1px solid #FEE2E2', fontWeight: 700 }}>{control.controlName || 'Unnamed control'}</td>
+                                                            <td style={{ padding: '0.45rem', borderBottom: '1px solid #FEE2E2' }}>{control.status || 'N/A'}</td>
+                                                            <td style={{ padding: '0.45rem', borderBottom: '1px solid #FEE2E2', whiteSpace: 'nowrap' }}>{formatDateTime(control.lastCheckedAt)}</td>
+                                                            <td style={{ padding: '0.45rem', borderBottom: '1px solid #FEE2E2', color: '#4B5563' }}>{control.message || 'N/A'}</td>
+                                                          </tr>
+                                                        ))}
+                                                      </tbody>
+                                                    </table>
+                                                  </td>
+                                                </tr>
+                                              )}
+                                            </Fragment>
                                           );
                                         })}
                                       </tbody>

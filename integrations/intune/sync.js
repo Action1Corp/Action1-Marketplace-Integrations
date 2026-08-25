@@ -25,6 +25,7 @@ const ACTION1_API_MAX_BACKOFF_MS = 60000;
 const ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE = 'Action1 Provisioning Status';
 const ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE = 'Completed';
 const NO_AUTOMATION_RESULT_STATUS = 'No automation result';
+const CONFIGURATION_MANAGER_REPORTING_TABLE = 'action1_configuration_manager_reporting';
 const DEFAULT_ACTION1_BASE_URL = 'https://app.action1.com/api/3.0';
 const DEFAULT_ACTION1_CONSOLE_URL = 'https://app.action1.com';
 
@@ -412,6 +413,31 @@ function firstString(...values) {
     return '';
 }
 
+function dbGet(sql, params = []) {
+    return new Promise((resolve) => {
+        if (!db?.get) return resolve(null);
+        db.get(sql, params, (error, row) => resolve(error ? null : row));
+    });
+}
+
+function configurationPolicyFromAutomationName(automationName) {
+    const text = String(automationName || '').trim();
+    if (!/^A1CM\b/i.test(text)) return null;
+    const match = text.match(/\bPOL-\d{6,}\b/i);
+    if (!match) return null;
+    return match[0].toUpperCase();
+}
+
+function configurationPolicyNameFromAutomationName(automationName) {
+    const text = String(automationName || '').trim();
+    const policyId = configurationPolicyFromAutomationName(text);
+    if (!policyId) return '';
+    const parts = text.split(/\s+[—-]\s+/).map(part => part.trim()).filter(Boolean);
+    const policyIndex = parts.findIndex(part => part.toUpperCase() === policyId);
+    if (policyIndex >= 0 && parts[policyIndex + 1]) return parts[policyIndex + 1];
+    return '';
+}
+
 function endpointCustomAttributeValue(endpoint, attributeName) {
     const customKey = `custom:${attributeName}`;
     const directValue = firstString(endpoint?.[customKey], endpoint?.[customKey.toLowerCase()], endpoint?.[attributeName]);
@@ -600,6 +626,70 @@ function latestProvisioningResults(results) {
         }
     }
     return Array.from(latestByAutomation.values()).sort((a, b) => automationResultTime(b) - automationResultTime(a));
+}
+
+function normalizeConfigurationStatus(value) {
+    const text = String(value || '').trim();
+    const normalized = text.toLowerCase().replace(/[\s_-]+/g, '');
+    if (normalized === 'compliant') return 'Compliant';
+    if (normalized === 'noncompliant' || normalized === 'noncompliance') return 'NonCompliant';
+    if (/(fail|error|noncompliant|notcompliant)/.test(normalized)) return 'NonCompliant';
+    if (/(pending|progress|unknown|notchecked|nostatus)/.test(normalized)) return 'Unknown';
+    return text || 'Unknown';
+}
+
+function normalizeConfigurationControlRow(row) {
+    const fields = row?.fields || row || {};
+    const status = normalizeConfigurationStatus(fields['Configuration Status'] || fields.configurationStatus || fields.status);
+    const policyId = firstString(fields['Policy ID'], fields.policyId, fields.policy_id).toUpperCase();
+    const policyName = firstString(fields['Policy Name'], fields.policyName, fields.policy_name);
+    const controlName = firstString(fields['Control Name'], fields.controlName, fields.control_name);
+    const controlVersion = firstString(fields['Control Version'], fields.controlVersion, fields.control_version);
+    const endpointName = firstString(fields['Endpoint Name'], fields.endpointName, fields.endpoint_name);
+    const message = firstString(fields.Message, fields.message, fields.Details, fields.details);
+    const lastCheckedAt = firstString(fields['Last Checked At'], fields.lastCheckedAt, fields.last_checked_at);
+    const lastRemediatedAt = firstString(fields['Last Remediated At'], fields.lastRemediatedAt, fields.last_remediated_at);
+    const remediationAttempted = firstString(fields['Remediation Attempted'], fields.remediationAttempted, fields.remediation_attempted);
+    if (!policyId) return null;
+    return {
+        status,
+        policyId,
+        policyName,
+        controlName,
+        controlVersion,
+        endpointName,
+        message,
+        lastCheckedAt,
+        lastRemediatedAt,
+        remediationAttempted
+    };
+}
+
+function summarizeConfigurationPolicyControls(policyId, controls = []) {
+    const policyControls = controls.filter(control => control.policyId === policyId);
+    if (!policyControls.length) {
+        return {
+            status: 'Unknown',
+            detail: 'No Configuration Management report rows were found for this policy and endpoint.',
+            controls: [],
+            nonCompliantControls: []
+        };
+    }
+    const nonCompliantControls = policyControls.filter(control => control.status !== 'Compliant');
+    if (nonCompliantControls.length) {
+        return {
+            status: 'NonCompliant',
+            detail: `${nonCompliantControls.length} configuration control${nonCompliantControls.length === 1 ? '' : 's'} not compliant.`,
+            controls: policyControls,
+            nonCompliantControls
+        };
+    }
+    return {
+        status: 'Compliant',
+        detail: 'All Configuration Management controls for this policy are compliant.',
+        controls: policyControls,
+        nonCompliantControls: []
+    };
 }
 
 function action1GroupIds(items = []) {
@@ -812,6 +902,94 @@ async function selectLatestProvisioningInstances(headers, instances, selectedAct
     return Array.from(latestBySchedule.values()).sort((a, b) => action1InstanceTime(b.instance) - action1InstanceTime(a.instance));
 }
 
+async function getConfigurationManagerByEndpointReportId() {
+    const row = await dbGet(
+        `SELECT report_by_endpoint FROM ${CONFIGURATION_MANAGER_REPORTING_TABLE} WHERE singleton_id = 1`
+    );
+    return firstString(row?.report_by_endpoint);
+}
+
+async function requeryConfigurationManagerReport(headers, action1OrgId, reportId, action1ApiBase = DEFAULT_ACTION1_BASE_URL) {
+    if (!reportId) return false;
+    await requestAction1({
+        method: 'post',
+        url: `${action1ApiBase}/reportdata/${encodeURIComponent(action1OrgId)}/${encodeURIComponent(reportId)}/requery`,
+        headers
+    }, 'Action1 Configuration Management report refresh request');
+    return true;
+}
+
+async function fetchConfigurationPolicyControlsForEndpoints(headers, action1OrgId, reportId, endpointNames = [], action1ApiBase = DEFAULT_ACTION1_BASE_URL) {
+    const result = new Map();
+    const uniqueNames = Array.from(new Set(endpointNames.map(name => firstString(name)).filter(Boolean)));
+    if (!reportId || !uniqueNames.length) return result;
+
+    for (const endpointName of uniqueNames) {
+        const controls = [];
+        const rows = await fetchAction1Collection(
+            headers,
+            `${action1ApiBase}/reportdata/${encodeURIComponent(action1OrgId)}/${encodeURIComponent(reportId)}/data/${encodeURIComponent(endpointName)}/drilldown?limit=500&from=0&live_only=no&details=no`,
+            { limit: 500, pageLimit: 10, action1ApiBase }
+        ).catch(() => []);
+        for (const row of rows) {
+            const control = normalizeConfigurationControlRow(row);
+            if (control) controls.push(control);
+        }
+        result.set(normalizeEndpointName(endpointName), controls);
+    }
+    return result;
+}
+
+function applyConfigurationPolicyCompliance(provisioningSummary, endpointControls = []) {
+    const automationResults = (provisioningSummary.automationResults || []).map(result => {
+        const policyId = configurationPolicyFromAutomationName(result.automationName);
+        if (!policyId) return result;
+        const compliance = summarizeConfigurationPolicyControls(policyId, endpointControls);
+        const policyName = firstString(compliance.controls?.[0]?.policyName, configurationPolicyNameFromAutomationName(result.automationName));
+        const effectiveStatus = compliance.status === 'NonCompliant'
+            ? 'Failed'
+            : compliance.status === 'Unknown'
+                ? 'In progress'
+                : result.status;
+        return {
+            ...result,
+            status: effectiveStatus,
+            configurationPolicyId: policyId,
+            configurationPolicyName: policyName,
+            policyComplianceStatus: compliance.status,
+            policyComplianceDetail: compliance.detail,
+            policyControls: compliance.controls,
+            nonCompliantControls: compliance.nonCompliantControls
+        };
+    });
+
+    const policyResults = automationResults.filter(result => result.configurationPolicyId);
+    if (!policyResults.length) return { ...provisioningSummary, automationResults };
+
+    if (policyResults.some(result => result.policyComplianceStatus === 'NonCompliant')) {
+        return {
+            status: 'Failed',
+            detail: 'One or more Configuration Management policy controls are not compliant.',
+            automationResults
+        };
+    }
+    if (policyResults.some(result => result.policyComplianceStatus !== 'Compliant')) {
+        return {
+            status: 'In progress',
+            detail: 'Waiting for Configuration Management policy compliance report results.',
+            automationResults
+        };
+    }
+    if (provisioningSummary.status === 'Completed') {
+        return {
+            status: 'Completed',
+            detail: `${provisioningSummary.detail} All Configuration Management policy controls are compliant.`,
+            automationResults
+        };
+    }
+    return { ...provisioningSummary, automationResults };
+}
+
 function previousProvisioningByEndpoint(previousEndpointRegistration) {
     const previous = new Map();
     for (const endpoint of previousEndpointRegistration?.endpoints || []) {
@@ -849,12 +1027,35 @@ function summarizeProvisioningResults(results) {
     return { status: NO_AUTOMATION_RESULT_STATUS, detail: 'No conclusive Action1 provisioning automation result was found for this endpoint.', automationResults: latestResults };
 }
 
-async function fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecret, action1OrgId, endpointIds, selectedAction1GroupIds = [], action1ApiBase = DEFAULT_ACTION1_BASE_URL, action1ConsoleBase = DEFAULT_ACTION1_CONSOLE_URL) {
-    const targetIds = new Set(endpointIds.map(id => String(id || '').trim()).filter(Boolean));
+async function fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecret, action1OrgId, endpointTargets, selectedAction1GroupIds = [], action1ApiBase = DEFAULT_ACTION1_BASE_URL, action1ConsoleBase = DEFAULT_ACTION1_CONSOLE_URL) {
+    const targets = (endpointTargets || [])
+        .map(target => typeof target === 'string' ? { id: target, name: '' } : target)
+        .map(target => ({
+            id: String(target?.id || '').trim(),
+            name: firstString(target?.name, target?.deviceName, target?.endpointName)
+        }))
+        .filter(target => target.id);
+    const targetIds = new Set(targets.map(target => target.id));
     const provisioningByEndpoint = new Map();
     if (!targetIds.size) return provisioningByEndpoint;
 
     const headers = await getAction1Headers(action1ApiKey, action1ApiSecret, action1ApiBase);
+    const configurationReportId = await getConfigurationManagerByEndpointReportId();
+    if (configurationReportId) {
+        try {
+            await requeryConfigurationManagerReport(headers, action1OrgId, configurationReportId, action1ApiBase);
+            await updateProgress('Configuration Management report refresh requested.');
+        } catch (reportRefreshError) {
+            await updateProgress(`Warning: Could not refresh Configuration Management report: ${reportRefreshError.response?.data?.error?.message || reportRefreshError.message}`);
+        }
+    }
+    const configurationControlsByEndpoint = await fetchConfigurationPolicyControlsForEndpoints(
+        headers,
+        action1OrgId,
+        configurationReportId,
+        targets.map(target => target.name),
+        action1ApiBase
+    );
     const instances = await fetchAction1Collection(
         headers,
         `${action1ApiBase}/automations/instances/${encodeURIComponent(action1OrgId)}?sortby=${encodeURIComponent('-end_time')}&limit=${ACTION1_AUTOMATION_INSTANCE_SCAN_LIMIT}&from=0`,
@@ -904,7 +1105,9 @@ async function fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecre
         if (!provisioningByEndpoint.has(endpointId)) provisioningByEndpoint.set(endpointId, []);
     }
     for (const [endpointId, results] of provisioningByEndpoint.entries()) {
-        summarized.set(endpointId, summarizeProvisioningResults(results));
+        const target = targets.find(target => target.id === endpointId);
+        const endpointControls = configurationControlsByEndpoint.get(normalizeEndpointName(target?.name)) || [];
+        summarized.set(endpointId, applyConfigurationPolicyCompliance(summarizeProvisioningResults(results), endpointControls));
     }
     return summarized;
 }
@@ -1201,15 +1404,15 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
             (endpoint.action1EndpointGroups || [])
                 .some(groupName => selectedAction1GroupNames.has(String(groupName || '').trim().toLowerCase()))
         );
-        const targetAction1EndpointIds = endpoints
+        const targetAction1Endpoints = endpoints
             .filter(endpoint => (
                 endpoint.inAssignmentTarget &&
                 endpoint.source === 'Synced' &&
                 endpoint.action1EndpointId &&
                 isInSelectedAction1ProvisioningGroup(endpoint)
             ))
-            .map(endpoint => endpoint.action1EndpointId);
-        const provisioningByEndpoint = await fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecret, action1OrgId, targetAction1EndpointIds, selectedAction1GroupIds, action1ApiBase, action1ConsoleBase);
+            .map(endpoint => ({ id: endpoint.action1EndpointId, name: endpoint.deviceName }));
+        const provisioningByEndpoint = await fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecret, action1OrgId, targetAction1Endpoints, selectedAction1GroupIds, action1ApiBase, action1ConsoleBase);
         for (const endpoint of endpoints) {
             const previous = findPreviousProvisioning(endpoint, previousProvisioning);
             if (endpoint.inAssignmentTarget && endpoint.source === 'Intune' && !endpoint.action1EndpointId) {
@@ -1222,6 +1425,17 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
                 endpoint.provisioningStatus = 'N/A';
                 endpoint.provisioningDetail = '';
                 endpoint.automationResults = [];
+                continue;
+            }
+            if (endpoint.provisioningCompletedByAttribute) {
+                endpoint.provisioningStatus = 'Completed';
+                endpoint.provisioningDetail = `${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE} is ${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE}.`;
+                endpoint.automationResults = [];
+                endpoint.provisioningCleanupStatus = previous?.provisioningCleanupStatus || '';
+                endpoint.provisioningCleanupMessage = previous?.provisioningCleanupMessage || '';
+                endpoint.provisioningCleanupGroupIds = previous?.provisioningCleanupGroupIds || [];
+                endpoint.provisioningAttributeStatus = 'completed';
+                endpoint.provisioningAttributeMessage = `${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE} is ${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE}.`;
                 continue;
             }
             if (!isInSelectedAction1ProvisioningGroup(endpoint)) {
