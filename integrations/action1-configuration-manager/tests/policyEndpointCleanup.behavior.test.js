@@ -2,9 +2,11 @@ const assert = require('assert');
 const {
   CLEANUP_RETRY_MINUTES,
   buildPolicyEndpointCleanupScript,
-  buildPolicyEndpointCleanupInstance
+  buildPolicyEndpointCleanupInstance,
+  buildDeselectedControlCleanupScript,
+  buildDeselectedControlCleanupInstance
 } = require('../policyEndpointCleanup');
-const { cleanupPolicy } = require('../lifecycleMutations');
+const { cleanupPolicy, getRemovedControlIds } = require('../lifecycleMutations');
 
 function policy(overrides = {}) {
   return {
@@ -70,6 +72,51 @@ async function run() {
 
   const allInstance = buildPolicyEndpointCleanupInstance(policy({ scopeType: 'ALL_ENDPOINTS', endpointGroupId: '' }));
   assert.deepStrictEqual(allInstance.payload.endpoints, [{ id: 'ALL', type: 'EndpointGroup' }]);
+
+  const selected = [
+    'identity.password.minimum-length',
+    'identity.password.maximum-age'
+  ];
+  const deselectedScript = buildDeselectedControlCleanupScript('POL-000037', selected);
+  assert(deselectedScript.includes("$baseDirectory = 'C:\\Windows\\Action1\\ConfigurationManager'"));
+  assert(deselectedScript.includes('$removedControlIds = @('));
+  assert(deselectedScript.includes("'identity.password.minimum-length'"));
+  assert(deselectedScript.includes("'identity.password.maximum-age'"));
+  assert(deselectedScript.includes('Remove-Item -LiteralPath $targetPath'));
+  assert(!deselectedScript.includes('Remove-Item -LiteralPath $policyDirectory'));
+  assert.throws(() => buildDeselectedControlCleanupScript('POL-000037', ['bad/control']), /control id/i);
+  assert.throws(() => buildDeselectedControlCleanupScript('POL-000037', ['..']), /control id/i);
+  assert.throws(() => buildDeselectedControlCleanupScript('POL-000037', ['C:\\temp\\state.json']), /control id/i);
+
+  const deselectedInstance = buildDeselectedControlCleanupInstance({ ...policy(), baseName: 'Workstation Security' }, selected);
+  assert.strictEqual(deselectedInstance.organizationId, 'org-acme');
+  assert.deepStrictEqual(deselectedInstance.payload.endpoints, [{ id: 'group-finance', type: 'EndpointGroup' }]);
+  assert.strictEqual(deselectedInstance.payload.retry_minutes, '10080');
+  assert(deselectedInstance.name.includes('Control State Cleanup'));
+  assert.strictEqual(deselectedInstance.payload.actions.length, 1);
+  assert.strictEqual(deselectedInstance.payload.actions[0].template_id, 'run_script');
+
+  const allDeselectedInstance = buildDeselectedControlCleanupInstance(
+    policy({ scopeType: 'ALL_ENDPOINTS', endpointGroupId: '' }),
+    ['identity.password.minimum-length']
+  );
+  assert.deepStrictEqual(allDeselectedInstance.payload.endpoints, [{ id: 'ALL', type: 'EndpointGroup' }]);
+
+  assert.deepStrictEqual(
+    getRemovedControlIds(
+      { selectedControls: [{ controlId: 'a' }, { controlId: 'b' }, { controlId: 'c' }] },
+      { selectedControls: [{ controlId: 'a' }, { controlId: 'c' }] }
+    ),
+    ['b']
+  );
+  assert.deepStrictEqual(
+    getRemovedControlIds(
+      { selectedControls: [{ controlId: 'a' }, { controlId: 'b' }] },
+      { selectedControls: [{ controlId: 'c' }] }
+    ),
+    ['a', 'b']
+  );
+  assert.deepStrictEqual(getRemovedControlIds({ selectedControls: [{ controlId: 'a' }] }, { selectedControls: [{ controlId: 'a' }] }), []);
 
   const calls = [];
   const client = {

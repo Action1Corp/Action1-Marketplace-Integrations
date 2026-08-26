@@ -4,7 +4,10 @@ const { createAutomationCorrelationStore } = require('./automationCorrelationSto
 const { planLifecycleDiff, summarizeLifecycleDiff } = require('./lifecyclePlanner');
 const { writeAction1RuntimeLog } = require('./runtimeLogging');
 const { classifyMissingAutomationGet } = require('./action1AutomationClient');
-const { buildPolicyEndpointCleanupInstance } = require('./policyEndpointCleanup');
+const {
+  buildPolicyEndpointCleanupInstance,
+  buildDeselectedControlCleanupInstance
+} = require('./policyEndpointCleanup');
 
 function safeError(error) {
   return String(error?.message || error || 'Lifecycle mutation failed').slice(0, 1000);
@@ -12,6 +15,42 @@ function safeError(error) {
 
 async function log(context, level, message) {
   await writeAction1RuntimeLog(context, level, message);
+}
+
+function getRemovedControlIds(previousPolicy, desiredPolicy) {
+  const desiredIds = new Set((desiredPolicy?.selectedControls || [])
+    .map((control) => String(control?.controlId || '').trim())
+    .filter(Boolean));
+  const seen = new Set();
+  return (previousPolicy?.selectedControls || [])
+    .map((control) => String(control?.controlId || '').trim())
+    .filter((controlId) => controlId && !desiredIds.has(controlId) && !seen.has(controlId))
+    .filter((controlId) => {
+      seen.add(controlId);
+      return true;
+    });
+}
+
+async function cleanupDeselectedControls(context, policy, removedControlIds, options = {}) {
+  const ids = Array.isArray(removedControlIds) ? removedControlIds : [];
+  if (ids.length === 0) return null;
+  const client = options.client || createAction1AutomationClient(context);
+  await log(context, 'info', `Control state cleanup started: policy=${policy.policyId} removedControls=${ids.length}`);
+  try {
+    const instance = buildDeselectedControlCleanupInstance(policy, ids);
+    const accepted = await client.createAutomationInstance(policy.organizationId, instance);
+    if (!accepted?.id) throw new Error('Action1 deselected-Control cleanup instance was not accepted.');
+    await log(context, 'info', `Control state cleanup accepted: policy=${policy.policyId} removedControls=${ids.length}`);
+    return { scheduled: true, instanceId: accepted.id, removedControlCount: ids.length };
+  } catch (error) {
+    await log(context, 'error', `Control state cleanup failed: policy=${policy.policyId} removedControls=${ids.length} message=${safeError(error)}`);
+    error.history = {
+      ...(error.history || {}),
+      errorCategory: 'Endpoint cleanup instance create failed',
+      removedControlCount: ids.length
+    };
+    throw error;
+  }
 }
 
 async function createAndReplaceAutomation(context, policy, definition, client, correlations) {
@@ -37,6 +76,7 @@ async function applyEdit(context, previousPolicy, desiredPolicy, options = {}) {
   const current = await correlations.listCorrelations(previousPolicy.policyId);
   const definitions = buildAutomationDefinitions(desiredPolicy);
   const operations = planLifecycleDiff(definitions, current);
+  const removedControlIds = getRemovedControlIds(previousPolicy, desiredPolicy);
   const summary = summarizeLifecycleDiff(operations);
   const applied = { updated: 0, created: 0, deleted: 0, unchanged: summary.unchanged, failed: 0 };
   const familyOutcomes = [];
@@ -113,13 +153,15 @@ async function applyEdit(context, previousPolicy, desiredPolicy, options = {}) {
         familyOutcomes.push({ familyName: family, outcome: 'Removed' });
       }
     }
+    const cleanup = await cleanupDeselectedControls(context, desiredPolicy, removedControlIds, { client });
+    applied.removedControls = removedControlIds.length;
     await log(context, 'info', `Policy Edit completed: ${desiredPolicy.policyId}`);
-    return { policy: desiredPolicy, history: { counts: applied, familyOutcomes } };
+    return { policy: desiredPolicy, history: { counts: applied, familyOutcomes, cleanup } };
   } catch (error) {
     if (currentFamilyName && !familyOutcomes.some((outcome) => outcome.familyName === currentFamilyName && outcome.outcome === 'Failed')) {
       familyOutcomes.push({ familyName: currentFamilyName, outcome: 'Failed' });
     }
-    error.history = { counts: { ...applied, failed: Math.max(1, operations.length - familyOutcomes.filter((outcome) => outcome.outcome !== 'Failed').length) }, familyOutcomes };
+    error.history = { counts: { ...applied, removedControls: removedControlIds.length, failed: Math.max(1, operations.length - familyOutcomes.filter((outcome) => outcome.outcome !== 'Failed').length) }, familyOutcomes };
     await log(context, 'error', `Policy Edit failed: ${desiredPolicy.policyId}, message=${safeError(error)}`);
     throw error;
   }
@@ -236,4 +278,4 @@ async function cleanupPolicy(context, policy, options = {}) {
   return history;
 }
 
-module.exports = { applyEdit, cleanupPolicy, disablePolicy, enablePolicy, createAndReplaceAutomation };
+module.exports = { applyEdit, cleanupDeselectedControls, cleanupPolicy, disablePolicy, enablePolicy, createAndReplaceAutomation, getRemovedControlIds };

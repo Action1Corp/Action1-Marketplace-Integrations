@@ -220,7 +220,7 @@ function createFakeDb() {
   };
 }
 
-function createFakeContext() {
+function createFakeContext(contextOptions = {}) {
   let automationNumber = 0;
   const requests = [];
   return {
@@ -229,6 +229,10 @@ function createFakeContext() {
     async http(options) {
       requests.push(options);
       if (options.url.endsWith('/oauth2/token')) return { status: 200, data: { access_token: 'token', expires_in: 3600 }, headers: {} };
+      if (options.url.includes('/automations/instances/')) {
+        if (contextOptions.instanceError) throw contextOptions.instanceError;
+        if (contextOptions.instanceResponse) return contextOptions.instanceResponse;
+      }
       if (options.method === 'GET' && /\/automations\/schedules\/[^/]+\/[^/]+$/.test(options.url)) {
         const automationId = decodeURIComponent(options.url.split('/').pop());
         return { status: 200, data: { id: automationId, self: `https://action1.test/api/3.0/automations/schedules/org-acme/${automationId}`, name: 'A1CM - Existing automation' }, headers: {} };
@@ -308,6 +312,7 @@ async function run() {
   const toggleResult = await actions['set-policy-enabled'](context, { payload: { policyId: 'POL-000001', enabled: false } });
   assert.strictEqual(toggleResult.ok, true);
   assert.strictEqual(toggleResult.policy.enabled, false);
+  assert.strictEqual(context.requests.filter((request) => request.method === 'POST' && request.url.includes('/automations/instances/')).length, 0, 'Disable action must not clean selected Control state');
 
   const deleteResult = await actions['delete-policy'](context, { payload: { policyId: 'POL-000001' } });
   assert.strictEqual(deleteResult.ok, true);
@@ -364,12 +369,73 @@ async function run() {
   const editResult = await actions['save-policy'](multiContext, { payload: { draft: editDraft } });
   assert.strictEqual(editResult.ok, true, editResult.message);
   assert.strictEqual(editResult.policy.enabled, true);
+  assert.strictEqual(multiContext.requests.filter((request) => request.method === 'POST' && request.url.includes('/automations/instances/')).length, 0, 'Unchanged selected Controls must not create cleanup');
 
-  const disabled = await actions['set-policy-enabled'](multiContext, { payload: { policyId: multiResult.policy.policyId, enabled: false } });
+  const removeControlDraft = {
+    ...editResult.policy,
+    mode: 'edit',
+    enabled: true,
+    selectedControls: [editResult.policy.selectedControls[0]]
+  };
+  const editRemoveResult = await actions['save-policy'](multiContext, { payload: { draft: removeControlDraft } });
+  assert.strictEqual(editRemoveResult.ok, true, editRemoveResult.message);
+  const enabledCleanupRequests = multiContext.requests.filter((request) => request.method === 'POST' && request.url.includes('/automations/instances/org-acme'));
+  assert.strictEqual(enabledCleanupRequests.length, 1, 'Enabled deselection should create one cleanup instance');
+  assert.strictEqual(enabledCleanupRequests[0].data.retry_minutes, '10080');
+  const lastEnabledMutationIndex = Math.max(...multiContext.requests
+    .map((request, index) => ({ request, index }))
+    .filter(({ request }) => request.method === 'PATCH' || request.method === 'DELETE')
+    .map(({ index }) => index));
+  assert(multiContext.requests.indexOf(enabledCleanupRequests[0]) > lastEnabledMutationIndex, 'Enabled cleanup must be submitted after lifecycle mutations');
+
+  const disabledContext = createFakeContext();
+  const disabledInitial = await actions['save-policy'](disabledContext, { payload: { draft: multiDraft } });
+  assert.strictEqual(disabledInitial.ok, true, disabledInitial.message);
+  const disabled = await actions['set-policy-enabled'](disabledContext, { payload: { policyId: disabledInitial.policy.policyId, enabled: false } });
   assert.strictEqual(disabled.ok, true, disabled.message);
   assert.strictEqual(disabled.policy.enabled, false);
-  assert.strictEqual(multiContext.requests.some((request) => request.method === 'POST' && request.url.includes('/automations/instances/')), false, 'Disable must not launch endpoint cleanup');
-  const enabled = await actions['set-policy-enabled'](multiContext, { payload: { policyId: multiResult.policy.policyId, enabled: true } });
+  const disabledEditRequestStart = disabledContext.requests.length;
+  const disabledEditDraft = {
+    ...disabled.policy,
+    mode: 'edit',
+    enabled: false,
+    selectedControls: [disabled.policy.selectedControls[0]]
+  };
+  const disabledEdit = await actions['save-policy'](disabledContext, { payload: { draft: disabledEditDraft } });
+  assert.strictEqual(disabledEdit.ok, true, disabledEdit.message);
+  const disabledEditRequests = disabledContext.requests.slice(disabledEditRequestStart);
+  assert.strictEqual(disabledEditRequests.filter((request) => request.method === 'PATCH' || request.method === 'DELETE').length, 0, 'Disabled Edit must not mutate regular automations');
+  assert.strictEqual(disabledEditRequests.filter((request) => request.method === 'POST' && request.url.includes('/automations/instances/org-acme')).length, 1, 'Disabled deselection should create one cleanup instance');
+  const disabledCleanupRequest = disabledEditRequests.find((request) => request.method === 'POST' && request.url.includes('/automations/instances/org-acme'));
+  assert.strictEqual(disabledCleanupRequest.data.retry_minutes, '10080');
+  assert.strictEqual(disabledCleanupRequest.data.settings, undefined);
+  assert.strictEqual(disabledCleanupRequest.data.actions[0].params.run_script_language, 'PowerShell');
+  const unchangedDisabledRequestStart = disabledContext.requests.length;
+  const unchangedDisabledEdit = await actions['save-policy'](disabledContext, {
+    payload: { draft: { ...disabledEdit.policy, mode: 'edit', enabled: false } }
+  });
+  assert.strictEqual(unchangedDisabledEdit.ok, true, unchangedDisabledEdit.message);
+  assert.strictEqual(disabledContext.requests.slice(unchangedDisabledRequestStart)
+    .filter((request) => request.method === 'POST' && request.url.includes('/automations/instances/')).length, 0);
+
+  const failedCleanupContext = createFakeContext({
+    instanceResponse: { status: 500, data: { message: 'cleanup rejected' }, headers: {} }
+  });
+  const failedInitial = await actions['save-policy'](failedCleanupContext, { payload: { draft: multiDraft } });
+  const failedEdit = await actions['save-policy'](failedCleanupContext, {
+    payload: { draft: { ...failedInitial.policy, mode: 'edit', selectedControls: [failedInitial.policy.selectedControls[0]] } }
+  });
+  assert.strictEqual(failedEdit.ok, false, 'Definitive cleanup failure must not report clean success');
+
+  const ambiguousError = Object.assign(new Error('socket timeout after POST'), { code: 'ETIMEDOUT' });
+  const ambiguousCleanupContext = createFakeContext({ instanceError: ambiguousError });
+  const ambiguousInitial = await actions['save-policy'](ambiguousCleanupContext, { payload: { draft: multiDraft } });
+  const ambiguousEdit = await actions['save-policy'](ambiguousCleanupContext, {
+    payload: { draft: { ...ambiguousInitial.policy, mode: 'edit', selectedControls: [ambiguousInitial.policy.selectedControls[0]] } }
+  });
+  assert.strictEqual(ambiguousEdit.ok, false, 'Ambiguous cleanup outcome must not report clean success');
+  assert.strictEqual(ambiguousCleanupContext.requests.filter((request) => request.method === 'POST' && request.url.includes('/automations/instances/')).length, 1, 'Ambiguous cleanup POST must not be blindly retried');
+  const enabled = await actions['set-policy-enabled'](disabledContext, { payload: { policyId: disabledInitial.policy.policyId, enabled: true } });
   assert.strictEqual(enabled.ok, true, enabled.message);
   assert.strictEqual(enabled.policy.enabled, true);
 }

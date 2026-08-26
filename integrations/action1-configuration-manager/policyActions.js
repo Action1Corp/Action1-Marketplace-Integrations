@@ -3,7 +3,7 @@ const { createAction1AutomationClient } = require('./action1AutomationClient');
 const { buildAutomationDefinitions } = require('./automationDefinition');
 const { createAutomationCorrelationStore } = require('./automationCorrelationStore');
 const { writeAction1RuntimeLog } = require('./runtimeLogging');
-const { applyEdit, cleanupPolicy, disablePolicy, enablePolicy } = require('./lifecycleMutations');
+const { applyEdit, cleanupDeselectedControls, cleanupPolicy, disablePolicy, enablePolicy, getRemovedControlIds } = require('./lifecycleMutations');
 const { createHistoryEnvelope, resultDetails, OPERATION_LABELS } = require('./historyContract');
 
 function sanitizePersistenceMessage(message) {
@@ -69,13 +69,17 @@ async function performSavePolicy(context, request = {}, operation) {
       const saved = await store.savePolicy(draft);
       if (!existing?.enabled) {
         const definitions = buildAutomationDefinitions(saved);
+        const removedControlIds = getRemovedControlIds(existing, saved);
+        const cleanup = await cleanupDeselectedControls(context, saved, removedControlIds);
         return historyResult({ ok: true, message: 'Policy updated.', policy: saved }, operation, saved,
-          definitions.length ? `Policy updated. Action1 changes will apply when enabled.` : 'No Policy changes applied.',
-          { counts: { unchanged: definitions.length } });
+          definitions.length
+            ? `Policy updated. Action1 changes will apply when enabled.${cleanup ? ` Removed Control state cleanup scheduled: ${removedControlIds.length} controls.` : ''}`
+            : 'No Policy changes applied.',
+          { counts: { unchanged: definitions.length, removedControls: removedControlIds.length }, cleanup });
       }
       const applied = await applyEdit(context, existing, saved);
       return historyResult({ ok: true, message: 'Policy updated.', policy: applied.policy }, operation, saved,
-        `Policy updated. Updated: ${applied.history.counts.updated}; created: ${applied.history.counts.created}; removed: ${applied.history.counts.deleted}; unchanged: ${applied.history.counts.unchanged}.`, applied.history);
+        `Policy updated. Updated: ${applied.history.counts.updated}; created: ${applied.history.counts.created}; removed: ${applied.history.counts.deleted}; unchanged: ${applied.history.counts.unchanged}.${applied.history.cleanup ? ` Removed Control state cleanup scheduled: ${applied.history.counts.removedControls} controls.` : ''}`, applied.history);
     }
 
     const intent = await store.savePolicy({ ...draft, enabled: false });
@@ -129,7 +133,11 @@ async function savePolicyAction(context, request = {}) {
     if (draft.mode !== 'create') {
       const existing = await store.getPolicy(draft.policyId);
       const saved = await store.savePolicy(draft);
-      if (!existing?.enabled) return { ok: true, message: 'Policy saved.', policy: saved };
+      if (!existing?.enabled) {
+        const removedControlIds = getRemovedControlIds(existing, saved);
+        await cleanupDeselectedControls(context, saved, removedControlIds);
+        return { ok: true, message: 'Policy saved.', policy: saved };
+      }
       const applied = await applyEdit(context, existing, saved);
       return { ok: true, message: 'Policy updated.', policy: applied.policy };
     }
