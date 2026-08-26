@@ -29,6 +29,13 @@
       "history": false
     },
     {
+      "id": "get-overview",
+      "kind": "action",
+      "label": "Get Overview",
+      "description": "Loads current Configuration Manager Overview data for the future Overview surface.",
+      "history": false
+    },
+    {
       "id": "save-policy",
       "kind": "action",
       "label": "Save Policy",

@@ -15,6 +15,7 @@ const {
   discoverPolicyOrganizationsAction
 } = require('./policyDiscoveryActions');
 const { reconcilePoliciesAction } = require('./reconciliation');
+const { getOverview } = require('./overviewService');
 const { getReportingState, getReportingStatus, setupReporting } = require('./reporting/reportingService');
 const { createHistoryEnvelope, resultDetails } = require('./historyContract');
 
@@ -22,6 +23,13 @@ module.exports = {
   actions: {
     'list-policies': listPoliciesAction,
     'get-policy': getPolicyAction,
+    'get-overview': async (context) => {
+      try {
+        return { ok: true, overview: await getOverview(context) };
+      } catch (error) {
+        return { ok: false, message: String(error?.message || 'Unable to load Configuration Manager Overview.').replace(/\s+/g, ' ').slice(0, 240) };
+      }
+    },
     'save-policy': savePolicyAction,
     'create-policy': createPolicyAction,
     'update-policy': updatePolicyAction,

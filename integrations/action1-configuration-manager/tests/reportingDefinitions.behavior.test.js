@@ -10,12 +10,22 @@ const EXPECTED = {
   details: { simple: ['Configuration Status', 'Policy Name', 'Policy ID', 'Control ID', 'Control Name', 'Control Version', 'Endpoint Name', 'Last Checked At', 'Last Remediated At', 'Message', 'Remediation Attempted', 'Endpoint Groups'], summary: [], drilldown: [], filters: ['Endpoint Name', 'Policy ID', 'Policy Name', 'Control ID', 'Control Name', 'Configuration Status', 'Remediation Attempted', 'Endpoint Groups'] },
   byControl: { simple: [], summary: ['Control Name'], drilldown: ['Configuration Status', 'Policy Name', 'Policy ID', 'Control Name', 'Control Version', 'Endpoint Name', 'Last Checked At', 'Last Remediated At', 'Message', 'Remediation Attempted'], filters: ['Endpoint Name', 'Policy ID', 'Policy Name', 'Control ID', 'Control Version', 'Control Name', 'Configuration Status', 'Last Checked At', 'Remediation Attempted', 'Last Remediated At', 'Message', 'State File'] },
   byPolicy: { simple: [], summary: ['Policy Name', 'Policy ID'], drilldown: ['Configuration Status', 'Policy Name', 'Policy ID', 'Control Name', 'Control Version', 'Endpoint Name', 'Last Checked At', 'Last Remediated At', 'Message', 'Remediation Attempted'], filters: ['Endpoint Name', 'Policy ID', 'Policy Name', 'Control ID', 'Control Version'] },
-  byStatus: { simple: [], summary: ['Configuration Status'], drilldown: ['Configuration Status', 'Policy Name', 'Policy ID', 'Control Name', 'Control Version', 'Endpoint Name', 'Last Checked At', 'Last Remediated At', 'Message', 'Remediation Attempted'], filters: ['Endpoint Name', 'Policy ID', 'Policy Name', 'Control ID', 'Control Version', 'Control Name', 'Configuration Status', 'Last Checked At'] }
+  byStatus: { simple: [], summary: ['Configuration Status'], drilldown: ['Configuration Status', 'Policy Name', 'Policy ID', 'Control Name', 'Control Version', 'Endpoint Name', 'Last Checked At', 'Last Remediated At', 'Message', 'Remediation Attempted'], filters: ['Endpoint Name', 'Policy ID', 'Policy Name', 'Control ID', 'Control Version', 'Control Name', 'Configuration Status', 'Last Checked At'] },
+  dashboardEndpoints: { simple: [], summary: ['Policy Name', 'Policy ID', 'Endpoint Name'], drilldown: ['Configuration Status', 'Policy Name', 'Policy ID', 'Control Name', 'Control Version', 'Endpoint Name', 'Last Checked At', 'Last Remediated At', 'Message', 'Remediation Attempted'], filters: [] },
+  dashboardNonCompliantEndpoints: { simple: [], summary: ['Endpoint Name', 'Policy ID', 'Policy Name'], drilldown: ['Configuration Status', 'Policy Name', 'Policy ID', 'Control Name', 'Control Version', 'Endpoint Name', 'Last Checked At', 'Last Remediated At', 'Message', 'Remediation Attempted'], filters: ['Configuration Status'] }
 };
 
 function makeDb() {
   let row = { singleton_id: 1, data_source_id: String(DATA_SOURCE_ID), report_by_endpoint: null, report_details: null, report_by_control: null, report_by_policy: null, report_by_status: null };
   return { async get() { return row; }, async run(sql, params) { if (sql.startsWith('UPDATE')) row = { ...row, data_source_id: params[0], report_by_endpoint: params[1], report_details: params[2], report_by_control: params[3], report_by_policy: params[4], report_by_status: params[5] }; } };
+}
+function makeOriginalFiveDb() {
+  const db = makeDb();
+  const originalGet = db.get;
+  return {
+    ...db,
+    async get() { return { ...(await originalGet()), report_by_endpoint: 'old-1', report_details: 'old-2', report_by_control: 'old-3', report_by_policy: 'old-4', report_by_status: 'old-5' }; }
+  };
 }
 function finalPayloadClient(postedReports) {
   return { async requestAction1Mutation(input) {
@@ -64,7 +74,7 @@ function assertFinalContract(payload) {
   for (const filter of payload.filter_set.filters) {
     assert.deepStrictEqual(Object.keys(filter).sort(), requiredFilterKeys);
     assert.strictEqual(typeof filter.name, 'string'); assert.notStrictEqual(filter.name, '');
-    assert.strictEqual(filter.value, '*'); assert.strictEqual(filter.operator, '=');
+    assert.strictEqual(filter.value, payload.name === 'Configuration Management - Dashboard Non-Compliant Endpoints' ? 'NonCompliant' : '*'); assert.strictEqual(filter.operator, '=');
     assert.strictEqual(Number.isInteger(filter.data_source_id), true);
     assert(!Object.prototype.hasOwnProperty.call(filter, 'column_name')); assert(!Object.prototype.hasOwnProperty.call(filter, 'field'));
   }
@@ -87,7 +97,7 @@ function assertFinalContract(payload) {
   assert.deepStrictEqual(definitions.map(definition => definition.key), REPORTS.map(report => report.key));
   const postedReports = [];
   await setupReporting({ db: makeDb(), logger: {} }, {}, { client: finalPayloadClient(postedReports) });
-  assert.strictEqual(postedReports.length, 5);
+  assert.strictEqual(postedReports.length, 7);
   for (const payload of postedReports) {
     assertFinalContract(payload);
     const expected = EXPECTED[REPORTS.find(report => report.name === payload.name).key];
@@ -95,8 +105,12 @@ function assertFinalContract(payload) {
     assert.deepStrictEqual(payload.summary_columns.map(column => column.name), expected.summary);
     assert.deepStrictEqual(payload.drilldown_columns.map(column => column.name), expected.drilldown);
     assert.deepStrictEqual(payload.filter_set.filters.map(filter => filter.name), expected.filters);
+    if (payload.name === 'Configuration Management - Dashboard Non-Compliant Endpoints') assert.strictEqual(payload.filter_set.filters[0].value, 'NonCompliant');
     assert.deepStrictEqual(payload.data_sources, payload.name === 'Configuration Management - Details' ? ['/API/data_sources/all/123456789', '/API/data_sources/all/2014'] : ['/API/data_sources/all/123456789']);
   }
+  const missingSupportReports = [];
+  await setupReporting({ db: makeOriginalFiveDb(), logger: {} }, {}, { client: finalPayloadClient(missingSupportReports) });
+  assert.strictEqual(missingSupportReports.length, 2);
   const captured = { reports: [] };
   await setupReporting({ db: emptyDb(), logger: {} }, {}, { client: finalProvisioningClient(captured) });
   assert.deepStrictEqual(captured.dataSourcePublish.columns, REPORTING_DATA_SOURCE_COLUMNS);

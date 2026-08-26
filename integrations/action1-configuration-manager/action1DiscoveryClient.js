@@ -772,6 +772,55 @@ function createAction1DiscoveryClient(context, options = {}) {
     return rows;
   }
 
+  async function listManagedEndpoints(organizationId) {
+    const normalizedOrganizationId = trimString(organizationId);
+    if (!normalizedOrganizationId) throw new Error('Organization id is required.');
+    const connection = await resolveConnection();
+    return collectPagedRows({
+      operation: 'managed-endpoints',
+      firstUrl: `endpoints/managed/${encodeURIComponent(normalizedOrganizationId)}?limit=500&from=0`,
+      pageLimit,
+      resourceName: 'Action1 managed endpoints',
+      baseUrl: connection.baseUrl,
+      organizationId: normalizedOrganizationId,
+      normalizeItem: (row) => row && typeof row === 'object' ? row : null
+    });
+  }
+
+  async function listEndpointGroupContents(organizationId, endpointGroupId) {
+    const normalizedOrganizationId = trimString(organizationId);
+    const normalizedEndpointGroupId = trimString(endpointGroupId);
+    if (!normalizedOrganizationId) throw new Error('Organization id is required.');
+    if (!normalizedEndpointGroupId) throw new Error('Endpoint group id is required.');
+    const connection = await resolveConnection();
+    return collectPagedRows({
+      operation: 'endpoint-group-contents',
+      firstUrl: `endpoints/groups/${encodeURIComponent(normalizedOrganizationId)}/${encodeURIComponent(normalizedEndpointGroupId)}/contents?limit=500&from=0`,
+      pageLimit,
+      resourceName: 'Action1 endpoint group contents',
+      baseUrl: connection.baseUrl,
+      organizationId: normalizedOrganizationId,
+      normalizeItem: (row) => row && typeof row === 'object' ? row : null
+    });
+  }
+
+  async function listReportData(organizationId, reportId) {
+    const normalizedOrganizationId = trimString(organizationId);
+    const normalizedReportId = trimString(reportId);
+    if (!normalizedOrganizationId) throw new Error('Organization id is required.');
+    if (!normalizedReportId) throw new Error('Report id is required.');
+    const connection = await resolveConnection();
+    return collectPagedRows({
+      operation: 'report-data',
+      firstUrl: `reportdata/${encodeURIComponent(normalizedOrganizationId)}/${encodeURIComponent(normalizedReportId)}/data?limit=500&from=0`,
+      pageLimit,
+      resourceName: 'Action1 report data',
+      baseUrl: connection.baseUrl,
+      organizationId: normalizedOrganizationId,
+      normalizeItem: (row) => row && typeof row === 'object' ? row : null
+    });
+  }
+
   async function requestAction1Mutation(input = {}) {
     const connection = await resolveConnection();
     let retryAttempt = 0;
@@ -807,6 +856,9 @@ function createAction1DiscoveryClient(context, options = {}) {
   return {
     listOrganizations,
     listEndpointGroups,
+    listManagedEndpoints,
+    listEndpointGroupContents,
+    listReportData,
     requestAction1Mutation,
     resolveAction1ConsoleOrigin: () => resolveAction1ConsoleOrigin(context)
   };

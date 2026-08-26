@@ -69,7 +69,7 @@ async function run() {
   assert(actionIds.includes('discover-policy-endpoint-groups'));
   assert.deepStrictEqual(
     manifest.actions.filter((action) => action.history === false).map((action) => action.id).sort(),
-    ['discover-policy-endpoint-groups', 'discover-policy-organizations', 'get-policy', 'list-policies', 'save-policy', 'set-policy-enabled']
+    ['discover-policy-endpoint-groups', 'discover-policy-organizations', 'get-overview', 'get-policy', 'get-reporting-state', 'get-reporting-status', 'list-policies', 'save-policy', 'set-policy-enabled']
   );
 
   const source = fs.readFileSync(path.join(__dirname, '..', 'policyDiscoveryActions.js'), 'utf8');
