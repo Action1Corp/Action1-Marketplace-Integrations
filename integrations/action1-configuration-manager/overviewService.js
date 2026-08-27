@@ -1,6 +1,10 @@
 const { createAction1DiscoveryClient } = require('./action1DiscoveryClient');
 const { createDbPolicyStore } = require('./policyStore');
 const reportingStore = require('./reporting/reportingStore');
+const { writeAction1RuntimeLog } = require('./runtimeLogging');
+
+const OVERVIEW_REFRESH_INTERVAL_MS = 1000;
+const OVERVIEW_REFRESH_TIMEOUT_MS = 8000;
 
 function text(value) {
   return String(value ?? '').trim();
@@ -10,6 +14,13 @@ function count(value) {
   if (value === null || value === undefined || value === '') return null;
   const numeric = Number(value);
   return Number.isInteger(numeric) && numeric >= 0 ? numeric : null;
+}
+
+async function logOverview(context, event, fields = {}) {
+  const safeFields = { event, timestamp: new Date().toISOString(), ...fields };
+  const message = `Overview ${event}: ${JSON.stringify(safeFields)}`;
+  await writeAction1RuntimeLog(context, 'info', message);
+  context?.logger?.info?.(safeFields);
 }
 
 function normalizeEndpointRow(row) {
@@ -26,18 +37,38 @@ function normalizeEndpointRow(row) {
 }
 
 function normalizeReportRow(row) {
-  const policyId = text(row?.['Policy ID'] || row?.policyId || row?.policy_id);
-  const policyName = text(row?.['Policy Name'] || row?.policyName || row?.policy_name);
-  const endpointName = text(row?.['Endpoint Name'] || row?.endpointName || row?.endpoint_name);
+  const fields = row?.fields && typeof row.fields === 'object' ? row.fields : row;
+  const policyId = text(fields?.['Policy ID'] || fields?.policyId || fields?.policy_id);
+  const policyName = text(fields?.['Policy Name'] || fields?.policyName || fields?.policy_name);
+  const endpointName = text(fields?.['Endpoint Name'] || fields?.endpointName || fields?.endpoint_name);
   if (!policyId || !endpointName) return null;
-  const details = count(row?.Details ?? row?.details ?? row?.detail);
-  const organizationId = text(row?.organizationId || row?.organization_id || row?.org_id);
+  const details = count(fields?.Details ?? fields?.details ?? fields?.detail);
+  const organizationId = text(row?.organizationId || row?.organization_id || row?.org_id || fields?.organizationId || fields?.organization_id || fields?.org_id);
   return { ...(organizationId ? { organizationId } : {}), policyId, policyName, endpointName, details, ...(details === null ? { malformed: true } : {}) };
 }
 
 function roundPercent(numerator, denominator) {
   if (!denominator) return null;
   return Math.round((numerator / denominator) * 10000) / 100;
+}
+
+function buildOverviewSummary(policyModels) {
+  const policies = Array.isArray(policyModels) ? policyModels : [];
+  const assignedCount = policies.reduce((total, policy) => total + policy.assignedCount, 0);
+  const fullyEvaluatedCount = policies.reduce((total, policy) => total + policy.fullyEvaluatedCount, 0);
+  const compliantCount = policies.reduce((total, policy) => total + policy.compliantCount, 0);
+  const needsAttentionCount = policies.reduce((total, policy) => total + policy.needsAttentionCount, 0);
+  const notFullyEvaluatedCount = policies.reduce((total, policy) => total + policy.notFullyEvaluatedCount, 0);
+  return {
+    activePoliciesCount: policies.length,
+    assignedCount,
+    fullyEvaluatedCount,
+    compliantCount,
+    needsAttentionCount,
+    notFullyEvaluatedCount,
+    evaluationCoveragePercent: roundPercent(fullyEvaluatedCount, assignedCount),
+    compliancePercent: roundPercent(compliantCount, fullyEvaluatedCount)
+  };
 }
 
 function scopeOf(policy) {
@@ -124,16 +155,86 @@ function buildOverviewViewModel({ policies = [], assignedEndpointsByPolicy = {},
       scope: scopeOf(policy),
       expectedControlCount,
       ...counts,
-      notFullyEvaluatedCount: counts.partialCount + counts.noDataCount + counts.inconsistentCount,
+      notFullyEvaluatedCount: counts.partialCount + counts.noDataCount,
       evaluationCoveragePercent: roundPercent(counts.fullyEvaluatedCount, counts.assignedCount),
       compliancePercent: roundPercent(counts.compliantCount, counts.fullyEvaluatedCount),
       endpoints
     };
   });
-  return { policies: policyModels, endpointAttention };
+  return { summary: buildOverviewSummary(policyModels), policies: policyModels, endpointAttention };
+}
+
+async function readReportSnapshot(client, organizationId, reportId) {
+  const pages = [];
+  const rows = await client.listReportData(organizationId, reportId, {
+    onPage: (page) => { pages.push(page); }
+  });
+  const latestPage = [...pages].reverse().find((page) => page && (
+    page.lastRequery !== null && page.lastRequery !== undefined
+      || page.totalLiveResponses !== null && page.totalLiveResponses !== undefined
+      || page.totalSentRequests !== null && page.totalSentRequests !== undefined
+  )) || {};
+  return {
+    rows,
+    pages,
+    lastRequery: latestPage.lastRequery ?? null,
+    totalLiveResponses: latestPage.totalLiveResponses ?? null,
+    totalSentRequests: latestPage.totalSentRequests ?? null
+  };
+}
+
+function reportRefreshComplete(previous, current) {
+  const freshnessAdvanced = current.lastRequery !== null
+    && current.lastRequery !== undefined
+    && current.lastRequery !== previous.lastRequery;
+  const liveResponsesComplete = Number.isFinite(Number(current.totalLiveResponses))
+    && Number.isFinite(Number(current.totalSentRequests))
+    && Number(current.totalSentRequests) > 0
+    && Number(current.totalLiveResponses) >= Number(current.totalSentRequests);
+  return freshnessAdvanced || liveResponsesComplete;
+}
+
+async function readOverviewReports(client, organizationId, reportReads, options = {}) {
+  const snapshots = await Promise.all(reportReads.map(async (read) => ({
+    ...read,
+    snapshot: await readReportSnapshot(client, organizationId, read.reportId)
+  })));
+  if (options.operationType !== 'manual-refresh') return snapshots;
+
+  const previous = snapshots.map((entry) => entry.snapshot);
+  await Promise.all(reportReads.map((read) => client.requestAction1Mutation({
+    operation: `overview-${read.kind}-requery`,
+    method: 'POST',
+    organizationId,
+    path: `/reportdata/${encodeURIComponent(organizationId)}/${encodeURIComponent(read.reportId)}/requery`
+  })));
+
+  const sleep = options.sleep || ((delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)));
+  const intervalMs = Number.isFinite(Number(options.refreshIntervalMs)) ? Number(options.refreshIntervalMs) : OVERVIEW_REFRESH_INTERVAL_MS;
+  const timeoutMs = Number.isFinite(Number(options.refreshTimeoutMs)) ? Number(options.refreshTimeoutMs) : OVERVIEW_REFRESH_TIMEOUT_MS;
+  const deadline = Date.now() + timeoutMs;
+  let attempt = 0;
+  let latest = snapshots;
+  while (true) {
+    attempt += 1;
+    latest = await Promise.all(reportReads.map(async (read) => ({
+      ...read,
+      snapshot: await readReportSnapshot(client, organizationId, read.reportId)
+    })));
+    if (latest.every((entry, index) => reportRefreshComplete(previous[index], entry.snapshot))) {
+      return latest;
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(`Configuration Manager Dashboard refresh did not complete within ${timeoutMs}ms.`);
+    }
+    await sleep(intervalMs);
+  }
 }
 
 async function getOverview(context, options = {}) {
+  const operationType = options.operationType === 'manual-refresh' ? 'manual-refresh' : 'initial-load';
+  const startedAt = Date.now();
+  await logOverview(context, 'start', { operationType });
   const policyStore = options.policyStore || createDbPolicyStore(context);
   const client = options.client || createAction1DiscoveryClient(context);
   const policies = (await policyStore.listPolicies()).filter((policy) => policy.enabled === true);
@@ -155,20 +256,99 @@ async function getOverview(context, options = {}) {
       inventoryCache.set(inventoryKey, rows.map(normalizeEndpointRow).filter(Boolean).filter((endpoint) => endpoint.platform === 'Windows'));
     }
     assignedEndpointsByPolicy[policy.policyId] = inventoryCache.get(inventoryKey);
+    await logOverview(context, 'policy', {
+      policyId: policy.policyId,
+      organizationId: policy.organizationId,
+      scopeType: policy.scopeType,
+      expectedControlCount: (policy.selectedControls || []).length,
+      assignedEndpointCount: assignedEndpointsByPolicy[policy.policyId].length
+    });
   }
 
   const organizations = [...new Set(policies.map((policy) => policy.organizationId))];
   const observedRows = [];
   const nonCompliantRows = [];
   for (const organizationId of organizations) {
-    const [observed, attention] = await Promise.all([
-      client.listReportData(organizationId, reporting.dashboardEndpoints),
-      client.listReportData(organizationId, reporting.dashboardNonCompliantEndpoints)
-    ]);
-    observedRows.push(...observed.map(normalizeReportRow).filter(Boolean).map((row) => ({ ...row, organizationId })));
-    nonCompliantRows.push(...attention.map(normalizeReportRow).filter(Boolean).map((row) => ({ ...row, organizationId })));
+    const reportReads = [
+      { kind: 'dashboard-endpoints', reportId: reporting.dashboardEndpoints, target: observedRows },
+      { kind: 'dashboard-non-compliant', reportId: reporting.dashboardNonCompliantEndpoints, target: nonCompliantRows }
+    ];
+    const readResults = await readOverviewReports(client, organizationId, reportReads, {
+      operationType,
+      sleep: options.sleep,
+      refreshIntervalMs: options.refreshIntervalMs,
+      refreshTimeoutMs: options.refreshTimeoutMs
+    });
+    for (const result of readResults) {
+      const read = result;
+      const requestStartedAt = Date.now();
+      const rows = result.snapshot.rows;
+      const pages = result.snapshot.pages;
+      const responseReceivedAt = Date.now();
+      const rowCount = rows.length;
+      const policyIds = [...new Set(rows.map((row) => normalizeReportRow(row)?.policyId).filter(Boolean))];
+      for (const policyId of policyIds) {
+        await logOverview(context, 'report-read', {
+          policyId,
+          organizationId,
+          reportKind: read.kind,
+          reportId: read.reportId,
+          attempt: 1,
+          returnedRowCount: rowCount,
+          rowShape: rows.slice(0, 3).map((row) => ({
+            keys: row && typeof row === 'object' ? Object.keys(row).slice(0, 20) : [],
+            fieldKeys: row?.fields && typeof row.fields === 'object' ? Object.keys(row.fields).slice(0, 20) : []
+          })),
+          lastRequery: pages.find((page) => page.lastRequery !== null)?.lastRequery ?? null,
+          requestTimestamp: new Date(requestStartedAt).toISOString(),
+          responseTimestamp: new Date(responseReceivedAt).toISOString(),
+          elapsedMs: responseReceivedAt - requestStartedAt,
+          httpStatus: pages.length ? pages[pages.length - 1].statusCode : null
+        });
+      }
+      if (policyIds.length === 0) {
+        await logOverview(context, 'report-read', {
+          policyId: null,
+          organizationId,
+          reportKind: read.kind,
+          reportId: read.reportId,
+          attempt: 1,
+          returnedRowCount: rowCount,
+          rowShape: rows.slice(0, 3).map((row) => ({
+            keys: row && typeof row === 'object' ? Object.keys(row).slice(0, 20) : [],
+            fieldKeys: row?.fields && typeof row.fields === 'object' ? Object.keys(row.fields).slice(0, 20) : []
+          })),
+          lastRequery: pages.find((page) => page.lastRequery !== null)?.lastRequery ?? null,
+          requestTimestamp: new Date(requestStartedAt).toISOString(),
+          responseTimestamp: new Date(responseReceivedAt).toISOString(),
+          elapsedMs: responseReceivedAt - requestStartedAt,
+          httpStatus: pages.length ? pages[pages.length - 1].statusCode : null
+        });
+      }
+      result.rows = rows;
+    }
+    for (const result of readResults) {
+      result.target.push(...result.rows.map(normalizeReportRow).filter(Boolean).map((row) => ({ ...row, organizationId })));
+    }
   }
-  return buildOverviewViewModel({ policies, assignedEndpointsByPolicy, observedRows, nonCompliantRows });
+  const result = {
+    ...buildOverviewViewModel({ policies, assignedEndpointsByPolicy, observedRows, nonCompliantRows }),
+    reporting: { dashboardNonCompliantEndpoints: reporting.dashboardNonCompliantEndpoints }
+  };
+  for (const policy of result.policies) {
+    await logOverview(context, 'policy-result', {
+      policyId: policy.policyId,
+      organizationId: policy.organizationId,
+      assignedCount: policy.assignedCount,
+      fullyEvaluatedCount: policy.fullyEvaluatedCount,
+      partialCount: policy.partialCount,
+      noDataCount: policy.noDataCount,
+      compliantCount: policy.compliantCount,
+      needsAttentionCount: policy.needsAttentionCount
+    });
+  }
+  await logOverview(context, 'complete', { ...result.summary, elapsedMs: Date.now() - startedAt });
+  return result;
 }
 
-module.exports = { buildOverviewViewModel, getOverview, normalizeEndpointRow, normalizeReportRow, roundPercent };
+module.exports = { buildOverviewSummary, buildOverviewViewModel, getOverview, normalizeEndpointRow, normalizeReportRow, roundPercent };

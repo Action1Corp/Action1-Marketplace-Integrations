@@ -54,7 +54,17 @@ async function run() {
     notFully: first.notFullyEvaluatedCount,
     coverage: first.evaluationCoveragePercent,
     compliance: first.compliancePercent
-  }, { assigned: 6, fully: 1, compliant: 1, attention: 0, partial: 1, noData: 3, inconsistent: 1, notFully: 5, coverage: 16.67, compliance: 100 });
+  }, { assigned: 6, fully: 1, compliant: 1, attention: 0, partial: 1, noData: 3, inconsistent: 1, notFully: 4, coverage: 16.67, compliance: 100 });
+  assert.deepStrictEqual(result.summary, {
+    activePoliciesCount: 2,
+    assignedCount: 7,
+    fullyEvaluatedCount: 2,
+    compliantCount: 2,
+    needsAttentionCount: 0,
+    notFullyEvaluatedCount: 4,
+    evaluationCoveragePercent: 28.57,
+    compliancePercent: 100
+  });
   assert.strictEqual(result.endpointAttention.length, 0, 'inconsistent endpoints must not appear as compliant attention rows');
 
   const zero = buildOverviewViewModel({ policies: [policy({ policyId: 'POL-ZERO', selectedControls: [{ controlId: 'a' }] })], assignedEndpointsByPolicy: { 'POL-ZERO': [] }, observedRows: [], nonCompliantRows: [] }).policies[0];
@@ -78,10 +88,12 @@ async function run() {
     client: {
       async listManagedEndpoints(org) { calls.all += 1; return [{ id: `${org}-1`, name: `Win-${org}`, platform: 'Windows', organization_id: org }]; },
       async listEndpointGroupContents(org) { calls.group += 1; return [{ id: `${org}-1`, name: `Win-${org}`, platform: 'Windows', organization_id: org }]; },
-      async listReportData(org, reportId) { calls.reports.push(`${org}:${reportId}`); return [{ 'Policy ID': org === 'org-1' ? 'POL-000001' : 'POL-OTHER', 'Policy Name': 'Policy', 'Endpoint Name': `Win-${org}`, Details: 5 }]; }
+      async listReportData(org, reportId) { calls.reports.push(`${org}:${reportId}`); return [{ 'Policy ID': org === 'org-1' ? 'POL-000001' : 'POL-OTHER', 'Policy Name': 'Policy', 'Endpoint Name': `Win-${org}`, Details: 5 }]; },
+      async requestAction1Mutation() { throw new Error('refresh not expected during this initial-load test'); }
     }
   });
   assert.strictEqual(serviceResult.policies.length, 2);
+  assert.strictEqual(serviceResult.reporting.dashboardNonCompliantEndpoints, 'report-b');
   assert.strictEqual(calls.group, 1);
   assert.strictEqual(calls.all, 1);
   assert.deepStrictEqual(calls.reports.sort(), ['org-1:report-a', 'org-1:report-b', 'org-2:report-a', 'org-2:report-b']);

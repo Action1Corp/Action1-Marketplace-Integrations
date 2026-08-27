@@ -23,9 +23,9 @@ module.exports = {
   actions: {
     'list-policies': listPoliciesAction,
     'get-policy': getPolicyAction,
-    'get-overview': async (context) => {
+    'get-overview': async (context, request = {}) => {
       try {
-        return { ok: true, overview: await getOverview(context) };
+        return { ok: true, overview: await getOverview(context, { operationType: request?.payload?.operationType }) };
       } catch (error) {
         return { ok: false, message: String(error?.message || 'Unable to load Configuration Manager Overview.').replace(/\s+/g, ' ').slice(0, 240) };
       }

@@ -674,6 +674,20 @@ function createAction1DiscoveryClient(context, options = {}) {
         abortSignal: input.abortSignal
       });
 
+      if (typeof input.onPage === 'function') {
+        await input.onPage({
+          page,
+          requestStartedAt: input.requestStartedAt,
+          responseReceivedAt: Date.now(),
+          statusCode: response.statusCode,
+          rowCount: Array.isArray(response.payload?.items) ? response.payload.items.length : 0,
+          totalItems: response.payload?.total_items ?? response.payload?.totalItems ?? null,
+          totalLiveResponses: response.payload?.total_live_responses ?? response.payload?.totalLiveResponses ?? null,
+          totalSentRequests: response.payload?.total_sent_requests ?? response.payload?.totalSentRequests ?? null,
+          lastRequery: response.payload?.last_requery ?? response.payload?.lastRequery ?? null
+        });
+      }
+
       const pageRows = Array.isArray(response.payload?.items) ? response.payload.items : [];
       if (input.meta) {
         input.meta.rawRowsFetched += pageRows.length;
@@ -804,19 +818,22 @@ function createAction1DiscoveryClient(context, options = {}) {
     });
   }
 
-  async function listReportData(organizationId, reportId) {
+  async function listReportData(organizationId, reportId, options = {}) {
     const normalizedOrganizationId = trimString(organizationId);
     const normalizedReportId = trimString(reportId);
     if (!normalizedOrganizationId) throw new Error('Organization id is required.');
     if (!normalizedReportId) throw new Error('Report id is required.');
     const connection = await resolveConnection();
+    const query = options.query || '?limit=200&from=0&live_only=no&details=no';
     return collectPagedRows({
       operation: 'report-data',
-      firstUrl: `reportdata/${encodeURIComponent(normalizedOrganizationId)}/${encodeURIComponent(normalizedReportId)}/data?limit=500&from=0`,
+      firstUrl: `reportdata/${encodeURIComponent(normalizedOrganizationId)}/${encodeURIComponent(normalizedReportId)}/data${query}`,
       pageLimit,
       resourceName: 'Action1 report data',
       baseUrl: connection.baseUrl,
       organizationId: normalizedOrganizationId,
+      requestStartedAt: options.requestStartedAt,
+      onPage: options.onPage,
       normalizeItem: (row) => row && typeof row === 'object' ? row : null
     });
   }
