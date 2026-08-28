@@ -8,10 +8,14 @@ const readSource = (relativePath) => fs.readFileSync(path.join(root, relativePat
 
 async function run() {
   const display = JSON.parse(readSource('display.json'));
+  const manifest = JSON.parse(readSource('manifest.json'));
   const uiIndex = readSource('ui/index.jsx');
-  assert.deepStrictEqual(display.navigation.map((item) => item.label), ['Overview', 'Policies', 'History', 'Settings']);
+  assert.deepStrictEqual(display.navigation.map((item) => item.label), ['Dashboard', 'Policies', 'History', 'Settings']);
+  assert.deepStrictEqual(display.navigation.map((item) => item.path), ['overview', 'policies', 'history', 'settings']);
+  assert.strictEqual(manifest.name, 'Configuration Management', 'Integration page metadata must use the meaningful Configuration Management name');
+  assert(!display.navigation.some((item) => ['Integration', 'Configuration'].includes(item.label)), 'Navigation must not expose generic page metadata');
+  assert(uiIndex.includes('overview: Overview'), 'Existing Dashboard route must remain mapped to Overview internally');
   assert(uiIndex.includes("import Overview from './Overview.jsx';"));
-  assert(uiIndex.includes('overview: Overview'));
 
   const source = readSource('ui/Overview.jsx');
   const policiesView = source.slice(source.indexOf('role="table" aria-label="Policies"'), source.indexOf('<div style={styles.sectionHead}><h2 id="top-controls-heading"'));
@@ -33,7 +37,15 @@ async function run() {
   assert(source.includes('Loading Dashboard'), 'Overview must have a loading state');
   assert(source.includes('Set up reporting'), 'Overview must guide reporting setup');
   assert(source.includes('Unable to load Dashboard'), 'Overview must have a safe error state');
-  assert(source.includes('Monitor configuration evaluation and compliance across active policies and their assigned Windows endpoints.'), 'Overview must replace placeholder description');
+  const description = 'Monitor current configuration evaluation and compliance across active policies and assigned Windows endpoints. Coverage reflects the latest available reporting data and may change as endpoint availability changes.';
+  assert(source.includes(description), 'Dashboard must use the approved current-state description');
+  assert.strictEqual((source.match(/<p style={styles\.description}>{DESCRIPTION}<\/p>/g) || []).length, 5, 'Each Dashboard render state must have one introductory description');
+  assert(!source.includes('Dashboard reflects the latest available configuration results.'), 'Dashboard must not render the former standalone informational paragraph');
+  assert(!source.includes('CURRENT_DATA_NOTE') && !source.includes('currentDataNote'), 'Dashboard must not render a second explanatory note');
+  assert(source.includes("description: { margin: '0 0 22px', color: '#5A6079', fontSize: 13, lineHeight: 1.5 },"), 'Dashboard description must use the normal page width');
+  assert(source.includes("active: 'Enabled Configuration Manager policies included in this Dashboard.'"), 'Active Policies tooltip must use the approved concise copy');
+  assert(!source.includes('overlapping scopes'), 'Dashboard must not expose overlapping Policy scope warning copy');
+  assert(source.includes("coverage: 'Percentage of assigned endpoints with a complete evaluation in the latest available report data. Coverage may change as endpoint availability and report data are refreshed.'"), 'Evaluation Coverage tooltip must communicate current report state');
   assert(!source.includes("['Not fully evaluated', TOOLtips.rowIncomplete]"), 'Overview must not use the obsolete table-header label');
   assert(!source.includes('INCONSISTENT'), 'Overview must not expose INCONSISTENT');
   assert(source.includes('buildPolicyDetailsPath'), 'Policy names must use the existing Policy Details route');
@@ -76,6 +88,7 @@ async function run() {
   assert(source.includes('<h2 id="top-controls-heading" style={styles.sectionTitle}>Top controls needing attention</h2>'), 'Top Controls heading must not contain a tooltip icon');
   assert(source.includes('Operational data for active policies.'), 'Policies subtitle must remain visible');
   assert(source.includes('Controls affecting the largest number of endpoints across active policies.'), 'Top Controls subtitle must remain visible');
+  assert(source.includes("sectionDescription: { margin: '3px 0 0', color: '#5A6079', fontSize: 13, lineHeight: 1.5, maxWidth: 640 },"), 'Dashboard section descriptions must use the readable muted typography step');
   assert(source.includes('TOOLtips.active') && source.includes('TOOLtips.compliance'), 'Approved tooltip content must remain present');
   assert(source.includes('numeric >= 90 ? \'lvl-hi\' : numeric >= 50 ? \'lvl-mid\' : numeric >= 25 ? \'lvl-orange\' : \'lvl-low\''), 'Compliance thresholds must include green, amber, orange, and red states');
   assert(source.includes("tone === 'lvl-orange' ? '#C77C02'") && source.includes("'#B3261E'"), 'Compliance orange and red colors must remain explicit');

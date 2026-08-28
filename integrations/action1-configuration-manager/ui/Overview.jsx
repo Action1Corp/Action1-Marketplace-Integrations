@@ -5,18 +5,18 @@ import { deriveDisplayName } from './policies/policyViewModel.js';
 import { pageSurfaceStyle, policyUiTokens, secondaryButtonStyle, textLinkButtonStyle } from './policies/policyUiStyles.js';
 import { buildNonCompliantReportUrl, formatPercent } from './overviewReportLink.js';
 
-const DESCRIPTION = 'Monitor configuration evaluation and compliance across active policies and their assigned Windows endpoints.';
+const DESCRIPTION = 'Monitor current configuration evaluation and compliance across active policies and assigned Windows endpoints. Coverage reflects the latest available reporting data and may change as endpoint availability changes.';
 const POLICY_GRID_COLUMNS = '28% 8% 8% 9% 13% 14% 8% 12%';
 const TOOLtips = {
-  active: 'Enabled Configuration Manager Policies currently included in Dashboard evaluation. Assignment totals are Policy-endpoint assignments and may include overlapping scopes.',
-  attention: 'Fully evaluated endpoints with one or more non-compliant Controls. Endpoints without a complete evaluation are not included.',
-  incomplete: 'Assigned endpoints that do not yet have a complete current result set for every Control selected in the Policy.',
-  coverage: 'Percentage of assigned Windows endpoints with a complete current result for every Control selected in their Policy. Disconnected endpoints remain assigned and stay in the denominator.',
-  assigned: 'Current Windows endpoints assigned to the Policy scope. Disconnected endpoints remain included.',
-  evaluated: 'Assigned endpoints with a complete current result for every Control selected in the Policy.',
-  compliant: 'Fully evaluated endpoints where every selected Control is compliant.',
-  rowAttention: 'Fully evaluated endpoints with one or more non-compliant Controls.',
-  rowIncomplete: 'Assigned endpoints with partial results or no current data.',
+  active: 'Enabled Configuration Manager policies included in this Dashboard.',
+  attention: 'Fully evaluated endpoints with one or more non-compliant controls.',
+  incomplete: 'Assigned endpoints with partial results or no current evaluation data.',
+  coverage: 'Percentage of assigned endpoints with a complete evaluation in the latest available report data. Coverage may change as endpoint availability and report data are refreshed.',
+  assigned: 'Windows endpoints currently assigned to the policy scope.',
+  evaluated: 'Assigned endpoints with a complete result for every selected control.',
+  compliant: 'Fully evaluated endpoints where every selected control is compliant.',
+  rowAttention: 'Fully evaluated endpoints with one or more non-compliant controls.',
+  rowIncomplete: 'Assigned endpoints with partial results or no current evaluation data.',
   rowCoverage: 'Fully evaluated endpoints divided by assigned endpoints.',
   compliance: 'Compliant endpoints divided by fully evaluated endpoints. Endpoints without a complete evaluation are excluded.'
 };
@@ -25,11 +25,11 @@ const styles = {
   shell: { width: '100%', maxWidth: 1080, margin: '0 auto', fontFamily: policyUiTokens.fontFamily, fontSize: 13, lineHeight: 1.5, color: '#313752' },
   header: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' },
   title: { margin: '0 0 4px', color: '#313752', fontSize: 20, lineHeight: 1.5, fontWeight: 600 },
-  description: { margin: '0 0 22px', color: '#5A6079', fontSize: 13, lineHeight: 1.5, maxWidth: 640 },
+  description: { margin: '0 0 22px', color: '#5A6079', fontSize: 13, lineHeight: 1.5 },
   refresh: { height: 30, padding: '0 14px', fontSize: 13, lineHeight: 1.5, fontWeight: 600, fontFamily: 'inherit', borderRadius: 3, cursor: 'pointer', border: '1px solid #C3CAD8', background: '#FFFFFF', color: '#313752' },
   sectionHead: { margin: '26px 0 12px' },
   sectionTitle: { margin: 0, color: '#313752', fontSize: 15, lineHeight: 1.5, fontWeight: 600 },
-  sectionDescription: { margin: '3px 0 0', color: '#5A6079', fontSize: 12, lineHeight: 1.5, maxWidth: 640 },
+  sectionDescription: { margin: '3px 0 0', color: '#5A6079', fontSize: 13, lineHeight: 1.5, maxWidth: 640 },
   kpis: { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 14 },
   kpi: { ...pageSurfaceStyle, borderRadius: 6, padding: '16px 18px', minWidth: 0 },
   kpiLabel: { display: 'flex', alignItems: 'center', gap: 6, color: '#5A6079', fontSize: 13, lineHeight: 1.5, fontWeight: 600, marginBottom: 8 },

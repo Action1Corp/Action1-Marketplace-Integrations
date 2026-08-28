@@ -29,6 +29,14 @@ function run() {
   assert(policyPageSource.includes('saveDraft'), 'PolicyPage should own the save flow');
   assert(policyPageSource.includes('togglePolicyEnabled'), 'PolicyPage should own the enable/disable lifecycle transition');
   assert(policyPageSource.includes('deletePolicy'), 'PolicyPage should own the delete lifecycle transition');
+  const loadingStart = policyPageSource.indexOf('{loadingPolicies ?');
+  const loadedStart = policyPageSource.indexOf('{pageError ?', loadingStart);
+  const loadingBranch = policyPageSource.slice(loadingStart, loadedStart);
+  const loadedBranch = policyPageSource.slice(loadedStart, policyPageSource.indexOf('{pendingAction', loadedStart));
+  assert(loadingBranch.includes('Loading Policies…'), 'PolicyPage should show Loading Policies while policies are loading');
+  assert(!loadingBranch.includes('PolicyListView') && !loadingBranch.includes('No policies') && !loadingBranch.includes('Create Policy'), 'PolicyPage loading state must not render the empty or normal list content');
+  assert(loadedBranch.includes('PolicyListView'), 'PolicyPage should render list content only after loading completes');
+  assert(loadedBranch.includes('policies={policies}'), 'PolicyPage should preserve normal non-empty Policies rendering');
   assert(!policyPageSource.includes('ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â'), 'PolicyPage should not preserve mojibake em-dash literals');
   assert(!policyPageSource.includes('demo Action1 automations'), 'PolicyPage should not leak customer-facing demo automation copy');
   assert(!policyPageSource.includes('Demo state resets when the Marketplace page is refreshed.'), 'PolicyPage should not leak the prototype reset note');

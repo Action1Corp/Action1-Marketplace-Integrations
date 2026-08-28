@@ -542,8 +542,9 @@ function PolicyPage({ integration }) {
         Create and manage Windows configuration policies that assess and remediate endpoints through scheduled Action1 automations.
       </p>
       <OperationStatus label={busyOperation} />
+      {loadingPolicies ? <div style={styles.notice}>Loading Policies…</div> : (
+        <>
       {pageError ? <div style={styles.errorNotice}>{pageError}</div> : null}
-      {loadingPolicies ? <div style={styles.notice}>Loading Policies…</div> : null}
       {mode.kind === 'list' ? (
         <PolicyListView
           policies={policies}
@@ -598,6 +599,8 @@ function PolicyPage({ integration }) {
           busy={Boolean(busyOperation)}
         />
       ) : null}
+        </>
+      )}
       {pendingAction && pendingPolicy ? (
         <div style={styles.dialogBackdrop}>
           <div style={styles.dialogCard}>
