@@ -6,6 +6,7 @@ import { pageSurfaceStyle, policyUiTokens, secondaryButtonStyle, textLinkButtonS
 import { buildNonCompliantReportUrl, formatPercent } from './overviewReportLink.js';
 
 const DESCRIPTION = 'Monitor configuration evaluation and compliance across active policies and their assigned Windows endpoints.';
+const POLICY_GRID_COLUMNS = '28% 8% 8% 9% 13% 14% 8% 12%';
 const TOOLtips = {
   active: 'Enabled Configuration Manager Policies currently included in Dashboard evaluation. Assignment totals are Policy-endpoint assignments and may include overlapping scopes.',
   attention: 'Fully evaluated endpoints with one or more non-compliant Controls. Endpoints without a complete evaluation are not included.',
@@ -37,14 +38,14 @@ const styles = {
   bar: { height: 4, marginTop: 10, borderRadius: 2, background: policyUiTokens.borderColor, overflow: 'hidden' },
   barFill: { height: '100%', background: '#0337A1' },
   surface: { ...pageSurfaceStyle, borderRadius: 6, overflow: 'visible', position: 'relative', zIndex: 0 },
-  table: { width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: 14, lineHeight: 1.5, color: '#313752', fontVariantNumeric: 'tabular-nums' },
   th: { padding: '11px 6px', textAlign: 'right', color: '#8A90A6', fontSize: 12, lineHeight: 1.5, fontWeight: 600, whiteSpace: 'normal', textTransform: 'none', background: '#f6f8fa' },
   groupTh: { padding: '9px 16px 2px', textAlign: 'center', color: '#5A6079', fontSize: 12, lineHeight: 1.5, fontWeight: 600, textTransform: 'none', letterSpacing: 0, background: '#f6f8fa' },
   thFirst: { textAlign: 'left' },
-  groupStart: { borderLeft: '1px solid #E4E8F0', borderLeftStyle: 'solid', boxShadow: 'inset 1px 0 #E4E8F0' },
   headTh: { borderBottom: `1px solid ${policyUiTokens.borderColor}`, paddingTop: 2 },
   td: { padding: '11px 16px', textAlign: 'right', whiteSpace: 'nowrap', borderBottom: '1px solid #E4E8F0', fontVariantNumeric: 'tabular-nums' },
   tdFirst: { textAlign: 'left', whiteSpace: 'normal' },
+  policyGrid: { display: 'grid', gridTemplateColumns: POLICY_GRID_COLUMNS, width: '100%', fontSize: 14, lineHeight: 1.5, color: '#313752', fontVariantNumeric: 'tabular-nums' },
+  policyGridHeader: { display: 'grid', gridTemplateColumns: POLICY_GRID_COLUMNS, gridTemplateRows: 'auto auto', width: '100%' },
   nameLink: { ...textLinkButtonStyle, fontWeight: 600 },
   attentionLink: { ...textLinkButtonStyle, color: '#A85B00', fontWeight: 600 },
   total: { fontWeight: 600, background: '#f6f8fa', borderBottom: 0, borderTop: `1px solid ${policyUiTokens.borderColor}` },
@@ -77,11 +78,10 @@ const DASHBOARD_TOOLTIP_CSS = `
 }
 .dashboard-tip:hover::after, .dashboard-tip:focus::after { opacity: 1; visibility: visible; }
 th:last-child .dashboard-tip::after, th:nth-last-child(2) .dashboard-tip::after { left: auto; right: -4px; transform: none; }
-.metricsBoundary { position: relative; }
-.metricsBoundary::before {
-  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 1px;
-  background: #E4E8F0; pointer-events: none; z-index: 1;
-}
+.policiesGrid { position: relative; }
+.policyDivider, .metricsDivider { position: absolute; top: 0; bottom: 0; width: 1px; background: #E4E8F0; pointer-events: none; z-index: 2; }
+.policyDivider { left: 28%; }
+.metricsDivider { left: 80%; }
 `;
 
 function TooltipLabel({ label, tooltip }) {
@@ -96,17 +96,17 @@ function displayCount(value) { return Number.isFinite(Number(value)) ? String(va
 function ratioPercent(numerator, denominator) { return denominator ? (Number(numerator) / Number(denominator)) * 100 : null; }
 function policyDisplayName(policy) { return deriveDisplayName(policy?.policyName, policy?.scope?.name); }
 
-function MetricCell({ label, value, tooltip, first = false, attention = false }) {
+function MetricCell({ label, value, tooltip, attention = false }) {
   const content = attention && Number(value) > 0 ? <a href="#non-compliant-report" style={styles.attentionLink} aria-label={`${value} ${label}; open Non-Compliant Endpoints report`}>{displayCount(value)}</a> : displayCount(value);
-  return <td style={{ ...styles.td, ...(first ? styles.groupStart : {}) }}><span aria-label={tooltip}>{content}</span></td>;
+  return <div role="cell" style={styles.td}><span aria-label={tooltip}>{content}</span></div>;
 }
 
-function PercentCell({ value, tooltip, coverage = false, first = false }) {
+function PercentCell({ value, tooltip, coverage = false }) {
   const numeric = Number(value);
   const hasValue = value !== null && value !== undefined && Number.isFinite(numeric);
   const tone = coverage ? 'bar-accent' : (!hasValue ? 'metric-null' : (numeric >= 90 ? 'lvl-hi' : numeric >= 50 ? 'lvl-mid' : numeric >= 25 ? 'lvl-orange' : 'lvl-low'));
   const fillColor = coverage ? policyUiTokens.accent : (tone === 'lvl-hi' ? '#2E7D32' : tone === 'lvl-mid' ? '#A85B00' : tone === 'lvl-orange' ? '#C77C02' : '#B3261E');
-  return <td className={first ? 'metricsBoundary' : undefined} style={styles.td}><span aria-label={tooltip} style={styles.percent}><span>{formatPercent(value)}</span>{hasValue ? <span className={tone} style={styles.percentBar}><span style={{ ...styles.percentFill, width: `${Math.max(0, Math.min(100, numeric))}%`, background: fillColor }} /></span> : null}</span></td>;
+  return <div role="cell" style={styles.td}><span aria-label={tooltip} style={styles.percent}><span>{formatPercent(value)}</span>{hasValue ? <span className={tone} style={styles.percentBar}><span style={{ ...styles.percentFill, width: `${Math.max(0, Math.min(100, numeric))}%`, background: fillColor }} /></span> : null}</span></div>;
 }
 
 export default function Overview({ integration = 'action1-configuration-manager' }) {
@@ -153,16 +153,22 @@ export default function Overview({ integration = 'action1-configuration-manager'
       <div style={styles.kpi}><MetricLabel label="Evaluation Coverage" tooltip={TOOLtips.coverage} /><div style={styles.value}>{formatPercent(summary.evaluationCoveragePercent)}</div><p style={styles.sub}>{displayCount(summary.fullyEvaluatedCount)} of {displayCount(summary.assignedCount)} endpoints evaluated</p><div style={styles.bar} aria-label={`Evaluation coverage ${formatPercent(summary.evaluationCoveragePercent)}`} role="img"><div style={{ ...styles.barFill, width: `${Math.max(0, Math.min(100, Number(summary.evaluationCoveragePercent) || 0))}%` }} /></div></div>
     </div>
     <div style={styles.sectionHead}><h2 style={styles.sectionTitle}>Policies</h2><p style={styles.sectionDescription}>Operational data for active policies.</p></div>
-    <div style={styles.surface}><table style={styles.table}><colgroup><col style={{ width: '28%' }} /><col style={{ width: '8%' }} /><col style={{ width: '8%' }} /><col style={{ width: '9%' }} /><col style={{ width: '13%' }} /><col style={{ width: '14%' }} /><col style={{ width: '8%' }} /><col style={{ width: '12%' }} /></colgroup><thead><tr><th rowSpan={2} scope="col" style={{ ...styles.groupTh, ...styles.thFirst }}>Policy</th><th colSpan={5} style={{ ...styles.groupTh, ...styles.groupStart }}>Endpoints</th><th colSpan={2} className="metricsBoundary" style={styles.groupTh}>Metrics</th></tr><tr>{[
-      ['Assigned', TOOLtips.assigned], ['Evaluated', TOOLtips.evaluated], ['Compliant', TOOLtips.compliant], ['Need attention', TOOLtips.rowAttention], ['Partial / No data', TOOLtips.rowIncomplete], ['Coverage', TOOLtips.rowCoverage], ['Compliance', TOOLtips.compliance]
-    ].map(([label, tooltip], index) => <th key={label} scope="col" className={index === 5 ? 'metricsBoundary' : undefined} style={{ ...styles.th, ...styles.headTh, ...(index === 0 ? styles.groupStart : {}) }}><TooltipLabel label={label} tooltip={tooltip} /></th>)}</tr></thead><tbody>{policies.map((policy) => <tr key={policy.policyId}>
-      <td style={{ ...styles.td, ...styles.tdFirst }}><button type="button" style={styles.nameLink} onClick={() => navigate(buildPolicyDetailsPath(integration, policy.policyId))}>{policyDisplayName(policy)}</button></td>
-      <MetricCell label="Assigned" value={policy.assignedCount} tooltip={TOOLtips.assigned} first /><MetricCell label="Evaluated" value={policy.fullyEvaluatedCount} tooltip={TOOLtips.evaluated} /><MetricCell label="Compliant" value={policy.compliantCount} tooltip={TOOLtips.compliant} />
-      <td style={styles.td}><a href={reportUrl(policy)} target="_blank" rel="noreferrer" style={styles.attentionLink} aria-label={`${policy.needsAttentionCount} Need attention; open Non-Compliant Endpoints report`}>{displayCount(policy.needsAttentionCount)}</a></td>
-      <MetricCell label="Not fully evaluated" value={policy.notFullyEvaluatedCount} tooltip={TOOLtips.rowIncomplete} /><PercentCell value={policy.evaluationCoveragePercent} tooltip={TOOLtips.rowCoverage} coverage first /><PercentCell value={policy.compliancePercent} tooltip={TOOLtips.compliance} />
-    </tr>)}</tbody><tfoot><tr>{[
-      ['All policies', true], [summary.assignedCount], [summary.fullyEvaluatedCount], [summary.compliantCount], [summary.needsAttentionCount], [summary.notFullyEvaluatedCount], [formatPercent(summary.evaluationCoveragePercent)], [formatPercent(summary.compliancePercent)]
-    ].map(([value, first], index) => <td key={index} className={index === 6 ? 'metricsBoundary' : undefined} style={{ ...styles.td, ...styles.total, ...(first ? styles.tdFirst : {}), ...([1].includes(index) ? styles.groupStart : {}) }}>{value}</td>)}</tr></tfoot></table></div>
+    <div style={styles.surface} className="policiesGrid" role="table" aria-label="Policies"><span className="policyDivider" aria-hidden="true" /><span className="metricsDivider" aria-hidden="true" /><div role="rowgroup" style={styles.policyGridHeader}>
+      <div role="columnheader" style={{ ...styles.groupTh, ...styles.thFirst, gridColumn: '1', gridRow: '1 / span 2' }}>Policy</div>
+      <div role="columnheader" style={{ ...styles.groupTh, gridColumn: '2 / span 5', gridRow: '1' }}>Endpoints</div>
+      <div role="columnheader" style={{ ...styles.groupTh, gridColumn: '7 / span 2', gridRow: '1' }}>Metrics</div>
+      <div role="columnheader" style={{ ...styles.th, ...styles.headTh, gridColumn: '1', gridRow: '2' }} />
+      {[
+        ['Assigned', TOOLtips.assigned], ['Evaluated', TOOLtips.evaluated], ['Compliant', TOOLtips.compliant], ['Need attention', TOOLtips.rowAttention], ['Partial / No data', TOOLtips.rowIncomplete], ['Coverage', TOOLtips.rowCoverage], ['Compliance', TOOLtips.compliance]
+      ].map(([label, tooltip], index) => <div key={label} role="columnheader" style={{ ...styles.th, ...styles.headTh, gridColumn: String(index + 2), gridRow: '2' }}><TooltipLabel label={label} tooltip={tooltip} /></div>)}
+    </div><div role="rowgroup">{policies.map((policy) => <div role="row" key={policy.policyId} style={styles.policyGrid}>
+      <div role="cell" style={{ ...styles.td, ...styles.tdFirst }}><button type="button" style={styles.nameLink} onClick={() => navigate(buildPolicyDetailsPath(integration, policy.policyId))}>{policyDisplayName(policy)}</button></div>
+      <MetricCell label="Assigned" value={policy.assignedCount} tooltip={TOOLtips.assigned} /><MetricCell label="Evaluated" value={policy.fullyEvaluatedCount} tooltip={TOOLtips.evaluated} /><MetricCell label="Compliant" value={policy.compliantCount} tooltip={TOOLtips.compliant} />
+      <div role="cell" style={styles.td}><a href={reportUrl(policy)} target="_blank" rel="noreferrer" style={styles.attentionLink} aria-label={`${policy.needsAttentionCount} Need attention; open Non-Compliant Endpoints report`}>{displayCount(policy.needsAttentionCount)}</a></div>
+      <MetricCell label="Not fully evaluated" value={policy.notFullyEvaluatedCount} tooltip={TOOLtips.rowIncomplete} /><PercentCell value={policy.evaluationCoveragePercent} tooltip={TOOLtips.rowCoverage} coverage /><PercentCell value={policy.compliancePercent} tooltip={TOOLtips.compliance} />
+    </div>)}</div><div role="row" style={styles.policyGrid}><div role="cell" style={{ ...styles.td, ...styles.tdFirst, ...styles.total }}>All policies</div>{[
+      summary.assignedCount, summary.fullyEvaluatedCount, summary.compliantCount, summary.needsAttentionCount, summary.notFullyEvaluatedCount, formatPercent(summary.evaluationCoveragePercent), formatPercent(summary.compliancePercent)
+    ].map((value, index) => <div key={index} role="cell" style={{ ...styles.td, ...styles.total }}>{value}</div>)}</div></div>
     <div style={styles.sectionHead}><h2 id="top-controls-heading" style={styles.sectionTitle}>Top controls needing attention</h2><p style={styles.sectionDescription}>Controls affecting the largest number of endpoints across active policies.</p></div>
     <div style={styles.surface} aria-labelledby="top-controls-heading">{topControls.length ? <table style={styles.controlTable}><colgroup><col style={{ width: '40%' }} /><col style={{ width: '40%' }} /><col style={{ width: '20%' }} /></colgroup><thead><tr><th scope="col" style={{ ...styles.controlHead, ...styles.controlFirst }}>Control</th><th scope="col" style={{ ...styles.controlHead, ...styles.controlPolicy }}>Policy</th><th scope="col" style={styles.controlHead}>Affected endpoints</th></tr></thead><tbody>{topControls.map((control, index) => { const policy = policies.find((candidate) => candidate.policyId === control.policyId && candidate.organizationId === control.organizationId); const rowBorder = index === topControls.length - 1 ? { borderBottom: 'none' } : {}; return <tr key={`${control.organizationId}|${control.policyId}|${control.controlName}`}><td style={{ ...styles.controlCell, ...styles.controlFirst, ...rowBorder }}><a href={controlReportUrl(control)} target="_blank" rel="noreferrer" style={{ ...styles.footerLink, fontWeight: 600 }}>{control.controlName}</a></td><td style={{ ...styles.controlCell, ...styles.controlPolicy, ...rowBorder }}>{policy ? policyDisplayName(policy) : control.policyName}</td><td style={{ ...styles.controlCell, ...styles.controlCount, ...rowBorder }}>{displayCount(control.affectedEndpointCount)}</td></tr>; })}</tbody></table> : <p style={styles.controlEmpty}>No controls currently need attention.</p>}</div>
     {footerReportUrl ? <div style={styles.footer}><a href={footerReportUrl} target="_blank" rel="noreferrer" style={styles.footerLink}>View non-compliant controls report</a></div> : null}

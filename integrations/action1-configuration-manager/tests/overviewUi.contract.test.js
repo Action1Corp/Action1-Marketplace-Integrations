@@ -14,6 +14,7 @@ async function run() {
   assert(uiIndex.includes('overview: Overview'));
 
   const source = readSource('ui/Overview.jsx');
+  const policiesView = source.slice(source.indexOf('role="table" aria-label="Policies"'), source.indexOf('<div style={styles.sectionHead}><h2 id="top-controls-heading"'));
   for (const label of ['Dashboard', 'Active Policies', 'Need Attention', 'Not Fully Evaluated', 'Evaluation Coverage', 'Policies', 'All policies']) {
     assert(source.includes(label), `Overview should render ${label}`);
   }
@@ -39,7 +40,7 @@ async function run() {
   assert(source.includes('buildNonCompliantReportUrl'), 'Need attention links must use the report-link helper');
   assert(source.includes('dashboardNonCompliantControls'), 'Overview must consume the non-compliant controls report ID');
   assert(source.includes('topControlsNeedingAttention'), 'Overview must render backend-provided Top Controls');
-  assert(source.includes('>Endpoints<') && source.includes('>Metrics<'), 'Policy table must visually group endpoint and metric columns');
+  assert(policiesView.includes('>Endpoints</div>') && policiesView.includes('>Metrics</div>'), 'Policy grid must visually group endpoint and metric columns');
   assert(source.includes("['Partial / No data', TOOLtips.rowIncomplete]"), 'Policy table must use the approved Partial / No data label');
   assert(!source.includes("['Not fully evaluated', TOOLtips.rowIncomplete]"), 'Policy table must not use the obsolete Not fully evaluated header label');
   assert(!source.includes('>RATES<'), 'Policy table must not use the obsolete RATES group label');
@@ -48,21 +49,21 @@ async function run() {
   assert(source.includes('fontSize: 28'), 'KPI values should retain the approved reference scale');
   assert(source.includes('ratioPercent(summary.needsAttentionCount, summary.fullyEvaluatedCount)'), 'Need Attention secondary copy should use evaluated-endpoint percentage');
   assert(source.includes('ratioPercent(summary.notFullyEvaluatedCount, summary.assignedCount)'), 'Not Fully Evaluated secondary copy should use assigned-endpoint percentage');
-  assert(source.includes('rowSpan={2}'), 'Policy header cell should span the two table header levels');
+  assert(policiesView.includes('gridColumn: \'2 / span 5\'') && policiesView.includes('gridColumn: \'7 / span 2\''), 'Policy grid must span Endpoints columns 2-6 and Metrics columns 7-8');
+  assert(!policiesView.includes('rowSpan') && !policiesView.includes('colSpan'), 'Policies layout must not use rowSpan or colSpan');
   assert(source.includes('numeric >= 90') && source.includes('numeric >= 50') && source.includes('numeric >= 25'), 'Compliance bar thresholds must remain explicit');
   assert(source.includes('hasValue ?') && source.includes('Number.isFinite(numeric)'), 'Only null percentages may omit the progress fill');
   assert(!source.includes('Most affected controls</p>'), 'Top Controls must not render a redundant second title');
   assert(source.includes('Affected endpoints'), 'Top Controls must include the approved count column header');
   assert(source.includes('>Control<') && source.includes('>Policy<'), 'Top Controls must include explicit Control and Policy headers');
   assert(!source.includes('strong>{displayCount(control.affectedEndpointCount)'), 'Top Controls counts must not be bolded');
-  assert(source.includes('tableLayout: \'fixed\'') && source.includes('<colgroup>'), 'Dashboard tables must use shared fixed column geometry');
+  assert(source.includes('POLICY_GRID_COLUMNS') && source.includes('gridTemplateColumns: POLICY_GRID_COLUMNS'), 'Policies layout must use one shared eight-column grid definition');
   assert(source.includes('deriveDisplayName') && source.includes('policyDisplayName'), 'Policy labels must use the canonical Policy + Scope display helper');
-  assert(source.includes('groupStart: { borderLeft: \'1px solid #E4E8F0\', borderLeftStyle: \'solid\', boxShadow: \'inset 1px 0 #E4E8F0\' }'), 'Policy table must define the approved vertical divider');
-  assert(source.includes('.metricsBoundary::before'), 'Metrics boundary must use an independent pseudo-element');
-  assert(source.includes('className="metricsBoundary" style={styles.groupTh}>Metrics'), 'Metrics group header must carry the Metrics boundary');
-  assert(source.includes("className={index === 5 ? 'metricsBoundary' : undefined}"), 'Coverage header must carry the Metrics boundary');
-  assert(source.includes("className={first ? 'metricsBoundary' : undefined} style={styles.td}"), 'Policy Coverage cells must carry the Metrics boundary');
-  assert(source.includes("className={index === 6 ? 'metricsBoundary' : undefined}"), 'All policies Coverage cell must carry the Metrics boundary');
+  assert(source.includes('.policiesGrid { position: relative; }'), 'Policies surface must own the structural dividers');
+  assert(source.includes('.policyDivider { left: 28%; }') && source.includes('.metricsDivider { left: 80%; }'), 'Structural dividers must use the approved grid boundaries');
+  assert((source.match(/className="policyDivider"/g) || []).length === 1 && (source.match(/className="metricsDivider"/g) || []).length === 1, 'Policies surface must own exactly two divider elements');
+  assert(source.includes('aria-hidden="true"'), 'Structural divider elements must be presentation-only');
+  assert(!policiesView.includes('policyGridBoundary') && !policiesView.includes('metricsBoundary') && !policiesView.includes('groupStart'), 'Policies grid must not retain obsolete per-cell divider hacks');
   assert(source.includes('dashboard-tip'), 'Dashboard metric labels must be tooltip triggers');
   assert(!source.includes('data-tip={tooltip} tabIndex="0" role="button" aria-label={`${label}: ${tooltip}`} title={tooltip}'), 'Tooltip triggers must not include a duplicate native title tooltip');
   assert(source.includes('border-bottom: 1px dotted #C3CAD8'), 'Tooltip labels must use the approved dotted underline');
