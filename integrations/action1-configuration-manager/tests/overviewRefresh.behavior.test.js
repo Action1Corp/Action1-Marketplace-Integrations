@@ -18,7 +18,7 @@ async function run() {
     refreshTimeoutMs: 20,
     sleep: async () => {},
     policyStore: { async listPolicies() { return [policy]; } },
-    reportingState: { dashboardEndpoints: 'endpoints-report', dashboardNonCompliantEndpoints: 'attention-report' },
+    reportingState: { dashboardEndpoints: 'endpoints-report', dashboardNonCompliantEndpoints: 'attention-report', dashboardNonCompliantControls: 'controls-report' },
     client: {
       async listManagedEndpoints() { return [{ id: 'endpoint-27', name: 'BOX27', platform: 'Windows' }]; },
       async listReportData(org, reportId, options) {
@@ -34,7 +34,9 @@ async function run() {
           lastRequery: complete ? 'new' : 'old'
         });
         return complete
-          ? [{ 'Policy ID': 'POL-000054', 'Policy Name': 'Configuration Policy', 'Endpoint Name': 'BOX27', Details: reportId === 'endpoints-report' ? 4 : 2 }]
+          ? (reportId === 'controls-report'
+            ? [{ 'Policy ID': 'POL-000054', 'Policy Name': 'Configuration Policy', 'Control Name': 'Control', Details: 2 }]
+            : [{ 'Policy ID': 'POL-000054', 'Policy Name': 'Configuration Policy', 'Endpoint Name': 'BOX27', Details: reportId === 'endpoints-report' ? 4 : 2 }])
           : [];
       },
       async requestAction1Mutation(input) {
@@ -45,12 +47,14 @@ async function run() {
 
   assert.deepStrictEqual(requests.map((request) => ({ method: request.method, path: request.path })), [
     { method: 'POST', path: '/reportdata/org-1/endpoints-report/requery' },
-    { method: 'POST', path: '/reportdata/org-1/attention-report/requery' }
+    { method: 'POST', path: '/reportdata/org-1/attention-report/requery' },
+    { method: 'POST', path: '/reportdata/org-1/controls-report/requery' }
   ]);
   assert.strictEqual(result.policies[0].fullyEvaluatedCount, 1, 'aggregation must use the completed endpoint report');
   assert.strictEqual(result.policies[0].needsAttentionCount, 1, 'aggregation must use the completed non-compliant report');
   assert.strictEqual(readCounts.get('endpoints-report'), 3);
   assert.strictEqual(readCounts.get('attention-report'), 3);
+  assert.strictEqual(readCounts.get('controls-report'), 3);
 }
 
 run().catch((error) => { console.error(error); process.exit(1); });

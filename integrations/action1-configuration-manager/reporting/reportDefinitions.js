@@ -12,7 +12,8 @@ const REPORTS = Object.freeze([
   ['byPolicy', 'Configuration Management - by Policy', 'Shows configuration status grouped by Configuration Management policy.'],
   ['byStatus', 'Configuration Management - by Status', 'Shows Configuration Management results grouped by configuration status.'],
   ['dashboardEndpoints', 'Configuration Management - Dashboard Endpoints', 'Provides one current summary row per Policy and endpoint for Overview aggregation.'],
-  ['dashboardNonCompliantEndpoints', 'Configuration Management - Dashboard Non-Compliant Endpoints', 'Provides one summary row per Policy and endpoint with non-compliant Controls.']
+  ['dashboardNonCompliantEndpoints', 'Configuration Management - Dashboard Non-Compliant Endpoints', 'Provides one summary row per Policy and endpoint with non-compliant Controls.'],
+  ['dashboardNonCompliantControls', 'Configuration Management - Dashboard Non-Compliant Controls', 'Provides one summary row per Policy and Control with non-compliant endpoint counts.']
 ].map(([key, name, description]) => Object.freeze({ key, name, description })));
 
 function numericDataSourceId(value) {
@@ -44,6 +45,9 @@ function definition(dataSourceId, key) {
   }
   if (key === 'dashboardNonCompliantEndpoints') {
     return { ...base, summary_columns: ['Endpoint Name', 'Policy ID', 'Policy Name'].map(name => column(dataSourceId, name)), drilldown_columns: drill.map(name => column(dataSourceId, name)), filter_set: filterSet(dataSourceId, ['Configuration Status'], { 'Configuration Status': 'NonCompliant' }) };
+  }
+  if (key === 'dashboardNonCompliantControls') {
+    return { ...base, summary_columns: ['Policy ID', 'Policy Name', 'Control Name'].map(name => column(dataSourceId, name)), drilldown_columns: drill.map(name => column(dataSourceId, name)), filter_set: filterSet(dataSourceId, ['Configuration Status'], { 'Configuration Status': 'NonCompliant' }) };
   }
   const specs = {
     byControl: { summary: ['Control Name'], fields: controlFilters },

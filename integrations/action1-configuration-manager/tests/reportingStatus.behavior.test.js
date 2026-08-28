@@ -2,7 +2,7 @@ const assert = require('assert');
 const { getReportingState, getReportingStatus } = require('../reporting/reportingService');
 
 function dbWithState(row) { return { async get() { return row; } }; }
-function stateRow(values) { return { data_source_id: values.dataSourceId || null, report_by_endpoint: values.byEndpoint || null, report_details: values.details || null, report_by_control: values.byControl || null, report_by_policy: values.byPolicy || null, report_by_status: values.byStatus || null, report_dashboard_endpoints: values.dashboardEndpoints || null, report_dashboard_non_compliant_endpoints: values.dashboardNonCompliantEndpoints || null }; }
+function stateRow(values) { return { data_source_id: values.dataSourceId || null, report_by_endpoint: values.byEndpoint || null, report_details: values.details || null, report_by_control: values.byControl || null, report_by_policy: values.byPolicy || null, report_by_status: values.byStatus || null, report_dashboard_endpoints: values.dashboardEndpoints || null, report_dashboard_non_compliant_endpoints: values.dashboardNonCompliantEndpoints || null, report_dashboard_non_compliant_controls: values.dashboardNonCompliantControls || null }; }
 
 (async () => {
   const emptyState = await getReportingState({ db: dbWithState(null) });
@@ -21,10 +21,10 @@ function stateRow(values) { return { data_source_id: values.dataSourceId || null
       return { id };
     }
   };
-  const state = stateRow({ dataSourceId: '100', byEndpoint: '201', details: '202', byControl: '203', byPolicy: '204', byStatus: '205', dashboardEndpoints: '206', dashboardNonCompliantEndpoints: '207' });
+  const state = stateRow({ dataSourceId: '100', byEndpoint: '201', details: '202', byControl: '203', byPolicy: '204', byStatus: '205', dashboardEndpoints: '206', dashboardNonCompliantEndpoints: '207', dashboardNonCompliantControls: '208' });
   const status = await getReportingStatus({ db: dbWithState(state) }, { client });
   assert.deepStrictEqual(status, { dataSource: 'Configured', reports: 'Configured' });
-  assert.strictEqual(calls.length, 7);
+  assert.strictEqual(calls.length, 8);
   assert(maxInFlightReports > 1, 'report verification should run independently in parallel');
   console.log('Reporting status behavior passed.');
 })().catch(error => { console.error(error); process.exit(1); });

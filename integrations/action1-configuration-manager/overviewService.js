@@ -47,9 +47,32 @@ function normalizeReportRow(row) {
   return { ...(organizationId ? { organizationId } : {}), policyId, policyName, endpointName, details, ...(details === null ? { malformed: true } : {}) };
 }
 
+function normalizeDashboardControlRow(row, organizationId) {
+  const fields = row?.fields && typeof row.fields === 'object' ? row.fields : row;
+  const policyId = text(fields?.['Policy ID'] || fields?.policyId || fields?.policy_id);
+  const policyName = text(fields?.['Policy Name'] || fields?.policyName || fields?.policy_name);
+  const controlName = text(fields?.['Control Name'] || fields?.controlName || fields?.control_name);
+  const affectedEndpointCount = count(fields?.Details ?? fields?.details ?? fields?.detail);
+  if (!policyId || !controlName || affectedEndpointCount === null) return null;
+  return { policyId, policyName, organizationId: text(organizationId || row?.organizationId || row?.organization_id), controlName, affectedEndpointCount };
+}
+
 function roundPercent(numerator, denominator) {
   if (!denominator) return null;
   return Math.round((numerator / denominator) * 10000) / 100;
+}
+
+function selectTopControlsNeedingAttention(rows, policies) {
+  const activePolicies = new Map((Array.isArray(policies) ? policies : [])
+    .filter((policy) => policy?.enabled === true)
+    .map((policy) => [`${text(policy.organizationId)}|${text(policy.policyId)}`, policy]));
+  return (Array.isArray(rows) ? rows : [])
+    .filter((row) => activePolicies.has(`${text(row?.organizationId)}|${text(row?.policyId)}`))
+    .sort((left, right) => Number(right.affectedEndpointCount) - Number(left.affectedEndpointCount)
+      || text(left.controlName).localeCompare(text(right.controlName))
+      || text(left.policyName).localeCompare(text(right.policyName))
+      || text(left.policyId).localeCompare(text(right.policyId)))
+    .slice(0, 5);
 }
 
 function buildOverviewSummary(policyModels) {
@@ -98,7 +121,7 @@ function mergeReportRows(rows) {
   return result;
 }
 
-function buildOverviewViewModel({ policies = [], assignedEndpointsByPolicy = {}, observedRows = [], nonCompliantRows = [] } = {}) {
+function buildOverviewViewModel({ policies = [], assignedEndpointsByPolicy = {}, observedRows = [], nonCompliantRows = [], dashboardControlRows = [] } = {}) {
   const activePolicies = (Array.isArray(policies) ? policies : []).filter((policy) => policy?.enabled === true);
   const observed = mergeReportRows(observedRows);
   const nonCompliant = mergeReportRows(nonCompliantRows);
@@ -161,7 +184,7 @@ function buildOverviewViewModel({ policies = [], assignedEndpointsByPolicy = {},
       endpoints
     };
   });
-  return { summary: buildOverviewSummary(policyModels), policies: policyModels, endpointAttention };
+  return { summary: buildOverviewSummary(policyModels), policies: policyModels, endpointAttention, topControlsNeedingAttention: selectTopControlsNeedingAttention(dashboardControlRows, activePolicies) };
 }
 
 async function readReportSnapshot(client, organizationId, reportId) {
@@ -239,7 +262,7 @@ async function getOverview(context, options = {}) {
   const client = options.client || createAction1DiscoveryClient(context);
   const policies = (await policyStore.listPolicies()).filter((policy) => policy.enabled === true);
   const reporting = options.reportingState || await reportingStore.load(context);
-  if (!reporting.dashboardEndpoints || !reporting.dashboardNonCompliantEndpoints) {
+  if (!reporting.dashboardEndpoints || !reporting.dashboardNonCompliantEndpoints || !reporting.dashboardNonCompliantControls) {
     throw new Error('Configuration Manager Dashboard reporting is not configured.');
   }
 
@@ -268,10 +291,12 @@ async function getOverview(context, options = {}) {
   const organizations = [...new Set(policies.map((policy) => policy.organizationId))];
   const observedRows = [];
   const nonCompliantRows = [];
+  const dashboardControlRows = [];
   for (const organizationId of organizations) {
     const reportReads = [
       { kind: 'dashboard-endpoints', reportId: reporting.dashboardEndpoints, target: observedRows },
-      { kind: 'dashboard-non-compliant', reportId: reporting.dashboardNonCompliantEndpoints, target: nonCompliantRows }
+      { kind: 'dashboard-non-compliant', reportId: reporting.dashboardNonCompliantEndpoints, target: nonCompliantRows },
+      { kind: 'dashboard-non-compliant-controls', reportId: reporting.dashboardNonCompliantControls, target: dashboardControlRows }
     ];
     const readResults = await readOverviewReports(client, organizationId, reportReads, {
       operationType,
@@ -286,7 +311,7 @@ async function getOverview(context, options = {}) {
       const pages = result.snapshot.pages;
       const responseReceivedAt = Date.now();
       const rowCount = rows.length;
-      const policyIds = [...new Set(rows.map((row) => normalizeReportRow(row)?.policyId).filter(Boolean))];
+      const policyIds = [...new Set(rows.map((row) => read.kind === 'dashboard-non-compliant-controls' ? normalizeDashboardControlRow(row, organizationId)?.policyId : normalizeReportRow(row)?.policyId).filter(Boolean))];
       for (const policyId of policyIds) {
         await logOverview(context, 'report-read', {
           policyId,
@@ -328,12 +353,16 @@ async function getOverview(context, options = {}) {
       result.rows = rows;
     }
     for (const result of readResults) {
-      result.target.push(...result.rows.map(normalizeReportRow).filter(Boolean).map((row) => ({ ...row, organizationId })));
+      if (result.kind === 'dashboard-non-compliant-controls') {
+        result.target.push(...result.rows.map((row) => normalizeDashboardControlRow(row, organizationId)).filter(Boolean));
+      } else {
+        result.target.push(...result.rows.map(normalizeReportRow).filter(Boolean).map((row) => ({ ...row, organizationId })));
+      }
     }
   }
   const result = {
-    ...buildOverviewViewModel({ policies, assignedEndpointsByPolicy, observedRows, nonCompliantRows }),
-    reporting: { dashboardNonCompliantEndpoints: reporting.dashboardNonCompliantEndpoints }
+    ...buildOverviewViewModel({ policies, assignedEndpointsByPolicy, observedRows, nonCompliantRows, dashboardControlRows }),
+    reporting: { dashboardNonCompliantEndpoints: reporting.dashboardNonCompliantEndpoints, dashboardNonCompliantControls: reporting.dashboardNonCompliantControls }
   };
   for (const policy of result.policies) {
     await logOverview(context, 'policy-result', {
@@ -351,4 +380,4 @@ async function getOverview(context, options = {}) {
   return result;
 }
 
-module.exports = { buildOverviewSummary, buildOverviewViewModel, getOverview, normalizeEndpointRow, normalizeReportRow, roundPercent };
+module.exports = { buildOverviewSummary, buildOverviewViewModel, getOverview, normalizeDashboardControlRow, normalizeEndpointRow, normalizeReportRow, roundPercent, selectTopControlsNeedingAttention };

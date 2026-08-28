@@ -12,7 +12,8 @@ const EXPECTED = {
   byPolicy: { simple: [], summary: ['Policy Name', 'Policy ID'], drilldown: ['Configuration Status', 'Policy Name', 'Policy ID', 'Control Name', 'Control Version', 'Endpoint Name', 'Last Checked At', 'Last Remediated At', 'Message', 'Remediation Attempted'], filters: ['Endpoint Name', 'Policy ID', 'Policy Name', 'Control ID', 'Control Version'] },
   byStatus: { simple: [], summary: ['Configuration Status'], drilldown: ['Configuration Status', 'Policy Name', 'Policy ID', 'Control Name', 'Control Version', 'Endpoint Name', 'Last Checked At', 'Last Remediated At', 'Message', 'Remediation Attempted'], filters: ['Endpoint Name', 'Policy ID', 'Policy Name', 'Control ID', 'Control Version', 'Control Name', 'Configuration Status', 'Last Checked At'] },
   dashboardEndpoints: { simple: [], summary: ['Policy Name', 'Policy ID', 'Endpoint Name'], drilldown: ['Configuration Status', 'Policy Name', 'Policy ID', 'Control Name', 'Control Version', 'Endpoint Name', 'Last Checked At', 'Last Remediated At', 'Message', 'Remediation Attempted'], filters: [] },
-  dashboardNonCompliantEndpoints: { simple: [], summary: ['Endpoint Name', 'Policy ID', 'Policy Name'], drilldown: ['Configuration Status', 'Policy Name', 'Policy ID', 'Control Name', 'Control Version', 'Endpoint Name', 'Last Checked At', 'Last Remediated At', 'Message', 'Remediation Attempted'], filters: ['Configuration Status'] }
+  dashboardNonCompliantEndpoints: { simple: [], summary: ['Endpoint Name', 'Policy ID', 'Policy Name'], drilldown: ['Configuration Status', 'Policy Name', 'Policy ID', 'Control Name', 'Control Version', 'Endpoint Name', 'Last Checked At', 'Last Remediated At', 'Message', 'Remediation Attempted'], filters: ['Configuration Status'] },
+  dashboardNonCompliantControls: { simple: [], summary: ['Policy ID', 'Policy Name', 'Control Name'], drilldown: ['Configuration Status', 'Policy Name', 'Policy ID', 'Control Name', 'Control Version', 'Endpoint Name', 'Last Checked At', 'Last Remediated At', 'Message', 'Remediation Attempted'], filters: ['Configuration Status'] }
 };
 
 function makeDb() {
@@ -74,7 +75,7 @@ function assertFinalContract(payload) {
   for (const filter of payload.filter_set.filters) {
     assert.deepStrictEqual(Object.keys(filter).sort(), requiredFilterKeys);
     assert.strictEqual(typeof filter.name, 'string'); assert.notStrictEqual(filter.name, '');
-    assert.strictEqual(filter.value, payload.name === 'Configuration Management - Dashboard Non-Compliant Endpoints' ? 'NonCompliant' : '*'); assert.strictEqual(filter.operator, '=');
+    assert.strictEqual(filter.value, ['Configuration Management - Dashboard Non-Compliant Endpoints', 'Configuration Management - Dashboard Non-Compliant Controls'].includes(payload.name) ? 'NonCompliant' : '*'); assert.strictEqual(filter.operator, '=');
     assert.strictEqual(Number.isInteger(filter.data_source_id), true);
     assert(!Object.prototype.hasOwnProperty.call(filter, 'column_name')); assert(!Object.prototype.hasOwnProperty.call(filter, 'field'));
   }
@@ -97,7 +98,7 @@ function assertFinalContract(payload) {
   assert.deepStrictEqual(definitions.map(definition => definition.key), REPORTS.map(report => report.key));
   const postedReports = [];
   await setupReporting({ db: makeDb(), logger: {} }, {}, { client: finalPayloadClient(postedReports) });
-  assert.strictEqual(postedReports.length, 7);
+  assert.strictEqual(postedReports.length, 8);
   for (const payload of postedReports) {
     assertFinalContract(payload);
     const expected = EXPECTED[REPORTS.find(report => report.name === payload.name).key];
@@ -105,12 +106,12 @@ function assertFinalContract(payload) {
     assert.deepStrictEqual(payload.summary_columns.map(column => column.name), expected.summary);
     assert.deepStrictEqual(payload.drilldown_columns.map(column => column.name), expected.drilldown);
     assert.deepStrictEqual(payload.filter_set.filters.map(filter => filter.name), expected.filters);
-    if (payload.name === 'Configuration Management - Dashboard Non-Compliant Endpoints') assert.strictEqual(payload.filter_set.filters[0].value, 'NonCompliant');
+    if (['Configuration Management - Dashboard Non-Compliant Endpoints', 'Configuration Management - Dashboard Non-Compliant Controls'].includes(payload.name)) assert.strictEqual(payload.filter_set.filters[0].value, 'NonCompliant');
     assert.deepStrictEqual(payload.data_sources, payload.name === 'Configuration Management - Details' ? ['/API/data_sources/all/123456789', '/API/data_sources/all/2014'] : ['/API/data_sources/all/123456789']);
   }
   const missingSupportReports = [];
   await setupReporting({ db: makeOriginalFiveDb(), logger: {} }, {}, { client: finalPayloadClient(missingSupportReports) });
-  assert.strictEqual(missingSupportReports.length, 2);
+  assert.strictEqual(missingSupportReports.length, 3);
   const captured = { reports: [] };
   await setupReporting({ db: emptyDb(), logger: {} }, {}, { client: finalProvisioningClient(captured) });
   assert.deepStrictEqual(captured.dataSourcePublish.columns, REPORTING_DATA_SOURCE_COLUMNS);

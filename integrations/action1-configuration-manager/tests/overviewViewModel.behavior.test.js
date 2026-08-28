@@ -84,19 +84,20 @@ async function run() {
   const calls = { all: 0, group: 0, reports: [] };
   const serviceResult = await getOverview({}, {
     policyStore: { async listPolicies() { return [policy(), policy({ policyId: 'POL-OTHER', organizationId: 'org-2', scopeType: 'ALL_ENDPOINTS', endpointGroupId: null, enabled: true, selectedControls: [{ controlId: 'a' }] })]; } },
-    reportingState: { dashboardEndpoints: 'report-a', dashboardNonCompliantEndpoints: 'report-b' },
+    reportingState: { dashboardEndpoints: 'report-a', dashboardNonCompliantEndpoints: 'report-b', dashboardNonCompliantControls: 'report-c' },
     client: {
       async listManagedEndpoints(org) { calls.all += 1; return [{ id: `${org}-1`, name: `Win-${org}`, platform: 'Windows', organization_id: org }]; },
       async listEndpointGroupContents(org) { calls.group += 1; return [{ id: `${org}-1`, name: `Win-${org}`, platform: 'Windows', organization_id: org }]; },
-      async listReportData(org, reportId) { calls.reports.push(`${org}:${reportId}`); return [{ 'Policy ID': org === 'org-1' ? 'POL-000001' : 'POL-OTHER', 'Policy Name': 'Policy', 'Endpoint Name': `Win-${org}`, Details: 5 }]; },
+      async listReportData(org, reportId) { calls.reports.push(`${org}:${reportId}`); return [{ 'Policy ID': org === 'org-1' ? 'POL-000001' : 'POL-OTHER', 'Policy Name': 'Policy', 'Endpoint Name': `Win-${org}`, 'Control Name': 'Control', Details: 5 }]; },
       async requestAction1Mutation() { throw new Error('refresh not expected during this initial-load test'); }
     }
   });
   assert.strictEqual(serviceResult.policies.length, 2);
   assert.strictEqual(serviceResult.reporting.dashboardNonCompliantEndpoints, 'report-b');
+  assert.strictEqual(serviceResult.reporting.dashboardNonCompliantControls, 'report-c');
   assert.strictEqual(calls.group, 1);
   assert.strictEqual(calls.all, 1);
-  assert.deepStrictEqual(calls.reports.sort(), ['org-1:report-a', 'org-1:report-b', 'org-2:report-a', 'org-2:report-b']);
+  assert.deepStrictEqual(calls.reports.sort(), ['org-1:report-a', 'org-1:report-b', 'org-1:report-c', 'org-2:report-a', 'org-2:report-b', 'org-2:report-c']);
 
   const scoped = buildOverviewViewModel({
     policies: [policy({ policyId: 'POL-SAME', organizationId: 'org-1', selectedControls: [{ controlId: 'a' }] }), policy({ policyId: 'POL-SAME', organizationId: 'org-2', selectedControls: [{ controlId: 'a' }] })],

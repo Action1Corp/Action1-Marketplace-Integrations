@@ -4,16 +4,16 @@ const { EXISTENCE, isConclusiveMissing, setupReporting } = require('../reporting
 function missingError(id) { return { statusCode: 404, diagnostics: { responseContentType: 'application/json', errorMessage: `resource ${id} not found` } }; }
 function unresolvedError() { return { statusCode: 503, diagnostics: { responseContentType: 'application/json', errorMessage: 'temporarily unavailable' } }; }
 function makeDb(initial) {
-  let row = initial ? { singleton_id: 1, data_source_id: initial.dataSourceId, report_by_endpoint: initial.byEndpoint, report_details: initial.details, report_by_control: initial.byControl, report_by_policy: initial.byPolicy, report_by_status: initial.byStatus, report_dashboard_endpoints: initial.dashboardEndpoints, report_dashboard_non_compliant_endpoints: initial.dashboardNonCompliantEndpoints } : null;
+  let row = initial ? { singleton_id: 1, data_source_id: initial.dataSourceId, report_by_endpoint: initial.byEndpoint, report_details: initial.details, report_by_control: initial.byControl, report_by_policy: initial.byPolicy, report_by_status: initial.byStatus, report_dashboard_endpoints: initial.dashboardEndpoints, report_dashboard_non_compliant_endpoints: initial.dashboardNonCompliantEndpoints, report_dashboard_non_compliant_controls: initial.dashboardNonCompliantControls } : null;
   return {
     async get() { return row; },
     async run(sql, params) {
-      if (sql.startsWith('INSERT')) row = { singleton_id: 1, data_source_id: params[0], report_by_endpoint: params[1], report_details: params[2], report_by_control: params[3], report_by_policy: params[4], report_by_status: params[5], report_dashboard_endpoints: params[6], report_dashboard_non_compliant_endpoints: params[7] };
-      else if (sql.startsWith('UPDATE')) row = { ...row, data_source_id: params[0], report_by_endpoint: params[1], report_details: params[2], report_by_control: params[3], report_by_policy: params[4], report_by_status: params[5], report_dashboard_endpoints: params[6], report_dashboard_non_compliant_endpoints: params[7] };
+      if (sql.startsWith('INSERT')) row = { singleton_id: 1, data_source_id: params[0], report_by_endpoint: params[1], report_details: params[2], report_by_control: params[3], report_by_policy: params[4], report_by_status: params[5], report_dashboard_endpoints: params[6], report_dashboard_non_compliant_endpoints: params[7], report_dashboard_non_compliant_controls: params[8] };
+      else if (sql.startsWith('UPDATE')) row = { ...row, data_source_id: params[0], report_by_endpoint: params[1], report_details: params[2], report_by_control: params[3], report_by_policy: params[4], report_by_status: params[5], report_dashboard_endpoints: params[6], report_dashboard_non_compliant_endpoints: params[7], report_dashboard_non_compliant_controls: params[8] };
     }
   };
 }
-function makeClient({ sourceId = 'new-ds', reports = {}, missing = new Set(), unresolved = new Set() } = {}) {
+function makeClient({ sourceId = 'new-ds', reports = {}, missing = new Set(), unresolved = new Set(), created = [] } = {}) {
   let createdReport = 0;
   return {
     async requestAction1Mutation(input) {
@@ -28,7 +28,9 @@ function makeClient({ sourceId = 'new-ds', reports = {}, missing = new Set(), un
       if (input.path === '/data-sources/all') return { id: sourceId };
       if (input.path.includes('/data-sources/all/')) return { id: sourceId, status: 'Published' };
       createdReport += 1;
-      return { id: `new-report-${createdReport}` };
+      const reportId = `new-report-${createdReport}`;
+      created.push(reportId);
+      return { id: reportId };
     }
   };
 }
@@ -41,7 +43,10 @@ function makeClient({ sourceId = 'new-ds', reports = {}, missing = new Set(), un
   assert.strictEqual(result.reporting.dataSource, 'Configured');
   assert.strictEqual(result.reporting.reports, 'Configured');
   assert.strictEqual(result.state.dataSourceId, '333');
-  assert.deepStrictEqual([result.state.byEndpoint, result.state.details, result.state.byControl, result.state.byPolicy, result.state.byStatus, result.state.dashboardEndpoints, result.state.dashboardNonCompliantEndpoints], ['new-report-1', 'new-report-2', 'new-report-3', 'new-report-4', 'new-report-5', 'new-report-6', 'new-report-7']);
+  assert.deepStrictEqual([result.state.byEndpoint, result.state.details, result.state.byControl, result.state.byPolicy, result.state.byStatus, result.state.dashboardEndpoints, result.state.dashboardNonCompliantEndpoints, result.state.dashboardNonCompliantControls], ['new-report-1', 'new-report-2', 'new-report-3', 'new-report-4', 'new-report-5', 'new-report-6', 'new-report-7', 'new-report-8']);
+  const duplicateCreates = [];
+  await setupReporting({ db, logger: {} }, {}, { client: makeClient({ sourceId: '333', created: duplicateCreates }) });
+  assert.deepStrictEqual(duplicateCreates, [], 're-running setup after all eight reports exist must not create duplicates');
   await assert.rejects(() => setupReporting({ db, logger: {} }, {}, { client: makeClient({ sourceId: 'should-not-create', unresolved: new Set(['333']) }) }), /temporarily unavailable/);
   console.log('Reporting recovery behavior passed.');
 })().catch(error => { console.error(error); process.exit(1); });

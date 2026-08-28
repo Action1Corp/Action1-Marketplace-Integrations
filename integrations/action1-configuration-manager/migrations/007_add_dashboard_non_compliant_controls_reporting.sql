@@ -1,0 +1,2 @@
+ALTER TABLE action1_configuration_manager_reporting
+  ADD COLUMN report_dashboard_non_compliant_controls TEXT;

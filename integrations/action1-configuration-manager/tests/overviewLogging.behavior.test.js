@@ -23,7 +23,7 @@ async function run() {
   const result = await getOverview(context, {
     operationType: 'manual-refresh',
     policyStore: { async listPolicies() { return [policy]; } },
-    reportingState: { dashboardEndpoints: 'dashboard-endpoints-id', dashboardNonCompliantEndpoints: 'dashboard-non-compliant-id' },
+    reportingState: { dashboardEndpoints: 'dashboard-endpoints-id', dashboardNonCompliantEndpoints: 'dashboard-non-compliant-id', dashboardNonCompliantControls: 'dashboard-non-compliant-controls-id' },
     client: {
       async listManagedEndpoints() { return [{ id: 'endpoint-26', name: 'BOX26', platform: 'Windows', status: 'Disconnected' }]; },
       async listReportData(org, reportId, options) {
