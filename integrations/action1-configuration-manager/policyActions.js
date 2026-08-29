@@ -2,7 +2,7 @@ const { createDbPolicyStore } = require('./policyStore');
 const { createAction1AutomationClient } = require('./action1AutomationClient');
 const { buildAutomationDefinitions } = require('./automationDefinition');
 const { createAutomationCorrelationStore } = require('./automationCorrelationStore');
-const { writeAction1RuntimeLog } = require('./runtimeLogging');
+const { formatRuntimeElapsed, writeAction1RuntimeLog, writeOperationalLog } = require('./runtimeLogging');
 const { applyEdit, cleanupDeselectedControls, cleanupPolicy, disablePolicy, enablePolicy, getRemovedControlIds } = require('./lifecycleMutations');
 const { createHistoryEnvelope, resultDetails, OPERATION_LABELS } = require('./historyContract');
 
@@ -73,20 +73,22 @@ async function getPolicyAction(context, request = {}) {
 
 async function performSavePolicy(context, request = {}, operation) {
   let snapshot = null;
+  const startedAt = Date.now();
   try {
     const store = createDbPolicyStore(context);
     const draft = getPayload(request).draft || {};
     if (draft.mode !== 'create') {
       const existing = await store.getPolicy(draft.policyId);
-      await writeAction1RuntimeLog(context, 'info', `Policy edit started: policyId=${draft.policyId} previousSelectedControlCount=${controlIds(existing).length} desiredSelectedControlCount=${controlIds(draft).length} addedControlIds=${addedControlIds(existing, draft).join(',') || 'none'} removedControlIds=${getRemovedControlIds(existing, draft).join(',') || 'none'}`);
+      await writeOperationalLog(context, 'info', 'Policy edit started', { policy: draft.policyId, controls: `${controlIds(existing).length} -> ${controlIds(draft).length}` });
       snapshot = existing;
       const saved = await store.savePolicy(draft);
-      await writeAction1RuntimeLog(context, 'info', `Policy persisted: policyId=${saved.policyId} displayName=${saved.displayName} selectedControlCount=${controlIds(saved).length}`);
+      await writeOperationalLog(context, 'info', 'Policy persisted', { policy: saved.policyId, controls: controlIds(saved).length });
+      await writeOperationalLog(context, 'info', 'Policy controls changed', { policy: saved.policyId, added: addedControlIds(existing, saved).length, removed: getRemovedControlIds(existing, saved).length });
       if (!existing?.enabled) {
         const definitions = buildAutomationDefinitions(saved);
         const removedControlIds = getRemovedControlIds(existing, saved);
         const cleanup = await cleanupDeselectedControls(context, saved, removedControlIds);
-        await writeAction1RuntimeLog(context, 'info', `Policy edit completed: policyId=${saved.policyId} updated=0 created=0 deleted=0 cleanup=${Boolean(cleanup)}`);
+        await writeOperationalLog(context, 'info', 'Policy edit completed', { policy: saved.policyId, automationsUpdated: 0, automationsCreated: 0, automationsDeleted: 0, elapsed: formatRuntimeElapsed(Date.now() - startedAt) });
         return historyResult({ ok: true, message: 'Policy updated.', policy: saved }, operation, saved,
           definitions.length
             ? `Policy updated. Action1 changes will apply when enabled.${cleanup ? ` Removed Control state cleanup scheduled: ${removedControlIds.length} controls.` : ''}`
@@ -94,27 +96,26 @@ async function performSavePolicy(context, request = {}, operation) {
           { counts: { unchanged: definitions.length, removedControls: removedControlIds.length }, cleanup });
       }
       const applied = await applyEdit(context, existing, saved);
-      await writeAction1RuntimeLog(context, 'info', `Policy edit completed: policyId=${saved.policyId} updated=${applied.history.counts.updated} created=${applied.history.counts.created} deleted=${applied.history.counts.deleted} cleanup=${Boolean(applied.history.cleanup)}`);
+      await writeOperationalLog(context, 'info', 'Policy edit completed', { policy: saved.policyId, automationsUpdated: applied.history.counts.updated, automationsCreated: applied.history.counts.created, automationsDeleted: applied.history.counts.deleted, elapsed: formatRuntimeElapsed(Date.now() - startedAt) });
       return historyResult({ ok: true, message: 'Policy updated.', policy: applied.policy }, operation, saved,
         `Policy updated. Updated: ${applied.history.counts.updated}; created: ${applied.history.counts.created}; removed: ${applied.history.counts.deleted}; unchanged: ${applied.history.counts.unchanged}.${applied.history.cleanup ? ` Removed Control state cleanup scheduled: ${applied.history.counts.removedControls} controls.` : ''}`, applied.history);
     }
 
-    await writeAction1RuntimeLog(context, 'info', `Policy create started: policyId=${draft.policyId || 'pending'} baseName=${draft.baseName || ''} displayName=${draft.displayName || ''} organizationId=${draft.organizationId || ''} scope=${scopeLabel(draft)} mode=${draft.policyMode || ''} selectedControlCount=${controlIds(draft).length}`);
+    await writeOperationalLog(context, 'info', 'Policy create started', { policy: draft.policyId || 'pending', policyName: draft.baseName || draft.displayName || '', organization: draft.organizationNameSnapshot || '', organizationId: draft.organizationId || '', scope: draft.endpointGroupName || scopeLabel(draft), controls: controlIds(draft).length });
     const intent = await store.savePolicy({ ...draft, enabled: false });
     snapshot = intent;
-    await writeAction1RuntimeLog(context, 'info', `Policy persisted: policyId=${intent.policyId} displayName=${intent.displayName} organizationId=${intent.organizationId} scope=${scopeLabel(intent)} selectedControlCount=${controlIds(intent).length}`);
+    await writeOperationalLog(context, 'info', 'Policy persisted', { policy: intent.policyId });
     const definitions = buildAutomationDefinitions(intent);
     const automationClient = createAction1AutomationClient(context);
     const correlationStore = createAutomationCorrelationStore(context);
     const history = { counts: { automationsRequested: definitions.length, created: 0, failed: 0 }, familyOutcomes: [] };
-    await writeAction1RuntimeLog(context, 'info', `Initial apply started for Policy ${intent.policyId}`);
-    await writeAction1RuntimeLog(context, 'info', `Preparing ${definitions.length} automation families`);
+    await writeOperationalLog(context, 'debug', 'Initial automation apply started', { policy: intent.policyId, families: definitions.length });
 
     for (const [index, definition] of definitions.entries()) {
-      await writeAction1RuntimeLog(context, 'info', `Automation create started: policyId=${intent.policyId} family=${definition.familyName} automationName=${definition.name} scope=${intent.scopeType}`);
+      await writeOperationalLog(context, 'debug', 'Automation create started', { policy: intent.policyId, family: definition.familyName, scope: intent.scopeType });
       try {
         const created = await automationClient.createAutomation(intent.organizationId, definition);
-        await writeAction1RuntimeLog(context, 'info', `Automation created: policyId=${intent.policyId} family=${definition.familyName} automationId=${created.id}`);
+        await writeOperationalLog(context, 'info', 'Automation created', { policy: intent.policyId, family: definition.familyName, automationId: created.id, organization: intent.organizationNameSnapshot || '' });
         await correlationStore.insertCorrelation({
           policyId: intent.policyId,
           automationGroupId: definition.automationGroupId,
@@ -138,38 +139,19 @@ async function performSavePolicy(context, request = {}, operation) {
     }
 
     const policy = await store.setPolicyEnabled(intent.policyId, true);
-    await writeAction1RuntimeLog(context, 'info', `Policy create completed: policyId=${policy.policyId} automationCreatedCount=${history.counts.created}`);
+    await writeOperationalLog(context, 'info', 'Policy create completed', { policy: policy.policyId, automationsCreated: history.counts.created, controls: controlIds(policy).length, elapsed: formatRuntimeElapsed(Date.now() - startedAt) });
     return historyResult({ ok: true, message: 'Policy saved.', policy }, operation, policy,
       `Policy created. Automations created: ${history.counts.created}.`, history);
   } catch (error) {
+    await writeOperationalLog(context, 'error', `${snapshot ? 'Policy edit' : 'Policy create'} failed`, { policy: snapshot?.policyId || getPayload(request).draft?.policyId || 'pending', stage: error?.history?.errorCategory || 'operation', error: sanitizePersistenceMessage(error?.message) });
     return historyFailure(operation, snapshot, error);
   }
 }
 
 async function savePolicyAction(context, request = {}) {
-  try {
-    const store = createDbPolicyStore(context);
-    const draft = getPayload(request).draft || {};
-    if (draft.mode !== 'create') {
-      const existing = await store.getPolicy(draft.policyId);
-      await writeAction1RuntimeLog(context, 'info', `Policy edit started: policyId=${draft.policyId} previousSelectedControlCount=${controlIds(existing).length} desiredSelectedControlCount=${controlIds(draft).length} addedControlIds=${addedControlIds(existing, draft).join(',') || 'none'} removedControlIds=${getRemovedControlIds(existing, draft).join(',') || 'none'}`);
-      const saved = await store.savePolicy(draft);
-      await writeAction1RuntimeLog(context, 'info', `Policy persisted: policyId=${saved.policyId} displayName=${saved.displayName} selectedControlCount=${controlIds(saved).length}`);
-      if (!existing?.enabled) {
-        const removedControlIds = getRemovedControlIds(existing, saved);
-        const cleanup = await cleanupDeselectedControls(context, saved, removedControlIds);
-        await writeAction1RuntimeLog(context, 'info', `Policy edit completed: policyId=${saved.policyId} updated=0 created=0 deleted=0 cleanup=${Boolean(cleanup)}`);
-        return { ok: true, message: 'Policy saved.', policy: saved };
-      }
-      const applied = await applyEdit(context, existing, saved);
-      await writeAction1RuntimeLog(context, 'info', `Policy edit completed: policyId=${saved.policyId} updated=${applied.history.counts.updated} created=${applied.history.counts.created} deleted=${applied.history.counts.deleted} cleanup=${Boolean(applied.history.cleanup)}`);
-      return { ok: true, message: 'Policy updated.', policy: applied.policy };
-    }
-    const result = await performSavePolicy(context, request, 'POLICY_CREATED');
-    return { ok: result.ok, message: result.message, policy: result.policy };
-  } catch (error) {
-    return { ok: false, message: sanitizePersistenceMessage(error.message) };
-  }
+  const draft = getPayload(request).draft || {};
+  const result = await performSavePolicy(context, request, draft.mode === 'create' ? 'POLICY_CREATED' : 'POLICY_UPDATED');
+  return { ok: result.ok, message: result.message, policy: result.policy };
 }
 
 async function createPolicyAction(context, request = {}) {
@@ -182,6 +164,7 @@ async function updatePolicyAction(context, request = {}) {
 
 async function performPolicyToggle(context, request = {}, enabled, operation) {
   let existing = null;
+  const startedAt = Date.now();
   try {
     const store = createDbPolicyStore(context);
     const payload = getPayload(request);
@@ -191,9 +174,10 @@ async function performPolicyToggle(context, request = {}, enabled, operation) {
       return historyResult({ ok: true, message: `Policy already ${existing.enabled ? 'enabled' : 'disabled'}.`, policy: existing }, operation, existing,
         `Policy already ${existing.enabled ? 'enabled' : 'disabled'}.`, { counts: { unchanged: 0 } });
     }
+    await writeOperationalLog(context, 'info', `Policy ${enabled ? 'enable' : 'disable'} started`, { policy: existing.policyId });
     const history = enabled ? await enablePolicy(context, existing) : await disablePolicy(context, existing);
     const policy = await store.setPolicyEnabled(payload.policyId, enabled);
-    await writeAction1RuntimeLog(context, 'info', `Lifecycle operation completed: operation=${enabled ? 'enable' : 'disable'} policyId=${policy.policyId} automationCreatedCount=${history.counts.created || 0} automationDeletedCount=${history.counts.deleted || 0}`);
+    await writeOperationalLog(context, 'info', `Policy ${enabled ? 'enable' : 'disable'} completed`, { policy: policy.policyId, automationsCreated: history.counts.created || 0, automationsDeleted: history.counts.deleted || 0, elapsed: formatRuntimeElapsed(Date.now() - startedAt) });
     return historyResult({ ok: true, message: `Policy ${policy.enabled ? 'enabled' : 'disabled'}.`, policy }, operation, policy,
       enabled ? `Policy enabled. Automations created: ${history.counts.created}.` : `Policy disabled. Automations removed: ${history.counts.deleted}.`, history);
   } catch (error) {

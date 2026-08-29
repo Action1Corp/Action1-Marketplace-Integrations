@@ -39,16 +39,14 @@ async function run() {
   });
   assert.strictEqual(result.policies[0].fullyEvaluatedCount, 0);
   assert.strictEqual(result.policies[0].partialCount, 1);
-  assert(messages.some((message) => message.includes('Overview start')));
-  assert(messages.some((message) => message.includes('manual-refresh')));
-  assert(messages.some((message) => message.includes('report-endpoint-row') && message.includes('BOX26') && message.includes('observedControlCount') && message.includes('22')));
-  assert(messages.some((message) => message.includes('classification-endpoint') && message.includes('expectedControlCount') && message.includes('22') && message.includes('PARTIAL')));
-  assert(messages.some((message) => message.includes('policy-aggregate') && message.includes('coveragePercent') && message.includes('0')));
-  assert(messages.some((message) => message.includes('report-control-summary') && message.includes('totalRows') && message.includes('topControlCount')));
-  assert(messages.some((message) => message.includes('returnedRowCount')));
-  assert(messages.some((message) => message.includes('lastRequery')));
-  assert(messages.some((message) => message.includes('policy-result')));
-  assert(messages.some((message) => message.includes('Overview complete')));
+  assert(messages.some((message) => message.includes('Dashboard refresh started') && message.includes('activePolicies=1')));
+  assert(messages.some((message) => message.includes('Dashboard report endpoint') && message.includes('BOX26') && message.includes('observedControlCount') && message.includes('22')));
+  assert(messages.some((message) => message.includes('Dashboard endpoint') && message.includes('BOX26') && message.includes('PARTIAL')));
+  assert(messages.some((message) => message.includes('Dashboard policy evaluated') && message.includes('assigned=1') && message.includes('evaluated=0') && message.includes('partial=1') && message.includes('coverage=0%') && message.includes('compliance=—')));
+  assert(messages.some((message) => message.includes('Dashboard reports loaded') && message.includes('policy=POL-000053')));
+  assert(messages.some((message) => message.includes('Dashboard refresh completed') && message.includes('policies=1') && message.includes('assigned=1') && message.includes('evaluated=0') && message.includes('partial=1') && message.includes('elapsed=')));
+  assert(!messages.some((message) => message.includes('policy-aggregate') || message.includes('policy-result') || message.includes('overview-aggregate')));
+  assert(messages.filter((message) => message.includes('Dashboard policy evaluated')).length === 1);
   assert(messages.every((message) => !message.includes('apiSecret') && !message.includes('apiKey') && !message.includes('Bearer')));
 }
 

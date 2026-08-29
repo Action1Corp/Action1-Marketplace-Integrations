@@ -2,7 +2,7 @@ const { buildAutomationDefinitions } = require('./automationDefinition');
 const { createAction1AutomationClient } = require('./action1AutomationClient');
 const { createAutomationCorrelationStore } = require('./automationCorrelationStore');
 const { planLifecycleDiff, summarizeLifecycleDiff } = require('./lifecyclePlanner');
-const { writeAction1RuntimeLog } = require('./runtimeLogging');
+const { formatRuntimeElapsed, writeAction1RuntimeLog, writeOperationalLog } = require('./runtimeLogging');
 const { classifyMissingAutomationGet } = require('./action1AutomationClient');
 const {
   buildPolicyEndpointCleanupInstance,
@@ -167,25 +167,27 @@ async function applyEdit(context, previousPolicy, desiredPolicy, options = {}) {
 }
 
 async function disablePolicy(context, policy, options = {}) {
+  const startedAt = Date.now();
   const client = options.client || createAction1AutomationClient(context);
   const correlations = options.correlations || createAutomationCorrelationStore(context);
   const active = await correlations.listCorrelations(policy.policyId);
   const history = { counts: { deleted: 0, failed: 0 }, familyOutcomes: [] };
   let currentFamilyName = '';
-  await log(context, 'info', `Disable started: ${policy.policyId}`);
+  await log(context, 'debug', `Disable started: ${policy.policyId}`);
   try {
     for (const correlation of active) {
       currentFamilyName = correlation.controlFamilyNameSnapshot;
       await log(context, 'debug', `DELETE family started: ${correlation.controlFamilyNameSnapshot}`);
-      await log(context, 'info', `Automation delete started: policyId=${policy.policyId} family=${correlation.controlFamilyNameSnapshot} automationId=${correlation.action1AutomationId}`);
+      await log(context, 'debug', `Automation delete started: policyId=${policy.policyId} family=${correlation.controlFamilyNameSnapshot} automationId=${correlation.action1AutomationId}`);
       const deletion = await client.deleteAutomation(policy.organizationId, correlation.action1AutomationId);
       await correlations.markInactive(policy.policyId, correlation.automationGroupId);
       if (deletion.status === 'alreadyAbsent') await log(context, 'info', `Action1 automation already absent: ${correlation.action1AutomationId}; cleanup satisfied`);
-      await log(context, 'info', `Automation deleted: policyId=${policy.policyId} family=${correlation.controlFamilyNameSnapshot} automationId=${correlation.action1AutomationId}`);
+      await log(context, 'debug', `Automation deleted: policyId=${policy.policyId} family=${correlation.controlFamilyNameSnapshot} automationId=${correlation.action1AutomationId}`);
       history.counts.deleted += 1;
       history.familyOutcomes.push({ familyName: correlation.controlFamilyNameSnapshot, outcome: 'Removed' });
     }
-    await log(context, 'info', `Disable completed: ${policy.policyId} automationDeletedCount=${history.counts.deleted} automationFailedCount=${history.counts.failed}`);
+    await writeOperationalLog(context, 'info', 'Scheduled Automations deleted', { policy: policy.policyId, deleted: history.counts.deleted });
+    await writeOperationalLog(context, 'info', 'Policy disable completed', { policy: policy.policyId, elapsed: formatRuntimeElapsed(Date.now() - startedAt) });
     return history;
   } catch (error) {
     if (currentFamilyName) history.familyOutcomes.push({ familyName: currentFamilyName, outcome: 'Failed' });
@@ -196,16 +198,17 @@ async function disablePolicy(context, policy, options = {}) {
 }
 
 async function enablePolicy(context, policy) {
+  const startedAt = Date.now();
   const client = createAction1AutomationClient(context);
   const correlations = createAutomationCorrelationStore(context);
   const definitions = buildAutomationDefinitions(policy);
   const history = { counts: { created: 0, failed: 0 }, familyOutcomes: [] };
   let currentFamilyName = '';
-  await log(context, 'info', `Enable started: ${policy.policyId}`);
+  await log(context, 'debug', `Enable started: ${policy.policyId}`);
   try {
     for (const definition of definitions) {
       currentFamilyName = definition.familyName;
-      await log(context, 'info', `Automation create started: policyId=${policy.policyId} family=${definition.familyName} automationName=${definition.name} scope=${policy.scopeType}`);
+      await log(context, 'debug', `Automation create started: policyId=${policy.policyId} family=${definition.familyName} automationName=${definition.name} scope=${policy.scopeType}`);
       const created = await client.createAutomation(policy.organizationId, definition);
       await correlations.activateCorrelation({
         policyId: policy.policyId,
@@ -219,12 +222,13 @@ async function enablePolicy(context, policy) {
         desiredDefinitionFingerprint: definition.fingerprint,
         lastAppliedAt: new Date().toISOString()
       });
-      await log(context, 'info', `Automation created: policyId=${policy.policyId} family=${definition.familyName} automationId=${created.id}`);
+      await log(context, 'debug', `Automation created: policyId=${policy.policyId} family=${definition.familyName} automationId=${created.id}`);
       await log(context, 'debug', `Correlation activated/replaced: ${definition.automationGroupId}`);
       history.counts.created += 1;
       history.familyOutcomes.push({ familyName: definition.familyName, outcome: 'Created' });
     }
-    await log(context, 'info', `Enable completed: ${policy.policyId} automationCreatedCount=${history.counts.created} automationFailedCount=${history.counts.failed}`);
+    await writeOperationalLog(context, 'info', 'Scheduled Automations created', { policy: policy.policyId, created: history.counts.created });
+    await writeOperationalLog(context, 'info', 'Policy enable completed', { policy: policy.policyId, elapsed: formatRuntimeElapsed(Date.now() - startedAt) });
     return history;
   } catch (error) {
     if (currentFamilyName) history.familyOutcomes.push({ familyName: currentFamilyName, outcome: 'Failed' });

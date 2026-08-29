@@ -1,7 +1,7 @@
 const { createAction1DiscoveryClient } = require('./action1DiscoveryClient');
 const { createDbPolicyStore } = require('./policyStore');
 const reportingStore = require('./reporting/reportingStore');
-const { writeAction1RuntimeLog } = require('./runtimeLogging');
+const { formatRuntimeElapsed, formatRuntimePercent, writeOperationalLog } = require('./runtimeLogging');
 
 const OVERVIEW_REFRESH_INTERVAL_MS = 1000;
 const OVERVIEW_REFRESH_TIMEOUT_MS = 8000;
@@ -17,10 +17,31 @@ function count(value) {
 }
 
 async function logOverview(context, event, fields = {}, level = 'info') {
-  const safeFields = { event, timestamp: new Date().toISOString(), ...fields };
-  const message = `Overview ${event}: ${JSON.stringify(safeFields)}`;
-  await writeAction1RuntimeLog(context, level, message);
-  context?.logger?.[level]?.(safeFields);
+  const messages = {
+    start: fields.operationType === 'manual-refresh' ? 'Dashboard refresh started' : 'Dashboard load started',
+    policy: 'Dashboard policy scope loaded',
+    'report-read': 'Dashboard report read',
+    'report-control-summary': 'Dashboard report controls summarized',
+    'reports-loaded': 'Dashboard reports loaded',
+    'report-endpoint-row': 'Dashboard report endpoint',
+    'report-non-compliant-endpoint-row': 'Dashboard report non-compliant endpoint',
+    'classification-endpoint': 'Dashboard endpoint',
+    'policy-aggregate': 'Dashboard policy evaluated',
+    'policy-result': 'Dashboard policy evaluated',
+    'overview-aggregate': fields.operationType === 'manual-refresh' ? 'Dashboard refresh completed' : 'Dashboard load completed',
+    complete: fields.operationType === 'manual-refresh' ? 'Dashboard refresh completed' : 'Dashboard load completed'
+  };
+  const message = messages[event] || `Dashboard ${event}`;
+  const mapped = event === 'classification-endpoint'
+    ? { policy: fields.policyId, endpoint: fields.endpoint, expected: fields.expectedControlCount, observed: fields.observedControlCount, nonCompliant: fields.nonCompliantControlCount, state: fields.classification }
+    : event === 'reports-loaded'
+      ? { policy: fields.policyId, endpoints: fields.endpoints, nonCompliantEndpoints: fields.nonCompliantEndpoints, nonCompliantControls: fields.nonCompliantControls, lastRequery: fields.lastRequery }
+    : event === 'policy-aggregate' || event === 'policy-result'
+      ? { policy: fields.policyId, assigned: fields.assignedCount, evaluated: fields.fullyEvaluatedCount, compliant: fields.compliantCount, attention: fields.needsAttentionCount, partial: fields.partialCount, noData: fields.noDataCount, coverage: formatRuntimePercent(fields.coveragePercent), compliance: formatRuntimePercent(fields.compliancePercent) }
+      : event === 'complete' || event === 'overview-aggregate'
+        ? { policies: fields.activePoliciesCount, assigned: fields.assignedCount, evaluated: fields.fullyEvaluatedCount, compliant: fields.compliantCount, attention: fields.needsAttentionCount, partial: fields.partialCount || 0, noData: fields.noDataCount || 0, coverage: formatRuntimePercent(fields.evaluationCoveragePercent), compliance: formatRuntimePercent(fields.compliancePercent), ...(fields.elapsedMs !== undefined ? { elapsed: formatRuntimeElapsed(fields.elapsedMs) } : {}) }
+        : fields;
+  await writeOperationalLog(context, level, message, mapped);
 }
 
 function normalizeEndpointRow(row) {
@@ -257,10 +278,10 @@ async function readOverviewReports(client, organizationId, reportReads, options 
 async function getOverview(context, options = {}) {
   const operationType = options.operationType === 'manual-refresh' ? 'manual-refresh' : 'initial-load';
   const startedAt = Date.now();
-  await logOverview(context, 'start', { operationType });
   const policyStore = options.policyStore || createDbPolicyStore(context);
   const client = options.client || createAction1DiscoveryClient(context);
   const policies = (await policyStore.listPolicies()).filter((policy) => policy.enabled === true);
+  await logOverview(context, 'start', { operationType, activePolicies: policies.length });
   const reporting = options.reportingState || await reportingStore.load(context);
   if (!reporting.dashboardEndpoints || !reporting.dashboardNonCompliantEndpoints || !reporting.dashboardNonCompliantControls) {
     throw new Error('Configuration Manager Dashboard reporting is not configured.');
@@ -285,7 +306,7 @@ async function getOverview(context, options = {}) {
       scopeType: policy.scopeType,
       expectedControlCount: (policy.selectedControls || []).length,
       assignedEndpointCount: assignedEndpointsByPolicy[policy.policyId].length
-    });
+    }, 'debug');
   }
 
   const organizations = [...new Set(policies.map((policy) => policy.organizationId))];
@@ -329,7 +350,7 @@ async function getOverview(context, options = {}) {
           responseTimestamp: new Date(responseReceivedAt).toISOString(),
           elapsedMs: responseReceivedAt - requestStartedAt,
           httpStatus: pages.length ? pages[pages.length - 1].statusCode : null
-        });
+        }, 'debug');
       }
       if (read.kind === 'dashboard-endpoints' || read.kind === 'dashboard-non-compliant') {
         const event = read.kind === 'dashboard-endpoints' ? 'report-endpoint-row' : 'report-non-compliant-endpoint-row';
@@ -354,7 +375,7 @@ async function getOverview(context, options = {}) {
             totalRows: policyRows.length,
             topControlCount: top.length,
             topControls: top
-          });
+          }, 'debug');
         }
       }
       if (policyIds.length === 0) {
@@ -371,7 +392,7 @@ async function getOverview(context, options = {}) {
           responseTimestamp: new Date(responseReceivedAt).toISOString(),
           elapsedMs: responseReceivedAt - requestStartedAt,
           httpStatus: pages.length ? pages[pages.length - 1].statusCode : null
-        });
+        }, 'debug');
       }
       result.rows = rows;
     }
@@ -388,7 +409,13 @@ async function getOverview(context, options = {}) {
     reporting: { dashboardNonCompliantEndpoints: reporting.dashboardNonCompliantEndpoints, dashboardNonCompliantControls: reporting.dashboardNonCompliantControls }
   };
   for (const policy of result.policies) {
-    for (const endpoint of policy.endpoints.slice(0, 100)) {
+    const diagnosticCap = 50;
+    const diagnosticEndpoints = policy.endpoints.slice(0, diagnosticCap);
+    const seenDiagnostics = new Set();
+    for (const endpoint of diagnosticEndpoints) {
+      const diagnosticKey = `${policy.policyId}|${endpoint.endpointId || endpoint.endpointName}`;
+      if (seenDiagnostics.has(diagnosticKey)) continue;
+      seenDiagnostics.add(diagnosticKey);
       await logOverview(context, 'classification-endpoint', {
         policyId: policy.policyId,
         endpoint: endpoint.endpointName,
@@ -397,6 +424,9 @@ async function getOverview(context, options = {}) {
         nonCompliantControlCount: endpoint.nonCompliantCount,
         classification: endpoint.status
       }, 'debug');
+    }
+    if (policy.endpoints.length > diagnosticEndpoints.length) {
+      await writeOperationalLog(context, 'debug', 'Dashboard endpoint diagnostics truncated', { policy: policy.policyId, logged: diagnosticEndpoints.length, total: policy.endpoints.length });
     }
     await logOverview(context, 'policy-aggregate', {
       policyId: policy.policyId,
@@ -413,19 +443,9 @@ async function getOverview(context, options = {}) {
       coveragePercent: policy.evaluationCoveragePercent,
       compliancePercent: policy.compliancePercent
     });
-    await logOverview(context, 'policy-result', {
-      policyId: policy.policyId,
-      organizationId: policy.organizationId,
-      assignedCount: policy.assignedCount,
-      fullyEvaluatedCount: policy.fullyEvaluatedCount,
-      partialCount: policy.partialCount,
-      noDataCount: policy.noDataCount,
-      compliantCount: policy.compliantCount,
-      needsAttentionCount: policy.needsAttentionCount
-    });
+    await logOverview(context, 'reports-loaded', { policyId: policy.policyId, organizationId: policy.organizationId, endpoints: policy.assignedCount, nonCompliantEndpoints: policy.needsAttentionCount + policy.partialCount, nonCompliantControls: null, lastRequery: null });
   }
-  await logOverview(context, 'overview-aggregate', result.summary);
-  await logOverview(context, 'complete', { ...result.summary, elapsedMs: Date.now() - startedAt });
+  await logOverview(context, 'complete', { ...result.summary, partialCount: result.policies.reduce((total, policy) => total + policy.partialCount, 0), noDataCount: result.policies.reduce((total, policy) => total + policy.noDataCount, 0), operationType, elapsedMs: Date.now() - startedAt });
   return result;
 }
 

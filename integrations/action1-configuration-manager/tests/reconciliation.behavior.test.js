@@ -69,12 +69,9 @@ async function run() {
   assert.strictEqual(calls.delete.length, 0);
   assert.strictEqual(calls.saved.length, 2);
   assert.strictEqual(calls.saved.every((entry) => entry.lastResult === 'Success'), true);
-  assert(calls.logs.some(message => message.includes('Automation exists: policy=POL-EXISTS') && message.includes('family=Password Policy') && message.includes('automationId=auto-exists')));
-  assert(calls.logs.some(message => message.includes('Missing owned automation detected: policy=POL-MISSING') && message.includes('automationId=auto-missing')));
-  assert(calls.logs.some(message => message.includes('Recreating missing automation: policy=POL-MISSING')));
-  assert(calls.logs.some(message => message.includes('Replacement automation created: policy=POL-MISSING') && message.includes('oldAutomationId=auto-missing') && message.includes('newAutomationId=auto-replacement')));
-  assert(calls.logs.some(message => message.includes('Correlation replaced: policy=POL-MISSING') && message.includes('automationId=auto-replacement')));
-  assert(calls.logs.some(message => message.includes('Aggregate reconciliation completed: policiesChecked=2 automationsChecked=2 created=1 unchanged=1 failed=0')));
+  assert(calls.logs.some(message => message.includes('Reconciliation checked') && message.includes('policy=POL-EXISTS') && message.includes('expected=1') && message.includes('healthy=1') && message.includes('missing=0') && message.includes('repaired=0')));
+  assert(calls.logs.some(message => message.includes('Reconciliation checked') && message.includes('policy=POL-MISSING') && message.includes('expected=1') && message.includes('healthy=0') && message.includes('missing=1') && message.includes('repaired=1')));
+  assert(calls.logs.some(message => message.includes('Reconciliation completed') && message.includes('policies=2') && message.includes('expected=2') && message.includes('healthy=1') && message.includes('missing=1') && message.includes('repaired=1') && message.includes('failed=0') && message.includes('elapsed=')));
   assert(!calls.logs.some(message => /test-secret|run_script|payload|base64/i.test(message)));
   const envelope = extractHistoryEnvelope(result.details);
   assert.strictEqual(envelope.policyNameSnapshot, '2 policies');
@@ -122,8 +119,7 @@ async function run() {
     }
   });
   assert.strictEqual(unresolvedResult.ok, false);
-  assert(unresolvedLogs.some(message => message.includes('Automation existence check unresolved: policy=POL-UNRESOLVED') && message.includes('family=Password Policy') && message.includes('category=transport-failure') && message.includes('status=503')));
-  assert(unresolvedLogs.some(message => message.includes('Policy reconciliation failed: policy=POL-UNRESOLVED')));
+  assert(unresolvedLogs.some(message => message.includes('Reconciliation failed') && message.includes('policy=POL-UNRESOLVED') && message.includes('stage=automation-check')));
   assert(!unresolvedLogs.some(message => /test-secret|run_script|payload|base64/i.test(message)));
 }
 

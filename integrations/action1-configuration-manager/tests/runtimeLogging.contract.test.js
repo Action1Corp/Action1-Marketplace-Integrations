@@ -8,7 +8,10 @@ const {
   createAction1RuntimeLogger,
   resolveAction1RuntimeLogDir,
   formatAction1RuntimeLogLine,
-  writeAction1RuntimeLog
+  writeAction1RuntimeLog,
+  formatRuntimeFields,
+  formatRuntimePercent,
+  formatRuntimeElapsed
 } = require('../runtimeLogging');
 
 async function run() {
@@ -41,6 +44,11 @@ async function run() {
   assert.strictEqual(hostLines.length, 1, 'file logging failure should warn once');
   assert.match(formatAction1RuntimeLogLine('INFO', 'Loaded 4 endpoint groups for organization org-1'), /\[action1-config-manager\] INFO Loaded 4 endpoint groups for organization org-1/);
   assert.strictEqual(fs.existsSync(logPath), true);
+  assert.strictEqual(formatRuntimeFields({ policy: 'POL-1', policyName: 'Windows Baseline', controls: 0, compliance: null }), 'policy=POL-1 | policyName="Windows Baseline" | controls=0 | compliance=—');
+  assert.strictEqual(formatRuntimePercent(0), '0%');
+  assert.strictEqual(formatRuntimePercent(null), '—');
+  assert.strictEqual(formatRuntimeElapsed(840), '840ms');
+  assert.strictEqual(formatRuntimeElapsed(2400), '2.4s');
 
   const overview = fs.readFileSync(path.join(__dirname, '..', 'overviewService.js'), 'utf8');
   const policyActions = fs.readFileSync(path.join(__dirname, '..', 'policyActions.js'), 'utf8');
@@ -48,9 +56,9 @@ async function run() {
   const reconciliation = fs.readFileSync(path.join(__dirname, '..', 'reconciliation.js'), 'utf8');
   for (const field of ['observedControlCount', 'nonCompliantControlCount', 'report-control-summary', 'classification-endpoint', 'policy-aggregate', 'overview-aggregate']) assert(overview.includes(field), `Overview diagnostics should include ${field}`);
   assert(overview.includes('slice(0, 100)') && overview.includes('slice(0, 5)'), 'Overview diagnostics must be bounded');
-  for (const event of ['Policy create started', 'Policy persisted', 'Automation create started', 'Automation created', 'Policy create completed', 'Policy edit started', 'Policy edit completed', 'Lifecycle operation completed', 'Local Policy deleted', 'Policy delete completed']) assert(policyActions.includes(event), `Policy lifecycle logging should include ${event}`);
+  for (const event of ['Policy create started', 'Policy persisted', 'Automation create started', 'Automation created', 'Policy create completed', 'Policy edit started', 'Policy edit completed', 'automationsCreated', 'Local Policy deleted', 'Policy delete completed']) assert(policyActions.includes(event), `Policy lifecycle logging should include ${event}`);
   for (const event of ['Automation patch started', 'Automation patched', 'Automation delete started', 'Automation deleted']) assert(lifecycle.includes(event), `Automation lifecycle logging should include ${event}`);
-  assert(reconciliation.includes('exists=${result.exists} missing=${result.missing} recreated=${result.recreated}'), 'Reconciliation completion should include existence and recreation counts');
+  assert(reconciliation.includes('healthy: result.exists') && reconciliation.includes('repaired: result.recreated'), 'Reconciliation completion should include healthy and repaired counts');
 }
 
 run().catch((error) => { console.error(error); process.exit(1); });

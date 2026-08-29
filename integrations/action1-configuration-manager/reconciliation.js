@@ -5,7 +5,7 @@ const { createDbPolicyStore } = require('./policyStore');
 const { createReconciliationStateStore } = require('./reconciliationStateStore');
 const { createAndReplaceAutomation } = require('./lifecycleMutations');
 const { createHistoryEnvelope, resultDetails } = require('./historyContract');
-const { writeAction1RuntimeLog } = require('./runtimeLogging');
+const { formatRuntimeElapsed, writeAction1RuntimeLog, writeOperationalLog } = require('./runtimeLogging');
 
 function safeError(error) {
   return String(error?.message || error || 'Reconciliation failed')
@@ -76,17 +76,17 @@ async function reconcileEnabledPolicy(context, policy, dependencies = {}) {
         result.unchanged += 1;
         result.exists += 1;
         result.familyOutcomes.push({ familyName: definition.familyName, outcome: 'Unchanged' });
-        await log(context, 'info', `Automation exists: policy=${policy.policyId} family=${safeError(definition.familyName)} automationId=${safeError(correlation.action1AutomationId)}`);
+        await log(context, 'debug', `Automation exists: policy=${policy.policyId} family=${safeError(definition.familyName)} automationId=${safeError(correlation.action1AutomationId)}`);
       } else if (observed.state === 'MISSING') {
         result.missing += 1;
-        await log(context, 'info', `Missing owned automation detected: policy=${policy.policyId} family=${safeError(definition.familyName)} automationId=${safeError(correlation.action1AutomationId)}`);
-        await log(context, 'info', `Recreating missing automation: policy=${policy.policyId} family=${safeError(definition.familyName)}`);
+        await log(context, 'debug', `Missing owned automation detected: policy=${policy.policyId} family=${safeError(definition.familyName)} automationId=${safeError(correlation.action1AutomationId)}`);
+        await log(context, 'debug', `Recreating missing automation: policy=${policy.policyId} family=${safeError(definition.familyName)}`);
         const created = await createAndReplaceAutomation(context, policy, definition, client, correlations);
         result.created += 1;
         result.recreated += 1;
         result.familyOutcomes.push({ familyName: definition.familyName, outcome: 'Created' });
-        await log(context, 'info', `Replacement automation created: policy=${policy.policyId} family=${safeError(definition.familyName)} oldAutomationId=${safeError(correlation.action1AutomationId)} newAutomationId=${safeError(created.id)}`);
-        await log(context, 'info', `Correlation replaced: policy=${policy.policyId} family=${safeError(definition.familyName)} automationId=${safeError(created.id)}`);
+        await log(context, 'debug', `Replacement automation created: policy=${policy.policyId} family=${safeError(definition.familyName)} oldAutomationId=${safeError(correlation.action1AutomationId)} newAutomationId=${safeError(created.id)}`);
+        await log(context, 'debug', `Correlation replaced: policy=${policy.policyId} family=${safeError(definition.familyName)} automationId=${safeError(created.id)}`);
       } else {
         result.failed = true;
         result.failedCount += 1;
@@ -108,6 +108,7 @@ async function reconcileEnabledPolicy(context, policy, dependencies = {}) {
 }
 
 async function reconcileEnabledPolicies(context, options = {}) {
+  const startedAt = Date.now();
   const policyStore = options.policyStore || createDbPolicyStore(context);
   const stateStore = options.stateStore || createReconciliationStateStore(context);
   const policies = (await policyStore.listPolicies()).filter((policy) => policy.enabled === true);
@@ -121,15 +122,14 @@ async function reconcileEnabledPolicies(context, options = {}) {
   };
   const policySnapshots = [];
 
-  await log(context, 'info', 'Reconciliation started');
-  await log(context, 'info', `Enabled Policies loaded: ${policies.length}`);
+  await writeOperationalLog(context, 'info', 'Reconciliation started', { activePolicies: policies.length });
   await appendRun(options.request, `Enabled Policies loaded: ${policies.length}`);
 
   for (const policy of policies) {
-    await log(context, 'info', `Policy reconciliation started: ${policy.policyId}`);
+    await log(context, 'debug', `Policy reconciliation started: ${policy.policyId}`);
     let result;
     try {
-      await log(context, 'info', `Expected automations: ${buildAutomationDefinitions(policy).length}`);
+      await log(context, 'debug', `Expected automations: ${buildAutomationDefinitions(policy).length}`);
       result = await reconcileEnabledPolicy(context, policy, options);
     } catch (error) {
       result = { created: 0, unchanged: 0, exists: 0, missing: 0, recreated: 0, failedCount: 1, automationsChecked: 0, failed: true, familyOutcomes: [], errors: [safeError(error)] };
@@ -152,9 +152,9 @@ async function reconcileEnabledPolicies(context, options = {}) {
       lastError: result.failed ? result.errors[0] : null,
       historyRunId: options.request?.run?.id || null
     });
-    await log(context, result.failed ? 'error' : 'info', result.failed
-      ? `Policy reconciliation failed: policy=${policy.policyId} failed=${result.failedCount} reason=${failureCategory({ reason: result.errors[0] }, 'reconciliation-failed')}`
-      : `Policy reconciliation completed: policy=${policy.policyId} expected=${result.automationsChecked} exists=${result.exists} missing=${result.missing} recreated=${result.recreated} failed=${result.failedCount}`);
+    await writeOperationalLog(context, result.failed ? 'error' : 'info', result.failed ? 'Reconciliation failed' : 'Reconciliation checked', result.failed
+      ? { policy: policy.policyId, stage: 'automation-check', failed: result.failedCount, error: failureCategory({ reason: result.errors[0] }, 'reconciliation-failed') }
+      : { policy: policy.policyId, expected: result.automationsChecked, healthy: result.exists, missing: result.missing, repaired: result.recreated, failed: result.failedCount });
   }
 
   const organizationNames = [...new Set(policies.map(policy => String(policy.organizationNameSnapshot || '').trim()).filter(Boolean))];
@@ -181,7 +181,7 @@ async function reconcileEnabledPolicies(context, options = {}) {
   const details = resultDetails(envelope);
   await options.request?.run?.setAssetsProcessed?.(aggregate.automationsChecked);
   await appendRun(options.request, `Reconciliation completed: created=${aggregate.created}, unchanged=${aggregate.unchanged}, failed=${aggregate.failed}`);
-  await log(context, 'info', `Aggregate reconciliation completed: policiesChecked=${aggregate.policiesChecked} automationsChecked=${aggregate.automationsChecked} created=${aggregate.created} unchanged=${aggregate.unchanged} failed=${aggregate.failed}`);
+  await writeOperationalLog(context, 'info', 'Reconciliation completed', { policies: aggregate.policiesChecked, expected: aggregate.automationsChecked, healthy: aggregate.unchanged, missing: aggregate.missing, repaired: aggregate.created, failed: aggregate.failed, elapsed: formatRuntimeElapsed(Date.now() - startedAt) });
   return { ok: aggregate.failed === 0, aggregate: historyCounts, details, envelope };
 }
 

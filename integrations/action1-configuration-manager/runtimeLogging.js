@@ -22,10 +22,42 @@ function resolveAction1RuntimeLogDir(options = {}) {
 }
 
 function sanitizeRuntimeText(value) {
-  return String(value || '')
+  return String(value ?? '')
     .replace(/bearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [redacted]')
     .replace(/(access_token|refresh_token|id_token|client_secret|apiSecret|password|secret)\s*[:=]\s*[^\s,;]+/gi, '$1=[redacted]')
     .replace(/authorization\s*[:=]\s*[^\r\n]+/gi, 'authorization=[redacted]');
+}
+
+function formatRuntimeValue(value) {
+  if (value === null || value === undefined || value === '') return '—';
+  if (typeof value === 'number' && !Number.isFinite(value)) return '—';
+  const rendered = sanitizeRuntimeText(value);
+  return /\s|[|="]/.test(rendered) ? `"${rendered.replace(/"/g, '\\"')}"` : rendered;
+}
+
+function formatRuntimeFields(fields = {}) {
+  return Object.entries(fields)
+    .filter(([key]) => /^[A-Za-z][A-Za-z0-9]*$/.test(key))
+    .map(([key, value]) => `${key}=${formatRuntimeValue(value)}`)
+    .join(' | ');
+}
+
+function formatRuntimePercent(value) {
+  return value === null || value === undefined || !Number.isFinite(Number(value)) ? '—' : `${Math.round(Number(value))}%`;
+}
+
+function formatRuntimeElapsed(elapsedMs) {
+  const milliseconds = Math.max(0, Number(elapsedMs) || 0);
+  if (milliseconds < 1000) return `${Math.round(milliseconds)}ms`;
+  return `${(milliseconds / 1000).toFixed(1).replace(/\.0$/, '')}s`;
+}
+
+async function writeOperationalLog(context, level, message, fields = {}) {
+  const suffix = formatRuntimeFields(fields);
+  const line = suffix ? `${message} | ${suffix}` : message;
+  await writeAction1RuntimeLog(context, level, line);
+  if (typeof context?.logger?.[level] === 'function') context.logger[level](line);
+  return line;
 }
 
 function formatAction1RuntimeLogLine(level, message, now = () => Date.now()) {
@@ -94,5 +126,9 @@ module.exports = {
   getDefaultAction1RuntimeLogger,
   writeAction1RuntimeLog,
   resolveAction1RuntimeLogDir,
-  sanitizeRuntimeText
+  sanitizeRuntimeText,
+  formatRuntimeFields,
+  formatRuntimePercent,
+  formatRuntimeElapsed,
+  writeOperationalLog
 };
