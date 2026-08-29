@@ -1,5 +1,3 @@
-const EM_DASH = '\u2014';
-
 export function deriveDisplayName(baseName, scopeLabel) {
   const trimmedBaseName = String(baseName || '').trim();
   const trimmedScopeLabel = String(scopeLabel || '').trim();
@@ -12,7 +10,7 @@ export function deriveDisplayName(baseName, scopeLabel) {
     return trimmedBaseName;
   }
 
-  return `${trimmedBaseName} ${EM_DASH} ${trimmedScopeLabel}`;
+  return `${trimmedBaseName} - ${trimmedScopeLabel}`;
 }
 
 export function formatPolicyStatus(policy) {

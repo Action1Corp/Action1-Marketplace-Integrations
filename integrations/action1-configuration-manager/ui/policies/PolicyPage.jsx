@@ -546,8 +546,9 @@ function PolicyPage({ integration }) {
         <>
       {pageError ? <div style={styles.errorNotice}>{pageError}</div> : null}
       {mode.kind === 'list' ? (
-        <PolicyListView
-          policies={policies}
+            <PolicyListView
+              integration={integration}
+              policies={policies}
           onCreate={openCreate}
           onDelete={(policyId) => openLifecycleConfirmation('delete', policyId)}
           onDisable={(policyId) => openLifecycleConfirmation('disable', policyId)}

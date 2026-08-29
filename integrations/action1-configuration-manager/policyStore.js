@@ -13,7 +13,6 @@ const { buildAutomationDisplayName } = require('./automationNaming');
 
 const POLICY_ID_PREFIX = 'POL-';
 const POLICY_ID_WIDTH = 6;
-const EM_DASH = '\u2014';
 
 function trimString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -47,7 +46,7 @@ function deriveDisplayName(baseName, scopeLabel) {
     return trimmedBaseName;
   }
 
-  return `${trimmedBaseName} ${EM_DASH} ${trimmedScopeLabel}`;
+  return `${trimmedBaseName} - ${trimmedScopeLabel}`;
 }
 
 function formatPolicyId(sequence) {

@@ -272,7 +272,7 @@ async function run() {
 
   const saved = await store.savePolicy(createValidInput());
   assert.strictEqual(saved.policyId, 'POL-000001');
-  assert.strictEqual(saved.displayName, 'Workstation Security — Finance Workstations');
+  assert.strictEqual(saved.displayName, 'Workstation Security - Finance Workstations');
   assert.strictEqual(saved.selectedControls[0].parameters.minimumLength, 14);
   assert.deepStrictEqual(saved.action1Automations, []);
 

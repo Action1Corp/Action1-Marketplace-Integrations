@@ -14,6 +14,19 @@ function getPayload(request) {
   return request && typeof request === 'object' ? request.payload || {} : {};
 }
 
+function controlIds(draft) {
+  return (draft?.selectedControls || []).map((control) => String(control?.controlId || '').trim()).filter(Boolean);
+}
+
+function addedControlIds(previous, desired) {
+  const previousIds = new Set(controlIds(previous));
+  return controlIds(desired).filter((controlId) => !previousIds.has(controlId));
+}
+
+function scopeLabel(draft) {
+  return draft?.scopeType === 'ALL_ENDPOINTS' ? 'ALL_ENDPOINTS' : `${draft?.scopeType || 'unknown'}:${draft?.endpointGroupName || draft?.endpointGroupNameSnapshot || draft?.endpointGroupId || 'unknown'}`;
+}
+
 function historyResult(result, operation, policy, summary, history = {}) {
   const envelope = createHistoryEnvelope({
     operation,
@@ -65,12 +78,15 @@ async function performSavePolicy(context, request = {}, operation) {
     const draft = getPayload(request).draft || {};
     if (draft.mode !== 'create') {
       const existing = await store.getPolicy(draft.policyId);
+      await writeAction1RuntimeLog(context, 'info', `Policy edit started: policyId=${draft.policyId} previousSelectedControlCount=${controlIds(existing).length} desiredSelectedControlCount=${controlIds(draft).length} addedControlIds=${addedControlIds(existing, draft).join(',') || 'none'} removedControlIds=${getRemovedControlIds(existing, draft).join(',') || 'none'}`);
       snapshot = existing;
       const saved = await store.savePolicy(draft);
+      await writeAction1RuntimeLog(context, 'info', `Policy persisted: policyId=${saved.policyId} displayName=${saved.displayName} selectedControlCount=${controlIds(saved).length}`);
       if (!existing?.enabled) {
         const definitions = buildAutomationDefinitions(saved);
         const removedControlIds = getRemovedControlIds(existing, saved);
         const cleanup = await cleanupDeselectedControls(context, saved, removedControlIds);
+        await writeAction1RuntimeLog(context, 'info', `Policy edit completed: policyId=${saved.policyId} updated=0 created=0 deleted=0 cleanup=${Boolean(cleanup)}`);
         return historyResult({ ok: true, message: 'Policy updated.', policy: saved }, operation, saved,
           definitions.length
             ? `Policy updated. Action1 changes will apply when enabled.${cleanup ? ` Removed Control state cleanup scheduled: ${removedControlIds.length} controls.` : ''}`
@@ -78,12 +94,15 @@ async function performSavePolicy(context, request = {}, operation) {
           { counts: { unchanged: definitions.length, removedControls: removedControlIds.length }, cleanup });
       }
       const applied = await applyEdit(context, existing, saved);
+      await writeAction1RuntimeLog(context, 'info', `Policy edit completed: policyId=${saved.policyId} updated=${applied.history.counts.updated} created=${applied.history.counts.created} deleted=${applied.history.counts.deleted} cleanup=${Boolean(applied.history.cleanup)}`);
       return historyResult({ ok: true, message: 'Policy updated.', policy: applied.policy }, operation, saved,
         `Policy updated. Updated: ${applied.history.counts.updated}; created: ${applied.history.counts.created}; removed: ${applied.history.counts.deleted}; unchanged: ${applied.history.counts.unchanged}.${applied.history.cleanup ? ` Removed Control state cleanup scheduled: ${applied.history.counts.removedControls} controls.` : ''}`, applied.history);
     }
 
+    await writeAction1RuntimeLog(context, 'info', `Policy create started: policyId=${draft.policyId || 'pending'} baseName=${draft.baseName || ''} displayName=${draft.displayName || ''} organizationId=${draft.organizationId || ''} scope=${scopeLabel(draft)} mode=${draft.policyMode || ''} selectedControlCount=${controlIds(draft).length}`);
     const intent = await store.savePolicy({ ...draft, enabled: false });
     snapshot = intent;
+    await writeAction1RuntimeLog(context, 'info', `Policy persisted: policyId=${intent.policyId} displayName=${intent.displayName} organizationId=${intent.organizationId} scope=${scopeLabel(intent)} selectedControlCount=${controlIds(intent).length}`);
     const definitions = buildAutomationDefinitions(intent);
     const automationClient = createAction1AutomationClient(context);
     const correlationStore = createAutomationCorrelationStore(context);
@@ -92,10 +111,10 @@ async function performSavePolicy(context, request = {}, operation) {
     await writeAction1RuntimeLog(context, 'info', `Preparing ${definitions.length} automation families`);
 
     for (const [index, definition] of definitions.entries()) {
-      await writeAction1RuntimeLog(context, 'info', `Creating Action1 automation ${index + 1}/${definitions.length} for family ${definition.familyName}`);
+      await writeAction1RuntimeLog(context, 'info', `Automation create started: policyId=${intent.policyId} family=${definition.familyName} automationName=${definition.name} scope=${intent.scopeType}`);
       try {
         const created = await automationClient.createAutomation(intent.organizationId, definition);
-        await writeAction1RuntimeLog(context, 'info', 'Action1 automation created');
+        await writeAction1RuntimeLog(context, 'info', `Automation created: policyId=${intent.policyId} family=${definition.familyName} automationId=${created.id}`);
         await correlationStore.insertCorrelation({
           policyId: intent.policyId,
           automationGroupId: definition.automationGroupId,
@@ -119,6 +138,7 @@ async function performSavePolicy(context, request = {}, operation) {
     }
 
     const policy = await store.setPolicyEnabled(intent.policyId, true);
+    await writeAction1RuntimeLog(context, 'info', `Policy create completed: policyId=${policy.policyId} automationCreatedCount=${history.counts.created}`);
     return historyResult({ ok: true, message: 'Policy saved.', policy }, operation, policy,
       `Policy created. Automations created: ${history.counts.created}.`, history);
   } catch (error) {
@@ -132,13 +152,17 @@ async function savePolicyAction(context, request = {}) {
     const draft = getPayload(request).draft || {};
     if (draft.mode !== 'create') {
       const existing = await store.getPolicy(draft.policyId);
+      await writeAction1RuntimeLog(context, 'info', `Policy edit started: policyId=${draft.policyId} previousSelectedControlCount=${controlIds(existing).length} desiredSelectedControlCount=${controlIds(draft).length} addedControlIds=${addedControlIds(existing, draft).join(',') || 'none'} removedControlIds=${getRemovedControlIds(existing, draft).join(',') || 'none'}`);
       const saved = await store.savePolicy(draft);
+      await writeAction1RuntimeLog(context, 'info', `Policy persisted: policyId=${saved.policyId} displayName=${saved.displayName} selectedControlCount=${controlIds(saved).length}`);
       if (!existing?.enabled) {
         const removedControlIds = getRemovedControlIds(existing, saved);
-        await cleanupDeselectedControls(context, saved, removedControlIds);
+        const cleanup = await cleanupDeselectedControls(context, saved, removedControlIds);
+        await writeAction1RuntimeLog(context, 'info', `Policy edit completed: policyId=${saved.policyId} updated=0 created=0 deleted=0 cleanup=${Boolean(cleanup)}`);
         return { ok: true, message: 'Policy saved.', policy: saved };
       }
       const applied = await applyEdit(context, existing, saved);
+      await writeAction1RuntimeLog(context, 'info', `Policy edit completed: policyId=${saved.policyId} updated=${applied.history.counts.updated} created=${applied.history.counts.created} deleted=${applied.history.counts.deleted} cleanup=${Boolean(applied.history.cleanup)}`);
       return { ok: true, message: 'Policy updated.', policy: applied.policy };
     }
     const result = await performSavePolicy(context, request, 'POLICY_CREATED');
@@ -169,6 +193,7 @@ async function performPolicyToggle(context, request = {}, enabled, operation) {
     }
     const history = enabled ? await enablePolicy(context, existing) : await disablePolicy(context, existing);
     const policy = await store.setPolicyEnabled(payload.policyId, enabled);
+    await writeAction1RuntimeLog(context, 'info', `Lifecycle operation completed: operation=${enabled ? 'enable' : 'disable'} policyId=${policy.policyId} automationCreatedCount=${history.counts.created || 0} automationDeletedCount=${history.counts.deleted || 0}`);
     return historyResult({ ok: true, message: `Policy ${policy.enabled ? 'enabled' : 'disabled'}.`, policy }, operation, policy,
       enabled ? `Policy enabled. Automations created: ${history.counts.created}.` : `Policy disabled. Automations removed: ${history.counts.deleted}.`, history);
   } catch (error) {
@@ -212,9 +237,8 @@ async function performDeletePolicy(context, request = {}, tracked) {
     }
     const history = await cleanupPolicy(context, existing);
     const result = await store.deletePolicy(payload.policyId);
-    await writeAction1RuntimeLog(context, 'info', 'Policy correlations/local state removed');
-    await writeAction1RuntimeLog(context, 'info', 'Scope reservation released');
-    await writeAction1RuntimeLog(context, 'info', 'Policy Delete completed');
+    await writeAction1RuntimeLog(context, 'info', `Local Policy deleted: policyId=${existing.policyId}`);
+    await writeAction1RuntimeLog(context, 'info', `Policy delete completed: policyId=${existing.policyId} automationDeletedCount=${history.counts.deleted} cleanup=${Boolean(history.cleanup)}`);
     const response = { ok: true, message: result.deleted ? 'Policy deleted.' : 'Policy was not found.', ...result };
     return tracked ? historyResult(response, 'POLICY_DELETED', existing, 'Policy deleted. Automations removed: ' + history.counts.deleted + '. Endpoint cleanup scheduled.', history) : response;
   } catch (error) {

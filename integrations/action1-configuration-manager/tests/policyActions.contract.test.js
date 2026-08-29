@@ -307,7 +307,7 @@ async function run() {
 
   const getResult = await actions['get-policy'](context, { payload: { policyId: 'POL-000001' } });
   assert.strictEqual(getResult.ok, true);
-  assert.strictEqual(getResult.policy.displayName, 'Workstation Security — Finance Workstations');
+  assert.strictEqual(getResult.policy.displayName, 'Workstation Security - Finance Workstations');
 
   const toggleResult = await actions['set-policy-enabled'](context, { payload: { policyId: 'POL-000001', enabled: false } });
   assert.strictEqual(toggleResult.ok, true);

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import PolicyActionMenu from './PolicyActionMenu.jsx';
 import {
   pageSurfaceStyle,
@@ -6,6 +7,7 @@ import {
   primaryButtonStyle
 } from './policyUiStyles.js';
 import { formatPolicyListRow, getPolicyRowActions } from './policyViewModel.js';
+import { buildPolicyDetailsPath } from './policyRouting.js';
 
 const styles = {
   section: {
@@ -59,6 +61,11 @@ const styles = {
     lineHeight: 1.35,
     wordBreak: 'break-word'
   },
+  policyNameLink: {
+    color: policyUiTokens.accent,
+    textDecoration: 'none',
+    cursor: 'pointer'
+  },
   valueText: {
     margin: 0,
     fontSize: policyUiTokens.fontSizes.label,
@@ -110,6 +117,11 @@ const styles = {
   }
 };
 
+const POLICY_LINK_CSS = `
+.policy-name-link:hover { text-decoration: underline; }
+.policy-name-link:focus-visible { outline: 2px solid ${policyUiTokens.accent}; outline-offset: 2px; }
+`;
+
 function buildActionItems({ actions, policyId, onDelete, onDisable, onEnable, onOpen, onEdit }) {
   const items = [];
 
@@ -132,11 +144,12 @@ function buildActionItems({ actions, policyId, onDelete, onDisable, onEnable, on
   return items;
 }
 
-function PolicyListView({ policies, onCreate, onDelete, onDisable, onEnable, onOpen, onEdit, busy = false }) {
+function PolicyListView({ integration, policies, onCreate, onDelete, onDisable, onEnable, onOpen, onEdit, busy = false }) {
   const [hoveredPolicyId, setHoveredPolicyId] = useState('');
 
   return (
     <section style={styles.section}>
+      <style>{POLICY_LINK_CSS}</style>
       <div style={styles.actionRow}>
         <div />
         <button type="button" style={styles.createButton} disabled={busy} onClick={onCreate}>
@@ -190,7 +203,7 @@ function PolicyListView({ policies, onCreate, onDelete, onDisable, onEnable, onO
                   onMouseLeave={() => setHoveredPolicyId('')}
                 >
                   <td style={resolveCellStyle()}>
-                    <p style={styles.policyName}>{row.policyName}</p>
+                    <Link className="policy-name-link" to={buildPolicyDetailsPath(integration, policy.policyId)} style={{ ...styles.policyName, ...styles.policyNameLink }}>{row.policyName}</Link>
                   </td>
                   <td style={resolveCellStyle()}>
                     <span style={{ ...styles.statusText, color: policy.enabled ? policyUiTokens.success : policyUiTokens.textMuted }}>

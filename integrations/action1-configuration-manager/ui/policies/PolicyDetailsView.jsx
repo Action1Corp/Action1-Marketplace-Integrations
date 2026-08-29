@@ -26,6 +26,23 @@ const styles = {
     alignItems: 'flex-start',
     gap: '0.75rem'
   },
+  headerActions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 16,
+    flex: 'none'
+  },
+  headerAction: {
+    background: 'none',
+    border: 'none',
+    padding: 0,
+    fontFamily: 'inherit',
+    fontSize: policyUiTokens.fontSizes.label,
+    fontWeight: 600,
+    color: policyUiTokens.accent,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap'
+  },
   titleBlock: {
     display: 'grid',
     gap: '0.25rem'
@@ -126,23 +143,23 @@ const styles = {
   }
 };
 
-function buildActionItems({ policy, onDelete, onDisable, onEdit, onEnable }) {
-  return [
-    { label: 'Edit', onSelect: onEdit },
-    {
-      label: policy.enabled === false ? 'Enable' : 'Disable',
-      onSelect: policy.enabled === false ? onEnable : onDisable
-    },
-    { label: 'Delete', destructive: true, onSelect: onDelete }
-  ];
+const HEADER_ACTION_CSS = `
+.policy-detail-header-action:hover { text-decoration: underline; }
+.policy-detail-header-action:focus-visible { outline: 2px solid ${policyUiTokens.accent}; outline-offset: 2px; }
+`;
+
+function buildActionItems({ onDelete }) {
+  return [{ label: 'Delete', destructive: true, onSelect: onDelete }];
 }
 
 function PolicyDetailsView({ catalog, policy, onBack, onDelete, onDisable, onEdit, onEnable, busy = false }) {
   const details = formatPolicyDetails(policy, catalog);
-  const actionItems = buildActionItems({ policy, onDelete, onDisable, onEdit, onEnable });
+  const actionItems = buildActionItems({ onDelete });
+  const lifecycleAction = policy.enabled === false ? 'Enable' : 'Disable';
 
   return (
     <section style={styles.shell}>
+      <style>{HEADER_ACTION_CSS}</style>
       <button type="button" style={styles.backLink} disabled={busy} onClick={onBack}>
         Back to Policies
       </button>
@@ -152,7 +169,11 @@ function PolicyDetailsView({ catalog, policy, onBack, onDelete, onDisable, onEdi
           <h2 style={styles.title}>Policy Details</h2>
           <p style={styles.subtitle}>Inspect the saved Policy, its current schedule, and its Action1 automations.</p>
         </div>
-        <PolicyActionMenu items={actionItems} label="Policy actions" disabled={busy} />
+        <div style={styles.headerActions}>
+          <button type="button" className="policy-detail-header-action" style={styles.headerAction} aria-label="Edit Policy" disabled={busy} onClick={onEdit}>Edit</button>
+          <button type="button" className="policy-detail-header-action" style={styles.headerAction} aria-label={`${lifecycleAction} Policy`} disabled={busy} onClick={policy.enabled === false ? onEnable : onDisable}>{lifecycleAction}</button>
+          <PolicyActionMenu items={actionItems} label="More actions" disabled={busy} />
+        </div>
       </div>
 
       <hr style={styles.sectionDivider} />

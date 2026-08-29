@@ -80,7 +80,7 @@ function writeAction1RuntimeLog(context, level, message) {
     const logger = context?.action1ConfigurationManagerRuntimeLogger || getDefaultAction1RuntimeLogger();
     const writer = logger?.[level];
     if (typeof writer !== 'function') return Promise.resolve();
-    return Promise.resolve(writer.call(logger, message)).catch(() => {});
+    return Promise.resolve(writer.call(logger, sanitizeRuntimeText(message))).catch(() => {});
   } catch {
     return Promise.resolve();
   }

@@ -16,11 +16,11 @@ function count(value) {
   return Number.isInteger(numeric) && numeric >= 0 ? numeric : null;
 }
 
-async function logOverview(context, event, fields = {}) {
+async function logOverview(context, event, fields = {}, level = 'info') {
   const safeFields = { event, timestamp: new Date().toISOString(), ...fields };
   const message = `Overview ${event}: ${JSON.stringify(safeFields)}`;
-  await writeAction1RuntimeLog(context, 'info', message);
-  context?.logger?.info?.(safeFields);
+  await writeAction1RuntimeLog(context, level, message);
+  context?.logger?.[level]?.(safeFields);
 }
 
 function normalizeEndpointRow(row) {
@@ -311,7 +311,10 @@ async function getOverview(context, options = {}) {
       const pages = result.snapshot.pages;
       const responseReceivedAt = Date.now();
       const rowCount = rows.length;
-      const policyIds = [...new Set(rows.map((row) => read.kind === 'dashboard-non-compliant-controls' ? normalizeDashboardControlRow(row, organizationId)?.policyId : normalizeReportRow(row)?.policyId).filter(Boolean))];
+      const normalizedRows = read.kind === 'dashboard-non-compliant-controls'
+        ? rows.map((row) => normalizeDashboardControlRow(row, organizationId)).filter(Boolean)
+        : rows.map(normalizeReportRow).filter(Boolean).map((row) => ({ ...row, organizationId }));
+      const policyIds = [...new Set(normalizedRows.map((row) => row.policyId).filter(Boolean))];
       for (const policyId of policyIds) {
         await logOverview(context, 'report-read', {
           policyId,
@@ -320,16 +323,39 @@ async function getOverview(context, options = {}) {
           reportId: read.reportId,
           attempt: 1,
           returnedRowCount: rowCount,
-          rowShape: rows.slice(0, 3).map((row) => ({
-            keys: row && typeof row === 'object' ? Object.keys(row).slice(0, 20) : [],
-            fieldKeys: row?.fields && typeof row.fields === 'object' ? Object.keys(row.fields).slice(0, 20) : []
-          })),
-          lastRequery: pages.find((page) => page.lastRequery !== null)?.lastRequery ?? null,
+          normalizedRowCount: normalizedRows.filter((row) => row.policyId === policyId).length,
+          lastRequery: result.snapshot.lastRequery,
           requestTimestamp: new Date(requestStartedAt).toISOString(),
           responseTimestamp: new Date(responseReceivedAt).toISOString(),
           elapsedMs: responseReceivedAt - requestStartedAt,
           httpStatus: pages.length ? pages[pages.length - 1].statusCode : null
         });
+      }
+      if (read.kind === 'dashboard-endpoints' || read.kind === 'dashboard-non-compliant') {
+        const event = read.kind === 'dashboard-endpoints' ? 'report-endpoint-row' : 'report-non-compliant-endpoint-row';
+        for (const row of normalizedRows.slice(0, 100)) {
+          await logOverview(context, event, read.kind === 'dashboard-endpoints'
+            ? { policyId: row.policyId, endpoint: row.endpointName, observedControlCount: row.details }
+            : { policyId: row.policyId, endpoint: row.endpointName, nonCompliantControlCount: row.details }, 'debug');
+        }
+      } else {
+        const byPolicy = new Map();
+        for (const row of normalizedRows) {
+          if (!byPolicy.has(row.policyId)) byPolicy.set(row.policyId, []);
+          byPolicy.get(row.policyId).push(row);
+        }
+        for (const [policyId, policyRows] of byPolicy) {
+          const top = [...policyRows]
+            .sort((left, right) => right.affectedEndpointCount - left.affectedEndpointCount || left.controlName.localeCompare(right.controlName))
+            .slice(0, 5)
+            .map((row) => ({ controlName: row.controlName, affectedEndpointCount: row.affectedEndpointCount }));
+          await logOverview(context, 'report-control-summary', {
+            policyId,
+            totalRows: policyRows.length,
+            topControlCount: top.length,
+            topControls: top
+          });
+        }
       }
       if (policyIds.length === 0) {
         await logOverview(context, 'report-read', {
@@ -339,11 +365,8 @@ async function getOverview(context, options = {}) {
           reportId: read.reportId,
           attempt: 1,
           returnedRowCount: rowCount,
-          rowShape: rows.slice(0, 3).map((row) => ({
-            keys: row && typeof row === 'object' ? Object.keys(row).slice(0, 20) : [],
-            fieldKeys: row?.fields && typeof row.fields === 'object' ? Object.keys(row.fields).slice(0, 20) : []
-          })),
-          lastRequery: pages.find((page) => page.lastRequery !== null)?.lastRequery ?? null,
+          normalizedRowCount: normalizedRows.length,
+          lastRequery: result.snapshot.lastRequery,
           requestTimestamp: new Date(requestStartedAt).toISOString(),
           responseTimestamp: new Date(responseReceivedAt).toISOString(),
           elapsedMs: responseReceivedAt - requestStartedAt,
@@ -365,6 +388,31 @@ async function getOverview(context, options = {}) {
     reporting: { dashboardNonCompliantEndpoints: reporting.dashboardNonCompliantEndpoints, dashboardNonCompliantControls: reporting.dashboardNonCompliantControls }
   };
   for (const policy of result.policies) {
+    for (const endpoint of policy.endpoints.slice(0, 100)) {
+      await logOverview(context, 'classification-endpoint', {
+        policyId: policy.policyId,
+        endpoint: endpoint.endpointName,
+        expectedControlCount: policy.expectedControlCount,
+        observedControlCount: endpoint.observedCount,
+        nonCompliantControlCount: endpoint.nonCompliantCount,
+        classification: endpoint.status
+      }, 'debug');
+    }
+    await logOverview(context, 'policy-aggregate', {
+      policyId: policy.policyId,
+      policyName: policy.policyName,
+      organizationId: policy.organizationId,
+      scopeType: policy.scope.type,
+      assignedCount: policy.assignedCount,
+      expectedControlCount: policy.expectedControlCount,
+      fullyEvaluatedCount: policy.fullyEvaluatedCount,
+      compliantCount: policy.compliantCount,
+      needsAttentionCount: policy.needsAttentionCount,
+      partialCount: policy.partialCount,
+      noDataCount: policy.noDataCount,
+      coveragePercent: policy.evaluationCoveragePercent,
+      compliancePercent: policy.compliancePercent
+    });
     await logOverview(context, 'policy-result', {
       policyId: policy.policyId,
       organizationId: policy.organizationId,
@@ -376,6 +424,7 @@ async function getOverview(context, options = {}) {
       needsAttentionCount: policy.needsAttentionCount
     });
   }
+  await logOverview(context, 'overview-aggregate', result.summary);
   await logOverview(context, 'complete', { ...result.summary, elapsedMs: Date.now() - startedAt });
   return result;
 }

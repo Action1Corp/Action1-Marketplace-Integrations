@@ -81,7 +81,6 @@ async function applyEdit(context, previousPolicy, desiredPolicy, options = {}) {
   const applied = { updated: 0, created: 0, deleted: 0, unchanged: summary.unchanged, failed: 0 };
   const familyOutcomes = [];
   let currentFamilyName = '';
-  await log(context, 'info', `Policy Edit started: ${desiredPolicy.policyId}`);
   await log(context, 'debug', `Policy Edit diff: unchanged=${summary.unchanged} patch=${summary.patch} create=${summary.create} delete=${summary.delete}`);
 
   try {
@@ -106,7 +105,7 @@ async function applyEdit(context, previousPolicy, desiredPolicy, options = {}) {
         continue;
       }
       if (operation.type === 'PATCH') {
-        await log(context, 'debug', `PATCH family started: ${family}`);
+        await log(context, 'info', `Automation patch started: policyId=${desiredPolicy.policyId} family=${family} automationId=${operation.correlation.action1AutomationId} automationName=${operation.definition.name}`);
         let updated;
         try {
           updated = await client.updateAutomation(desiredPolicy.organizationId, operation.correlation.action1AutomationId, operation.definition);
@@ -129,26 +128,26 @@ async function applyEdit(context, previousPolicy, desiredPolicy, options = {}) {
           desiredDefinitionFingerprint: operation.definition.fingerprint,
           lastAppliedAt: new Date().toISOString()
         });
-        await log(context, 'debug', `Correlation updated: ${operation.automationGroupId}`);
+        await log(context, 'info', `Automation patched: policyId=${desiredPolicy.policyId} family=${family} automationId=${operation.correlation.action1AutomationId}`);
         await log(context, 'debug', `PATCH family completed: ${family}`);
         applied.updated += 1;
         familyOutcomes.push({ familyName: family, outcome: 'Updated' });
       } else if (operation.type === 'CREATE') {
-        await log(context, 'debug', `CREATE family started: ${family}`);
+        await log(context, 'info', `Automation create started: policyId=${desiredPolicy.policyId} family=${family} automationName=${operation.definition.name} scope=${desiredPolicy.scopeType}`);
         const created = await createAndReplaceAutomation(context, desiredPolicy, operation.definition, client, correlations);
-        await log(context, 'debug', `Action1 automation created: ${created.id}`);
+        await log(context, 'info', `Automation created: policyId=${desiredPolicy.policyId} family=${family} automationId=${created.id}`);
         await log(context, 'debug', `Correlation activated: ${operation.automationGroupId}`);
         await log(context, 'debug', `CREATE family completed: ${family}`);
         applied.created += 1;
         familyOutcomes.push({ familyName: family, outcome: 'Created' });
       } else if (operation.type === 'DELETE') {
-        await log(context, 'debug', `DELETE family started: ${family}`);
+        await log(context, 'info', `Automation delete started: policyId=${desiredPolicy.policyId} family=${family} automationId=${operation.correlation.action1AutomationId}`);
         await log(context, 'debug', `Deleting Action1 automation ${operation.correlation.action1AutomationId}`);
         const deletion = await client.deleteAutomation(desiredPolicy.organizationId, operation.correlation.action1AutomationId);
         await correlations.markInactive(desiredPolicy.policyId, operation.automationGroupId);
         if (deletion.status === 'alreadyAbsent') await log(context, 'info', `Action1 automation already absent: ${operation.correlation.action1AutomationId}; cleanup satisfied`);
         await log(context, 'debug', `Correlation marked inactive: ${operation.automationGroupId}`);
-        await log(context, 'debug', `DELETE family completed: ${family}`);
+        await log(context, 'info', `Automation deleted: policyId=${desiredPolicy.policyId} family=${family} automationId=${operation.correlation.action1AutomationId}`);
         applied.deleted += 1;
         familyOutcomes.push({ familyName: family, outcome: 'Removed' });
       }
@@ -178,15 +177,15 @@ async function disablePolicy(context, policy, options = {}) {
     for (const correlation of active) {
       currentFamilyName = correlation.controlFamilyNameSnapshot;
       await log(context, 'debug', `DELETE family started: ${correlation.controlFamilyNameSnapshot}`);
-      await log(context, 'debug', `Deleting Action1 automation ${correlation.action1AutomationId}`);
+      await log(context, 'info', `Automation delete started: policyId=${policy.policyId} family=${correlation.controlFamilyNameSnapshot} automationId=${correlation.action1AutomationId}`);
       const deletion = await client.deleteAutomation(policy.organizationId, correlation.action1AutomationId);
       await correlations.markInactive(policy.policyId, correlation.automationGroupId);
       if (deletion.status === 'alreadyAbsent') await log(context, 'info', `Action1 automation already absent: ${correlation.action1AutomationId}; cleanup satisfied`);
-      await log(context, 'debug', `Correlation marked inactive: ${correlation.automationGroupId}`);
+      await log(context, 'info', `Automation deleted: policyId=${policy.policyId} family=${correlation.controlFamilyNameSnapshot} automationId=${correlation.action1AutomationId}`);
       history.counts.deleted += 1;
       history.familyOutcomes.push({ familyName: correlation.controlFamilyNameSnapshot, outcome: 'Removed' });
     }
-    await log(context, 'info', `Disable completed: ${policy.policyId}`);
+    await log(context, 'info', `Disable completed: ${policy.policyId} automationDeletedCount=${history.counts.deleted} automationFailedCount=${history.counts.failed}`);
     return history;
   } catch (error) {
     if (currentFamilyName) history.familyOutcomes.push({ familyName: currentFamilyName, outcome: 'Failed' });
@@ -206,7 +205,7 @@ async function enablePolicy(context, policy) {
   try {
     for (const definition of definitions) {
       currentFamilyName = definition.familyName;
-      await log(context, 'debug', `CREATE family started: ${definition.familyName}`);
+      await log(context, 'info', `Automation create started: policyId=${policy.policyId} family=${definition.familyName} automationName=${definition.name} scope=${policy.scopeType}`);
       const created = await client.createAutomation(policy.organizationId, definition);
       await correlations.activateCorrelation({
         policyId: policy.policyId,
@@ -220,12 +219,12 @@ async function enablePolicy(context, policy) {
         desiredDefinitionFingerprint: definition.fingerprint,
         lastAppliedAt: new Date().toISOString()
       });
-      await log(context, 'debug', `New Action1 automation ${created.id}`);
+      await log(context, 'info', `Automation created: policyId=${policy.policyId} family=${definition.familyName} automationId=${created.id}`);
       await log(context, 'debug', `Correlation activated/replaced: ${definition.automationGroupId}`);
       history.counts.created += 1;
       history.familyOutcomes.push({ familyName: definition.familyName, outcome: 'Created' });
     }
-    await log(context, 'info', `Enable completed: ${policy.policyId}`);
+    await log(context, 'info', `Enable completed: ${policy.policyId} automationCreatedCount=${history.counts.created} automationFailedCount=${history.counts.failed}`);
     return history;
   } catch (error) {
     if (currentFamilyName) history.familyOutcomes.push({ familyName: currentFamilyName, outcome: 'Failed' });
@@ -245,7 +244,7 @@ async function cleanupPolicy(context, policy, options = {}) {
   try {
     for (const correlation of owned.filter((entry) => entry.active !== false)) {
       currentFamilyName = correlation.controlFamilyNameSnapshot;
-      await log(context, 'debug', `Deleting Action1 automation ${correlation.action1AutomationId}`);
+      await log(context, 'info', `Automation delete started: policyId=${policy.policyId} family=${correlation.controlFamilyNameSnapshot} automationId=${correlation.action1AutomationId}`);
       const deletion = await client.deleteAutomation(policy.organizationId, correlation.action1AutomationId);
       await correlations.markInactive(policy.policyId, correlation.automationGroupId);
       if (deletion.status === 'alreadyAbsent') await log(context, 'info', `Action1 automation already absent: ${correlation.action1AutomationId}; cleanup satisfied`);

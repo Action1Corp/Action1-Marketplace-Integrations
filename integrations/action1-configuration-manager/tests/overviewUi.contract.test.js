@@ -19,9 +19,16 @@ async function run() {
 
   const source = readSource('ui/Overview.jsx');
   const policiesView = source.slice(source.indexOf('role="table" aria-label="Policies"'), source.indexOf('<div style={styles.sectionHead}><h2 id="top-controls-heading"'));
-  for (const label of ['Dashboard', 'Active Policies', 'Need Attention', 'Not Fully Evaluated', 'Evaluation Coverage', 'Policies', 'All policies']) {
+  for (const label of ['Dashboard', 'Active Policies', 'Need Attention', 'Overall Compliance', 'Evaluation Coverage', 'Policies', 'All policies']) {
     assert(source.includes(label), `Overview should render ${label}`);
   }
+  assert(!source.includes('label="Not Fully Evaluated"'), 'Dashboard must not render a dedicated Not Fully Evaluated KPI');
+  const kpiSection = source.slice(source.indexOf('<div style={styles.kpis}>'), source.indexOf('<div style={styles.sectionHead}><h2 style={styles.sectionTitle}>Policies</h2>'));
+  assert.deepStrictEqual(
+    [...kpiSection.matchAll(/label="([^"]+)"/g)].map((match) => match[1]),
+    ['Active Policies', 'Need Attention', 'Overall Compliance', 'Evaluation Coverage'],
+    'Dashboard KPI cards must retain the approved order'
+  );
   for (const label of ['Top controls needing attention', 'Controls affecting the largest number of endpoints across active policies.', 'No controls currently need attention', 'View non-compliant controls report']) {
     assert(source.includes(label), `Overview should render ${label}`);
   }
@@ -60,7 +67,11 @@ async function run() {
   assert(source.includes('bar-accent') && source.includes('lvl-hi') && source.includes('lvl-mid') && source.includes('lvl-low'), 'Percentage bars must use semantic visual treatments');
   assert(source.includes('fontSize: 28'), 'KPI values should retain the approved reference scale');
   assert(source.includes('ratioPercent(summary.needsAttentionCount, summary.fullyEvaluatedCount)'), 'Need Attention secondary copy should use evaluated-endpoint percentage');
-  assert(source.includes('ratioPercent(summary.notFullyEvaluatedCount, summary.assignedCount)'), 'Not Fully Evaluated secondary copy should use assigned-endpoint percentage');
+  assert(source.includes('summary.compliancePercent'), 'Overall Compliance should use the backend aggregate compliancePercent');
+  assert(source.includes('summary.fullyEvaluatedCount > 0'), 'Overall Compliance secondary copy must guard the evaluated denominator');
+  assert(source.includes('No fully evaluated endpoints'), 'Overall Compliance must explain a zero evaluated population');
+  assert(source.includes('complianceFillColor(complianceTone(summary.compliancePercent))'), 'Overall Compliance bar must use Compliance semantic colors');
+  assert(source.includes('styles.barFill'), 'Evaluation Coverage must retain its blue progress bar');
   assert(policiesView.includes('gridColumn: \'2 / span 5\'') && policiesView.includes('gridColumn: \'7 / span 2\''), 'Policy grid must span Endpoints columns 2-6 and Metrics columns 7-8');
   assert(!policiesView.includes('rowSpan') && !policiesView.includes('colSpan'), 'Policies layout must not use rowSpan or colSpan');
   assert(source.includes('numeric >= 90') && source.includes('numeric >= 50') && source.includes('numeric >= 25'), 'Compliance bar thresholds must remain explicit');
@@ -103,7 +114,17 @@ async function run() {
   assert.strictEqual(url, 'https://app.action1.com/console/reports/report-42/summary?limit=200&from=0&live_only=no&details=no&org=org-7&ent=no');
   assert(!url.includes('policyId=') && !url.includes('group='), 'Report URL must not invent Policy/group filters');
   assert.strictEqual(reportLink.formatPercent(null), '—');
-  assert.strictEqual(reportLink.formatPercent(84), '84%');
+  assert.strictEqual(reportLink.formatPercent(undefined), '—');
+  assert.strictEqual(reportLink.formatPercent(66.6666667), '67%');
+  assert.strictEqual(reportLink.formatPercent(33.3333333), '33%');
+  assert.strictEqual(reportLink.formatPercent(84.4), '84%');
+  assert.strictEqual(reportLink.formatPercent(84.5), '85%');
+  assert.strictEqual(reportLink.formatPercent(100), '100%');
+  assert.strictEqual(reportLink.formatPercent(0), '0%');
+  assert(source.includes('formatPercent(ratioPercent(summary.needsAttentionCount, summary.fullyEvaluatedCount))'), 'Need Attention percentage must use the shared display formatter');
+  assert(source.includes('formatPercent(summary.evaluationCoveragePercent)'), 'Evaluation Coverage must use the shared display formatter');
+  assert((policiesView.match(/formatPercent\(/g) || []).length >= 2, 'Policy table percentage metrics must use the shared display formatter');
+  assert(!source.includes('`${summary.evaluationCoveragePercent}%`') && !source.includes('`${summary.compliancePercent}%`'), 'Dashboard must not directly render decimal percentage values');
 }
 
 run().catch((error) => { console.error(error); process.exit(1); });

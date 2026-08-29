@@ -101,11 +101,20 @@ function MetricCell({ label, value, tooltip, attention = false }) {
   return <div role="cell" style={styles.td}><span aria-label={tooltip}>{content}</span></div>;
 }
 
+function complianceTone(value) {
+  const numeric = Number(value);
+  return numeric >= 90 ? 'lvl-hi' : numeric >= 50 ? 'lvl-mid' : numeric >= 25 ? 'lvl-orange' : 'lvl-low';
+}
+
+function complianceFillColor(tone) {
+  return tone === 'lvl-hi' ? '#2E7D32' : tone === 'lvl-mid' ? '#A85B00' : tone === 'lvl-orange' ? '#C77C02' : '#B3261E';
+}
+
 function PercentCell({ value, tooltip, coverage = false }) {
   const numeric = Number(value);
   const hasValue = value !== null && value !== undefined && Number.isFinite(numeric);
-  const tone = coverage ? 'bar-accent' : (!hasValue ? 'metric-null' : (numeric >= 90 ? 'lvl-hi' : numeric >= 50 ? 'lvl-mid' : numeric >= 25 ? 'lvl-orange' : 'lvl-low'));
-  const fillColor = coverage ? policyUiTokens.accent : (tone === 'lvl-hi' ? '#2E7D32' : tone === 'lvl-mid' ? '#A85B00' : tone === 'lvl-orange' ? '#C77C02' : '#B3261E');
+  const tone = coverage ? 'bar-accent' : (!hasValue ? 'metric-null' : complianceTone(numeric));
+  const fillColor = coverage ? policyUiTokens.accent : complianceFillColor(tone);
   return <div role="cell" style={styles.td}><span aria-label={tooltip} style={styles.percent}><span>{formatPercent(value)}</span>{hasValue ? <span className={tone} style={styles.percentBar}><span style={{ ...styles.percentFill, width: `${Math.max(0, Math.min(100, numeric))}%`, background: fillColor }} /></span> : null}</span></div>;
 }
 
@@ -149,7 +158,7 @@ export default function Overview({ integration = 'action1-configuration-manager'
     <div style={styles.kpis}>
       <div style={styles.kpi}><MetricLabel label="Active Policies" tooltip={TOOLtips.active} /><div style={styles.value}>{displayCount(summary.activePoliciesCount)}</div><p style={styles.sub}>{displayCount(summary.assignedCount)} endpoints assigned</p></div>
       <div style={styles.kpi}><MetricLabel label="Need Attention" tooltip={TOOLtips.attention} /><div style={{ ...styles.value, color: '#A85B00' }}>{displayCount(summary.needsAttentionCount)}</div><p style={styles.sub}>{formatPercent(ratioPercent(summary.needsAttentionCount, summary.fullyEvaluatedCount))} of evaluated endpoints</p></div>
-      <div style={styles.kpi}><MetricLabel label="Not Fully Evaluated" tooltip={TOOLtips.incomplete} /><div style={styles.value}>{displayCount(summary.notFullyEvaluatedCount)}</div><p style={styles.sub}>{formatPercent(ratioPercent(summary.notFullyEvaluatedCount, summary.assignedCount))} of assigned endpoints</p></div>
+      <div style={styles.kpi}><MetricLabel label="Overall Compliance" tooltip={TOOLtips.compliance} /><div style={styles.value}>{formatPercent(summary.compliancePercent)}</div><p style={styles.sub}>{summary.fullyEvaluatedCount > 0 ? `${displayCount(summary.compliantCount)} of ${displayCount(summary.fullyEvaluatedCount)} evaluated endpoints compliant` : 'No fully evaluated endpoints'}</p><div style={styles.bar} aria-label={`Overall compliance ${formatPercent(summary.compliancePercent)}`} role="img">{summary.compliancePercent !== null && summary.compliancePercent !== undefined ? <span style={{ ...styles.percentFill, width: `${Math.max(0, Math.min(100, Number(summary.compliancePercent) || 0))}%`, background: complianceFillColor(complianceTone(summary.compliancePercent)) }} /> : null}</div></div>
       <div style={styles.kpi}><MetricLabel label="Evaluation Coverage" tooltip={TOOLtips.coverage} /><div style={styles.value}>{formatPercent(summary.evaluationCoveragePercent)}</div><p style={styles.sub}>{displayCount(summary.fullyEvaluatedCount)} of {displayCount(summary.assignedCount)} endpoints evaluated</p><div style={styles.bar} aria-label={`Evaluation coverage ${formatPercent(summary.evaluationCoveragePercent)}`} role="img"><div style={{ ...styles.barFill, width: `${Math.max(0, Math.min(100, Number(summary.evaluationCoveragePercent) || 0))}%` }} /></div></div>
     </div>
     <div style={styles.sectionHead}><h2 style={styles.sectionTitle}>Policies</h2><p style={styles.sectionDescription}>Operational data for active policies.</p></div>

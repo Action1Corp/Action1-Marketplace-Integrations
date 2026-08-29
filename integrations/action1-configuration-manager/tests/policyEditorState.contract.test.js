@@ -67,8 +67,8 @@ async function run() {
 
   assert.strictEqual(
     deriveDisplayName('Workstation Security', 'Finance Workstations'),
-    'Workstation Security \u2014 Finance Workstations',
-    'deriveDisplayName should append the scope name with an em dash'
+    'Workstation Security - Finance Workstations',
+    'deriveDisplayName should append the scope name with the canonical short hyphen'
   );
 
   const wizardState = createWizardState();
@@ -176,7 +176,7 @@ async function run() {
   const existingPolicy = {
     policyId: 'POL-000001',
     baseName: 'Workstation Security',
-    displayName: 'Workstation Security \u2014 Finance Workstations',
+    displayName: 'Workstation Security - Finance Workstations',
     enabled: true,
     organizationId: 'org-acme',
     organizationNameSnapshot: 'Acme Corp',

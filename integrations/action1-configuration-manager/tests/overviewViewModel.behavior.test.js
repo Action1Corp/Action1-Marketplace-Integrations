@@ -9,7 +9,7 @@ function policy(overrides = {}) {
   return {
     policyId: 'POL-000001',
     baseName: 'Windows Hardening',
-    displayName: 'Windows Hardening — Prod Servers',
+    displayName: 'Windows Hardening - Prod Servers',
     organizationId: 'org-1',
     scopeType: 'ENDPOINT_GROUP',
     endpointGroupId: 'group-prod',

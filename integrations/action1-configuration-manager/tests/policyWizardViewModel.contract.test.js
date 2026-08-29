@@ -148,7 +148,7 @@ async function run() {
   const reviewModel = buildReviewViewModel({
     catalog,
     draft: mixedDraft,
-    displayName: 'Workstation Security \u2014 Finance Workstations',
+    displayName: 'Workstation Security - Finance Workstations',
     appliedBaselineId: 'microsoft-windows-11-25h2'
   });
 

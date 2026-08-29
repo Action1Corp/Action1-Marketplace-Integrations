@@ -12,15 +12,22 @@ async function buildCatalog() {
 async function run() {
   const {
     formatPolicyListRow,
+    deriveDisplayName,
     getPolicyRowActions,
     formatPolicyDetails,
     buildCompactControlFamilyGroups
   } = await import(pathToFileURL(path.join(__dirname, '..', 'ui', 'policies', 'policyViewModel.js')).href);
   const catalog = await buildCatalog();
 
+  assert.strictEqual(
+    deriveDisplayName('Windows 11 Security Baseline', 'Remote Workforce'),
+    'Windows 11 Security Baseline - Remote Workforce',
+    'Policy display names use the canonical short-hyphen separator'
+  );
+
   const enabledPolicy = {
     policyId: 'POL-000001',
-    displayName: 'Workstation Security \u2014 Finance Workstations',
+    displayName: 'Workstation Security - Finance Workstations',
     enabled: true,
     organizationNameSnapshot: 'Acme Corp',
     scopeType: 'ENDPOINT_GROUP',
@@ -60,7 +67,7 @@ async function run() {
   assert.deepStrictEqual(
     formatPolicyListRow(enabledPolicy),
     {
-      policyName: 'Workstation Security \u2014 Finance Workstations',
+      policyName: 'Workstation Security - Finance Workstations',
       status: 'Enabled',
       targetPrimary: 'Acme Corp',
       targetSecondary: 'Finance Workstations',
@@ -93,8 +100,8 @@ async function run() {
   assert.strictEqual(details.scheduleLabel, 'Every 6 h', 'details data should expose the compact run-schedule label');
   assert.strictEqual(
     details.policyName,
-    'Workstation Security \u2014 Finance Workstations',
-    'details data should preserve an encoding-safe em dash in the Policy display name'
+    'Workstation Security - Finance Workstations',
+    'details data should preserve the canonical short-hyphen Policy display name'
   );
   assert.strictEqual(
     details.automationRows[0].action1Url,

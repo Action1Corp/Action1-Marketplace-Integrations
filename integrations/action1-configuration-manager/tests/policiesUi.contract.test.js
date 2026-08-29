@@ -42,6 +42,12 @@ function run() {
   assert(!policyPageSource.includes('Demo state resets when the Marketplace page is refreshed.'), 'PolicyPage should not leak the prototype reset note');
 
   const listViewSource = readSource('ui/policies/PolicyListView.jsx');
+  assert(listViewSource.includes("import { Link } from 'react-router-dom';"), 'PolicyListView should use an accessible router link for Policy names');
+  assert(listViewSource.includes('buildPolicyDetailsPath'), 'Policy names should use the existing Policy Details route helper');
+  assert(listViewSource.includes('to={buildPolicyDetailsPath(integration, policy.policyId)}'), 'Policy names should link directly to Policy Details');
+  assert(listViewSource.includes('policyNameLink'), 'Policy names should use the existing Marketplace link treatment');
+  assert(listViewSource.includes('policy-name-link:hover') && listViewSource.includes('policy-name-link:focus-visible'), 'Policy name links should have visible hover and keyboard focus states');
+  assert(!listViewSource.includes('onClick={() => onOpen(policy.policyId)}'), 'Policy rows must not become clickable containers');
   assert(listViewSource.includes('Create Policy'), 'PolicyListView should expose the Create Policy action');
   assert(listViewSource.includes('Status'), 'PolicyListView should render the Status column');
   assert(listViewSource.includes('Target'), 'PolicyListView should render the Target column');
@@ -145,6 +151,15 @@ function run() {
 
   const detailsViewSource = readSource('ui/policies/PolicyDetailsView.jsx');
   assert(detailsViewSource.includes('Policy Details'), 'PolicyDetailsView should render the Policy Details heading');
+  assert(detailsViewSource.includes('headerActions'), 'PolicyDetailsView should render a dedicated header action group');
+  assert(detailsViewSource.includes('headerAction'), 'PolicyDetailsView should render visible text actions in the header');
+  assert(detailsViewSource.includes('aria-label="Edit Policy"'), 'PolicyDetailsView Edit action should have an accessible label');
+  assert(detailsViewSource.includes('aria-label={`${lifecycleAction} Policy`}'), 'PolicyDetailsView lifecycle action should have the current-state accessible label');
+  assert(detailsViewSource.includes("const lifecycleAction = policy.enabled === false ? 'Enable' : 'Disable';"), 'PolicyDetailsView should select Enable or Disable from the current Policy state');
+  assert(detailsViewSource.includes('onClick={onEdit}') && detailsViewSource.includes('onClick={policy.enabled === false ? onEnable : onDisable}'), 'Visible Policy Details actions should reuse existing callbacks');
+  assert(detailsViewSource.includes("return [{ label: 'Delete', destructive: true, onSelect: onDelete }];"), 'Policy Details overflow should retain only the existing Delete action');
+  assert(!detailsViewSource.includes("{ label: 'Edit', onSelect: onEdit }"), 'Policy Details overflow must not duplicate Edit');
+  assert(!detailsViewSource.includes("label: policy.enabled === false ? 'Enable' : 'Disable'"), 'Policy Details overflow must not duplicate Enable or Disable');
   assert(detailsViewSource.includes('Open automation in Action1'), 'PolicyDetailsView should expose deterministic Action1 automation links');
   assert(!detailsViewSource.includes('Action1 automation {familyGroup.automationLink.automationId}'), 'PolicyDetailsView should not show the persisted Action1 automation id');
   assert(detailsViewSource.includes('target="_blank"'), 'PolicyDetailsView should open Action1 links in a new tab');
@@ -157,7 +172,7 @@ function run() {
   assert(detailsViewSource.includes('Controls and Action1 automations'), 'PolicyDetailsView should merge Controls and automation links into one customer-facing section');
   assert(!detailsViewSource.includes('Selected Controls'), 'PolicyDetailsView should not render the stale technical Selected Controls section');
   assert(!detailsViewSource.includes('JSON.stringify'), 'PolicyDetailsView should not stringify raw parameter JSON into the customer-facing Details view');
-  assert(detailsViewSource.includes('Policy actions'), 'PolicyDetailsView should provide an accessible label for the heading action menu');
+  assert(detailsViewSource.includes('More actions'), 'PolicyDetailsView should provide an accessible label for the heading action menu');
   assert(detailsViewSource.includes('statusBadge'), 'PolicyDetailsView should render status and mode badges in the Overview section');
   assert(detailsViewSource.includes('CompactControlSummaryGroups'), 'PolicyDetailsView should reuse the shared compact Control summary presentation');
   assert(!detailsViewSource.includes('deterministic demo Action1 automation records'), 'PolicyDetailsView should not leak customer-facing demo automation wording');
@@ -185,10 +200,18 @@ function run() {
   assert(editorSource.includes('disabled={nextDisabled || busy}'), 'PolicyEditorView should prevent duplicate Save/Next submission while busy');
 
   const actionMenuSource = readSource('ui/policies/PolicyActionMenu.jsx');
+  assert(actionMenuSource.includes('width: 30') && actionMenuSource.includes('height: 30'), 'Policy Details overflow trigger should use the reference 30px square dimensions');
+  assert(actionMenuSource.includes('border: `1px solid ${policyUiTokens.inputBorderColor}`'), 'Policy Details overflow trigger should use the neutral bordered treatment');
+  assert(actionMenuSource.includes("background: 'transparent'") && actionMenuSource.includes('color: policyUiTokens.textSecondary'), 'Policy Details overflow trigger should use the reference neutral background and darker ellipsis');
+  assert(actionMenuSource.includes('policy-action-menu-trigger:hover') && actionMenuSource.includes('policy-action-menu-trigger:focus-visible'), 'Policy Details overflow trigger should have clear hover and focus states');
+  assert(actionMenuSource.includes('className="policy-action-menu-trigger"'), 'Policy Details overflow trigger should use a dedicated neutral visual class');
+  assert(actionMenuSource.includes('aria-label={label}') && actionMenuSource.includes('label = \'Policy actions\''), 'Policy action menu trigger should remain accessible');
   assert(actionMenuSource.includes('createPortal'), 'PolicyActionMenu should render through a portal so menus are not clipped by table surfaces');
   assert(actionMenuSource.includes('Escape'), 'PolicyActionMenu should close on Escape');
   assert(actionMenuSource.includes('mousedown'), 'PolicyActionMenu should close on outside click');
   assert(actionMenuSource.includes('fixed'), 'PolicyActionMenu should use fixed positioning for reliable viewport anchoring');
+  assert(actionMenuSource.includes('items.length > 1'), 'PolicyActionMenu should only render the destructive separator when secondary actions remain');
+  assert(actionMenuSource.includes('destructiveMenuButtonWithDivider'), 'PolicyActionMenu should retain the divider style only for multi-action menus');
 
   const styleTokensSource = readSource('ui/policies/policyUiStyles.js');
   assert(styleTokensSource.includes('controlHeight: 34'), 'policyUiStyles should centralize the compact 34px control height');

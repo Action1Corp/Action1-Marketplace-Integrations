@@ -14,13 +14,12 @@ const styles = {
   },
   trigger: {
     ...menuTriggerButtonStyle,
-    width: 'auto',
-    height: 'auto',
-    minHeight: 0,
-    padding: '4px 8px',
-    border: 'none',
+    width: 30,
+    height: 30,
+    padding: 0,
+    border: `1px solid ${policyUiTokens.inputBorderColor}`,
     background: 'transparent',
-    color: policyUiTokens.textMuted,
+    color: policyUiTokens.textSecondary,
     fontSize: 16,
     lineHeight: 1
   },
@@ -47,6 +46,13 @@ const styles = {
   destructiveMenuButton: {
     ...destructiveButtonStyle,
     border: 'none',
+    borderRadius: 4,
+    padding: '0.5rem 0.65rem',
+    textAlign: 'left'
+  },
+  destructiveMenuButtonWithDivider: {
+    ...destructiveButtonStyle,
+    border: 'none',
     borderTop: `1px solid ${policyUiTokens.borderColor}`,
     borderRadius: 4,
     padding: '0.6rem 0.65rem 0.5rem',
@@ -54,6 +60,11 @@ const styles = {
     marginTop: '0.15rem'
   }
 };
+
+const MENU_TRIGGER_CSS = `
+.policy-action-menu-trigger:hover { background: ${policyUiTokens.mutedBackground}; border-color: ${policyUiTokens.inputBorderColor}; }
+.policy-action-menu-trigger:focus-visible { outline: 2px solid ${policyUiTokens.accent}; outline-offset: 2px; }
+`;
 
 function resolveMenuPosition(triggerRect, menuRect) {
   const viewportPadding = 12;
@@ -141,9 +152,11 @@ function PolicyActionMenu({ items, label = 'Policy actions', disabled = false })
 
   return (
     <span style={styles.wrapper}>
+      <style>{MENU_TRIGGER_CSS}</style>
       <button
         ref={triggerRef}
         type="button"
+        className="policy-action-menu-trigger"
         style={styles.trigger}
         aria-label={label}
         aria-haspopup="menu"
@@ -171,7 +184,7 @@ function PolicyActionMenu({ items, label = 'Policy actions', disabled = false })
               type="button"
               role="menuitem"
               disabled={disabled || item.disabled}
-              style={item.destructive ? styles.destructiveMenuButton : styles.menuButton}
+              style={item.destructive ? (items.length > 1 ? styles.destructiveMenuButtonWithDivider : styles.destructiveMenuButton) : styles.menuButton}
               onClick={() => {
                 setIsOpen(false);
                 item.onSelect();

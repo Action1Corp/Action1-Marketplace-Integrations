@@ -14,5 +14,7 @@ export function buildNonCompliantReportUrl(reportId, organizationId) {
 }
 
 export function formatPercent(value) {
-  return value === null || value === undefined ? '—' : `${value}%`;
+  if (value === null || value === undefined) return '—';
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? `${Math.round(numeric)}%` : '—';
 }
