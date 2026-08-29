@@ -61,6 +61,7 @@ async function run() {
   assert.strictEqual(patched.history.counts.created, 1);
   assert.strictEqual(calls.update, 1);
   assert.strictEqual(calls.create[0].definition.fingerprint, desiredDefinition.fingerprint);
+  assert.strictEqual(calls.create[0].definition.name, 'A1CM - POL-EDIT - Edit Policy - Password Policy');
   assert.strictEqual(calls.create[0].definition.envelope.policyId, 'POL-EDIT');
   assert.strictEqual(calls.create[0].definition.envelope.policyName, 'Edit Policy');
   assert.strictEqual(calls.replacement.action1AutomationId, 'auto-new');

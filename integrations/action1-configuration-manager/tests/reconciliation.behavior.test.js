@@ -27,7 +27,7 @@ function policy(policyId, enabled = true) {
 async function run() {
   const policies = [policy('POL-EXISTS'), policy('POL-MISSING'), policy('POL-DISABLED', false)];
   const correlations = new Map([
-    ['POL-EXISTS', [{ policyId: 'POL-EXISTS', automationGroupId: 'identity.password-policy', action1AutomationId: 'auto-exists', active: true }]],
+    ['POL-EXISTS', [{ policyId: 'POL-EXISTS', automationGroupId: 'identity.password-policy', action1AutomationId: 'auto-exists', action1AutomationName: 'A1CM — POL-EXISTS — POL-EXISTS — Password Policy', active: true }]],
     ['POL-MISSING', [{ policyId: 'POL-MISSING', automationGroupId: 'identity.password-policy', action1AutomationId: 'auto-missing', active: true }]],
     ['POL-DISABLED', [{ policyId: 'POL-DISABLED', automationGroupId: 'identity.password-policy', action1AutomationId: 'auto-disabled', active: true }]]
   ]);
@@ -62,6 +62,7 @@ async function run() {
   assert.deepStrictEqual(result.aggregate, { policiesChecked: 2, automationsChecked: 2, created: 1, unchanged: 1, failed: 0 });
   assert.deepStrictEqual(calls.observe, [['org-1', 'auto-exists'], ['org-1', 'auto-missing']]);
   assert.strictEqual(calls.create.length, 1);
+  assert.strictEqual(calls.create[0].definition.name, 'A1CM - POL-MISSING - POL-MISSING - Password Policy');
   assert.strictEqual(calls.create[0].definition.envelope.policyId, 'POL-MISSING');
   assert.strictEqual(calls.create[0].definition.envelope.policyName, 'POL-MISSING');
   assert.strictEqual(calls.update.length, 0);
