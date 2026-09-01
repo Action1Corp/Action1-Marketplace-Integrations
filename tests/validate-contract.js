@@ -92,6 +92,10 @@ async function run() {
     'rapid7: sync must persist Action1 vulnerability severity counts'
   );
   assert(
+    rapid7SyncSource.includes('Loaded Action1 endpoint vulnerability counts for'),
+    'rapid7: sync must log Action1 endpoint vulnerability count success/failure totals'
+  );
+  assert(
     rapid7SyncSource.includes("source = rapid7Cve && action1Cve ? 'Both' : action1Cve ? 'Action1' : 'VM Scanner'"),
     'rapid7: endpoint CVE rows must preserve whether a CVE came from Rapid7, Action1, or both'
   );
