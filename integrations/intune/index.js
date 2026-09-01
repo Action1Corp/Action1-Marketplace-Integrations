@@ -1,5 +1,6 @@
-const { listAction1EndpointGroups, listAction1Organizations, listDeviceGroups, validate, validateAssignments } = require('./validate');
+const { listAction1AutomationSchedules, listAction1EndpointGroups, listAction1Organizations, listDeviceGroups, validate, validateAssignments } = require('./validate');
 const { sync } = require('./sync');
+const { createIntunePolicyStore } = require('./policyStore');
 
 const ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE = 'Action1 Provisioning Status';
 const ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE = 'Completed';
@@ -14,6 +15,69 @@ function summarizeValidationResult(result) {
   const ok = checks.length > 0 ? checks.every(check => check.ok !== false) : true;
   const message = checks.map(check => check.message).filter(Boolean).join(' | ') || (ok ? 'Validation completed.' : 'Validation failed.');
   return { ok, message, details: result };
+}
+
+function normalizeComparableName(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function resolvePolicyOrganization(policy, organizations) {
+  const policyOrganizationId = String(policy.organizationId || '').trim();
+  const policyOrganizationName = normalizeComparableName(policy.organizationName);
+  const policyAgentId = String(policy.agentId || '').trim().toLowerCase();
+  return organizations.find(organization => {
+    const organizationId = String(organization.id || '').trim();
+    const organizationName = normalizeComparableName(organization.name);
+    const agentId = String(organization.agentId || '').trim().toLowerCase();
+    return (
+      (policyOrganizationId && organizationId === policyOrganizationId) ||
+      (policyAgentId && agentId && policyAgentId === agentId) ||
+      (policyOrganizationName && organizationName && policyOrganizationName === organizationName)
+    );
+  }) || null;
+}
+
+async function hydratePoliciesWithAction1Organizations(context, policies) {
+  if (!policies.length) return policies;
+  try {
+    const credentials = await context.action1.getCredentials();
+    const organizations = await listAction1Organizations(credentials);
+    const store = createIntunePolicyStore(context);
+    const hydrated = [];
+    let changed = false;
+
+    for (const policy of policies) {
+      const organization = resolvePolicyOrganization(policy, organizations);
+      if (!organization) {
+        hydrated.push(policy);
+        continue;
+      }
+
+      const nextPolicy = {
+        ...policy,
+        organizationId: organization.id || policy.organizationId,
+        organizationName: organization.name || policy.organizationName,
+        agentId: organization.agentId || policy.agentId,
+        agentDownloadOrgName: organization.agentDownloadOrgName || policy.agentDownloadOrgName || policy.organizationName
+      };
+      changed = changed ||
+        nextPolicy.organizationId !== policy.organizationId ||
+        nextPolicy.organizationName !== policy.organizationName ||
+        nextPolicy.agentId !== policy.agentId ||
+        nextPolicy.agentDownloadOrgName !== policy.agentDownloadOrgName;
+      hydrated.push(nextPolicy);
+    }
+
+    if (changed) {
+      for (const policy of hydrated) await store.savePolicy(policy);
+      return await store.listPolicies();
+    }
+
+    return hydrated;
+  } catch (error) {
+    context.logger?.warn?.('[Intune] Unable to hydrate policy organization details:', error.message || error);
+    return policies;
+  }
 }
 
 async function validateConfiguration(context, request) {
@@ -41,8 +105,14 @@ async function syncAction(context) {
   };
 }
 
+async function storedIntuneSettings(context, overrides = {}) {
+  const keys = ['IntuneTenantId', 'IntuneClientId', 'IntuneClientSecret'];
+  const entries = await Promise.all(keys.map(async key => [key, overrides[key] || await context.settings.get(key)]));
+  return { ...Object.fromEntries(entries), ...overrides };
+}
+
 async function listDeviceGroupsAction(context, request) {
-  const groups = await listDeviceGroups(request.settings || {});
+  const groups = await listDeviceGroups(await storedIntuneSettings(context, request.settings || {}));
   return {
     ok: true,
     message: `Loaded ${groups.length} Intune device group${groups.length === 1 ? '' : 's'}.`,
@@ -51,7 +121,7 @@ async function listDeviceGroupsAction(context, request) {
 }
 
 async function validateAssignmentsAction(context, request) {
-  const result = await validateAssignments(request.settings || {});
+  const result = await validateAssignments(await storedIntuneSettings(context, request.settings || {}));
   return {
     ...result,
     details: result
@@ -60,7 +130,12 @@ async function validateAssignmentsAction(context, request) {
 
 async function listAction1EndpointGroupsAction(context, request) {
   const credentials = await context.action1.getCredentials();
-  const selectedOrganizationId = String(request.settings?.IntuneAction1OrgId || '').trim();
+  const selectedOrganizationId = String(
+    request.payload?.organizationId ||
+    request.settings?.organizationId ||
+    request.settings?.IntuneAction1OrgId ||
+    ''
+  ).trim();
   if (selectedOrganizationId) credentials.organizationId = selectedOrganizationId;
   const groups = await listAction1EndpointGroups(credentials);
   return {
@@ -68,6 +143,126 @@ async function listAction1EndpointGroupsAction(context, request) {
     message: `Loaded ${groups.length} Action1 endpoint group${groups.length === 1 ? '' : 's'}.`,
     groups
   };
+}
+
+function isConfigurationPolicyAutomation(name) {
+  return /^A1CM\b/i.test(String(name || '').trim());
+}
+
+async function listConfigurationPoliciesByEndpointGroup(context, organizationId) {
+  try {
+    const rows = await context.db.all(
+      `SELECT policy_id, base_name, display_name, endpoint_group_id, endpoint_group_name_snapshot
+         FROM action1_configuration_manager_policies
+        WHERE organization_id = ?
+          AND enabled = 1
+          AND scope_type = 'ENDPOINT_GROUP'`,
+      [organizationId]
+    );
+    const byGroupId = new Map();
+    for (const row of Array.isArray(rows) ? rows : []) {
+      const groupId = String(row.endpoint_group_id || '').trim();
+      if (!groupId) continue;
+      if (!byGroupId.has(groupId)) byGroupId.set(groupId, []);
+      byGroupId.get(groupId).push({
+        id: String(row.policy_id || '').trim(),
+        name: String(row.base_name || row.display_name || row.policy_id || '').trim(),
+        displayName: String(row.display_name || row.base_name || row.policy_id || '').trim(),
+        endpointGroupName: String(row.endpoint_group_name_snapshot || '').trim()
+      });
+    }
+    return byGroupId;
+  } catch {
+    return new Map();
+  }
+}
+
+async function listAction1EndpointGroupDetailsAction(context, request) {
+  const credentials = await context.action1.getCredentials();
+  const selectedOrganizationId = String(
+    request.payload?.organizationId ||
+    request.settings?.organizationId ||
+    request.settings?.IntuneAction1OrgId ||
+    ''
+  ).trim();
+  if (selectedOrganizationId) credentials.organizationId = selectedOrganizationId;
+
+  const groups = await listAction1EndpointGroups(credentials);
+  let schedules = [];
+  let scheduleWarning = '';
+  try {
+    schedules = await listAction1AutomationSchedules(credentials);
+  } catch (error) {
+    scheduleWarning = 'Action1 automation schedules could not be loaded. Configuration Management policies are still shown.';
+    context.logger?.warn?.('[Intune] Unable to load Action1 automation schedules for endpoint group details:', error.message || error);
+  }
+  const configurationPoliciesByGroup = await listConfigurationPoliciesByEndpointGroup(context, credentials.organizationId);
+  const groupDetails = {};
+
+  for (const group of groups) {
+    const provisioningAutomations = schedules
+      .filter(schedule => schedule.endpointGroupIds.includes(group.id))
+      .filter(schedule => !isConfigurationPolicyAutomation(schedule.name))
+      .map(schedule => ({
+        id: schedule.id,
+        name: schedule.name,
+        enabled: schedule.enabled
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const configurationPolicies = (configurationPoliciesByGroup.get(group.id) || [])
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    groupDetails[group.id] = {
+      provisioningAutomations,
+      configurationPolicies
+    };
+  }
+
+  return {
+    ok: true,
+    message: scheduleWarning || `Loaded monitoring details for ${groups.length} Action1 endpoint group${groups.length === 1 ? '' : 's'}.`,
+    groupDetails,
+    scheduleWarning
+  };
+}
+
+async function listPoliciesAction(context) {
+  const store = createIntunePolicyStore(context);
+  const policies = await store.listPolicies();
+  return {
+    ok: true,
+    policies: await hydratePoliciesWithAction1Organizations(context, policies)
+  };
+}
+
+async function getPolicyAction(context, request = {}) {
+  const policyId = String(request.payload?.policyId || '').trim();
+  if (!policyId) return { ok: false, message: 'Profile id is required.' };
+  const store = createIntunePolicyStore(context);
+  const policy = await store.getPolicy(policyId);
+  return policy ? { ok: true, policy } : { ok: false, message: 'Profile was not found.' };
+}
+
+async function savePolicyAction(context, request = {}) {
+  try {
+    const store = createIntunePolicyStore(context);
+    const policy = await store.savePolicy(request.payload?.policy || request.payload || {});
+    return { ok: true, message: 'Profile saved.', policy };
+  } catch (error) {
+    return { ok: false, message: error.message || 'Unable to save profile.' };
+  }
+}
+
+async function deletePolicyAction(context, request = {}) {
+  try {
+    const policyId = String(request.payload?.policyId || '').trim();
+    if (!policyId) throw new Error('Profile id is required.');
+    const store = createIntunePolicyStore(context);
+    await store.deletePolicy(policyId);
+    return { ok: true, message: 'Profile deleted.', policyId };
+  } catch (error) {
+    return { ok: false, message: error.message || 'Unable to delete profile.' };
+  }
 }
 
 async function listAction1OrganizationsAction(context) {
@@ -111,7 +306,17 @@ async function markProvisioningCompleteAction(context, request) {
   if (!endpointId) throw new Error('Action1 endpoint ID is required.');
 
   const credentials = await context.action1.getCredentials();
-  const selectedOrganizationId = String(await context.settings.get('IntuneAction1OrgId') || credentials.organizationId || '').trim();
+  let selectedOrganizationId = String(request.payload?.organizationId || '').trim();
+  if (!selectedOrganizationId) {
+    try {
+      const rawData = await context.settings.get('IntuneVersionData');
+      const data = rawData ? JSON.parse(rawData) : {};
+      selectedOrganizationId = String(data.selectedAction1OrgId || '').trim();
+    } catch {}
+  }
+  if (!selectedOrganizationId) {
+    selectedOrganizationId = String(await context.settings.get('IntuneAction1OrgId') || credentials.organizationId || '').trim();
+  }
   if (!credentials.apiKey || !credentials.apiSecret || !selectedOrganizationId) {
     throw new Error('Action1 credentials and organization are required.');
   }
@@ -163,8 +368,13 @@ module.exports = {
     'validate-configuration': validateConfiguration,
     'list-action1-organizations': listAction1OrganizationsAction,
     'list-action1-endpoint-groups': listAction1EndpointGroupsAction,
+    'list-action1-endpoint-group-details': listAction1EndpointGroupDetailsAction,
     'list-device-groups': listDeviceGroupsAction,
     'validate-assignments': validateAssignmentsAction,
+    'list-policies': listPoliciesAction,
+    'get-policy': getPolicyAction,
+    'save-policy': savePolicyAction,
+    'delete-policy': deletePolicyAction,
     'mark-provisioning-complete': markProvisioningCompleteAction,
     sync: syncAction
   }

@@ -60,6 +60,56 @@
       "history": false
     },
     {
+      "id": "list-action1-endpoint-group-details",
+      "kind": "read",
+      "label": "List Action1 Endpoint Group Details",
+      "buttonLabel": "Load Endpoint Group Details",
+      "runningLabel": "Loading...",
+      "description": "Reads provisioning automations and Configuration Management policies attached to Action1 endpoint groups.",
+      "placement": "policies",
+      "history": false
+    },
+    {
+      "id": "list-policies",
+      "kind": "read",
+      "label": "List Enrollment Profiles",
+      "buttonLabel": "Load Profiles",
+      "runningLabel": "Loading...",
+      "description": "Lists Enrollment and Provisioning profiles.",
+      "placement": "policies",
+      "history": false
+    },
+    {
+      "id": "get-policy",
+      "kind": "read",
+      "label": "Get Enrollment Profile",
+      "buttonLabel": "Load Profile",
+      "runningLabel": "Loading...",
+      "description": "Loads one Enrollment and Provisioning profile.",
+      "placement": "policies",
+      "history": false
+    },
+    {
+      "id": "save-policy",
+      "kind": "action",
+      "label": "Save Enrollment Profile",
+      "buttonLabel": "Save Profile",
+      "runningLabel": "Saving...",
+      "description": "Creates or updates an Enrollment and Provisioning profile.",
+      "placement": "policies",
+      "history": false
+    },
+    {
+      "id": "delete-policy",
+      "kind": "action",
+      "label": "Delete Enrollment Profile",
+      "buttonLabel": "Delete Profile",
+      "runningLabel": "Deleting...",
+      "description": "Deletes an Enrollment and Provisioning profile.",
+      "placement": "policies",
+      "history": false
+    },
+    {
       "id": "mark-provisioning-complete",
       "kind": "action",
       "label": "Mark Provisioning Complete",

@@ -14,8 +14,8 @@ const endpointColumns = [
   { key: 'deviceName', label: 'Endpoint', minWidth: 220, maxWidth: 360 },
   { key: 'source', label: 'Enrollment Status', nowrap: true },
   { key: 'provisioningStatus', label: 'Provisioning Status', nowrap: true },
-  { key: 'action1EndpointGroups', label: 'Endpoint Groups', minWidth: 150, maxWidth: 260 },
-  { key: 'deviceGroups', label: 'Device Groups', minWidth: 180, maxWidth: 320 },
+  { key: 'action1EndpointGroups', label: 'Action1 Groups', minWidth: 150, maxWidth: 260 },
+  { key: 'deviceGroups', label: 'Intune Groups', minWidth: 180, maxWidth: 320 },
   { key: 'os', label: 'OS', nowrap: true }
 ];
 
@@ -174,6 +174,7 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
   const [expandedEndpointId, setExpandedEndpointId] = useState('');
   const [markingEndpointId, setMarkingEndpointId] = useState('');
   const [markCompleteMessage, setMarkCompleteMessage] = useState('');
+  const [selectedPolicyId, setSelectedPolicyId] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -216,17 +217,25 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
     };
   }, [syncing]);
 
-  const endpointRegistration = data?.endpointRegistration || {};
+  useEffect(() => {
+    if (!selectedPolicyId && data?.selectedPolicyId) setSelectedPolicyId(data.selectedPolicyId);
+  }, [data?.selectedPolicyId, selectedPolicyId]);
+
+  const policies = Array.isArray(data?.policies) ? data.policies : [];
+  const selectedPolicy = policies.find(policy => policy.policyId === selectedPolicyId) || policies.find(policy => policy.policyId === data?.selectedPolicyId) || null;
+  const policyResults = data?.policyResults && typeof data.policyResults === 'object' ? data.policyResults : {};
+  const selectedPolicyResult = selectedPolicy?.policyId ? policyResults[selectedPolicy.policyId] : null;
+  const endpointRegistration = selectedPolicyResult?.endpointRegistration || data?.endpointRegistration || {};
   const missingDevices = Array.isArray(endpointRegistration.missingDevices) ? endpointRegistration.missingDevices : [];
   const endpointRows = useMemo(() => {
     const endpoints = Array.isArray(endpointRegistration.endpoints) ? endpointRegistration.endpoints : [];
     if (endpoints.length) return endpoints;
     return missingDevices.map(device => ({ ...device, source: 'Intune' }));
   }, [endpointRegistration.endpoints, missingDevices]);
-  const selectedGroupIds = parseSelectedGroupIds(data?.selectedGroupIds);
-  const selectedGroupMap = parseSelectedGroupMap(data?.selectedGroupMap);
+  const selectedGroupIds = parseSelectedGroupIds(selectedPolicy?.intuneDeviceGroupIds || data?.selectedGroupIds);
+  const selectedGroupMap = parseSelectedGroupMap(selectedPolicy?.intuneDeviceGroupMap || data?.selectedGroupMap);
   const selectedGroupLabels = selectedGroupIds.map(groupId => selectedGroupMap[groupId] || 'Group name unavailable');
-  const usesSelectedGroups = data?.assignmentMode === 'selectedGroups';
+  const usesSelectedGroups = (selectedPolicy?.assignmentMode || data?.assignmentMode) === 'selectedGroups';
   const selectedGroupLabelSet = useMemo(
     () => new Set(selectedGroupLabels.map(label => String(label || '').trim().toLowerCase()).filter(Boolean)),
     [selectedGroupLabels]
@@ -276,6 +285,26 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
     );
   }
 
+  if (policies.length === 0) {
+    return (
+      <div style={{ width: '100%', maxWidth: '100%', margin: 0 }}>
+        <div style={{ marginBottom: '2rem' }}>
+          <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 700 }}>Windows Device Enrollment and Provisioning</h1>
+          <div style={{ marginTop: '0.4rem', fontSize: '0.82rem', color: '#6B7280' }}>
+            Create an Enrollment and Provisioning profile before dashboard results are shown.
+          </div>
+        </div>
+        <div className="glass-panel" style={{ textAlign: 'center', padding: '3rem' }}>
+          <Package size={48} style={{ color: '#9CA3AF', marginBottom: '1rem' }} />
+          <h2 style={{ margin: '0 0 0.5rem 0', fontWeight: 600 }}>No Enrollment Profiles</h2>
+          <p style={{ color: 'var(--text-light)', margin: 0 }}>
+            Use Profiles to choose an Action1 organization, Intune assignment target, and monitoring groups.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const neverRun = data?.status === 'never_run';
   const latestVersion = data?.latestVersion || 'Unknown';
   const intuneVersion = data?.intuneVersion || 'Not Found';
@@ -286,9 +315,7 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
   const assignmentStatus = data?.assignmentStatus || 'not_checked';
   const assignmentMessage = data?.assignmentMessage || 'Assignments have not been checked.';
   const assignmentColor = assignmentStatus === 'configured' ? '#10b981' : assignmentStatus === 'failed' ? '#ef4444' : '#6B7280';
-  const assignmentTargetDeviceCount = Number.isFinite(endpointRegistration.assignmentTargetDeviceCount)
-    ? endpointRegistration.assignmentTargetDeviceCount
-    : usesSelectedGroups ? 0 : endpointRegistration.intuneTotal;
+  const assignmentTargetDeviceCount = targetEndpointRows.length;
   const registrationStatus = endpointRegistration.status || 'not_checked';
   const registrationColor = registrationStatus === 'checked'
     ? (endpointRegistration.missingFromAction1 > 0 ? '#f59e0b' : '#10b981')
@@ -326,7 +353,7 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          payload: { endpointId, endpointName },
+          payload: { endpointId, endpointName, organizationId: selectedPolicy?.organizationId || data?.selectedAction1OrgId || '' },
           trackHistory: false
         })
       });
@@ -374,6 +401,20 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
           <div style={{ marginTop: '0.4rem', fontSize: '0.82rem', color: '#6B7280' }}>Status refreshes automatically every 15 minutes.</div>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          {policies.length > 0 && (
+            <select
+              value={selectedPolicyId || data?.selectedPolicyId || ''}
+              onChange={event => setSelectedPolicyId(event.target.value)}
+              title="Choose which Action1 organization profile to display"
+              style={{ minHeight: 34, padding: '0.4rem 0.75rem', border: '1px solid var(--border-color)', borderRadius: 6, background: '#fff', color: '#111827', fontSize: '0.8rem' }}
+            >
+              {policies.map(policy => (
+                <option key={policy.policyId} value={policy.policyId}>
+                  {policy.organizationName || policy.name}
+                </option>
+              ))}
+            </select>
+          )}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -412,6 +453,11 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {selectedPolicy && selectedPolicy.policyId !== data?.selectedPolicyId && !selectedPolicyResult && (
+            <div style={{ padding: '0.85rem 1rem', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, color: '#9A3412', fontSize: '0.85rem', marginBottom: '1rem', order: 0 }}>
+              Results for {selectedPolicy.organizationName || selectedPolicy.name} have not been synced in this dashboard payload yet. Run Sync Now after selecting or enabling this profile.
+            </div>
+          )}
           <div className="glass-panel" style={{ padding: '1.5rem', marginTop: '1.5rem', order: 2 }}>
             <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', fontWeight: 600 }}>Application Details</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>

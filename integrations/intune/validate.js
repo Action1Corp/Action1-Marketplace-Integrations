@@ -181,16 +181,25 @@ function extractAgentIdFromDownloadUrl(downloadUrl) {
   return match ? decodeURIComponent(match[1]) : '';
 }
 
-async function getAction1AgentIdForOrganization(token, baseUrl, organizationId) {
-  if (!organizationId) return '';
+function extractAgentDownloadOrgNameFromDownloadUrl(downloadUrl) {
+  const match = String(downloadUrl || '').match(/\/Windows\/agent\(([^)]+)\)\.msi(?:$|[?#])/i);
+  return match ? decodeURIComponent(match[1]) : '';
+}
+
+async function getAction1AgentInstallerForOrganization(token, baseUrl, organizationId) {
+  if (!organizationId) return { agentId: '', agentDownloadOrgName: '' };
   try {
     const data = await action1Get(
       token,
       `${baseUrl}/endpoints/agent-installation/${encodeURIComponent(organizationId)}/windowsMSI`
     );
-    return extractAgentIdFromDownloadUrl(data.download_URL || data.downloadUrl || data.url || '');
+    const downloadUrl = data.download_URL || data.downloadUrl || data.url || '';
+    return {
+      agentId: extractAgentIdFromDownloadUrl(downloadUrl),
+      agentDownloadOrgName: extractAgentDownloadOrgNameFromDownloadUrl(downloadUrl)
+    };
   } catch {
-    return '';
+    return { agentId: '', agentDownloadOrgName: '' };
   }
 }
 
@@ -213,10 +222,14 @@ async function listAction1Organizations(credentials) {
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  return Promise.all(normalizedOrganizations.map(async organization => ({
-    ...organization,
-    agentId: organization.agentId || await getAction1AgentIdForOrganization(token, baseUrl, organization.id)
-  })));
+  return Promise.all(normalizedOrganizations.map(async organization => {
+    const installer = await getAction1AgentInstallerForOrganization(token, baseUrl, organization.id);
+    return {
+      ...organization,
+      agentId: organization.agentId || installer.agentId,
+      agentDownloadOrgName: installer.agentDownloadOrgName || organization.name
+    };
+  }));
 }
 
 async function findAction1App(token) {
@@ -287,6 +300,34 @@ async function listAction1EndpointGroups(credentials) {
     }))
     .filter(group => group.id && group.name)
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function normalizeAction1GroupIds(items = []) {
+  return (Array.isArray(items) ? items : [])
+    .map(item => String(item?.id || item?.group_id || item?.groupId || '').trim())
+    .filter(Boolean);
+}
+
+async function listAction1AutomationSchedules(credentials) {
+  const organizationId = credentials?.organizationId;
+  if (!organizationId) throw new Error('Action1 organization ID is required.');
+
+  const baseUrl = action1BaseUrl(credentials);
+  const token = await getAction1Token(credentials);
+  const schedules = await action1GetAll(
+    token,
+    `${baseUrl}/automations/schedules/${encodeURIComponent(organizationId)}?limit=500&from=0`,
+    baseUrl
+  );
+
+  return schedules
+    .map(schedule => ({
+      id: String(schedule.id || schedule.schedule_id || schedule.scheduleId || schedule.name || '').trim(),
+      name: String(schedule.name || schedule.displayName || schedule.display_name || schedule.id || '').trim(),
+      enabled: schedule.enabled !== false,
+      endpointGroupIds: normalizeAction1GroupIds(schedule.endpoints || schedule.endpoint_groups || schedule.endpointGroups || schedule.targets)
+    }))
+    .filter(schedule => schedule.id && schedule.name);
 }
 
 async function validateAssignments(settings) {
@@ -366,6 +407,7 @@ async function validate({ settings }) {
 }
 
 module.exports = {
+  listAction1AutomationSchedules,
   listAction1EndpointGroups,
   listAction1Organizations,
   listDeviceGroups,

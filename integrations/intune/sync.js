@@ -9,6 +9,7 @@ let nvdService;
 
 const crypto = require('crypto');
 const zlib = require('zlib');
+const { legacyPolicyFromSettings, normalizePolicy } = require('./policyStore');
 
 const ACTION1_APP_IMAGE_URL = 'https://www.action1.com/wp-content/uploads/2025/03/Action1_2560x1600.png';
 const ACTION1_APP_INFORMATION_URL = 'https://www.action1.com/documentation/';
@@ -108,6 +109,70 @@ function buildAction1AgentDownloadUrl(agentId, orgName, consoleBaseUrl = DEFAULT
         msiFileName,
         downloadUrl: `${String(consoleBaseUrl || DEFAULT_ACTION1_CONSOLE_URL).replace(/\/+$/, '')}/agent/${encodeURIComponent(agentId)}/Windows/${encodeURIComponent(msiFileName)}`
     };
+}
+
+function safeFileName(value) {
+    return String(value || '')
+        .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 120);
+}
+
+function buildIntuneAppName(orgName) {
+    const label = String(orgName || '').trim();
+    return label ? `Action1 Agent - ${label}` : 'Action1 Agent';
+}
+
+function normalizeIntuneAppName(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function isCommittedIntuneApp(app) {
+    return !Object.prototype.hasOwnProperty.call(app || {}, 'committedContentVersion') || Boolean(app.committedContentVersion);
+}
+
+function compareIntuneAppsForRetention(a, b) {
+    const aCommitted = isCommittedIntuneApp(a) ? 1 : 0;
+    const bCommitted = isCommittedIntuneApp(b) ? 1 : 0;
+    if (aCommitted !== bCommitted) return bCommitted - aCommitted;
+
+    const versionCompare = compareVersions(String(b?.displayVersion || '0'), String(a?.displayVersion || '0'));
+    if (versionCompare !== 0) return versionCompare;
+
+    const aDate = Date.parse(a?.lastModifiedDateTime || a?.createdDateTime || '') || 0;
+    const bDate = Date.parse(b?.lastModifiedDateTime || b?.createdDateTime || '') || 0;
+    return bDate - aDate;
+}
+
+async function findManagedIntuneApp(graphHeaders, desiredAppName) {
+    const desiredName = normalizeIntuneAppName(desiredAppName);
+    const appsRes = await axios.get(
+        `${INTUNE_GRAPH_BASE}/deviceAppManagement/mobileApps?$filter=isof('microsoft.graph.win32LobApp')`,
+        { headers: graphHeaders }
+    );
+    const matches = (appsRes.data.value || [])
+        .filter(app => normalizeIntuneAppName(app.displayName) === desiredName)
+        .sort(compareIntuneAppsForRetention);
+
+    const primary = matches.find(isCommittedIntuneApp) || null;
+    const duplicateApps = matches.filter(app => !primary || app.id !== primary.id);
+    return { primary, duplicateApps };
+}
+
+async function deleteDuplicateIntuneApps(graphHeaders, desiredAppName, duplicateApps = []) {
+    let deleted = 0;
+    for (const app of duplicateApps) {
+        if (!app?.id) continue;
+        await updateProgress(`Removing duplicate Intune app "${app.displayName || desiredAppName}"...`);
+        await deleteIntuneApp(graphHeaders, app.id);
+        deleted += 1;
+    }
+    if (deleted > 0) {
+        await updateProgress(`Removed ${deleted} duplicate Intune app${deleted === 1 ? '' : 's'} for "${desiredAppName}".`);
+        await new Promise(r => setTimeout(r, 3000));
+    }
+    return deleted;
 }
 
 function assertMsiDownload(response, buffer) {
@@ -349,6 +414,33 @@ function parseSelectedGroupMap(value) {
         return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
     } catch {}
     return {};
+}
+
+async function getEnrollmentPoliciesForSync() {
+    const rawPolicies = await getSetting('IntuneEnrollmentPolicies');
+    const settings = {
+        IntuneAction1OrgId: await getSetting('IntuneAction1OrgId'),
+        IntuneAgentId: await getSetting('IntuneAgentId'),
+        IntuneOrgName: await getSetting('IntuneOrgName'),
+        IntuneAssignmentTargetMode: await getSetting('IntuneAssignmentTargetMode'),
+        IntuneDeviceGroupIds: await getSetting('IntuneDeviceGroupIds'),
+        IntuneDeviceGroupMap: await getSetting('IntuneDeviceGroupMap'),
+        IntuneProvisioningAction1GroupIds: await getSetting('IntuneProvisioningAction1GroupIds'),
+        IntuneProvisioningAction1GroupMap: await getSetting('IntuneProvisioningAction1GroupMap')
+    };
+    try {
+        const parsed = JSON.parse(rawPolicies || '[]');
+        if (String(rawPolicies || '').trim()) {
+            return Array.isArray(parsed)
+                ? parsed.map(policy => normalizePolicy({
+                    ...policy,
+                    agentDownloadOrgName: policy.agentDownloadOrgName || settings.IntuneAgentDownloadOrgName || settings.IntuneOrgName || policy.organizationName
+                })).filter(policy => policy.enabled !== false)
+                : [];
+        }
+    } catch {}
+    const legacyPolicy = legacyPolicyFromSettings(settings);
+    return legacyPolicy ? [legacyPolicy] : [];
 }
 
 function normalizeAssignmentMode(value) {
@@ -1618,18 +1710,18 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
 }
 
 /** Create a new Win32 LOB app in Intune and upload the MSI content */
-async function createIntuneApp(graphHeaders, msiBuffer, msiFileName, version, productCode) {
+async function createIntuneApp(graphHeaders, msiBuffer, msiFileName, version, productCode, appName) {
     const graphBase = INTUNE_GRAPH_BASE;
     let appId = null;
 
     const largeIcon = await getAction1LargeIcon();
-    const intuneContentFileName = 'IntunePackage.intunewin';
+    const intuneContentFileName = `${safeFileName(appName) || 'Action1 Agent'}.intunewin`;
 
     // 1. Create the app shell
     const appBody = {
         "@odata.type": "#microsoft.graph.win32LobApp",
-        displayName: "Action1 Agent",
-        description: "Action1 Remote Monitoring and Management Agent",
+        displayName: appName,
+        description: `${appName} Remote Monitoring and Management Agent`,
         publisher: "Action1 Corporation",
         informationUrl: ACTION1_APP_INFORMATION_URL,
         privacyInformationUrl: ACTION1_APP_PRIVACY_URL,
@@ -1750,6 +1842,98 @@ async function clearIntuneAppRequirementRules(graphHeaders, app) {
     return true;
 }
 
+async function ensureIntuneAppForPolicy(graphHeaders, policy, baseAction1Credentials = {}) {
+    const agentId = policy?.agentId || '';
+    const organizationName = policy?.organizationName || '';
+    const agentDownloadOrgName = policy?.agentDownloadOrgName || policy?.organizationName || '';
+    const organizationId = policy?.organizationId || '';
+    const desiredAppName = buildIntuneAppName(organizationName);
+    const assignmentMode = normalizeAssignmentMode(policy?.assignmentMode);
+    const selectedGroupIds = policy?.intuneDeviceGroupIds || [];
+    const action1Credentials = { ...baseAction1Credentials };
+    if (organizationId) action1Credentials.organizationId = organizationId;
+
+    if (!agentId || !organizationName) throw new Error(`Policy ${policy?.name || policy?.policyId || ''} is missing the Action1 agent installer ID or organization name.`);
+    if (assignmentMode === ASSIGNMENT_MODE_SELECTED_GROUPS && selectedGroupIds.length === 0) throw new Error(`Policy ${policy?.name || policy?.policyId || ''} must select at least one Intune device group, or choose All devices.`);
+
+    await updateProgress(`Downloading latest Action1 Agent MSI for ${organizationName}...`);
+    const { msiFileName, downloadUrl } = buildAction1AgentDownloadUrl(agentId, agentDownloadOrgName, action1ConsoleUrl(action1Credentials));
+    const msiRes = await axios.get(downloadUrl, { responseType: 'arraybuffer', timeout: 120000, validateStatus: () => true });
+    const msiBuffer = Buffer.from(msiRes.data);
+    assertMsiDownload(msiRes, msiBuffer);
+    const latestVersion = extractMsiVersion(msiBuffer) || 'Unknown';
+    const productCode = extractMsiProductCode(msiBuffer);
+    if (latestVersion === 'Unknown') throw new Error(`Could not determine version from downloaded Action1 Agent MSI for ${organizationName}.`);
+
+    await updateProgress(`Checking Intune for existing "${desiredAppName}" app...`);
+    let intuneVersion = 'Not Found';
+    let intuneAppId = null;
+    let intuneAppName = null;
+    let action = 'none';
+
+    const { primary: action1App, duplicateApps } = await findManagedIntuneApp(graphHeaders, desiredAppName);
+    await deleteDuplicateIntuneApps(graphHeaders, desiredAppName, duplicateApps);
+
+    if (action1App) {
+        intuneVersion = action1App.displayVersion || 'Unknown';
+        intuneAppId = action1App.id;
+        intuneAppName = action1App.displayName;
+        await updateProgress(`Found: "${intuneAppName}" v${intuneVersion}`);
+        try {
+            const clearedRequirements = await clearIntuneAppRequirementRules(graphHeaders, action1App);
+            if (clearedRequirements) await updateProgress(`Removed custom Intune app requirement rules for "${intuneAppName}".`);
+        } catch (requirementError) {
+            await updateProgress(`Warning: Could not remove custom Intune app requirement rules for "${intuneAppName}": ${requirementError.response?.data?.error?.message || requirementError.message}`);
+        }
+    } else {
+        await updateProgress(`No "${desiredAppName}" app found in Intune.`);
+    }
+
+    if (!intuneAppId) {
+        action = 'create';
+        await updateProgress(`Creating new "${desiredAppName}" app v${latestVersion} in Intune...`);
+        intuneAppId = await createIntuneApp(graphHeaders, msiBuffer, msiFileName, latestVersion, productCode, desiredAppName);
+        intuneVersion = latestVersion;
+        intuneAppName = desiredAppName;
+        await updateProgress(`Successfully created "${desiredAppName}" v${latestVersion} in Intune.`);
+    } else if (intuneVersion !== 'Unknown' && compareVersions(latestVersion, intuneVersion) > 0) {
+        action = 'update';
+        await updateProgress(`Updating "${desiredAppName}": v${intuneVersion} to v${latestVersion}...`);
+        await axios.delete(`${INTUNE_GRAPH_BASE}/deviceAppManagement/mobileApps/${intuneAppId}`, { headers: graphHeaders });
+        await updateProgress(`Removed old Intune app. Creating updated "${desiredAppName}" version...`);
+        await new Promise(r => setTimeout(r, 3000));
+        intuneAppId = await createIntuneApp(graphHeaders, msiBuffer, msiFileName, latestVersion, productCode, desiredAppName);
+        intuneVersion = latestVersion;
+        intuneAppName = desiredAppName;
+        await updateProgress(`Successfully updated "${desiredAppName}" to v${latestVersion} in Intune.`);
+    } else {
+        action = 'none';
+        await updateProgress(`"${desiredAppName}" is up to date (v${intuneVersion}). No action needed.`);
+    }
+
+    let assignmentStatus = 'not_checked';
+    let assignmentMessage = 'Assignments were not checked.';
+    if (intuneAppId) {
+        const assignmentTarget = describeDesiredAssignments(assignmentMode, selectedGroupIds);
+        await updateProgress(`Configuring "${desiredAppName}" assignment target: ${assignmentTarget}...`);
+        await assignIntuneApp(graphHeaders, intuneAppId, assignmentMode, selectedGroupIds);
+        assignmentStatus = 'configured';
+        assignmentMessage = `Assigned to ${assignmentTarget}.`;
+        await updateProgress(`Assignments configured for "${desiredAppName}": ${assignmentTarget}.`);
+    }
+
+    return {
+        latestVersion,
+        intuneVersion,
+        intuneAppId,
+        intuneAppName: intuneAppName || desiredAppName,
+        versionStatus: action === 'none' || action === 'create' || action === 'update' ? 'up_to_date' : 'unknown',
+        lastAction: action,
+        assignmentStatus,
+        assignmentMessage
+    };
+}
+
 function compareVersions(v1, v2) {
     const a = v1.split('.').map(Number);
     const b = v2.split('.').map(Number);
@@ -1787,18 +1971,24 @@ async function runSync() {
         const IntuneTenantId = await getSetting('IntuneTenantId');
         const IntuneClientId = await getSetting('IntuneClientId');
         const IntuneClientSecret = await getSetting('IntuneClientSecret');
-        const IntuneAgentId = await getSetting('IntuneAgentId');
-        const IntuneOrgName = await getSetting('IntuneOrgName');
-        const IntuneAction1OrgId = await getSetting('IntuneAction1OrgId');
-        const assignmentMode = normalizeAssignmentMode(await getSetting('IntuneAssignmentTargetMode'));
-        const selectedGroupIds = parseSelectedGroupIds(await getSetting('IntuneDeviceGroupIds'));
-        const selectedGroupMap = parseSelectedGroupMap(await getSetting('IntuneDeviceGroupMap'));
-        const selectedAction1GroupIds = parseSelectedGroupIds(await getSetting('IntuneProvisioningAction1GroupIds'));
-        const selectedAction1GroupMap = parseSelectedGroupMap(await getSetting('IntuneProvisioningAction1GroupMap'));
+        const enrollmentPolicies = await getEnrollmentPoliciesForSync();
+        const activePolicy = enrollmentPolicies[0];
+        const IntuneAgentId = activePolicy?.agentId || '';
+        const IntuneOrgName = activePolicy?.organizationName || '';
+        const IntuneAgentDownloadOrgName = activePolicy?.agentDownloadOrgName || activePolicy?.organizationName || '';
+        const IntuneAction1OrgId = activePolicy?.organizationId || '';
+        const intuneDesiredAppName = buildIntuneAppName(IntuneOrgName);
+        const assignmentMode = normalizeAssignmentMode(activePolicy?.assignmentMode);
+        const selectedGroupIds = activePolicy?.intuneDeviceGroupIds || [];
+        const selectedGroupMap = activePolicy?.intuneDeviceGroupMap || {};
+        const selectedAction1GroupIds = activePolicy?.monitoredAction1GroupIds || [];
+        const selectedAction1GroupMap = activePolicy?.monitoredAction1GroupMap || {};
         const action1Credentials = await getAction1Credentials();
+        if (IntuneAction1OrgId) action1Credentials.organizationId = IntuneAction1OrgId;
 
         if (!IntuneTenantId || !IntuneClientId || !IntuneClientSecret) throw new Error("Intune credentials missing.");
-        if (!IntuneAgentId || !IntuneOrgName) throw new Error("Action1 Agent ID and Org Name are required.");
+        if (!activePolicy) throw new Error("Create at least one Enrollment and Provisioning profile before syncing.");
+        if (!IntuneAgentId || !IntuneOrgName) throw new Error("The selected policy is missing the Action1 agent installer ID or organization name.");
         if (assignmentMode === ASSIGNMENT_MODE_SELECTED_GROUPS && selectedGroupIds.length === 0) throw new Error("Select at least one Intune device group, or choose All devices.");
 
         // 1. Auth to Graph API
@@ -1817,7 +2007,7 @@ async function runSync() {
 
         // 2. Download latest Action1 Agent MSI
         await updateProgress("Downloading latest Action1 Agent MSI...");
-        const { msiFileName, downloadUrl } = buildAction1AgentDownloadUrl(IntuneAgentId, IntuneOrgName, action1ConsoleUrl(action1Credentials));
+        const { msiFileName, downloadUrl } = buildAction1AgentDownloadUrl(IntuneAgentId, IntuneAgentDownloadOrgName, action1ConsoleUrl(action1Credentials));
 
         const msiRes = await axios.get(downloadUrl, { responseType: 'arraybuffer', timeout: 120000, validateStatus: () => true });
         const msiBuffer = Buffer.from(msiRes.data);
@@ -1831,41 +2021,29 @@ async function runSync() {
         await updateProgress(`Latest Action1 Agent version: ${latestVersion}`);
 
         // 3. Check for existing Intune Win32 LOB app
-        await updateProgress("Checking Intune for existing Action1 Agent app...");
+        await updateProgress(`Checking Intune for existing "${intuneDesiredAppName}" app...`);
         let intuneVersion = 'Not Found';
         let intuneAppId = null;
         let intuneAppName = null;
         let action = 'none';
 
         try {
-            const appsRes = await axios.get(
-                `${INTUNE_GRAPH_BASE}/deviceAppManagement/mobileApps?$filter=isof('microsoft.graph.win32LobApp')`,
-                { headers: graphHeaders }
-            );
-            const apps = appsRes.data.value || [];
-            const action1App = apps.find(app => app.displayName && app.displayName.toLowerCase().includes('action1'));
+            const { primary: action1App, duplicateApps } = await findManagedIntuneApp(graphHeaders, intuneDesiredAppName);
+            await deleteDuplicateIntuneApps(graphHeaders, intuneDesiredAppName, duplicateApps);
 
             if (action1App) {
-                const hasCommittedContentField = Object.prototype.hasOwnProperty.call(action1App, 'committedContentVersion');
-                if (hasCommittedContentField && !action1App.committedContentVersion) {
-                    await updateProgress(`Found incomplete Action1 Agent app "${action1App.displayName}". Removing it before recreating...`);
-                    await deleteIntuneApp(graphHeaders, action1App.id);
-                    await new Promise(r => setTimeout(r, 3000));
-                    await updateProgress("Removed incomplete Intune app.");
-                } else {
-                    intuneVersion = action1App.displayVersion || 'Unknown';
-                    intuneAppId = action1App.id;
-                    intuneAppName = action1App.displayName;
-                    await updateProgress(`Found: "${intuneAppName}" v${intuneVersion}`);
-                    try {
-                        const clearedRequirements = await clearIntuneAppRequirementRules(graphHeaders, action1App);
-                        if (clearedRequirements) await updateProgress("Removed custom Intune app requirement rules.");
-                    } catch (requirementError) {
-                        await updateProgress(`Warning: Could not remove custom Intune app requirement rules: ${requirementError.response?.data?.error?.message || requirementError.message}`);
-                    }
+                intuneVersion = action1App.displayVersion || 'Unknown';
+                intuneAppId = action1App.id;
+                intuneAppName = action1App.displayName;
+                await updateProgress(`Found: "${intuneAppName}" v${intuneVersion}`);
+                try {
+                    const clearedRequirements = await clearIntuneAppRequirementRules(graphHeaders, action1App);
+                    if (clearedRequirements) await updateProgress("Removed custom Intune app requirement rules.");
+                } catch (requirementError) {
+                    await updateProgress(`Warning: Could not remove custom Intune app requirement rules: ${requirementError.response?.data?.error?.message || requirementError.message}`);
                 }
             } else {
-                await updateProgress("No Action1 Agent app found in Intune.");
+                await updateProgress(`No "${intuneDesiredAppName}" app found in Intune.`);
             }
         } catch (e) {
             await updateProgress(`Warning: Could not query Intune apps: ${e.response?.data?.error?.message || e.message}`);
@@ -1875,13 +2053,13 @@ async function runSync() {
         if (!intuneAppId) {
             // App doesn't exist — create it
             action = 'create';
-            await updateProgress(`Creating new Action1 Agent app v${latestVersion} in Intune...`);
+            await updateProgress(`Creating new "${intuneDesiredAppName}" app v${latestVersion} in Intune...`);
 
             try {
-                intuneAppId = await createIntuneApp(graphHeaders, msiBuffer, msiFileName, latestVersion, productCode);
+                intuneAppId = await createIntuneApp(graphHeaders, msiBuffer, msiFileName, latestVersion, productCode, intuneDesiredAppName);
                 intuneVersion = latestVersion;
-                intuneAppName = 'Action1 Agent';
-                await updateProgress(`Successfully created Action1 Agent v${latestVersion} in Intune.`);
+                intuneAppName = intuneDesiredAppName;
+                await updateProgress(`Successfully created "${intuneDesiredAppName}" v${latestVersion} in Intune.`);
             } catch (e) {
                 await updateProgress(`Failed to create Intune app: ${e.response?.data?.error?.message || e.message}`);
                 action = 'create_failed';
@@ -1895,12 +2073,13 @@ async function runSync() {
             try {
                 // Remove old app
                 await axios.delete(`${INTUNE_GRAPH_BASE}/deviceAppManagement/mobileApps/${intuneAppId}`, { headers: graphHeaders });
-                await updateProgress("Removed old Intune app. Creating updated version...");
+                await updateProgress(`Removed old Intune app. Creating updated "${intuneDesiredAppName}" version...`);
                 await new Promise(r => setTimeout(r, 3000)); // Give Graph API a moment
 
                 // Create new app
-                intuneAppId = await createIntuneApp(graphHeaders, msiBuffer, msiFileName, latestVersion, productCode);
+                intuneAppId = await createIntuneApp(graphHeaders, msiBuffer, msiFileName, latestVersion, productCode, intuneDesiredAppName);
                 intuneVersion = latestVersion;
+                intuneAppName = intuneDesiredAppName;
                 await updateProgress(`Successfully updated to v${latestVersion} in Intune.`);
             } catch (e) {
                 await updateProgress(`Failed to update Intune app: ${e.response?.data?.error?.message || e.message}`);
@@ -1983,6 +2162,52 @@ async function runSync() {
             await updateProgress(`Endpoint registration comparison failed: ${endpointRegistration.message}`);
         }
 
+        const policyResults = {
+            [activePolicy.policyId]: {
+                policyId: activePolicy.policyId,
+                policyName: activePolicy.name,
+                organizationId: IntuneAction1OrgId,
+                organizationName: IntuneOrgName,
+                endpointRegistration
+            }
+        };
+        for (const policy of enrollmentPolicies.slice(1)) {
+            try {
+                const policyDeployment = await ensureIntuneAppForPolicy(graphHeaders, policy, action1Credentials);
+                await updateProgress(`Refreshing dashboard results for policy ${policy.name}...`);
+                const policyEndpointRegistration = await compareIntuneDevicesToAction1(graphHeaders, {
+                    assignmentMode: normalizeAssignmentMode(policy.assignmentMode),
+                    selectedGroupIds: policy.intuneDeviceGroupIds || [],
+                    selectedGroupMap: policy.intuneDeviceGroupMap || {},
+                    selectedAction1GroupIds: policy.monitoredAction1GroupIds || [],
+                    selectedAction1GroupMap: policy.monitoredAction1GroupMap || {},
+                    selectedAction1OrgId: policy.organizationId,
+                    previousEndpointRegistration
+                });
+                policyResults[policy.policyId] = {
+                    policyId: policy.policyId,
+                    policyName: policy.name,
+                    organizationId: policy.organizationId,
+                    organizationName: policy.organizationName,
+                    intuneDeployment: policyDeployment,
+                    endpointRegistration: policyEndpointRegistration
+                };
+            } catch (policyError) {
+                policyResults[policy.policyId] = {
+                    policyId: policy.policyId,
+                    policyName: policy.name,
+                    organizationId: policy.organizationId,
+                    organizationName: policy.organizationName,
+                    endpointRegistration: {
+                        status: 'failed',
+                        message: policyError.response?.data?.error?.message || policyError.message,
+                        endpoints: []
+                    }
+                };
+                await updateProgress(`Policy ${policy.name} dashboard refresh failed: ${policyResults[policy.policyId].endpointRegistration.message}`);
+            }
+        }
+
         // 5. Store results
         const versionStatus = action === 'none' ? 'up_to_date'
             : (action === 'create' || action === 'update') ? 'up_to_date'
@@ -1994,12 +2219,20 @@ async function runSync() {
             latestVersion,
             intuneVersion,
             intuneAppId,
-            intuneAppName: intuneAppName || 'Action1 Agent',
+            intuneAppName: intuneAppName || intuneDesiredAppName,
             versionStatus,
             lastAction: action,
             assignmentMode,
             selectedGroupIds,
             selectedGroupMap,
+            policies: enrollmentPolicies,
+            selectedPolicyId: activePolicy.policyId,
+            selectedPolicyName: activePolicy.name,
+            selectedAction1OrgId: IntuneAction1OrgId,
+            selectedAction1OrgName: IntuneOrgName,
+            selectedAction1GroupIds,
+            selectedAction1GroupMap,
+            policyResults,
             assignmentStatus,
             assignmentMessage,
             endpointRegistration,
