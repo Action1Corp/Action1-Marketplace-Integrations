@@ -78,6 +78,24 @@ async function run() {
   }
   }
 
+  const rapid7SyncSource = fs.readFileSync(path.join(__dirname, '..', 'integrations', 'rapid7', 'sync.js'), 'utf8');
+  assert(
+    rapid7SyncSource.includes('fetchAction1EndpointVulnCounts'),
+    'rapid7: sync must fetch endpoint-level Action1 vulnerability counts so Action1-only endpoints do not show zero vulnerabilities'
+  );
+  assert(
+    rapid7SyncSource.includes('?endpoint_id=${endpointId}&limit=${limit}&from=${offset}'),
+    'rapid7: Action1 vulnerability lookup must be scoped by endpoint_id'
+  );
+  assert(
+    rapid7SyncSource.includes('action1_critical_vulns') && rapid7SyncSource.includes('action1_high_vulns') && rapid7SyncSource.includes('action1_medium_vulns') && rapid7SyncSource.includes('action1_low_vulns'),
+    'rapid7: sync must persist Action1 vulnerability severity counts'
+  );
+  assert(
+    rapid7SyncSource.includes("source = rapid7Cve && action1Cve ? 'Both' : action1Cve ? 'Action1' : 'VM Scanner'"),
+    'rapid7: endpoint CVE rows must preserve whether a CVE came from Rapid7, Action1, or both'
+  );
+
   console.log('Integration handler contract tests passed.');
 }
 

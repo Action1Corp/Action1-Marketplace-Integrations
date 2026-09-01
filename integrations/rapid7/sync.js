@@ -44,6 +44,144 @@ function extractRapid7Os(asset = {}) {
     );
 }
 
+function normalizeSeverityLabel(value, scoreValue) {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (normalized === 'critical') return 'Critical';
+    if (normalized === 'high') return 'High';
+    if (normalized === 'medium') return 'Medium';
+    if (normalized === 'low') return 'Low';
+
+    const score = parseFloat(scoreValue);
+    if (!Number.isNaN(score)) {
+        if (score >= 9.0) return 'Critical';
+        if (score >= 7.0) return 'High';
+        if (score >= 4.0) return 'Medium';
+        if (score > 0) return 'Low';
+    }
+
+    return 'Low';
+}
+
+function chooseCveEntry(existing, next) {
+    if (!existing) return next;
+
+    const merged = { ...existing };
+    if ((!merged.plugin_name || merged.plugin_name === merged.cve) && next.plugin_name && next.plugin_name !== next.cve) {
+        merged.plugin_name = next.plugin_name;
+    }
+    if ((!merged.vulnerable_software || merged.vulnerable_software === merged.cve) && next.vulnerable_software && next.vulnerable_software !== next.cve) {
+        merged.vulnerable_software = next.vulnerable_software;
+    }
+    if ((!merged.title || merged.title === merged.cve) && next.title && next.title !== next.cve) {
+        merged.title = next.title;
+    }
+
+    const rank = { Critical: 4, High: 3, Medium: 2, Low: 1, Unknown: 0 };
+    const existingScore = existing.cvss;
+    const nextScore = next.cvss;
+    const existingHasScore = existingScore !== null && existingScore !== undefined;
+    const nextHasScore = nextScore !== null && nextScore !== undefined;
+
+    if (nextHasScore && !existingHasScore) return { ...next, plugin_name: next.plugin_name || merged.plugin_name, vulnerable_software: next.vulnerable_software || merged.vulnerable_software, title: next.title || merged.title };
+    if (nextHasScore && existingHasScore && nextScore >= existingScore) return { ...next, plugin_name: next.plugin_name || merged.plugin_name, vulnerable_software: next.vulnerable_software || merged.vulnerable_software, title: next.title || merged.title };
+    if (!nextHasScore && !existingHasScore && rank[next.severity] >= rank[existing.severity]) return { ...next, plugin_name: next.plugin_name || merged.plugin_name, vulnerable_software: next.vulnerable_software || merged.vulnerable_software, title: next.title || merged.title };
+
+    return merged;
+}
+
+function countBySeverity(cveMap = {}) {
+    const counts = { Critical: 0, High: 0, Medium: 0, Low: 0 };
+
+    for (const cveData of Object.values(cveMap)) {
+        const severity = normalizeSeverityLabel(cveData.severity, cveData.cvss);
+        counts[severity]++;
+    }
+
+    counts.total = counts.Critical + counts.High + counts.Medium + counts.Low;
+    return counts;
+}
+
+function mergeCveMaps(...maps) {
+    const merged = {};
+
+    for (const map of maps) {
+        for (const [cve, cveData] of Object.entries(map || {})) {
+            merged[cve] = chooseCveEntry(merged[cve], cveData);
+        }
+    }
+
+    return merged;
+}
+
+function hasAction1AvailableUpdates(vulnerability) {
+    return Array.isArray(vulnerability?.software)
+        && vulnerability.software.some((software) => Array.isArray(software.available_updates) && software.available_updates.length > 0);
+}
+
+function action1RemediationStatus(vulnerability) {
+    return hasAction1AvailableUpdates(vulnerability) ? 'Patch Available' : 'Non Patchable';
+}
+
+function compactSoftwareNames(names) {
+    return Array.from(new Set((names || [])
+        .map((name) => String(name || '').trim())
+        .filter(Boolean)))
+        .sort()
+        .join(', ');
+}
+
+function softwareNameFromAction1Vulnerability(vulnerability) {
+    if (!Array.isArray(vulnerability?.software)) return '';
+    return compactSoftwareNames(vulnerability.software.map((software) =>
+        software.name ||
+        software.software_name ||
+        software.product_name ||
+        software.product ||
+        software.display_name ||
+        software.title
+    ));
+}
+
+async function fetchAction1EndpointVulnCounts(a1Base, action1Org, endpointId, headers) {
+    const cves = {};
+    const limit = 500;
+    let offset = 0;
+
+    while (true) {
+        const vRes = await axios.get(`${a1Base}/Vulnerabilities/${action1Org}?endpoint_id=${endpointId}&limit=${limit}&from=${offset}`, { headers });
+        const payload = vRes.data || {};
+        const items = Array.isArray(payload) ? payload : (payload.items || payload.data || payload.vulnerabilities || []);
+        const totalItems = Number(payload.total_items ?? payload.total ?? 0);
+
+        for (const item of items) {
+            const cveId = item.cve_id || item.cve || item.cveId;
+            if (!cveId) continue;
+
+            const score = parseFloat(item.cvss_v3_score || item.cvss_score || item.cvss);
+            const severity = normalizeSeverityLabel(item.severity, score);
+            const softwareName = softwareNameFromAction1Vulnerability(item);
+            cves[cveId] = chooseCveEntry(cves[cveId], {
+                cve: cveId,
+                severity,
+                cvss: Number.isNaN(score) ? null : score,
+                status: action1RemediationStatus(item),
+                patchable: hasAction1AvailableUpdates(item),
+                plugin_name: softwareName,
+                vulnerable_software: softwareName
+            });
+        }
+
+        if (items.length === 0 || items.length < limit) break;
+        offset += limit;
+        if (totalItems > 0 && offset >= totalItems) break;
+        if (offset > 100000) break;
+    }
+
+    const counts = countBySeverity(cves);
+    const patchableTotal = Object.values(cves).filter((cve) => cve.patchable).length;
+    return { ...counts, patchableTotal, cves };
+}
+
 
 
 async function runSync() {
@@ -414,6 +552,55 @@ async function runSync() {
             }
         }
 
+        const action1EndpointCounts = {};
+        const action1EndpointIds = endpointsToSave.filter(e => e.action1_id).map(e => e.action1_id);
+
+        if (action1EndpointIds.length > 0) {
+            await updateProgress(`Fetching authoritative Action1 vulnerability counts for ${action1EndpointIds.length} endpoints...`);
+            const batchSize = 10;
+            for (let i = 0; i < action1EndpointIds.length; i += batchSize) {
+                const batch = action1EndpointIds.slice(i, i + batchSize);
+                await Promise.all(batch.map(async (id) => {
+                    try {
+                        action1EndpointCounts[id] = await fetchAction1EndpointVulnCounts(a1Base, action1OrgId, id, a1Headers);
+                    } catch (e) {
+                        action1EndpointCounts[id] = null;
+                    }
+                }));
+            }
+        }
+
+        finalCVEList = [];
+        for (const ep of endpointsToSave) {
+            const rapid7Cves = ep.missing_from_vm ? {} : (endpointUniqueCVEs[ep.endpoint_name] || {});
+            const action1Counts = ep.action1_id ? action1EndpointCounts[ep.action1_id] : null;
+            const action1Cves = action1Counts?.cves || {};
+            const cveIds = Array.from(new Set([...Object.keys(rapid7Cves), ...Object.keys(action1Cves)]));
+
+            for (const cveId of cveIds) {
+                const rapid7Cve = rapid7Cves[cveId];
+                const action1Cve = action1Cves[cveId];
+                const cveData = rapid7Cve && action1Cve
+                    ? chooseCveEntry(rapid7Cve, action1Cve)
+                    : (rapid7Cve || action1Cve);
+                const source = rapid7Cve && action1Cve ? 'Both' : action1Cve ? 'Action1' : 'VM Scanner';
+                const status = ep.action1_id && (action1Cve?.patchable || rapid7Cve?.patchable)
+                    ? 'Patch Available'
+                    : 'Non Patchable';
+                finalCVEList.push({
+                    integration_id: 'rapid7',
+                    endpoint_name: ep.endpoint_name,
+                    cve: cveData.cve || cveId,
+                    severity: normalizeSeverityLabel(cveData.severity, cveData.cvss),
+                    status,
+                    source,
+                    plugin_name: cveData.plugin_name || cveData.title || cveData.cve || cveId,
+                    description: cveData.description || '',
+                    solution: cveData.solution || ''
+                });
+            }
+        }
+
         // 8. Save to DB
         await updateProgress(`Saving data for ${endpointsToSave.length} total machines...`);
 
@@ -421,14 +608,31 @@ async function runSync() {
             db.serialize(() => {
                 db.run('BEGIN TRANSACTION');
 
-                const stmtEp = db.prepare(
-                    `INSERT INTO rapid7_endpoints (integration_id, run_id, endpoint_name, ipv4, mac, os, action1_id, tenable_has_agent, missing_from_tenable, missing_from_action1, critical_vulns, high_vulns, medium_vulns, low_vulns, patchable_vulns)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-                );
                 for (let ep of endpointsToSave) {
-                    stmtEp.run(ep.integration_id, runId, ep.endpoint_name, ep.ipv4, ep.mac, ep.os, ep.action1_id, ep.has_agent, ep.missing_from_vm, ep.missing_from_action1, ep.critical, ep.high, ep.medium, ep.low, ep.patchable);
+                    const rapid7Cves = ep.missing_from_vm ? {} : (endpointUniqueCVEs[ep.endpoint_name] || {});
+                    const action1Counts = ep.action1_id ? action1EndpointCounts[ep.action1_id] : null;
+                    const rapid7Counts = countBySeverity(rapid7Cves);
+                    const mergedCounts = countBySeverity(mergeCveMaps(rapid7Cves, action1Counts?.cves || {}));
+                    const rapid7PatchableCount = Object.values(rapid7Cves).filter((cve) => cve.patchable).length;
+
+                    db.run(`INSERT INTO rapid7_endpoints (integration_id, run_id, endpoint_name, ipv4, mac, os, action1_id, tenable_has_agent, missing_from_tenable, missing_from_action1, defender_total_vulns, critical_vulns, high_vulns, medium_vulns, low_vulns, action1_critical_vulns, action1_high_vulns, action1_medium_vulns, action1_low_vulns, patchable_vulns)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        [
+                            ep.integration_id, runId, ep.endpoint_name, ep.ipv4, ep.mac, ep.os, ep.action1_id,
+                            ep.has_agent, ep.missing_from_vm, ep.missing_from_action1,
+                            rapid7Counts.total,
+                            mergedCounts.Critical || 0,
+                            mergedCounts.High || 0,
+                            mergedCounts.Medium || 0,
+                            mergedCounts.Low || 0,
+                            action1Counts?.Critical || 0,
+                            action1Counts?.High || 0,
+                            action1Counts?.Medium || 0,
+                            action1Counts?.Low || 0,
+                            action1Counts?.patchableTotal ?? rapid7PatchableCount
+                        ]
+                    );
                 }
-                stmtEp.finalize();
 
                 // Upsert CVE text into normalized lookup table
                 const stmtDetails = db.prepare(
