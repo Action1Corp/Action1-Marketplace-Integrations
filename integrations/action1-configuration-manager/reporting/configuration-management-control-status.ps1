@@ -1,5 +1,28 @@
 $ErrorActionPreference = 'Stop'
 
+function ConvertTo-A1CMDisplayTimestamp {
+    param(
+        [AllowNull()]
+        [object]$Value
+    )
+
+    if ($null -eq $Value -or [string]::IsNullOrWhiteSpace([string]$Value)) {
+        return $null
+    }
+
+    try {
+        $timestamp = [DateTimeOffset]::Parse(
+            [string]$Value,
+            [Globalization.CultureInfo]::InvariantCulture,
+            [Globalization.DateTimeStyles]::AssumeUniversal -bor [Globalization.DateTimeStyles]::AdjustToUniversal
+        )
+        return $timestamp.ToString('MMM dd, yyyy h:mm tt ''UTC''', [Globalization.CultureInfo]::InvariantCulture)
+    }
+    catch {
+        return [string]$Value
+    }
+}
+
 $baseDirectory = 'C:\Windows\Action1\ConfigurationManager'
 $result = New-Object System.Collections.ArrayList
 
@@ -23,8 +46,10 @@ foreach ($stateFile in $stateFiles) {
         $row.'Control Name' = [string]$state.controlName
         $row.'Configuration Status' = [string]$state.status
         $row.'Last Checked At' = [string]$state.lastCheckedAt
+        $row.'Last Checked At' = ConvertTo-A1CMDisplayTimestamp -Value $row.'Last Checked At'
         $row.'Remediation Attempted' = [bool]$state.remediationAttempted
         $row.'Last Remediated At' = if ($null -eq $state.lastRemediatedAt) { '' } else { [string]$state.lastRemediatedAt }
+        $row.'Last Remediated At' = ConvertTo-A1CMDisplayTimestamp -Value $row.'Last Remediated At'
         $row.'Message' = [string]$state.message
         $row.'State File' = [string]$stateFile.FullName
         $row.'A1_Key' = '{0}::{1}' -f ([string]$state.policyId), ([string]$state.controlId)
