@@ -113,6 +113,11 @@ async function run() {
     intuneDashboardSource.includes('selectedDeployment.assignmentMessage ||'),
     'intune: dashboard assignment status must be scoped to the selected policy deployment'
   );
+  assert(
+    intuneDashboardSource.includes('/api/integrations/intune/actions/list-policies') &&
+      intuneDashboardSource.includes('mergePoliciesIntoDashboard(statusJson, policies)'),
+    'intune: dashboard must load profile definitions even before the first status sync writes IntuneVersionData'
+  );
   const intuneSyncSource = fs.readFileSync(path.join(__dirname, '..', 'integrations', 'intune', 'sync.js'), 'utf8');
   assert(
     intuneSyncSource.includes('(isInSelectedAction1ProvisioningGroup(endpoint) || endpoint.provisioningCompletedByAttribute)'),

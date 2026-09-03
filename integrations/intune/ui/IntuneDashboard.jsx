@@ -171,6 +171,45 @@ function ProvisioningStatusPill({ status }) {
   );
 }
 
+async function fetchJson(url, options) {
+  const response = await fetch(url, options);
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(json.error || json.message || `Request failed with HTTP ${response.status}`);
+  }
+  return json;
+}
+
+async function loadPolicyDefinitions() {
+  const result = await fetchJson('/api/integrations/intune/actions/list-policies', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ payload: {}, trackHistory: false })
+  });
+  return Array.isArray(result.policies) ? result.policies : [];
+}
+
+function mergePoliciesIntoDashboard(statusData, policies) {
+  const currentPolicies = Array.isArray(statusData?.policies) ? statusData.policies : [];
+  if (currentPolicies.length || !policies.length) return statusData;
+
+  const enabledPolicy = policies.find(policy => policy.enabled !== false) || policies[0];
+  return {
+    ...statusData,
+    status: statusData?.status || 'never_run',
+    policies,
+    selectedPolicyId: statusData?.selectedPolicyId || enabledPolicy?.policyId || '',
+    selectedAction1OrgId: statusData?.selectedAction1OrgId || enabledPolicy?.organizationId || '',
+    selectedAction1OrgName: statusData?.selectedAction1OrgName || enabledPolicy?.organizationName || '',
+    selectedGroupIds: Array.isArray(statusData?.selectedGroupIds) && statusData.selectedGroupIds.length
+      ? statusData.selectedGroupIds
+      : enabledPolicy?.intuneDeviceGroupIds || [],
+    selectedGroupMap: statusData?.selectedGroupMap || enabledPolicy?.intuneDeviceGroupMap || {},
+    assignmentMode: statusData?.assignmentMode || enabledPolicy?.assignmentMode || 'selectedGroups',
+    policyResults: statusData?.policyResults || {}
+  };
+}
+
 function IntuneDashboard({ syncing, runSync, canRunSync }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -189,12 +228,13 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
       if (showLoading) setLoading(true);
       setError('');
       try {
-        const response = await fetch('/api/intune/status');
-        const json = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          throw new Error(json.error || 'Unable to load Intune dashboard.');
+        const statusJson = await fetchJson('/api/intune/status');
+        let dashboardJson = statusJson;
+        if (!Array.isArray(statusJson?.policies) || statusJson.policies.length === 0) {
+          const policies = await loadPolicyDefinitions();
+          dashboardJson = mergePoliciesIntoDashboard(statusJson, policies);
         }
-        if (!cancelled) setData(json);
+        if (!cancelled) setData(dashboardJson);
       } catch (loadError) {
         if (retry && !cancelled) {
           window.setTimeout(() => loadDashboard(false), 600);
