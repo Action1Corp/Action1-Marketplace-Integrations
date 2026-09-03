@@ -544,20 +544,36 @@ async function runSync() {
 
         // --- AUTHORITATIVE RECONCILIATION ---
         await updateProgress(`Saving ${endpointsToSave.length} endpoints...`);
-        const epIdsForSync = endpointsToSave.filter(e => e.action1_id).map(e => e.action1_id);
+        const epIdsForSync = Array.from(new Set(endpointsToSave
+            .filter(e => e.action1_id)
+            .map(e => e.action1_id)));
+        const action1EndpointNamesById = endpointsToSave.reduce((names, endpoint) => {
+            if (endpoint.action1_id) names[endpoint.action1_id] = endpoint.endpoint_name;
+            return names;
+        }, {});
         const authoritativeCounts = {};
 
         if (epIdsForSync.length > 0) {
             await updateProgress(`Fetching authoritative Action1 patch counts for ${epIdsForSync.length} endpoints...`);
             const batchSize = 10;
+            let action1EndpointFetchFailures = 0;
             for (let i = 0; i < epIdsForSync.length; i += batchSize) {
                 const batch = epIdsForSync.slice(i, i + batchSize);
                 await Promise.all(batch.map(async (id) => {
                     try {
                         authoritativeCounts[id] = await fetchAction1EndpointVulnCounts(a1Base, action1Org, id, a1Headers);
-                    } catch (e) { authoritativeCounts[id] = null; }
+                    } catch (e) {
+                        action1EndpointFetchFailures++;
+                        authoritativeCounts[id] = null;
+                        await updateProgress(`Failed fetching Action1 endpoint vulnerability counts for ${action1EndpointNamesById[id] || id}: ${e.response?.status || e.message}`);
+                    }
                 }));
             }
+            const action1EndpointFetchSuccesses = Object.values(authoritativeCounts).filter(Boolean).length;
+            const action1EndpointCveTotal = Object.values(authoritativeCounts)
+                .filter(Boolean)
+                .reduce((total, counts) => total + (counts.total || 0), 0);
+            await updateProgress(`Loaded Action1 endpoint vulnerability counts for ${action1EndpointFetchSuccesses}/${epIdsForSync.length} endpoints (${action1EndpointCveTotal} CVEs, ${action1EndpointFetchFailures} failures).`);
         }
 
         const finalCVEList = [];

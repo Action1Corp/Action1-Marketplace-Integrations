@@ -30,9 +30,9 @@ const PROFILE_TYPE_ENROLLMENT_AND_PROVISIONING = 'enrollmentAndProvisioning';
 
 const FULL_PROFILE_STEPS = [
   { id: 'organization', label: 'Organization' },
-  { id: 'intune', label: 'Intune Target' },
-  { id: 'action1', label: 'Action1 Groups' },
-  { id: 'provisioning', label: 'Provisioning' },
+  { id: 'intune', label: 'Enrollment Groups' },
+  { id: 'action1', label: 'Provisioning Groups' },
+  { id: 'provisioning', label: 'Provisioning Actions' },
   { id: 'review', label: 'Review' }
 ];
 
@@ -363,14 +363,14 @@ function PolicyList({ policies, loading, onCreate, onEdit, onDelete }) {
         <div className="empty-state">
           <h2>No profiles</h2>
           <p>
-            Create an enrollment profile for each Action1 organization you want Intune to deploy and monitor.
+            Create an Enrollment and Provisioning Profile for each Action1 organization you want Intune to deploy and monitor.
           </p>
         </div>
       ) : (
         <table className="profile-table">
           <thead>
             <tr>
-              {['Profile', 'Action1 Org', 'Intune Groups', 'Action1 Groups', 'Actions'].map(header => (
+              {['Profile', 'Action1 Organization', 'Intune Enrollment Group', 'Action1 Provisioning Group', 'Actions'].map(header => (
                 <th key={header}>{header}</th>
               ))}
             </tr>
@@ -490,7 +490,7 @@ function EndpointGroupChecklist({ rows, selectedIds, onChange, emptyText }) {
 }
 
 function ReviewEndpointGroupDetails({ selectedIds, selectedNames, detailsByGroupId, action1ConsoleBase, organizationId, includeProvisioning, includeConfigurationManagement }) {
-  if (!selectedIds.length) return <div style={{ color: tokens.textMuted }}>No Action1 Groups selected.</div>;
+  if (!selectedIds.length) return <div style={{ color: tokens.textMuted }}>No Action1 provisioning groups selected.</div>;
   return (
     <div style={{ display: 'grid', gap: 10 }}>
       {selectedIds.map(groupId => {
@@ -501,7 +501,7 @@ function ReviewEndpointGroupDetails({ selectedIds, selectedNames, detailsByGroup
         return (
           <div key={groupId} style={{ border: `1px solid ${tokens.borderColor}`, borderRadius: 4, padding: '0.75rem', background: tokens.mutedBackground }}>
             <div style={{ fontWeight: 700, marginBottom: hasDetails ? 8 : 0 }}>{selectedNames[groupId] || groupId}</div>
-            {!hasDetails && <div style={{ color: tokens.textMuted, fontSize: 12 }}>No Provisioning Automations or Configuration Management Policies were found for this Action1 Group.</div>}
+            {!hasDetails && <div style={{ color: tokens.textMuted, fontSize: 12 }}>No provisioning automations or Configuration Management policies were found for this Action1 provisioning group.</div>}
             {automations.length > 0 && (
               <div style={{ marginBottom: configPolicies.length ? 10 : 0 }}>
                 <div style={{ color: tokens.textMuted, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.4 }}>Provisioning Automations</div>
@@ -545,7 +545,7 @@ function ReviewProvisioningAutomations({ selectedIds, selectedNames, detailsByGr
       : [];
     return automations.map(automation => ({ ...automation, groupId }));
   });
-  if (loading) return <span style={{ color: tokens.textMuted }}>Loading Provisioning Automations...</span>;
+  if (loading) return <span style={{ color: tokens.textMuted }}>Loading provisioning automations...</span>;
   if (!rows.length) return <span style={{ color: tokens.textMuted }}>No provisioning automations found.</span>;
   return (
     <ul style={{ ...summaryListStyle, marginTop: 0 }}>
@@ -568,8 +568,8 @@ function ReviewConfigurationPolicies({ selectedIds, selectedNames, detailsByGrou
       : [];
     return policies.map(policy => ({ ...policy, groupId }));
   });
-  if (loading) return <span style={{ color: tokens.textMuted }}>Loading Configuration Policies...</span>;
-  if (!rows.length) return <span style={{ color: tokens.textMuted }}>No Configuration Management Policies found.</span>;
+  if (loading) return <span style={{ color: tokens.textMuted }}>Loading Configuration Management policies...</span>;
+  if (!rows.length) return <span style={{ color: tokens.textMuted }}>No Configuration Management policies found.</span>;
   return (
     <ul style={{ ...summaryListStyle, marginTop: 0 }}>
       {rows.map(policy => (
@@ -756,8 +756,8 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
     if (stepId === 'organization' && (!draft.name || !draft.organizationId || !draft.agentId)) return 'Choose an Action1 organization. The organization must expose an agent installer ID.';
     if (stepId === 'organization' && (usedOrganizationIds.has(draft.organizationId) || usedOrganizationNames.has(normalizeComparableName(draft.organizationName)))) return 'This Action1 organization is already assigned to another profile.';
     if (stepId === 'intune' && draft.assignmentMode === 'selectedGroups' && draft.intuneDeviceGroupIds.length === 0) return 'Select at least one Intune device group, or choose all devices.';
-    if (stepId === 'intune' && draft.intuneDeviceGroupIds.some(id => usedIntuneDeviceGroupIds.has(id))) return 'One or more selected Intune Device Groups are already assigned to another profile.';
-    if (stepId === 'action1' && !isEnrollmentOnly && draft.monitoredAction1GroupIds.length === 0) return 'Select the Action1 Groups this profile should monitor.';
+    if (stepId === 'intune' && draft.intuneDeviceGroupIds.some(id => usedIntuneDeviceGroupIds.has(id))) return 'One or more selected Intune device groups are already assigned to another profile.';
+    if (stepId === 'action1' && !isEnrollmentOnly && draft.monitoredAction1GroupIds.length === 0) return 'Select the Action1 provisioning groups this profile should monitor.';
     return '';
   }
 
@@ -786,19 +786,19 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
 
   return (
     <div className="card">
-      <h2 className="card-title">{initialPolicy ? 'Edit Enrollment and Provisioning profile' : 'Enrollment and Provisioning profile'}</h2>
+      <h2 className="card-title">{initialPolicy ? 'Edit Enrollment and Provisioning Profile' : 'Enrollment and Provisioning Profile'}</h2>
       <p className="card-sub">
-        Configure which Intune devices receive an Action1 agent and which Action1 Groups are configured with Provisioning Automations and Configuration Policies.
+        Configure which Intune devices are enrolled in Action1 and which Action1 provisioning groups are configured for provisioning.
       </p>
       <Stepper steps={steps} stepIndex={stepIndex} setStepIndex={setStepIndex} />
       {message && <div className="validation-notice">{message}</div>}
 
       {activeStep === 'organization' && (
         <section className="section">
-          <h3 className="section-title">Profile details and Action1 organization</h3>
-          <Help>Start by naming the profile and choosing the Action1 organization where newly enrolled devices should register. The agent installer ID is loaded automatically from Action1.</Help>
+          <h3 className="section-title">Profile Details</h3>
+          <Help>Start by naming the profile and providing a description.</Help>
           <div className="field">
-            <label>Profile name <span className="req">*</span></label>
+            <label>Profile Name <span className="req">*</span></label>
             <input type="text" value={draft.name} onChange={event => setDraft(current => ({ ...current, name: event.target.value }))} />
           </div>
           <div className="field">
@@ -806,17 +806,18 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
             <textarea value={draft.description} onChange={event => setDraft(current => ({ ...current, description: event.target.value }))} />
           </div>
           <div className="field">
+            <Help>Choose <strong>Enrollment Only</strong> when devices should only be enrolled into Action1. Choose <strong>Enrollment and Provisioning</strong> when devices should be both enrolled and provisioned.</Help>
             <label>Profile Type <span className="req">*</span></label>
             <select value={draft.profileType} onChange={event => updateProfileType(event.target.value)}>
               <option value={PROFILE_TYPE_ENROLLMENT_AND_PROVISIONING}>Enrollment and Provisioning</option>
               <option value={PROFILE_TYPE_ENROLLMENT_ONLY}>Enrollment Only</option>
             </select>
-            <p className="hint">Choose Enrollment Only when Intune should only install the Action1 agent. Choose Enrollment and Provisioning when this profile should also monitor Action1 Groups, Provisioning Automations, and Configuration Management compliance.</p>
           </div>
           <div className="field">
-            <label>Action1 organization <span className="req">*</span></label>
+            <Help>Choose the Action1 organization where newly enrolled devices should be registered.</Help>
+            <label>Action1 Organization <span className="req">*</span></label>
             <select value={draft.organizationId} onChange={event => updateOrganization(event.target.value)}>
-              <option value="">{loading === 'organizations' ? 'Loading organizations...' : 'Select organization'}</option>
+              <option value="">{loading === 'organizations' ? 'Loading organizations...' : 'Select Organization'}</option>
               {organizations.map(organization => {
                 const isUsed = usedOrganizationIds.has(organization.id) || usedOrganizationNames.has(normalizeComparableName(organization.name));
                 return (
@@ -827,28 +828,27 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
               })}
             </select>
           </div>
-          <Help>Organizations already assigned to another Enrollment and Provisioning profile are unavailable, because each Action1 organization can only have one profile.</Help>
-          {draft.organizationId && <Help>Devices installed through this profile will use the Action1 agent package for {formatDisplayName(draft.organizationName)}.</Help>}
+          <Help>Organizations already assigned to another Enrollment and Provisioning Profile are unavailable, because each Action1 organization can only have one profile.</Help>
         </section>
       )}
 
       {activeStep === 'intune' && (
         <section className="section">
-          <h3 className="section-title">Choose the Intune devices</h3>
-          <Help>Select which Intune-managed Windows devices should receive this organization's Action1 agent. The sync will publish or update the Win32 app and apply this assignment.</Help>
+          <h3 className="section-title">Choose the Devices to Enroll</h3>
+          <Help>Select which Intune-managed Windows devices should be enrolled into Action1.</Help>
           <div className="radio-row">
             <label className="radio-item"><input type="radio" checked={draft.assignmentMode === 'allDevices'} onChange={() => setDraft(current => ({ ...current, assignmentMode: 'allDevices' }))} /> All Devices</label>
             <label className="radio-item"><input type="radio" checked={draft.assignmentMode === 'selectedGroups'} onChange={() => setDraft(current => ({ ...current, assignmentMode: 'selectedGroups' }))} /> Selected Device Groups</label>
           </div>
           {draft.assignmentMode === 'selectedGroups' && (
             <>
-              <Help>Choose the Intune Device Groups that should receive the Action1 Agent app.</Help>
+              <Help>Choose the Intune device groups whose devices should be enrolled into Action1.</Help>
               <Checklist
                 rows={deviceGroups}
                 selectedIds={draft.intuneDeviceGroupIds}
                 onChange={updateIntuneGroups}
                 labelKey="displayName"
-                emptyText={loading === 'device-groups' ? 'Loading Intune Device Groups...' : 'No Intune Device Groups were found.'}
+                emptyText={loading === 'device-groups' ? 'Loading Intune device groups...' : 'No Intune device groups were found.'}
                 disabledIds={usedIntuneDeviceGroupIds}
                 disabledReason="Already used by another profile."
               />
@@ -859,20 +859,20 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
 
       {activeStep === 'action1' && (
         <section className="section">
-          <h3 className="section-title">Create and Select Action1 Groups</h3>
-          <Help>Create Action1 Groups for enrolled devices and provisioning stages. Use Action1 filters so devices move through the groups automatically as enrollment and provisioning state changes. After creating groups in Action1, return here and refresh the list.</Help>
+          <h3 className="section-title">Create and Select Action1 Provisioning Groups</h3>
+          <Help>Create Action1 Provisioning Groups for enrolled devices. Use Action1 filters so devices move through the groups automatically as enrollment and provisioning state changes. After creating groups in Action1, return here and refresh the list.</Help>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', margin: '0.25rem 0 0.85rem' }}>
-            <a href={draft.organizationId ? `${action1ConsoleBase}/console/endpoints?limit=50&from=0&org=${encodeURIComponent(draft.organizationId)}` : `${action1ConsoleBase}/console/endpoints?limit=50&from=0`} target="_blank" rel="noreferrer" className="btn btn-primary link-button">Open Action1 Groups</a>
+            <a href={draft.organizationId ? `${action1ConsoleBase}/console/endpoints?limit=50&from=0&org=${encodeURIComponent(draft.organizationId)}` : `${action1ConsoleBase}/console/endpoints?limit=50&from=0`} target="_blank" rel="noreferrer" className="btn btn-primary link-button">Open Action1 Provisioning Groups</a>
             <button type="button" className="btn btn-secondary" onClick={() => loadEndpointGroups(draft.organizationId)} disabled={!draft.organizationId || loading === 'endpoint-groups'}>
               {loading === 'endpoint-groups' ? 'Refreshing...' : 'Refresh groups'}
             </button>
           </div>
-          <Help>Select the Action1 Groups this profile should report on. Provisioning profiles should include the groups configured with Provisioning Automations or Configuration Management Policies.</Help>
+          <Help>Select the Action1 Provisioning Groups created for this profile.</Help>
           <EndpointGroupChecklist
             rows={endpointGroups}
             selectedIds={draft.monitoredAction1GroupIds}
             onChange={updateEndpointGroups}
-            emptyText={loading === 'endpoint-groups' ? 'Loading Action1 Groups...' : 'No Action1 Groups were found for this organization.'}
+            emptyText={loading === 'endpoint-groups' ? 'Loading Action1 provisioning groups...' : 'No Action1 provisioning groups were found for this organization.'}
           />
         </section>
       )}
@@ -880,22 +880,15 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
       {activeStep === 'provisioning' && (
         <section className="section">
           <h3 className="section-title">Provisioning Automations and Configuration Management</h3>
-          <Help>This profile will monitor Action1 automation history and Configuration Management compliance reports to determine whether each endpoint is complete.</Help>
+          <Help>Create the provisioning automations and Configuration Management policies for this profile and ensure each is associated with the previously selected provisioning groups.</Help>
 
           <h4 style={{ margin: '12px 0 4px', fontSize: 13 }}>Provisioning Automations</h4>
-          <ul style={instructionListStyle}>
-            <li>Create or choose the automations that install software, run scripts, or perform other provisioning work.</li>
-            <li>Target those automations to the Action1 Groups selected in the previous step.</li>
-          </ul>
+          <p className="section-sub">Create Action1 automations that install software, run scripts, or perform other provisioning work and target those automations to the Action1 provisioning groups selected in the previous step.</p>
           <p><a href={createAutomationUrl} target="_blank" rel="noreferrer" style={{ color: '#003DA6', fontWeight: 700 }}>Create Action1 Provisioning Automations</a></p>
 
           <h4 style={{ margin: '12px 0 4px', fontSize: 13 }}>Configuration Management Policies</h4>
-          <ul style={instructionListStyle}>
-            <li>In Configuration Management, create or select the policy that contains the required controls for this enrollment profile.</li>
-            <li>Make sure the Configuration Management policy targets the same Action1 Groups or devices that this enrollment profile monitors.</li>
-            <li>Provisioning is only successful when the related automations complete and all controls for the endpoint are compliant.</li>
-          </ul>
-          <p><a href={createConfigPolicyUrl} target="_blank" rel="noreferrer" style={{ color: '#003DA6', fontWeight: 700 }}>Create Configurations Management Policies</a></p>
+          <p className="section-sub">Create Configuration Management policies that contain the required controls and target the policies to the Action1 provisioning groups selected in the previous step.</p>
+          <p><a href={createConfigPolicyUrl} target="_blank" rel="noreferrer" style={{ color: '#003DA6', fontWeight: 700 }}>Create Configuration Management Policies</a></p>
         </section>
       )}
 
@@ -908,10 +901,10 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
             <div className="s-label">Profile</div><div><strong>{draft.name}</strong></div>
             <div className="s-label">Profile Type</div><div>{isEnrollmentOnly ? 'Enrollment Only' : 'Enrollment and Provisioning'}</div>
             <div className="s-label">Action1 Organization</div><div>{formatDisplayName(draft.organizationName) || 'Not selected'}</div>
-            <div className="s-label">Intune Target</div><div>{draft.assignmentMode === 'allDevices' ? 'All Devices' : selectedIntuneNames.join(', ') || 'No Groups selected'}</div>
-            {!isEnrollmentOnly && <><div className="s-label">Action1 Groups</div><div>{selectedEndpointGroupNames.join(', ') || 'No Groups selected'}</div></>}
+            <div className="s-label">Intune Enrollment Group</div><div>{draft.assignmentMode === 'allDevices' ? 'All Devices' : selectedIntuneNames.join(', ') || 'No groups selected'}</div>
+            {!isEnrollmentOnly && <><div className="s-label">Action1 Provisioning Groups</div><div>{selectedEndpointGroupNames.join(', ') || 'No groups selected'}</div></>}
             {!isEnrollmentOnly && <><div className="s-label">Provisioning Automations</div><div><ReviewProvisioningAutomations selectedIds={draft.monitoredAction1GroupIds} selectedNames={selectedEndpointGroupNameMap} detailsByGroupId={endpointGroupDetails} action1ConsoleBase={action1ConsoleBase} organizationId={draft.organizationId} loading={loadingEndpointGroupDetails} /></div></>}
-            {!isEnrollmentOnly && <><div className="s-label">Configuration Policies</div><div><ReviewConfigurationPolicies selectedIds={draft.monitoredAction1GroupIds} selectedNames={selectedEndpointGroupNameMap} detailsByGroupId={endpointGroupDetails} loading={loadingEndpointGroupDetails} /></div></>}
+            {!isEnrollmentOnly && <><div className="s-label">Configuration Management Policies</div><div><ReviewConfigurationPolicies selectedIds={draft.monitoredAction1GroupIds} selectedNames={selectedEndpointGroupNameMap} detailsByGroupId={endpointGroupDetails} loading={loadingEndpointGroupDetails} /></div></>}
           </div>
         </section>
       )}
@@ -975,7 +968,7 @@ function Policies({ integration }) {
       <div>
         <h1 style={{ margin: 0, fontSize: 24 }}>{title}</h1>
         <p style={{ margin: '0.45rem 0 0', color: tokens.textSecondary, fontSize: 14, lineHeight: 1.5 }}>
-          Create one Enrollment and Provisioning profile per Action1 organization. Profiles control Intune assignment Targets and the Action1 Groups shown on the dashboard.
+          Define how devices are enrolled through Intune and which Action1 provisioning group is used for provisioning readiness.
         </p>
       </div>
       {message && <div style={{ padding: '0.875rem 1rem', color: tokens.danger, border: '1px solid #fecaca', background: '#fff7f7', borderRadius: 8 }}>{message}</div>}

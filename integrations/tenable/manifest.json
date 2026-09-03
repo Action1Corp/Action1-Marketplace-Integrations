@@ -2,7 +2,7 @@
     "id":  "tenable",
     "name":  "Tenable VM",
     "vendor":  "Tenable",
-    "version":  "1.0.5",
+    "version":  "1.0.6",
     "marketplaceApiVersion":  "1.0",
     "minimumMarketplaceVersion":  "1.0.0",
     "description":  "Correlate Tenable vulnerability data with Action1 endpoint and patch context.",

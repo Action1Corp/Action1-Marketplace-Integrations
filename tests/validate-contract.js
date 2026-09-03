@@ -100,6 +100,59 @@ async function run() {
     'rapid7: endpoint CVE rows must preserve whether a CVE came from Rapid7, Action1, or both'
   );
 
+  const intuneDashboardSource = fs.readFileSync(path.join(__dirname, '..', 'integrations', 'intune', 'ui', 'IntuneDashboard.jsx'), 'utf8');
+  assert(
+    intuneDashboardSource.includes('selectedPolicyResult?.intuneDeployment || (selectedPolicyIsActive ? data : selectedPolicyResult)'),
+    'intune: dashboard application details must use the selected policy deployment instead of always using top-level active-policy data'
+  );
+  assert(
+    intuneDashboardSource.includes('selectedDeployment.intuneAppName || buildDefaultIntuneAppName(selectedOrganizationName)'),
+    'intune: dashboard app name must be scoped to the selected organization'
+  );
+  assert(
+    intuneDashboardSource.includes('selectedDeployment.assignmentMessage ||'),
+    'intune: dashboard assignment status must be scoped to the selected policy deployment'
+  );
+  const intuneSyncSource = fs.readFileSync(path.join(__dirname, '..', 'integrations', 'intune', 'sync.js'), 'utf8');
+  assert(
+    intuneSyncSource.includes('(isInSelectedAction1ProvisioningGroup(endpoint) || endpoint.provisioningCompletedByAttribute)'),
+    'intune: completed-by-attribute endpoints must still be scanned for recent Action1 automation results'
+  );
+  assert(
+    intuneSyncSource.includes('endpoint.automationResults = latestAutomationResults.length ? latestAutomationResults : previousAutomationResults'),
+    'intune: completed-by-attribute endpoints must preserve automation result evidence instead of clearing it'
+  );
+
+  for (const integrationId of ['defender', 'qualys', 'tenable']) {
+    const syncSource = fs.readFileSync(path.join(__dirname, '..', 'integrations', integrationId, 'sync.js'), 'utf8');
+    assert(
+      syncSource.includes('fetchAction1EndpointVulnCounts'),
+      `${integrationId}: sync must fetch endpoint-level Action1 vulnerability counts so Action1-only endpoints do not show zero vulnerabilities`
+    );
+    assert(
+      syncSource.includes('?endpoint_id=${endpointId}&limit=${limit}&from=${offset}'),
+      `${integrationId}: Action1 vulnerability lookup must be scoped by endpoint_id`
+    );
+    assert(
+      syncSource.includes('action1_critical_vulns') && syncSource.includes('action1_high_vulns') && syncSource.includes('action1_medium_vulns') && syncSource.includes('action1_low_vulns'),
+      `${integrationId}: sync must persist Action1 vulnerability severity counts`
+    );
+    assert(
+      syncSource.includes('Loaded Action1 endpoint vulnerability counts for'),
+      `${integrationId}: sync must log Action1 endpoint vulnerability count success/failure totals`
+    );
+  }
+
+  const tenableSyncSource = fs.readFileSync(path.join(__dirname, '..', 'integrations', 'tenable', 'sync.js'), 'utf8');
+  assert(
+    tenableSyncSource.includes("source = tenableCve && action1Cve ? 'Both' : action1Cve ? 'Action1' : 'VM Scanner'"),
+    'tenable: endpoint CVE rows must preserve whether a CVE came from Tenable, Action1, or both'
+  );
+  assert(
+    fs.existsSync(path.join(__dirname, '..', 'integrations', 'tenable', 'migrations', '002_add_endpoint_cve_source.sql')),
+    'tenable: must migrate existing endpoint CVE rows to include source'
+  );
+
   console.log('Integration handler contract tests passed.');
 }
 

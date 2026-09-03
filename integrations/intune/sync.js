@@ -1501,7 +1501,7 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
                 endpoint.inAssignmentTarget &&
                 endpoint.source === 'Synced' &&
                 endpoint.action1EndpointId &&
-                isInSelectedAction1ProvisioningGroup(endpoint)
+                (isInSelectedAction1ProvisioningGroup(endpoint) || endpoint.provisioningCompletedByAttribute)
             ))
             .map(endpoint => ({ id: endpoint.action1EndpointId, name: endpoint.deviceName }));
         const provisioningByEndpoint = await fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecret, action1OrgId, targetAction1Endpoints, selectedAction1GroupIds, action1ApiBase, action1ConsoleBase);
@@ -1520,9 +1520,12 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
                 continue;
             }
             if (endpoint.provisioningCompletedByAttribute) {
+                const provisioning = provisioningByEndpoint.get(endpoint.action1EndpointId);
+                const latestAutomationResults = Array.isArray(provisioning?.automationResults) ? provisioning.automationResults : [];
+                const previousAutomationResults = Array.isArray(previous?.automationResults) ? previous.automationResults : [];
                 endpoint.provisioningStatus = 'Completed';
                 endpoint.provisioningDetail = `${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE} is ${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE}.`;
-                endpoint.automationResults = [];
+                endpoint.automationResults = latestAutomationResults.length ? latestAutomationResults : previousAutomationResults;
                 endpoint.provisioningCleanupStatus = previous?.provisioningCleanupStatus || '';
                 endpoint.provisioningCleanupMessage = previous?.provisioningCleanupMessage || '';
                 endpoint.provisioningCleanupGroupIds = previous?.provisioningCleanupGroupIds || [];
@@ -1669,9 +1672,10 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
         provisioningMessage = `Unable to load Action1 automation results: ${provisioningError.message}`;
         for (const endpoint of endpoints) {
             if (endpoint.action1EndpointId && endpoint.provisioningCompletedByAttribute) {
+                const previous = findPreviousProvisioning(endpoint, previousProvisioning);
                 endpoint.provisioningStatus = 'Completed';
                 endpoint.provisioningDetail = `${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE} is ${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE}.`;
-                endpoint.automationResults = [];
+                endpoint.automationResults = Array.isArray(previous?.automationResults) ? previous.automationResults : [];
                 endpoint.provisioningAttributeStatus = 'completed';
                 endpoint.provisioningAttributeMessage = `${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE} is ${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE}.`;
             } else if (endpoint.inAssignmentTarget && endpoint.source === 'Intune' && !endpoint.action1EndpointId) {

@@ -622,21 +622,35 @@ async function runSync() {
         // 8. Save to DB
         await updateProgress(`Saving data for ${endpointsToSave.length} total machines...`);
         const action1EndpointCounts = {};
-        const action1EndpointIds = endpointsToSave.filter(e => e.action1_id).map(e => e.action1_id);
+        const action1EndpointIds = Array.from(new Set(endpointsToSave
+            .filter(e => e.action1_id)
+            .map(e => e.action1_id)));
+        const action1EndpointNamesById = endpointsToSave.reduce((names, endpoint) => {
+            if (endpoint.action1_id) names[endpoint.action1_id] = endpoint.endpoint_name;
+            return names;
+        }, {});
 
         if (action1EndpointIds.length > 0) {
             await updateProgress(`Fetching authoritative Action1 vulnerability counts for ${action1EndpointIds.length} endpoints...`);
             const batchSize = 10;
+            let action1EndpointFetchFailures = 0;
             for (let i = 0; i < action1EndpointIds.length; i += batchSize) {
                 const batch = action1EndpointIds.slice(i, i + batchSize);
                 await Promise.all(batch.map(async (id) => {
                     try {
                         action1EndpointCounts[id] = await fetchAction1EndpointVulnCounts(a1Base, action1OrgId, id, a1Headers);
-                    } catch {
+                    } catch (e) {
+                        action1EndpointFetchFailures++;
                         action1EndpointCounts[id] = null;
+                        await updateProgress(`Failed fetching Action1 endpoint vulnerability counts for ${action1EndpointNamesById[id] || id}: ${e.response?.status || e.message}`);
                     }
                 }));
             }
+            const action1EndpointFetchSuccesses = Object.values(action1EndpointCounts).filter(Boolean).length;
+            const action1EndpointCveTotal = Object.values(action1EndpointCounts)
+                .filter(Boolean)
+                .reduce((total, counts) => total + (counts.total || 0), 0);
+            await updateProgress(`Loaded Action1 endpoint vulnerability counts for ${action1EndpointFetchSuccesses}/${action1EndpointIds.length} endpoints (${action1EndpointCveTotal} CVEs, ${action1EndpointFetchFailures} failures).`);
         }
 
         await new Promise((resolveDb, rejectDb) => {
