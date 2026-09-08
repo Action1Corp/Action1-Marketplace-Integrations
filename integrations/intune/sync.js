@@ -994,6 +994,58 @@ async function selectLatestProvisioningInstances(headers, instances, selectedAct
     return Array.from(latestBySchedule.values()).sort((a, b) => action1InstanceTime(b.instance) - action1InstanceTime(a.instance));
 }
 
+async function fetchProvisioningSchedules(headers, action1OrgId, selectedAction1GroupIds = [], action1ApiBase = DEFAULT_ACTION1_BASE_URL) {
+    const selectedGroupSet = new Set(selectedAction1GroupIds.map(id => String(id || '').trim()).filter(Boolean));
+    if (!selectedGroupSet.size) return [];
+
+    const schedules = await fetchAction1Collection(
+        headers,
+        `${action1ApiBase}/automations/schedules/${encodeURIComponent(action1OrgId)}?limit=500&from=0`,
+        { limit: 500, pageLimit: 10, action1ApiBase }
+    );
+
+    return schedules
+        .map(schedule => {
+            const scheduleGroupIds = action1GroupIds(schedule?.endpoints || schedule?.endpoint_groups || schedule?.endpointGroups || schedule?.targets);
+            return {
+                schedule,
+                scheduleId: firstString(schedule?.id, schedule?.schedule_id, schedule?.scheduleId),
+                scheduleName: firstString(schedule?.name, schedule?.displayName, schedule?.display_name),
+                scheduleGroupIds,
+                frequencyMinutes: action1ScheduleFrequencyMinutes(schedule)
+            };
+        })
+        .filter(item => item.scheduleId && item.scheduleGroupIds.some(groupId => selectedGroupSet.has(groupId)));
+}
+
+function action1InstanceId(instance) {
+    return firstString(instance?.id, instance?.instance_id, instance?.instanceId);
+}
+
+function action1InstanceName(instance) {
+    return firstString(instance?.name, instance?.action_name, instance?.automation_name);
+}
+
+function instanceMatchesSchedule(instance, provisioningSchedule) {
+    const scheduleId = firstString(provisioningSchedule?.scheduleId);
+    const scheduleName = firstString(provisioningSchedule?.scheduleName);
+    const instanceId = action1InstanceId(instance);
+    const instanceName = action1InstanceName(instance);
+    const scheduleUrl = firstString(instance?.schedule);
+
+    if (scheduleId && scheduleUrl.includes(`/${scheduleId}`)) return true;
+    if (scheduleId && instanceId === scheduleId) return true;
+    if (scheduleId && instanceId.startsWith(`${scheduleId}_`)) return true;
+    if (scheduleName && (instanceName === scheduleName || instanceName.startsWith(`${scheduleName} - `))) return true;
+    return false;
+}
+
+function latestInstanceForSchedule(instances, provisioningSchedule) {
+    return (instances || [])
+        .filter(instance => instanceMatchesSchedule(instance, provisioningSchedule))
+        .sort((a, b) => action1InstanceTime(b) - action1InstanceTime(a))[0] || null;
+}
+
 async function getConfigurationManagerByEndpointReportId() {
     const row = await dbGet(
         `SELECT report_by_endpoint FROM ${CONFIGURATION_MANAGER_REPORTING_TABLE} WHERE singleton_id = 1`
@@ -1153,36 +1205,74 @@ async function fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecre
         `${action1ApiBase}/automations/instances/${encodeURIComponent(action1OrgId)}?sortby=${encodeURIComponent('-end_time')}&limit=${ACTION1_AUTOMATION_INSTANCE_SCAN_LIMIT}&from=0`,
         { limit: ACTION1_AUTOMATION_INSTANCE_SCAN_LIMIT, pageLimit: 1, action1ApiBase }
     );
-    const provisioningInstances = await selectLatestProvisioningInstances(headers, instances, selectedAction1GroupIds);
+    let provisioningInstances = [];
+    try {
+        const provisioningSchedules = await fetchProvisioningSchedules(headers, action1OrgId, selectedAction1GroupIds, action1ApiBase);
+        provisioningInstances = provisioningSchedules.map(provisioningSchedule => ({
+            instance: latestInstanceForSchedule(instances, provisioningSchedule),
+            schedule: provisioningSchedule.schedule,
+            frequencyMinutes: provisioningSchedule.frequencyMinutes,
+            scheduleGroupIds: provisioningSchedule.scheduleGroupIds
+        }));
+    } catch (scheduleListError) {
+        await updateProgress(`Warning: Could not list assigned Action1 provisioning automations: ${scheduleListError.response?.data?.error?.message || scheduleListError.message}`);
+        provisioningInstances = await selectLatestProvisioningInstances(headers, instances, selectedAction1GroupIds);
+    }
 
     for (const provisioningInstance of provisioningInstances) {
         const instance = provisioningInstance.instance;
-        const instanceId = firstString(instance?.id, instance?.instance_id, instance?.instanceId);
-        if (!instanceId) continue;
-        const scheduleKey = action1InstanceScheduleKey(instance);
+        const instanceId = action1InstanceId(instance);
         const scheduleId = firstString(provisioningInstance.schedule?.id);
+        const scheduleName = firstString(provisioningInstance.schedule?.name, provisioningInstance.schedule?.displayName, provisioningInstance.schedule?.display_name, scheduleId);
+        const scheduleKey = firstString(instance ? action1InstanceScheduleKey(instance) : '', scheduleId, scheduleName);
         const automationUrl = action1AutomationHistoryUrl(action1ConsoleBase, action1OrgId, instanceId);
-        const results = await fetchAction1Collection(
-            headers,
-            `${action1ApiBase}/automations/instances/${encodeURIComponent(action1OrgId)}/${encodeURIComponent(instanceId)}/endpoint-results?limit=${ACTION1_AUTOMATION_ENDPOINT_RESULT_LIMIT}&from=0`,
-            { limit: ACTION1_AUTOMATION_ENDPOINT_RESULT_LIMIT, action1ApiBase }
-        );
+        const results = instanceId
+            ? await fetchAction1Collection(
+                headers,
+                `${action1ApiBase}/automations/instances/${encodeURIComponent(action1OrgId)}/${encodeURIComponent(instanceId)}/endpoint-results?limit=${ACTION1_AUTOMATION_ENDPOINT_RESULT_LIMIT}&from=0`,
+                { limit: ACTION1_AUTOMATION_ENDPOINT_RESULT_LIMIT, action1ApiBase }
+            )
+            : [];
+        const endpointsWithResults = new Set();
         for (const result of results) {
             const endpointId = firstString(result?.id, result?.endpoint_id, result?.endpointId);
             if (!targetIds.has(endpointId)) continue;
             const status = normalizeAutomationStatus(result, instance);
             if (!status) continue;
+            endpointsWithResults.add(endpointId);
             if (!provisioningByEndpoint.has(endpointId)) provisioningByEndpoint.set(endpointId, []);
             provisioningByEndpoint.get(endpointId).push({
                 status,
                 scheduleKey,
                 automationInstanceId: instanceId,
-                automationName: firstString(instance?.name, instance?.action_name, result?.action_name, result?.automation_name, 'Unnamed automation'),
+                automationName: firstString(instance?.name, instance?.action_name, result?.action_name, result?.automation_name, scheduleName, 'Unnamed automation'),
                 startedAt: firstString(instance?.start_time, instance?.started_at, result?.start_time, result?.started_at),
                 completedAt: firstString(result?.time, result?.end_time, result?.completed_at, instance?.end_time, instance?.completed_at),
                 actionName: firstString(result?.action_name, result?.actionName),
                 percentCompleted: firstString(result?.percent_completed, result?.percentCompleted, instance?.percent_completed),
                 statusDetail: firstString(result?.description, result?.details_text, result?.status_details, result?.statusDetail, result?.message, result?.error, result?.error_message, instance?.status_details),
+                runFrequencyMinutes: provisioningInstance.frequencyMinutes,
+                scheduleId,
+                scheduleSettings: firstString(provisioningInstance.schedule?.settings),
+                provisioningEndpointGroups: provisioningInstance.scheduleGroupIds,
+                automationUrl
+            });
+        }
+        for (const endpointId of targetIds) {
+            if (endpointsWithResults.has(endpointId)) continue;
+            if (!provisioningByEndpoint.has(endpointId)) provisioningByEndpoint.set(endpointId, []);
+            provisioningByEndpoint.get(endpointId).push({
+                status: NO_AUTOMATION_RESULT_STATUS,
+                scheduleKey,
+                automationInstanceId: instanceId,
+                automationName: scheduleName || 'Unnamed automation',
+                startedAt: firstString(instance?.start_time, instance?.started_at),
+                completedAt: firstString(instance?.end_time, instance?.completed_at),
+                actionName: 'No endpoint result',
+                percentCompleted: '',
+                statusDetail: instanceId
+                    ? 'No endpoint result was returned for this assigned Action1 automation in the latest run.'
+                    : 'This Action1 automation is assigned to the provisioning group but has not produced a recent run.',
                 runFrequencyMinutes: provisioningInstance.frequencyMinutes,
                 scheduleId,
                 scheduleSettings: firstString(provisioningInstance.schedule?.settings),
