@@ -1125,7 +1125,7 @@ function applyConfigurationPolicyCompliance(provisioningSummary, endpointControl
         const policyName = firstString(compliance.controls?.[0]?.policyName, configurationPolicyNameFromAutomationName(result.automationName));
         const effectiveStatus = compliance.status === 'NonCompliant'
             ? 'Failed'
-            : compliance.status === 'Unknown'
+            : compliance.status === 'Unknown' && result.status !== 'Completed'
                 ? 'In progress'
                 : result.status;
         return {
@@ -1150,7 +1150,7 @@ function applyConfigurationPolicyCompliance(provisioningSummary, endpointControl
             automationResults
         };
     }
-    if (policyResults.some(result => result.policyComplianceStatus !== 'Compliant')) {
+    if (policyResults.some(result => result.policyComplianceStatus !== 'Compliant' && result.status !== 'Completed')) {
         return {
             status: 'In progress',
             detail: 'Waiting for Configuration Management policy compliance report results.',
