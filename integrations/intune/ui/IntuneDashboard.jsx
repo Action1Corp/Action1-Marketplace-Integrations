@@ -71,14 +71,14 @@ function formatDateTime(value) {
   if (!value) return 'N/A';
   const action1Timestamp = String(value).trim().match(/^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})$/);
   const parsed = action1Timestamp
-    ? new Date(
+    ? new Date(Date.UTC(
         Number(action1Timestamp[1]),
         Number(action1Timestamp[2]) - 1,
         Number(action1Timestamp[3]),
         Number(action1Timestamp[4]),
         Number(action1Timestamp[5]),
         Number(action1Timestamp[6])
-      )
+      ))
     : new Date(value);
   if (Number.isNaN(parsed.getTime())) return String(value);
   return new Intl.DateTimeFormat('en-US', {
