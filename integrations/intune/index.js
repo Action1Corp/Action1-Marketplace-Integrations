@@ -339,6 +339,7 @@ async function markProvisioningCompleteAction(context, request) {
         for (const endpoint of endpoints) {
           if (!endpointMatches(endpoint, endpointId, endpointName)) continue;
           endpoint.provisioningCompletedByAttribute = true;
+          endpoint.provisioningManualOverride = true;
           endpoint.provisioningStatus = 'Completed';
           endpoint.provisioningDetail = `${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE} set to ${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE} by manual override.`;
           endpoint.provisioningAttributeStatus = 'completed';

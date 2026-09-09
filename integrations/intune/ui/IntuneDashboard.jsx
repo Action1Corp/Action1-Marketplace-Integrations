@@ -235,6 +235,28 @@ function ProvisioningStatusPill({ status }) {
   );
 }
 
+function ManualOverrideBadge() {
+  return (
+    <span
+      title="Provisioning was manually marked complete. Underlying task results remain visible in the expanded row."
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '0.18rem 0.45rem',
+        borderRadius: 999,
+        color: '#7C2D12',
+        background: '#FFEDD5',
+        border: '1px solid #FDBA74',
+        fontSize: '0.72rem',
+        fontWeight: 800,
+        whiteSpace: 'nowrap'
+      }}
+    >
+      Manual
+    </span>
+  );
+}
+
 async function fetchJson(url, options) {
   const response = await fetch(url, options);
   const json = await response.json().catch(() => ({}));
@@ -488,11 +510,11 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
               return {
                 ...endpoint,
                 provisioningCompletedByAttribute: true,
+                provisioningManualOverride: true,
                 provisioningStatus: 'Completed',
                 provisioningDetail: 'Action1 Provisioning Status set to Completed by manual override.',
                 provisioningAttributeStatus: 'completed',
-                provisioningAttributeMessage: 'Action1 Provisioning Status set to Completed by manual override.',
-                automationResults: []
+                provisioningAttributeMessage: 'Action1 Provisioning Status set to Completed by manual override.'
               };
             })
           }
@@ -685,7 +707,12 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
                               </span>
                             </td>
                             <td style={columnCellStyle(endpointColumns[1])}><SourcePill source={device.source} /></td>
-                            <td style={columnCellStyle(endpointColumns[2])} title={device.provisioningDetail || ''}><ProvisioningStatusPill status={device.provisioningStatus || 'N/A'} /></td>
+                            <td style={columnCellStyle(endpointColumns[2])} title={device.provisioningDetail || ''}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                                <ProvisioningStatusPill status={device.provisioningStatus || 'N/A'} />
+                                {device.provisioningManualOverride && <ManualOverrideBadge />}
+                              </span>
+                            </td>
                             <td style={columnCellStyle(endpointColumns[3])}>{Array.isArray(device.action1EndpointGroups) && device.action1EndpointGroups.length ? device.action1EndpointGroups.join(', ') : 'N/A'}</td>
                             <td style={columnCellStyle(endpointColumns[4])}>{Array.isArray(device.deviceGroups) && device.deviceGroups.length ? device.deviceGroups.join(', ') : groupMembershipLimited && device.source !== 'Action1' ? 'Permission required' : 'N/A'}</td>
                             <td style={columnCellStyle(endpointColumns[5])}>{device.os || 'N/A'}</td>
