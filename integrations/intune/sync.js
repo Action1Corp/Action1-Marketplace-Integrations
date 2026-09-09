@@ -711,13 +711,42 @@ function automationResultTime(result) {
 function latestProvisioningResults(results) {
     const latestByAutomation = new Map();
     for (const result of results) {
-        const automationKey = String(result.scheduleKey || result.scheduleId || result.automationName || result.actionName || 'Unnamed automation').trim().toLowerCase();
+        const automationKey = automationResultIdentity(result) || 'unnamed automation';
         const current = latestByAutomation.get(automationKey);
-        if (!current || automationResultTime(result) >= automationResultTime(current)) {
+        const resultCompleted = result?.status === 'Completed';
+        const currentCompleted = current?.status === 'Completed';
+        if (
+            !current ||
+            (resultCompleted && !currentCompleted) ||
+            (resultCompleted === currentCompleted && automationResultTime(result) >= automationResultTime(current))
+        ) {
             latestByAutomation.set(automationKey, result);
         }
     }
     return Array.from(latestByAutomation.values()).sort((a, b) => automationResultTime(b) - automationResultTime(a));
+}
+
+function automationResultIdentity(result) {
+    return String(result?.scheduleId || result?.scheduleKey || result?.automationName || '').trim().toLowerCase();
+}
+
+function mergeStickyCompletedAutomationResults(currentResults = [], previousResults = []) {
+    const previousCompletedByIdentity = new Map();
+    for (const result of previousResults) {
+        if (result?.status !== 'Completed') continue;
+        const identity = automationResultIdentity(result);
+        if (!identity) continue;
+        const current = previousCompletedByIdentity.get(identity);
+        if (!current || automationResultTime(result) >= automationResultTime(current)) {
+            previousCompletedByIdentity.set(identity, result);
+        }
+    }
+
+    return currentResults.map(result => {
+        if (result?.status === 'Completed') return result;
+        const previousCompleted = previousCompletedByIdentity.get(automationResultIdentity(result));
+        return previousCompleted || result;
+    });
 }
 
 function normalizeConfigurationStatus(value) {
@@ -1041,9 +1070,13 @@ function instanceMatchesSchedule(instance, provisioningSchedule) {
 }
 
 function latestInstanceForSchedule(instances, provisioningSchedule) {
+    return instancesForSchedule(instances, provisioningSchedule)[0] || null;
+}
+
+function instancesForSchedule(instances, provisioningSchedule) {
     return (instances || [])
         .filter(instance => instanceMatchesSchedule(instance, provisioningSchedule))
-        .sort((a, b) => action1InstanceTime(b) - action1InstanceTime(a))[0] || null;
+        .sort((a, b) => action1InstanceTime(b) - action1InstanceTime(a));
 }
 
 async function getConfigurationManagerByEndpointReportId() {
@@ -1162,8 +1195,11 @@ function findPreviousProvisioning(endpoint, previousByEndpoint) {
     return null;
 }
 
-function summarizeProvisioningResults(results) {
-    const latestResults = latestProvisioningResults(results);
+function summarizeProvisioningResults(results, previousResults = []) {
+    const latestResults = mergeStickyCompletedAutomationResults(
+        latestProvisioningResults(results),
+        previousResults
+    );
     if (!latestResults.length) return { status: NO_AUTOMATION_RESULT_STATUS, detail: 'No Action1 provisioning automation result was found for this endpoint.', automationResults: [] };
     if (latestResults.some(result => result.status === 'Failed')) return { status: 'Failed', detail: 'One or more latest Action1 provisioning automation runs failed.', automationResults: latestResults };
     if (latestResults.some(result => result.status === 'In progress')) return { status: 'In progress', detail: 'One or more Action1 provisioning automations are still running.', automationResults: latestResults };
@@ -1171,7 +1207,7 @@ function summarizeProvisioningResults(results) {
     return { status: NO_AUTOMATION_RESULT_STATUS, detail: 'No conclusive Action1 provisioning automation result was found for this endpoint.', automationResults: latestResults };
 }
 
-async function fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecret, action1OrgId, endpointTargets, selectedAction1GroupIds = [], action1ApiBase = DEFAULT_ACTION1_BASE_URL, action1ConsoleBase = DEFAULT_ACTION1_CONSOLE_URL) {
+async function fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecret, action1OrgId, endpointTargets, selectedAction1GroupIds = [], action1ApiBase = DEFAULT_ACTION1_BASE_URL, action1ConsoleBase = DEFAULT_ACTION1_CONSOLE_URL, previousByEndpoint = new Map()) {
     const targets = (endpointTargets || [])
         .map(target => typeof target === 'string' ? { id: target, name: '' } : target)
         .map(target => ({
@@ -1208,12 +1244,23 @@ async function fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecre
     let provisioningInstances = [];
     try {
         const provisioningSchedules = await fetchProvisioningSchedules(headers, action1OrgId, selectedAction1GroupIds, action1ApiBase);
-        provisioningInstances = provisioningSchedules.map(provisioningSchedule => ({
-            instance: latestInstanceForSchedule(instances, provisioningSchedule),
-            schedule: provisioningSchedule.schedule,
-            frequencyMinutes: provisioningSchedule.frequencyMinutes,
-            scheduleGroupIds: provisioningSchedule.scheduleGroupIds
-        }));
+        provisioningInstances = provisioningSchedules.flatMap(provisioningSchedule => {
+            const recentInstances = instancesForSchedule(instances, provisioningSchedule).slice(0, 12);
+            if (!recentInstances.length) {
+                return [{
+                    instance: null,
+                    schedule: provisioningSchedule.schedule,
+                    frequencyMinutes: provisioningSchedule.frequencyMinutes,
+                    scheduleGroupIds: provisioningSchedule.scheduleGroupIds
+                }];
+            }
+            return recentInstances.map(instance => ({
+                instance,
+                schedule: provisioningSchedule.schedule,
+                frequencyMinutes: provisioningSchedule.frequencyMinutes,
+                scheduleGroupIds: provisioningSchedule.scheduleGroupIds
+            }));
+        });
     } catch (scheduleListError) {
         await updateProgress(`Warning: Could not list assigned Action1 provisioning automations: ${scheduleListError.response?.data?.error?.message || scheduleListError.message}`);
         provisioningInstances = await selectLatestProvisioningInstances(headers, instances, selectedAction1GroupIds);
@@ -1288,8 +1335,10 @@ async function fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecre
     }
     for (const [endpointId, results] of provisioningByEndpoint.entries()) {
         const target = targets.find(target => target.id === endpointId);
+        const previous = previousByEndpoint.get(String(endpointId || '').trim().toLowerCase());
+        const previousResults = Array.isArray(previous?.automationResults) ? previous.automationResults : [];
         const endpointControls = configurationControlsByEndpoint.get(normalizeEndpointName(target?.name)) || [];
-        summarized.set(endpointId, applyConfigurationPolicyCompliance(summarizeProvisioningResults(results), endpointControls));
+        summarized.set(endpointId, applyConfigurationPolicyCompliance(summarizeProvisioningResults(results, previousResults), endpointControls));
     }
     return summarized;
 }
@@ -1594,7 +1643,7 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
                 (isInSelectedAction1ProvisioningGroup(endpoint) || endpoint.provisioningCompletedByAttribute)
             ))
             .map(endpoint => ({ id: endpoint.action1EndpointId, name: endpoint.deviceName }));
-        const provisioningByEndpoint = await fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecret, action1OrgId, targetAction1Endpoints, selectedAction1GroupIds, action1ApiBase, action1ConsoleBase);
+        const provisioningByEndpoint = await fetchAction1ProvisioningByEndpoint(action1ApiKey, action1ApiSecret, action1OrgId, targetAction1Endpoints, selectedAction1GroupIds, action1ApiBase, action1ConsoleBase, previousProvisioning);
         for (const endpoint of endpoints) {
             const previous = findPreviousProvisioning(endpoint, previousProvisioning);
             if (endpoint.inAssignmentTarget && endpoint.source === 'Intune' && !endpoint.action1EndpointId) {
