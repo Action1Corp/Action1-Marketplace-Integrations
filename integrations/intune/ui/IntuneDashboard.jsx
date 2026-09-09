@@ -69,8 +69,29 @@ function getText(value) {
 
 function formatDateTime(value) {
   if (!value) return 'N/A';
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString();
+  const action1Timestamp = String(value).trim().match(/^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})$/);
+  const parsed = action1Timestamp
+    ? new Date(
+        Number(action1Timestamp[1]),
+        Number(action1Timestamp[2]) - 1,
+        Number(action1Timestamp[3]),
+        Number(action1Timestamp[4]),
+        Number(action1Timestamp[5]),
+        Number(action1Timestamp[6])
+      )
+    : new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  }).format(parsed).replace(/, (?=\d{1,2}:\d{2} )/, ' ');
+}
+
+function formatFinishedDateTime(value) {
+  return value ? formatDateTime(value) : 'Never';
 }
 
 function buildDefaultIntuneAppName(organizationName) {
@@ -661,7 +682,7 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
                                           <th style={{ padding: '0.5rem', borderBottom: '1px solid #E5E7EB', width: 160 }}>Action</th>
                                           <th style={{ padding: '0.5rem', borderBottom: '1px solid #E5E7EB', width: 90 }}>Complete</th>
                                           <th style={{ padding: '0.5rem', borderBottom: '1px solid #E5E7EB', width: 190, whiteSpace: 'nowrap' }}>Started</th>
-                                          <th style={{ padding: '0.5rem', borderBottom: '1px solid #E5E7EB', width: 190, whiteSpace: 'nowrap' }}>Last Update</th>
+                                          <th style={{ padding: '0.5rem', borderBottom: '1px solid #E5E7EB', width: 190, whiteSpace: 'nowrap' }}>Finished</th>
                                           <th style={{ padding: '0.5rem', borderBottom: '1px solid #E5E7EB' }}>Details</th>
                                         </tr>
                                       </thead>
@@ -700,7 +721,7 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
                                                 <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6' }}>{result.actionName || 'N/A'}</td>
                                                 <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6' }}>{result.percentCompleted ? `${result.percentCompleted}%` : 'N/A'}</td>
                                                 <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', whiteSpace: 'nowrap' }}>{formatDateTime(result.startedAt)}</td>
-                                                <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', whiteSpace: 'nowrap' }}>{formatDateTime(result.completedAt)}</td>
+                                                <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', whiteSpace: 'nowrap' }}>{formatFinishedDateTime(result.completedAt)}</td>
                                                 <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', color: '#4B5563' }}>{details || 'N/A'}</td>
                                               </tr>
                                               {nonCompliantControls.length > 0 && (
