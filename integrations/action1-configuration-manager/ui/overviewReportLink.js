@@ -1,7 +1,6 @@
-const ACTION1_CONSOLE_BASE_URL = 'https://app.action1.com';
-
-export function buildNonCompliantReportUrl(reportId, organizationId) {
-  const url = new URL(`/console/reports/${encodeURIComponent(String(reportId))}/summary`, ACTION1_CONSOLE_BASE_URL);
+export function buildNonCompliantReportUrl(reportId, organizationId, consoleOrigin) {
+  if (!consoleOrigin) return '';
+  const url = new URL(`/console/reports/${encodeURIComponent(String(reportId))}/summary`, consoleOrigin);
   url.search = new URLSearchParams({
     limit: '200',
     from: '0',

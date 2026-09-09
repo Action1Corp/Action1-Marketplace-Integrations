@@ -280,6 +280,9 @@ async function getOverview(context, options = {}) {
   const startedAt = Date.now();
   const policyStore = options.policyStore || createDbPolicyStore(context);
   const client = options.client || createAction1DiscoveryClient(context);
+  const action1ConsoleOrigin = typeof client.resolveAction1ConsoleOrigin === 'function'
+    ? await client.resolveAction1ConsoleOrigin()
+    : null;
   const policies = (await policyStore.listPolicies()).filter((policy) => policy.enabled === true);
   await logOverview(context, 'start', { operationType, activePolicies: policies.length });
   const reporting = options.reportingState || await reportingStore.load(context);
@@ -406,6 +409,7 @@ async function getOverview(context, options = {}) {
   }
   const result = {
     ...buildOverviewViewModel({ policies, assignedEndpointsByPolicy, observedRows, nonCompliantRows, dashboardControlRows }),
+    action1ConsoleOrigin,
     reporting: { dashboardNonCompliantEndpoints: reporting.dashboardNonCompliantEndpoints, dashboardNonCompliantControls: reporting.dashboardNonCompliantControls }
   };
   for (const policy of result.policies) {

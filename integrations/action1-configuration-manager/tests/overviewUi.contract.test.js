@@ -57,6 +57,7 @@ async function run() {
   assert(!source.includes('INCONSISTENT'), 'Overview must not expose INCONSISTENT');
   assert(source.includes('buildPolicyDetailsPath'), 'Policy names must use the existing Policy Details route');
   assert(source.includes('buildNonCompliantReportUrl'), 'Need attention links must use the report-link helper');
+  assert(!source.includes('https://app.action1.com'), 'Dashboard UI must not own the default Action1 host');
   assert(source.includes('dashboardNonCompliantControls'), 'Overview must consume the non-compliant controls report ID');
   assert(source.includes('topControlsNeedingAttention'), 'Overview must render backend-provided Top Controls');
   assert(policiesView.includes('>Endpoints</div>') && policiesView.includes('>Metrics</div>'), 'Policy grid must visually group endpoint and metric columns');
@@ -110,8 +111,17 @@ async function run() {
   assert(!source.includes('reduce('), 'Overview must not aggregate domain metrics in React');
 
   const reportLink = await import(pathToFileURL(path.join(root, 'ui', 'overviewReportLink.js')).href);
-  const url = reportLink.buildNonCompliantReportUrl('report-42', 'org-7');
+  const url = reportLink.buildNonCompliantReportUrl('report-42', 'org-7', 'https://app.action1.com');
   assert.strictEqual(url, 'https://app.action1.com/console/reports/report-42/summary?limit=200&from=0&live_only=no&details=no&org=org-7&ent=no');
+  for (const [origin, expectedHost] of [
+    ['https://app.au.action1.com/api/3.0', 'https://app.au.action1.com'],
+    ['https://app.eu.action1.com/api/3.0', 'https://app.eu.action1.com']
+  ]) {
+    const regionalUrl = reportLink.buildNonCompliantReportUrl('report-42', 'org-7', new URL(origin).origin);
+    assert(regionalUrl.startsWith(`${expectedHost}/console/reports/`));
+    assert(!regionalUrl.includes('/api/3.0/'));
+    assert(regionalUrl.endsWith('?limit=200&from=0&live_only=no&details=no&org=org-7&ent=no'));
+  }
   assert(!url.includes('policyId=') && !url.includes('group='), 'Report URL must not invent Policy/group filters');
   assert.strictEqual(reportLink.formatPercent(null), '—');
   assert.strictEqual(reportLink.formatPercent(undefined), '—');

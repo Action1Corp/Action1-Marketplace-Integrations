@@ -143,13 +143,14 @@ export default function Overview({ integration = 'action1-configuration-manager'
   const policies = Array.isArray(overview.policies) ? overview.policies : [];
   const reportId = overview.reporting?.dashboardNonCompliantEndpoints;
   const controlsReportId = overview.reporting?.dashboardNonCompliantControls;
+  const action1ConsoleOrigin = overview.action1ConsoleOrigin;
   if (!summary || !reportId || !controlsReportId) return <div style={styles.shell}><h1 style={styles.title}>Dashboard</h1><p style={styles.description}>{DESCRIPTION}</p><div style={{ ...styles.notice, marginTop: 8 }} role="status">Dashboard reporting is not configured. Go to Settings → Set up reporting.</div></div>;
   if (policies.length === 0) return <div style={styles.shell}><h1 style={styles.title}>Dashboard</h1><p style={styles.description}>{DESCRIPTION}</p><h2 style={styles.sectionTitle}>Overview</h2><div style={{ ...styles.notice, marginTop: 8 }}><strong>No enabled Policies</strong><p style={styles.description}>Create and enable a Policy to start monitoring configuration evaluation.</p><button type="button" style={secondaryButtonStyle} onClick={() => navigate(`/apps/${encodeURIComponent(integration)}/policies`)}>Open Policies</button></div></div>;
 
-  const reportUrl = (policy) => buildNonCompliantReportUrl(reportId, policy.organizationId);
-  const controlReportUrl = (control) => buildNonCompliantReportUrl(controlsReportId, control.organizationId);
+  const reportUrl = (policy) => buildNonCompliantReportUrl(reportId, policy.organizationId, action1ConsoleOrigin);
+  const controlReportUrl = (control) => buildNonCompliantReportUrl(controlsReportId, control.organizationId, action1ConsoleOrigin);
   const organizations = [...new Set(policies.map((policy) => policy.organizationId).filter(Boolean))];
-  const footerReportUrl = organizations.length === 1 ? buildNonCompliantReportUrl(controlsReportId, organizations[0]) : null;
+  const footerReportUrl = organizations.length === 1 ? buildNonCompliantReportUrl(controlsReportId, organizations[0], action1ConsoleOrigin) : null;
   const topControls = Array.isArray(overview.topControlsNeedingAttention) ? overview.topControlsNeedingAttention : [];
   return <div style={styles.shell} data-integration={integration}><style>{DASHBOARD_TOOLTIP_CSS}</style>
     <header style={styles.header}><div><h1 style={styles.title}>Dashboard</h1><p style={styles.description}>{DESCRIPTION}</p></div><button type="button" style={styles.refresh} onClick={() => load('manual-refresh')} disabled={state.refreshing}>{state.refreshing ? 'Refreshing...' : 'Refresh'}</button></header>
