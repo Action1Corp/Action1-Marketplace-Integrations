@@ -811,7 +811,7 @@ function parseAction1Time(value) {
 }
 
 function action1InstanceTime(instance) {
-    return parseAction1Time(firstString(instance?.end_time, instance?.endTime, instance?.start_time, instance?.startTime));
+    return parseAction1Time(firstString(instance?.start_time, instance?.startTime, instance?.end_time, instance?.endTime));
 }
 
 function action1ScheduleFrequencyMinutes(schedule, instance) {
