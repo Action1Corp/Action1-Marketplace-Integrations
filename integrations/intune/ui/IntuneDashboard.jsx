@@ -101,11 +101,11 @@ function buildDefaultIntuneAppName(organizationName) {
 
 function getConfigurationPolicyInfo(result) {
   const text = String(result?.automationName || '').trim();
-  if (!/^A1CM\b/i.test(text)) return null;
-  const match = text.match(/\bPOL-\d{6,}\b/i);
+  const explicitPolicyId = String(result?.configurationPolicyId || '').trim();
+  const match = explicitPolicyId ? [explicitPolicyId] : text.match(/\bPOL-\d{6,}\b/i);
   if (!match) return null;
   const policyId = match[0].toUpperCase();
-  const parts = text.split(/\s+[—-]\s+/).map(part => part.trim()).filter(Boolean);
+  const parts = /^A1CM\b/i.test(text) ? text.split(/\s+[—-]\s+/).map(part => part.trim()).filter(Boolean) : [];
   const policyIndex = parts.findIndex(part => part.toUpperCase() === policyId);
   const policyName = result?.configurationPolicyName || result?.policyControls?.find(control => control.policyName)?.policyName || (policyIndex >= 0 ? parts[policyIndex + 1] : '') || policyId;
   return {
@@ -113,6 +113,49 @@ function getConfigurationPolicyInfo(result) {
     policyName,
     url: `/apps/action1-configuration-manager/policies?policyId=${encodeURIComponent(policyId)}`
   };
+}
+
+function AutomationItemLabel({ result }) {
+  const policyInfo = getConfigurationPolicyInfo(result);
+  const automationName = String(result?.automationName || 'Unnamed automation').trim();
+  const showAutomationContext = policyInfo && automationName && automationName !== policyInfo.policyName;
+  const metaParts = policyInfo ? [policyInfo.policyId] : [];
+  if (result?.scheduleId && result.scheduleId !== automationName) metaParts.push(result.scheduleId);
+  return (
+    <div>
+      {policyInfo ? (
+        <a
+          href={policyInfo.url}
+          onClick={(event) => event.stopPropagation()}
+          style={{ color: '#003DA6', textDecoration: 'none' }}
+        >
+          {policyInfo.policyName}
+        </a>
+      ) : result?.automationUrl ? (
+        <a
+          href={result.automationUrl}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(event) => event.stopPropagation()}
+          style={{ color: '#003DA6', textDecoration: 'none' }}
+        >
+          {automationName}
+        </a>
+      ) : (
+        automationName
+      )}
+      {metaParts.length > 0 && (
+        <div style={{ marginTop: 3, color: '#6B7280', fontSize: '0.74rem', fontWeight: 600 }}>
+          {metaParts.join(' | ')}
+        </div>
+      )}
+      {showAutomationContext && (
+        <div style={{ marginTop: 3, color: '#4B5563', fontSize: '0.74rem', fontWeight: 500, lineHeight: 1.25 }}>
+          {automationName}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function FilterCard({ label, value, icon: Icon, active, onClick, tone = '#0B4EA2' }) {
@@ -688,34 +731,13 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
                                       </thead>
                                       <tbody>
                                         {automationResults.map((result, resultIndex) => {
-                                          const policyInfo = getConfigurationPolicyInfo(result);
                                           const nonCompliantControls = Array.isArray(result.nonCompliantControls) ? result.nonCompliantControls : [];
                                           const details = [result.statusDetail, result.policyComplianceDetail].filter(Boolean).join(' ');
                                           return (
                                             <Fragment key={`${key}-automation-${resultIndex}`}>
                                               <tr>
                                                 <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', fontWeight: 600 }}>
-                                                  {policyInfo ? (
-                                                    <a
-                                                      href={policyInfo.url}
-                                                      onClick={(event) => event.stopPropagation()}
-                                                      style={{ color: '#003DA6', textDecoration: 'none' }}
-                                                    >
-                                                      {policyInfo.policyName}
-                                                    </a>
-                                                  ) : result.automationUrl ? (
-                                                    <a
-                                                      href={result.automationUrl}
-                                                      target="_blank"
-                                                      rel="noreferrer"
-                                                      onClick={(event) => event.stopPropagation()}
-                                                      style={{ color: '#003DA6', textDecoration: 'none' }}
-                                                    >
-                                                      {result.automationName || 'Unnamed automation'}
-                                                    </a>
-                                                  ) : (
-                                                    result.automationName || 'Unnamed automation'
-                                                  )}
+                                                  <AutomationItemLabel result={result} />
                                                 </td>
                                                 <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6' }}><ProvisioningStatusPill status={result.status || 'N/A'} /></td>
                                                 <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6' }}>{result.actionName || 'N/A'}</td>
