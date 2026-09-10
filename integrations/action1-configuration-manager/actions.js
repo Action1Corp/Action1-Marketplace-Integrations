@@ -18,9 +18,20 @@ const { reconcilePoliciesAction } = require('./reconciliation');
 const { getOverview } = require('./overviewService');
 const { getReportingState, getReportingStatus, setupReporting } = require('./reporting/reportingService');
 const { createHistoryEnvelope, resultDetails } = require('./historyContract');
+const { loadControlPackArtifacts } = require('./controlPackResolver');
 
 module.exports = {
   actions: {
+    'get-control-pack': async () => {
+      const resolved = loadControlPackArtifacts();
+      return {
+        ok: true,
+        packId: resolved.packId,
+        packVersion: resolved.packVersion,
+        catalog: resolved.catalog,
+        baselines: resolved.baselinesArtifact.baselines || []
+      };
+    },
     'list-policies': listPoliciesAction,
     'get-policy': getPolicyAction,
     'get-overview': async (context, request = {}) => {

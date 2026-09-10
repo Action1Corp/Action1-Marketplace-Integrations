@@ -61,7 +61,7 @@ function createFakeDb(options = {}) {
       }
 
       if (sql.includes('UPDATE action1_configuration_manager_policies') && sql.includes('SET base_name = ?')) {
-        const policyId = params[10];
+        const policyId = params[12];
         const existing = state.policies.find((entry) => entry.policy_id === policyId);
         if (!existing) {
           return { changes: 0 };
@@ -76,7 +76,9 @@ function createFakeDb(options = {}) {
         existing.start_time = params[6];
         existing.timezone = params[7];
         existing.completion_deadline_minutes = params[8];
-        existing.enabled = normalizeBoolean(params[9]);
+        existing.control_pack_id = params[9];
+        existing.control_pack_version = params[10];
+        existing.enabled = normalizeBoolean(params[11]);
         existing.updated_at = '2026-08-12T01:00:00.000Z';
         return { changes: 1 };
       }
@@ -344,6 +346,7 @@ async function run() {
   });
   assert.strictEqual(updated.baseName, 'Workstation Security Updated');
   assert.strictEqual(updated.policyMode, 'ASSESS_AND_REMEDIATE');
+  assert.strictEqual(updated.controlPackVersion, '0.5.0');
   assert.strictEqual(updated.selectedControls[0].parameters.minimumLength, 12);
 
   await assert.rejects(

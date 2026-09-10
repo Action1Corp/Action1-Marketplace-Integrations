@@ -1,6 +1,7 @@
 const assert = require('assert');
 const path = require('path');
 const { pathToFileURL } = require('url');
+const { loadControlPackFixture } = require('./controlPackFixture');
 
 async function run() {
   const catalogModulePath = path.join(__dirname, '..', 'ui', 'catalog', 'controlPackCatalog.js');
@@ -16,8 +17,9 @@ async function run() {
     countExpectedAutomations
   } = await import(pathToFileURL(catalogModulePath).href);
 
-  const catalog = loadReleasedControlCatalog();
-  const baselines = loadReleasedBaselines();
+  const fixture = loadControlPackFixture();
+  const catalog = loadReleasedControlCatalog(fixture);
+  const baselines = loadReleasedBaselines(fixture.baselines);
   const baselineOptions = getBaselineOptions(baselines);
   const baselineLookup = getBaselineMembershipByControlId(baselines);
 

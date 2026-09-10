@@ -333,11 +333,11 @@ For example:
 - `0.6.0`
 - `0.7.0`
 
-The currently installed Configuration Manager package uses Control Pack version `0.5.0`.
+The repository currently contains Control Pack release `0.5.0`.
 
-A future Configuration Manager update will allow an administrator to select one installed Control Pack release as the active version without editing integration code.
+Configuration Manager currently discovers exactly one installed release directory automatically. There is no version selector and no automatic semver selection.
 
-Installing or copying a newer Control Pack release does not currently activate it automatically.
+To update the Control Pack, replace the installed release directory, restart the Marketplace backend, and refresh the frontend.
 
 ---
 
@@ -396,8 +396,8 @@ The current version has several intentional limitations:
 - A policy targets one Action1 organization and either All Endpoints or one endpoint group.
 - The organization and target cannot currently be changed after policy creation.
 - Scheduling currently supports hourly recurrence.
-- Control Pack `0.5.0` is currently the active version built into the integration.
-- Installing a newer Control Pack release does not yet automatically or manually change the active version.
+- Exactly one Control Pack release must be installed under the Control Pack directory.
+- The installed release is discovered automatically after a backend restart.
 - Historical Dashboard trends are not currently stored.
 - Configuration Manager does not provide its own Action1 credential configuration.
 

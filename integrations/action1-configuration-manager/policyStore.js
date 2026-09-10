@@ -475,6 +475,8 @@ async function updatePolicyRow(context, normalized) {
             start_time = ?,
             timezone = ?,
             completion_deadline_minutes = ?,
+            control_pack_id = ?,
+            control_pack_version = ?,
             enabled = ?,
             updated_at = CURRENT_TIMESTAMP
       WHERE policy_id = ?`,
@@ -488,6 +490,8 @@ async function updatePolicyRow(context, normalized) {
       normalized.runSchedule.startTime,
       normalized.runSchedule.timezone,
       normalized.completionDeadlineMinutes,
+      normalized.controlPackId,
+      normalized.controlPackVersion,
       normalized.enabled ? 1 : 0,
       normalized.policyId
     ]

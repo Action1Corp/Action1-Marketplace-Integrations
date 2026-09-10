@@ -8,12 +8,7 @@ const { buildAutomationDisplayName } = require('./automationNaming');
 const { buildRunPowerShellParams } = require('./action1RunScript');
 
 const PACK_ID = 'windows-endpoint-configuration';
-const PACK_VERSION = '0.5.0';
 const PLACEHOLDER = '__A1CM_POLICY_CONFIGURATION_BASE64__';
-
-function defaultReleaseRoot() {
-  return path.join(__dirname, 'control-packs', PACK_ID, PACK_VERSION);
-}
 
 function serializeAction1Schedule(input = {}) {
   const runEveryHours = positiveInteger(input.runEveryHours, 'Run every');
@@ -28,10 +23,6 @@ function serializeAction1Schedule(input = {}) {
     settings_timezone: 'UTC',
     retry_minutes: String(completionDeadlineMinutes)
   };
-}
-
-function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
 function buildEnvelope(policy, group, controls) {
@@ -51,10 +42,9 @@ function buildEnvelope(policy, group, controls) {
 }
 
 function buildAutomationDefinitions(policy, options = {}) {
-  const releaseRoot = options.releaseRoot || defaultReleaseRoot();
-  const pack = readJson(path.join(releaseRoot, 'pack.json'));
-  if (pack.packId !== PACK_ID || pack.packVersion !== PACK_VERSION) throw new Error('Policy must use the pinned released Control Pack.');
   const catalog = loadPolicyCatalogContract();
+  const releaseRoot = options.releaseRoot || catalog.releaseRoot;
+  if (catalog.packId !== PACK_ID) throw new Error('Resolved Control Pack has an unexpected identity.');
   const groups = new Map();
   for (const selected of policy.selectedControls || []) {
     const group = catalog.controlFamiliesById[selected.automationGroupId];
@@ -98,4 +88,4 @@ function buildAutomationDefinitions(policy, options = {}) {
   });
 }
 
-module.exports = { PACK_ID, PACK_VERSION, PLACEHOLDER, buildAutomationDefinitions, buildAutomationDisplayName, serializeAction1Schedule };
+module.exports = { PACK_ID, PLACEHOLDER, buildAutomationDefinitions, buildAutomationDisplayName, serializeAction1Schedule };

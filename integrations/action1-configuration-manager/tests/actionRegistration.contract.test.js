@@ -13,7 +13,8 @@ function run() {
     declaredActionIds,
     'the Marketplace entrypoint must export every manifest-declared action and no stale action set'
   );
-  assert.strictEqual(typeof entrypoint.actions['discover-policy-organizations'], 'function');
+assert.strictEqual(typeof entrypoint.actions['discover-policy-organizations'], 'function');
+assert.strictEqual(typeof entrypoint.actions['get-control-pack'], 'function');
   assert.strictEqual(typeof entrypoint.actions['discover-policy-endpoint-groups'], 'function');
 }
 

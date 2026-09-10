@@ -1,6 +1,7 @@
 const assert = require('assert');
 const path = require('path');
 const { pathToFileURL } = require('url');
+const { loadControlPackFixture } = require('./controlPackFixture');
 
 function buildDraft(overrides = {}) {
   return {
@@ -30,7 +31,7 @@ async function buildCatalog() {
   const { loadReleasedControlCatalog } = await import(
     pathToFileURL(path.join(__dirname, '..', 'ui', 'catalog', 'controlPackCatalog.js')).href
   );
-  return loadReleasedControlCatalog();
+  return loadReleasedControlCatalog(loadControlPackFixture());
 }
 
 async function buildRepositories() {

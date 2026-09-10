@@ -1,6 +1,3 @@
-import releasedCatalog from '../../control-packs/windows-endpoint-configuration/0.5.0/control-catalog.json' with { type: 'json' };
-import releasedBaselinesArtifact from '../../control-packs/windows-endpoint-configuration/0.5.0/baselines.json' with { type: 'json' };
-
 function byDisplayOrder(left, right) {
   return Number(left?.displayOrder || 0) - Number(right?.displayOrder || 0);
 }
@@ -24,8 +21,8 @@ export function countExpectedAutomations(selectedControls) {
   return countSelectedControlFamilies(selectedControls);
 }
 
-export function loadReleasedBaselines() {
-  return [...(releasedBaselinesArtifact.baselines || [])];
+export function loadReleasedBaselines(rawBaselines = []) {
+  return [...(Array.isArray(rawBaselines) ? rawBaselines : [])];
 }
 
 export function findBaselineById(baselines, baselineId) {
@@ -78,21 +75,21 @@ export function getRecommendedParametersForBaselineControl(baselines, baselineId
   return { ...(controlEntry.parameters || {}) };
 }
 
-export function loadReleasedControlCatalog() {
-  const families = [...releasedCatalog.families].sort(byDisplayOrder);
-  const controlFamilies = [...releasedCatalog.automationGroups].sort(byDisplayOrder);
-  const controls = [...releasedCatalog.controls].sort(byDisplayOrder);
-  const baselines = loadReleasedBaselines();
+export function buildControlPackCatalog({ packId, packVersion, catalog, baselines = [] }) {
+  const families = [...(catalog?.families || [])].sort(byDisplayOrder);
+  const controlFamilies = [...(catalog?.automationGroups || [])].sort(byDisplayOrder);
+  const controls = [...(catalog?.controls || [])].sort(byDisplayOrder);
+  const releasedBaselines = loadReleasedBaselines(baselines);
 
   return {
-    packId: releasedCatalog.packId,
-    packVersion: releasedCatalog.packVersion,
+    packId,
+    packVersion,
     families,
     controlFamilies,
     controls,
-    baselines,
-    baselineOptions: getBaselineOptions(baselines),
-    baselineMembershipByControlId: getBaselineMembershipByControlId(baselines),
+    baselines: releasedBaselines,
+    baselineOptions: getBaselineOptions(releasedBaselines),
+    baselineMembershipByControlId: getBaselineMembershipByControlId(releasedBaselines),
     controlsById: controls.reduce((lookup, control) => {
       lookup[control.controlId] = control;
       return lookup;
@@ -102,4 +99,8 @@ export function loadReleasedControlCatalog() {
       return lookup;
     }, {})
   };
+}
+
+export function loadReleasedControlCatalog(packData) {
+  return buildControlPackCatalog(packData);
 }

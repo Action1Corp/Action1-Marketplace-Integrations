@@ -17,6 +17,7 @@ export function createPolicyApi(integration) {
   }
 
   return {
+    getControlPack: async () => invoke('get-control-pack'),
     listPolicies: async () => (await invoke('list-policies')).policies || [],
     getPolicy: async (policyId) => (await invoke('get-policy', { policyId })).policy,
     savePolicy: async (draft) => (await invoke(draft?.mode === 'create' ? 'create-policy' : 'update-policy', { draft })).policy,

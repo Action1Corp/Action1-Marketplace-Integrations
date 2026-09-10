@@ -1,7 +1,4 @@
-const pack = require('./control-packs/windows-endpoint-configuration/0.5.0/pack.json');
-const catalog = require('./control-packs/windows-endpoint-configuration/0.5.0/control-catalog.json');
-const baselinesArtifact = require('./control-packs/windows-endpoint-configuration/0.5.0/baselines.json');
-const baselines = baselinesArtifact.baselines || [];
+const { loadControlPackArtifacts } = require('./controlPackResolver');
 
 let cachedContract = null;
 
@@ -90,12 +87,17 @@ function loadPolicyCatalogContract() {
     return cachedContract;
   }
 
+  const resolved = loadControlPackArtifacts();
+  const catalog = resolved.catalog;
+  const baselines = resolved.baselinesArtifact.baselines || [];
   cachedContract = {
-    packId: pack.packId,
-    packVersion: pack.packVersion,
+    packId: resolved.packId,
+    packVersion: resolved.packVersion,
+    releaseRoot: resolved.releaseRoot,
+    catalog,
+    baselines,
     controlsById: Object.fromEntries((catalog.controls || []).map((control) => [control.controlId, control])),
-    controlFamiliesById: Object.fromEntries((catalog.automationGroups || []).map((group) => [group.automationGroupId, group])),
-    baselines
+    controlFamiliesById: Object.fromEntries((catalog.automationGroups || []).map((group) => [group.automationGroupId, group]))
   };
 
   for (const baseline of baselines) {

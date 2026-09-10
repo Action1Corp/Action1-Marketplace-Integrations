@@ -11,6 +11,13 @@
   "entry": "index.js",
   "actions": [
     {
+      "id": "get-control-pack",
+      "kind": "action",
+      "label": "Get Control Pack",
+      "description": "Loads the installed Configuration Manager Control Pack catalog.",
+      "history": false
+    },
+    {
       "id": "list-policies",
       "kind": "action",
       "label": "List Policies",

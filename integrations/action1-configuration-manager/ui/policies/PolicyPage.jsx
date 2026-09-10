@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { loadReleasedControlCatalog, countExpectedAutomations, countSelectedControlFamilies } from '../catalog/controlPackCatalog.js';
+import { buildControlPackCatalog, countExpectedAutomations, countSelectedControlFamilies } from '../catalog/controlPackCatalog.js';
 import PolicyDetailsView from './PolicyDetailsView.jsx';
 import PolicyEditorView from './PolicyEditorView.jsx';
 import PolicyListView from './PolicyListView.jsx';
@@ -172,7 +172,6 @@ function PolicyPage({ integration }) {
   const location = useLocation();
   const navigate = useNavigate();
   const routePolicyId = getPolicyIdFromSearch(location.search);
-  const catalogRef = useRef(loadReleasedControlCatalog());
   const policyApiRef = useRef(createPolicyApi(integration));
   const discoveryApiRef = useRef(createPolicyDiscoveryApi(integration));
   const repositoriesRef = useRef({
@@ -186,6 +185,8 @@ function PolicyPage({ integration }) {
   const [busyOperation, setBusyOperation] = useState('');
   const [policies, setPolicies] = useState([]);
   const [loadingPolicies, setLoadingPolicies] = useState(true);
+  const [loadingCatalog, setLoadingCatalog] = useState(true);
+  const [catalog, setCatalog] = useState(null);
   const [pageError, setPageError] = useState('');
   const [routeResolution, setRouteResolution] = useState(routePolicyId ? 'loading' : 'ready');
   const [organizations, setOrganizations] = useState([]);
@@ -197,8 +198,20 @@ function PolicyPage({ integration }) {
   const [organizationBlockedByAllEndpointsByOrganization, setOrganizationBlockedByAllEndpointsByOrganization] = useState({});
   const [hasGroupReservationsByOrganization, setHasGroupReservationsByOrganization] = useState({});
 
-  const catalog = catalogRef.current;
   const selectedPolicy = mode.policyId ? policies.find((policy) => policy.policyId === mode.policyId) || null : null;
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingCatalog(true);
+    void policyApiRef.current.getControlPack().then((result) => {
+      if (!cancelled) setCatalog(buildControlPackCatalog(result));
+    }).catch((error) => {
+      if (!cancelled) setPageError(error?.message || 'Unable to load the installed Control Pack.');
+    }).finally(() => {
+      if (!cancelled) setLoadingCatalog(false);
+    });
+    return () => { cancelled = true; };
+  }, [integration]);
 
   useEffect(() => {
     if (routePolicyId) {
@@ -542,7 +555,7 @@ function PolicyPage({ integration }) {
         Create and manage Windows configuration policies that assess and remediate endpoints through scheduled Action1 automations.
       </p>
       <OperationStatus label={busyOperation} />
-      {loadingPolicies ? <div style={styles.notice}>Loading Policies…</div> : (
+      {loadingPolicies || loadingCatalog || !catalog ? <div style={styles.notice}>Loading Configuration Manager…</div> : (
         <>
       {pageError ? <div style={styles.errorNotice}>{pageError}</div> : null}
       {mode.kind === 'list' ? (

@@ -1,6 +1,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const { loadControlPackFixture } = require('./controlPackFixture');
 const { pathToFileURL } = require('url');
 
 function createFakeDb() {
@@ -358,7 +359,7 @@ async function run() {
   assert(multiResult.policy.action1Automations.every((automation) => automation.action1AutomationActionId), 'initial apply must persist every Action1 action ID');
   const { formatPolicyDetails } = await import(pathToFileURL(path.join(__dirname, '..', 'ui', 'policies', 'policyViewModel.js')).href);
   const { loadReleasedControlCatalog } = await import(pathToFileURL(path.join(__dirname, '..', 'ui', 'catalog', 'controlPackCatalog.js')).href);
-  const projected = formatPolicyDetails(multiResult.policy, loadReleasedControlCatalog());
+  const projected = formatPolicyDetails(multiResult.policy, loadReleasedControlCatalog(loadControlPackFixture()));
   assert.strictEqual(projected.controlFamilyGroups.length, 2, 'hydrated family correlations should project one group per selected family');
   assert(projected.controlFamilyGroups.every((group) => group.automationLink?.automationId && group.automationLink?.action1Url), 'hydrated correlations should expose real Action1 ids and self links');
 
