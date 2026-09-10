@@ -12,7 +12,27 @@ function normalizeAutomationResponse(payload) {
   const id = required(payload?.id, 'Action1 automation id');
   const self = required(payload?.self, 'Action1 automation self URL');
   const name = required(payload?.name, 'Action1 automation name');
-  return { id, self, name };
+  if (!Array.isArray(payload?.actions)) throw new Error('Action1 Automation response must contain a Run PowerShell action id.');
+  const runScriptActions = payload.actions.filter((action) => action?.template_id === 'run_script');
+  if (runScriptActions.length !== 1) throw new Error('Action1 Automation response must contain exactly one Run PowerShell action id.');
+  const actionId = String(runScriptActions[0]?.id || '').trim();
+  if (!actionId) throw new Error('Action1 Automation response must contain a usable Run PowerShell action id.');
+  return { id, self, name, actionId };
+}
+
+function withActionId(definition, actionId) {
+  const normalizedActionId = required(actionId, 'Action1 automation action id');
+  const actions = definition?.payload?.actions;
+  if (!Array.isArray(actions) || actions.length !== 1 || actions[0]?.template_id !== 'run_script') {
+    throw new Error('Action1 Automation update requires exactly one Run PowerShell action.');
+  }
+  return {
+    ...definition,
+    payload: {
+      ...definition.payload,
+      actions: [{ ...actions[0], id: normalizedActionId }]
+    }
+  };
 }
 
 function classifyAlreadyAbsentDelete(error, automationId) {
@@ -103,15 +123,16 @@ function createAction1AutomationClient(context, options = {}) {
         return { state: EXISTENCE_STATES.UNRESOLVED, error };
       }
     },
-    async updateAutomation(organizationId, automationId, definition) {
+    async updateAutomation(organizationId, automationId, definition, actionId) {
       const orgId = required(organizationId, 'Action1 organization id');
       const id = required(automationId, 'Action1 automation id');
+      const updateDefinition = withActionId(definition, actionId);
       const payload = await discoveryClient.requestAction1Mutation({
         operation: 'update-automation',
         method: 'PATCH',
         organizationId: orgId,
         path: `/automations/schedules/${encodeURIComponent(orgId)}/${encodeURIComponent(id)}`,
-        body: definition.payload
+        body: updateDefinition.payload
       });
       return { id, self: payload?.self || null, name: payload?.name || definition.name || definition.payload?.name };
     },
@@ -137,5 +158,6 @@ module.exports = {
   classifyMissingAutomationGet,
   createAction1AutomationClient,
   normalizeAutomationLookup,
-  normalizeAutomationResponse
+  normalizeAutomationResponse,
+  withActionId
 };

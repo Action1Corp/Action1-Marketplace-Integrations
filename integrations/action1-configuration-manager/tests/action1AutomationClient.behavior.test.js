@@ -2,14 +2,14 @@ const assert = require('assert');
 const path = require('path');
 
 async function run() {
-  const { createAction1AutomationClient } = require(path.join(__dirname, '..', 'action1AutomationClient.js'));
+  const { createAction1AutomationClient, normalizeAutomationResponse } = require(path.join(__dirname, '..', 'action1AutomationClient.js'));
   const requests = [];
   const context = {
     action1: { async getCredentials() { return { apiKey: 'test-key', apiSecret: 'test-secret' }; } },
     async http(options) {
       requests.push(options);
       if (options.url.endsWith('/oauth2/token')) return { status: 200, data: { access_token: 'token', expires_in: 3600 }, headers: {} };
-      return { status: 201, data: { id: 'auto-1', self: 'https://app.action1.com/api/3.0/automations/schedules/org-1/auto-1', name: 'A1CM — Policy — Family' }, headers: {} };
+      return { status: 201, data: { id: 'auto-1', self: 'https://app.action1.com/api/3.0/automations/schedules/org-1/auto-1', name: 'A1CM — Policy — Family', actions: [{ name: 'Run PowerShell', template_id: 'run_script', id: 'Run_PowerShell_test-id' }] }, headers: {} };
     },
     logger: { info() {}, warn() {}, error() {} }
   };
@@ -21,19 +21,24 @@ async function run() {
       settings: 'ENABLED EVERY:360 AT:15-07-00 DATE:2026-08-13', settings_timezone: 'America/Los_Angeles', retry_minutes: '360'
     }
   });
-  assert.deepStrictEqual(result, { id: 'auto-1', self: 'https://app.action1.com/api/3.0/automations/schedules/org-1/auto-1', name: 'A1CM — Policy — Family' });
+  assert.deepStrictEqual(result, { id: 'auto-1', self: 'https://app.action1.com/api/3.0/automations/schedules/org-1/auto-1', name: 'A1CM — Policy — Family', actionId: 'Run_PowerShell_test-id' });
   const createRequest = requests.find((request) => request.url.endsWith('/automations/schedules/org-1'));
   assert.strictEqual(createRequest.method, 'POST');
   assert.strictEqual(createRequest.data.name, 'A1CM — Policy — Family');
   assert.deepStrictEqual(createRequest.data.endpoints, [{ id: 'ALL', type: 'EndpointGroup' }]);
   assert.deepStrictEqual(createRequest.data.actions[0].params.run_script_params, []);
   assert.strictEqual(createRequest.data.retry_minutes, '360');
-  const definition = { name: 'A1CM — Renamed — Family', payload: { name: 'A1CM — Renamed — Family', endpoints: [{ id: 'ALL', type: 'EndpointGroup' }], actions: [], settings: 'ENABLED EVERY:720 AT:15-07-00 DATE:2026-08-13', retry_minutes: '720' } };
-  const updated = await client.updateAutomation('org-1', 'auto-1', definition);
+  assert.strictEqual(createRequest.data.actions.length, 1);
+  const definition = { name: 'A1CM — Renamed — Family', payload: { name: 'A1CM — Renamed — Family', endpoints: [{ id: 'ALL', type: 'EndpointGroup' }], actions: [{ name: 'Run PowerShell', template_id: 'run_script', params: { run_script_text: 'updated' } }], settings: 'ENABLED EVERY:720 AT:15-07-00 DATE:2026-08-13', retry_minutes: '720' } };
+  const updated = await client.updateAutomation('org-1', 'auto-1', definition, 'Run_PowerShell_test-id');
   assert.strictEqual(updated.id, 'auto-1');
   const patchRequest = requests.find((request) => request.method === 'PATCH');
   assert.strictEqual(patchRequest.url.endsWith('/automations/schedules/org-1/auto-1'), true);
   assert.strictEqual(patchRequest.data.name, 'A1CM — Renamed — Family');
+  assert.deepStrictEqual(patchRequest.data.actions, [{ id: 'Run_PowerShell_test-id', name: 'Run PowerShell', template_id: 'run_script', params: { run_script_text: 'updated' } }]);
+  const requestCountBeforeMissingActionId = requests.length;
+  await assert.rejects(() => client.updateAutomation('org-1', 'auto-1', definition), /action id is required/i);
+  assert.strictEqual(requests.length, requestCountBeforeMissingActionId, 'PATCH without an action ID must fail before transport');
   const deleted = await client.deleteAutomation('org-1', 'auto-1');
   assert.deepStrictEqual(deleted, { status: 'deleted' });
 
@@ -57,6 +62,16 @@ async function run() {
   const deleteRequest = requests.find((request) => request.method === 'DELETE');
   assert.strictEqual(deleteRequest.url.endsWith('/automations/schedules/org-1/auto-1'), true);
   assert(!JSON.stringify(requests).includes('test-secret'));
+
+  for (const payload of [
+    {},
+    { actions: [] },
+    { actions: [{ template_id: 'other', id: 'other-id' }] },
+    { actions: [{ template_id: 'run_script', id: 'one' }, { template_id: 'run_script', id: 'two' }] },
+    { actions: [{ template_id: 'run_script' }] }
+  ]) {
+    assert.throws(() => normalizeAutomationResponse({ id: 'auto-1', self: 'self', name: 'name', ...payload }), /Run PowerShell action id/i);
+  }
 
   function errorContext(payload, status = 400, contentType = 'application/json') {
     return {

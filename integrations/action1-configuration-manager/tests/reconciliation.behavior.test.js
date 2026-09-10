@@ -39,7 +39,7 @@ async function run() {
     },
     async createAutomation(orgId, definition) {
       calls.create.push({ orgId, definition });
-      return { id: 'auto-replacement', self: 'https://action1.test/auto-replacement', name: definition.name };
+      return { id: 'auto-replacement', actionId: 'Run_PowerShell_auto-replacement', self: 'https://action1.test/auto-replacement', name: definition.name };
     },
     async updateAutomation() { calls.update.push(true); },
     async deleteAutomation() { calls.delete.push(true); }
@@ -65,6 +65,7 @@ async function run() {
   assert.strictEqual(calls.create[0].definition.name, 'A1CM - POL-MISSING - POL-MISSING - Password Policy');
   assert.strictEqual(calls.create[0].definition.envelope.policyId, 'POL-MISSING');
   assert.strictEqual(calls.create[0].definition.envelope.policyName, 'POL-MISSING');
+  assert.strictEqual(correlations.get('POL-MISSING')[0].action1AutomationActionId, 'Run_PowerShell_auto-replacement');
   assert.strictEqual(calls.update.length, 0);
   assert.strictEqual(calls.delete.length, 0);
   assert.strictEqual(calls.saved.length, 2);

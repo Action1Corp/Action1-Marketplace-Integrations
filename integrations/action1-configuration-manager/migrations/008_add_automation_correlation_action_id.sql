@@ -1,0 +1,2 @@
+ALTER TABLE action1_configuration_manager_automation_correlations
+  ADD COLUMN action1_automation_action_id TEXT;

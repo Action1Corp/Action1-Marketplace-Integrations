@@ -62,6 +62,7 @@ async function createAndReplaceAutomation(context, policy, definition, client, c
     controlFamilyNameSnapshot: definition.familyName,
     action1OrganizationId: policy.organizationId,
     action1AutomationId: created.id,
+    action1AutomationActionId: created.actionId,
     action1AutomationName: created.name,
     action1AutomationSelf: created.self,
     desiredDefinitionFingerprint: definition.fingerprint,
@@ -108,7 +109,7 @@ async function applyEdit(context, previousPolicy, desiredPolicy, options = {}) {
         await log(context, 'info', `Automation patch started: policyId=${desiredPolicy.policyId} family=${family} automationId=${operation.correlation.action1AutomationId} automationName=${operation.definition.name}`);
         let updated;
         try {
-          updated = await client.updateAutomation(desiredPolicy.organizationId, operation.correlation.action1AutomationId, operation.definition);
+          updated = await client.updateAutomation(desiredPolicy.organizationId, operation.correlation.action1AutomationId, operation.definition, operation.correlation.action1AutomationActionId);
         } catch (error) {
           if (!classifyMissingAutomationGet(error, operation.correlation.action1AutomationId)) throw error;
           await log(context, 'info', `Missing owned automation detected: ${family}`);
@@ -217,6 +218,7 @@ async function enablePolicy(context, policy) {
         controlFamilyNameSnapshot: definition.familyName,
         action1OrganizationId: policy.organizationId,
         action1AutomationId: created.id,
+        action1AutomationActionId: created.actionId,
         action1AutomationName: created.name,
         action1AutomationSelf: created.self,
         desiredDefinitionFingerprint: definition.fingerprint,

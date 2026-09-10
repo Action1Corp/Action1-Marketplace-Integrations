@@ -146,8 +146,8 @@ function createFakeDb(options = {}) {
         state.correlations.push({
           policy_id: params[0], automation_group_id: params[1], automation_group_version: params[2],
           control_family_name_snapshot: params[3], action1_organization_id: params[4],
-          action1_automation_id: params[5], action1_automation_name: params[6], action1_automation_self: params[7],
-          desired_definition_fingerprint: params[8], last_applied_at: params[9], last_error: params[10],
+          action1_automation_id: params[5], action1_automation_action_id: params[6], action1_automation_name: params[7], action1_automation_self: params[8],
+          desired_definition_fingerprint: params[9], last_applied_at: params[10], last_error: params[11],
           created_at: '2026-08-12T01:00:00.000Z', updated_at: '2026-08-12T01:00:00.000Z'
         });
         return { changes: 1 };
@@ -222,7 +222,7 @@ function createFakeContext(options = {}) {
     async http(options) {
       if (options.url.endsWith('/oauth2/token')) return { status: 200, data: { access_token: 'token', expires_in: 3600 }, headers: {} };
       automationNumber += 1;
-      return { status: 201, data: { id: `auto-${automationNumber}`, self: `https://action1.test/api/3.0/automations/schedules/org-action/auto-${automationNumber}`, name: `A1CM - Workstation Security - Finance - ${automationNumber}` }, headers: {} };
+      return { status: 201, data: { id: `auto-${automationNumber}`, self: `https://action1.test/api/3.0/automations/schedules/org-action/auto-${automationNumber}`, name: `A1CM - Workstation Security - Finance - ${automationNumber}`, actions: [{ name: 'Run PowerShell', template_id: 'run_script', id: `Run_PowerShell_${automationNumber}` }] }, headers: {} };
     },
     logger: {
       info() {},

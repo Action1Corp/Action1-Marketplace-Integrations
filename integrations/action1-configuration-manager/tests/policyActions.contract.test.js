@@ -140,8 +140,8 @@ function createFakeDb() {
         state.correlations.push({
           policy_id: params[0], automation_group_id: params[1], automation_group_version: params[2],
           control_family_name_snapshot: params[3], action1_organization_id: params[4],
-          action1_automation_id: params[5], action1_automation_name: params[6], action1_automation_self: params[7],
-          desired_definition_fingerprint: params[8], active: 1, last_applied_at: params[9], last_error: params[10],
+          action1_automation_id: params[5], action1_automation_action_id: params[6], action1_automation_name: params[7], action1_automation_self: params[8],
+          desired_definition_fingerprint: params[9], active: 1, last_applied_at: params[10], last_error: params[11],
           created_at: '2026-08-12T01:00:00.000Z', updated_at: '2026-08-12T01:00:00.000Z'
         });
         return { changes: 1 };
@@ -158,12 +158,13 @@ function createFakeDb() {
         if (row) {
           row.automation_group_version = params[0];
           row.control_family_name_snapshot = params[1];
-          row.action1_automation_name = params[2];
-          row.action1_automation_self = params[3] || row.action1_automation_self;
-          row.desired_definition_fingerprint = params[4];
+          row.action1_automation_action_id = params[4];
+          row.action1_automation_name = params[5];
+          row.action1_automation_self = params[6] || row.action1_automation_self;
+          row.desired_definition_fingerprint = params[7];
           row.active = 1;
-          row.last_applied_at = params[5];
-          row.last_error = params[6];
+          row.last_applied_at = params[8];
+          row.last_error = params[9];
         }
         return { changes: row ? 1 : 0 };
       }
@@ -238,7 +239,7 @@ function createFakeContext(contextOptions = {}) {
         return { status: 200, data: { id: automationId, self: `https://action1.test/api/3.0/automations/schedules/org-acme/${automationId}`, name: 'A1CM - Existing automation' }, headers: {} };
       }
       automationNumber += 1;
-      return { status: 201, data: { id: `auto-${automationNumber}`, self: `https://action1.test/api/3.0/automations/schedules/org-acme/auto-${automationNumber}`, name: `A1CM - Workstation Security - Finance Workstations - ${automationNumber}` }, headers: {} };
+      return { status: 201, data: { id: `auto-${automationNumber}`, self: `https://action1.test/api/3.0/automations/schedules/org-acme/auto-${automationNumber}`, name: `A1CM - Workstation Security - Finance Workstations - ${automationNumber}`, actions: [{ name: 'Run PowerShell', template_id: 'run_script', id: `Run_PowerShell_${automationNumber}` }] }, headers: {} };
     },
     raw: { provider: 'sqlite' },
     logger: {
@@ -354,6 +355,7 @@ async function run() {
   assert.strictEqual(multiResult.ok, true);
   assert.strictEqual(multiResult.policy.enabled, true);
   assert.strictEqual(multiResult.policy.action1Automations.length, 2, 'initial apply should persist one correlation per selected family');
+  assert(multiResult.policy.action1Automations.every((automation) => automation.action1AutomationActionId), 'initial apply must persist every Action1 action ID');
   const { formatPolicyDetails } = await import(pathToFileURL(path.join(__dirname, '..', 'ui', 'policies', 'policyViewModel.js')).href);
   const { loadReleasedControlCatalog } = await import(pathToFileURL(path.join(__dirname, '..', 'ui', 'catalog', 'controlPackCatalog.js')).href);
   const projected = formatPolicyDetails(multiResult.policy, loadReleasedControlCatalog());
@@ -370,6 +372,11 @@ async function run() {
   assert.strictEqual(editResult.ok, true, editResult.message);
   assert.strictEqual(editResult.policy.enabled, true);
   assert.strictEqual(multiContext.requests.filter((request) => request.method === 'POST' && request.url.includes('/automations/instances/')).length, 0, 'Unchanged selected Controls must not create cleanup');
+  const firstPatch = multiContext.requests.find((request) => request.method === 'PATCH' && request.url.includes('/automations/schedules/'));
+  assert(firstPatch, 'Policy edit must PATCH the existing scheduled Automation');
+  assert.strictEqual(firstPatch.data.actions.length, 1);
+  const patchedAutomationId = decodeURIComponent(firstPatch.url.split('/').pop());
+  assert.strictEqual(firstPatch.data.actions[0].id, `Run_PowerShell_${patchedAutomationId.replace('auto-', '')}`);
 
   const removeControlDraft = {
     ...editResult.policy,

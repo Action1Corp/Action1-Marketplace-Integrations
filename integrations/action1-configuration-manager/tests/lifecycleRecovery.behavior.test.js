@@ -54,7 +54,7 @@ async function run() {
     async observeAutomation() { throw new Error('unexpected observe for PATCH'); },
     async createAutomation(orgId, definition) {
       calls.create.push({ orgId, definition });
-      return { id: 'auto-new', self: 'https://action1.test/auto-new', name: definition.name };
+      return { id: 'auto-new', actionId: 'Run_PowerShell_auto-new', self: 'https://action1.test/auto-new', name: definition.name };
     }
   };
   const patched = await applyEdit(context(), previous, desired, { client: missingPatchClient, correlations });
@@ -65,6 +65,7 @@ async function run() {
   assert.strictEqual(calls.create[0].definition.envelope.policyId, 'POL-EDIT');
   assert.strictEqual(calls.create[0].definition.envelope.policyName, 'Edit Policy');
   assert.strictEqual(calls.replacement.action1AutomationId, 'auto-new');
+  assert.strictEqual(calls.replacement.action1AutomationActionId, 'Run_PowerShell_auto-new');
 
   const unchanged = basePolicy();
   const unchangedDefinition = buildAutomationDefinitions(unchanged)[0];
@@ -79,13 +80,14 @@ async function run() {
   let unchangedCreatePayload;
   const unchangedClient = {
     async observeAutomation() { return { state: 'MISSING' }; },
-    async createAutomation(orgId, definition) { unchangedCreatePayload = { orgId, definition }; return { id: 'auto-recreated', self: 'https://action1.test/auto-recreated', name: definition.name }; }
+    async createAutomation(orgId, definition) { unchangedCreatePayload = { orgId, definition }; return { id: 'auto-recreated', actionId: 'Run_PowerShell_auto-recreated', self: 'https://action1.test/auto-recreated', name: definition.name }; }
   };
   const applied = await applyEdit(context(), unchanged, unchanged, { client: unchangedClient, correlations: unchangedCorrelations });
   assert.strictEqual(applied.history.counts.created, 1);
   assert.strictEqual(unchangedCreatePayload.definition.fingerprint, unchangedDefinition.fingerprint);
   assert.strictEqual(unchangedCreatePayload.definition.envelope.policyName, 'Edit Policy');
   assert.strictEqual(unchangedCorrelations.replacement.action1AutomationId, 'auto-recreated');
+  assert.strictEqual(unchangedCorrelations.replacement.action1AutomationActionId, 'Run_PowerShell_auto-recreated');
 }
 
 run().catch((error) => { console.error(error); process.exit(1); });
