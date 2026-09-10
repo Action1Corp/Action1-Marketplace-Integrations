@@ -108,9 +108,11 @@ function getConfigurationPolicyInfo(result) {
   const parts = /^A1CM\b/i.test(text) ? text.split(/\s+[—-]\s+/).map(part => part.trim()).filter(Boolean) : [];
   const policyIndex = parts.findIndex(part => part.toUpperCase() === policyId);
   const policyName = result?.configurationPolicyName || result?.policyControls?.find(control => control.policyName)?.policyName || (policyIndex >= 0 ? parts[policyIndex + 1] : '') || policyId;
+  const controlGroupName = result?.controlFamilyName || result?.automationGroupName || (policyIndex >= 0 ? parts[policyIndex + 2] : '') || '';
   return {
     policyId,
     policyName,
+    controlGroupName,
     url: `/apps/action1-configuration-manager/policies?policyId=${encodeURIComponent(policyId)}`
   };
 }
@@ -118,9 +120,7 @@ function getConfigurationPolicyInfo(result) {
 function AutomationItemLabel({ result }) {
   const policyInfo = getConfigurationPolicyInfo(result);
   const automationName = String(result?.automationName || 'Unnamed automation').trim();
-  const showAutomationContext = policyInfo && automationName && automationName !== policyInfo.policyName;
-  const metaParts = policyInfo ? [policyInfo.policyId] : [];
-  if (result?.scheduleId && result.scheduleId !== automationName) metaParts.push(result.scheduleId);
+  const controlGroupName = policyInfo?.controlGroupName || automationName;
   return (
     <div>
       {policyInfo ? (
@@ -144,14 +144,26 @@ function AutomationItemLabel({ result }) {
       ) : (
         automationName
       )}
-      {metaParts.length > 0 && (
+      {policyInfo && (
         <div style={{ marginTop: 3, color: '#6B7280', fontSize: '0.74rem', fontWeight: 600 }}>
-          {metaParts.join(' | ')}
+          {policyInfo.policyId}
         </div>
       )}
-      {showAutomationContext && (
-        <div style={{ marginTop: 3, color: '#4B5563', fontSize: '0.74rem', fontWeight: 500, lineHeight: 1.25 }}>
-          {automationName}
+      {policyInfo && controlGroupName && (
+        <div style={{ marginTop: 4, fontSize: '0.78rem', fontWeight: 600, lineHeight: 1.25 }}>
+          {result?.automationUrl ? (
+            <a
+              href={result.automationUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(event) => event.stopPropagation()}
+              style={{ color: '#003DA6', textDecoration: 'none' }}
+            >
+              {controlGroupName}
+            </a>
+          ) : (
+            <span style={{ color: '#4B5563' }}>{controlGroupName}</span>
+          )}
         </div>
       )}
     </div>

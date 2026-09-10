@@ -1664,10 +1664,16 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
                 const previousAutomationResults = Array.isArray(previous?.automationResults) ? previous.automationResults : [];
                 endpoint.automationResults = latestAutomationResults.length ? latestAutomationResults : previousAutomationResults;
                 endpoint.provisioningManualOverride = Boolean(previous?.provisioningManualOverride);
-                endpoint.provisioningStatus = 'Completed';
-                endpoint.provisioningDetail = endpoint.provisioningManualOverride
-                    ? `${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE} is ${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE} by manual override. Provisioning item statuses are retained below.`
-                    : `${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE} is ${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE}.`;
+                if (endpoint.provisioningManualOverride) {
+                    endpoint.provisioningStatus = 'Completed';
+                    endpoint.provisioningDetail = `${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE} is ${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE} by manual override. Provisioning item statuses are retained below.`;
+                } else if (provisioning?.status && provisioning.status !== 'Completed') {
+                    endpoint.provisioningStatus = provisioning.status;
+                    endpoint.provisioningDetail = `${provisioning.detail} ${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE} is ${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE}, but this was not manually marked complete.`;
+                } else {
+                    endpoint.provisioningStatus = 'Completed';
+                    endpoint.provisioningDetail = `${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE} is ${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE}.`;
+                }
                 endpoint.provisioningCleanupStatus = previous?.provisioningCleanupStatus || '';
                 endpoint.provisioningCleanupMessage = previous?.provisioningCleanupMessage || '';
                 endpoint.provisioningCleanupGroupIds = previous?.provisioningCleanupGroupIds || [];
