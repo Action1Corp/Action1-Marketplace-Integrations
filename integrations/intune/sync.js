@@ -701,7 +701,7 @@ function normalizeAutomationStatus(row, instance) {
 }
 
 function automationResultTime(result) {
-    const raw = firstString(result?.completedAt, result?.startedAt);
+    const raw = firstString(result?.startedAt, result?.completedAt);
     if (!raw) return 0;
     const normalized = raw.replace(/^(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})$/, '$1T$2:$3:$4Z');
     const parsed = Date.parse(normalized);
