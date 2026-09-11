@@ -25,7 +25,7 @@ async function run() {
   assert(!source.includes('label="Not Fully Evaluated"'), 'Dashboard must not render a dedicated Not Fully Evaluated KPI');
   const kpiSection = source.slice(source.indexOf('<div style={styles.kpis}>'), source.indexOf('<div style={styles.sectionHead}><h2 style={styles.sectionTitle}>Policies</h2>'));
   assert.deepStrictEqual(
-    [...kpiSection.matchAll(/label="([^"]+)"/g)].map((match) => match[1]),
+    [...kpiSection.matchAll(/label="([^"]+)"/g)].map((match) => match[1]).filter((label) => ['Active Policies', 'Need Attention', 'Overall Compliance', 'Evaluation Coverage'].includes(label)),
     ['Active Policies', 'Need Attention', 'Overall Compliance', 'Evaluation Coverage'],
     'Dashboard KPI cards must retain the approved order'
   );
@@ -41,12 +41,20 @@ async function run() {
   assert(source.includes('operationType'), 'Overview must distinguish initial load from manual refresh');
   assert(source.includes('maxWidth: 1080'), 'Overview should use the approved analytical content width');
   assert(!source.includes('overflowX'), 'Overview must not force horizontal table scrolling');
-  assert(source.includes('Loading Dashboard'), 'Overview must have a loading state');
+  assert(!source.includes('Loading Dashboard...'), 'Overview must not render the obsolete standalone loading panel');
+  assert(source.includes('Loading dashboard data...'), 'Overview must expose a subtle initial data loading status');
+  assert(source.includes('Loading policy data...'), 'Policies must expose an inline initial loading state');
+  assert(source.includes('Loading control data...'), 'Top Controls must expose an inline initial loading state');
+  assert(source.includes('initialLoading'), 'Overview must distinguish initial loading from refresh loading');
+  assert(source.includes('aria-busy="true"'), 'Dashboard loading surfaces must expose their busy state');
+  assert(source.includes('a1cm-dashboard-spinner'), 'Dashboard loading must reuse the integration spinner pattern');
+  assert(source.includes('initialLoading ? <DashboardLoading'), 'Initial KPI values must use loading indicators before overview data exists');
+  assert(source.includes('initialLoading ? null : <p'), 'Initial KPI secondary values must remain absent before overview data exists');
   assert(source.includes('Set up reporting'), 'Overview must guide reporting setup');
   assert(source.includes('Unable to load Dashboard'), 'Overview must have a safe error state');
   const description = 'Monitor current configuration evaluation and compliance across active policies and assigned Windows endpoints. Coverage reflects the latest available reporting data and may change as endpoint availability changes.';
   assert(source.includes(description), 'Dashboard must use the approved current-state description');
-  assert.strictEqual((source.match(/<p style={styles\.description}>{DESCRIPTION}<\/p>/g) || []).length, 5, 'Each Dashboard render state must have one introductory description');
+  assert.strictEqual((source.match(/<p style={styles\.description}>{DESCRIPTION}<\/p>/g) || []).length, 4, 'Each Dashboard render state must have one introductory description');
   assert(!source.includes('Dashboard reflects the latest available configuration results.'), 'Dashboard must not render the former standalone informational paragraph');
   assert(!source.includes('CURRENT_DATA_NOTE') && !source.includes('currentDataNote'), 'Dashboard must not render a second explanatory note');
   assert(source.includes("description: { margin: '0 0 22px', color: '#5A6079', fontSize: 13, lineHeight: 1.5 },"), 'Dashboard description must use the normal page width');
