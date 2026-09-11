@@ -264,6 +264,24 @@ function ManualOverrideBadge() {
   );
 }
 
+function ManualOverrideNotice() {
+  return (
+    <div style={{
+      marginBottom: '0.7rem',
+      padding: '0.55rem 0.7rem',
+      border: '1px solid #FDBA74',
+      borderRadius: 6,
+      background: '#FFF7ED',
+      color: '#7C2D12',
+      fontSize: '0.8rem',
+      fontWeight: 700,
+      lineHeight: 1.35
+    }}>
+      Manually marked complete. Provisioning item results are retained below for review.
+    </div>
+  );
+}
+
 async function fetchJson(url, options) {
   const response = await fetch(url, options);
   const json = await response.json().catch(() => ({}));
@@ -745,6 +763,7 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
                                       </button>
                                     )}
                                   </div>
+                                  {device.provisioningManualOverride && <ManualOverrideNotice />}
                                   {markCompleteMessage && (
                                     <div style={{ padding: '0.55rem 0.7rem', marginBottom: '0.7rem', background: '#EAF3FF', border: '1px solid #BFDBFE', borderRadius: 6, color: '#0B4EA2', fontSize: '0.8rem', fontWeight: 600 }}>
                                       {markCompleteMessage}
