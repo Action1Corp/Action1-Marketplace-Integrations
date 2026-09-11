@@ -216,7 +216,7 @@ function SourcePill({ source }) {
   );
 }
 
-function ProvisioningStatusPill({ status }) {
+function ProvisioningStatusPill({ status, manualOverride = false }) {
   const config = {
     'In progress': { color: '#92400E', bg: '#FEF3C7' },
     Completed: { color: '#166534', bg: '#DCFCE7' },
@@ -237,29 +237,7 @@ function ProvisioningStatusPill({ status }) {
       fontWeight: 700,
       whiteSpace: 'nowrap'
     }}>
-      {status || 'N/A'}
-    </span>
-  );
-}
-
-function ManualOverrideBadge() {
-  return (
-    <span
-      title="Provisioning was manually marked complete. Underlying task results remain visible in the expanded row."
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        padding: '0.18rem 0.45rem',
-        borderRadius: 999,
-        color: '#7C2D12',
-        background: '#FFEDD5',
-        border: '1px solid #FDBA74',
-        fontSize: '0.72rem',
-        fontWeight: 800,
-        whiteSpace: 'nowrap'
-      }}
-    >
-      Manual
+      {manualOverride && status === 'Completed' ? 'Completed - Manual' : (status || 'N/A')}
     </span>
   );
 }
@@ -734,8 +712,10 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
                             <td style={columnCellStyle(endpointColumns[1])}><SourcePill source={device.source} /></td>
                             <td style={columnCellStyle(endpointColumns[2])} title={device.provisioningDetail || ''}>
                               <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-                                <ProvisioningStatusPill status={device.provisioningStatus || 'N/A'} />
-                                {device.provisioningManualOverride && <ManualOverrideBadge />}
+                                <ProvisioningStatusPill
+                                  status={device.provisioningStatus || 'N/A'}
+                                  manualOverride={device.provisioningManualOverride}
+                                />
                               </span>
                             </td>
                             <td style={columnCellStyle(endpointColumns[3])}>{Array.isArray(device.action1EndpointGroups) && device.action1EndpointGroups.length ? device.action1EndpointGroups.join(', ') : 'N/A'}</td>
