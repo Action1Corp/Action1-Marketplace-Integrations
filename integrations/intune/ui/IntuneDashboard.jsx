@@ -144,11 +144,6 @@ function AutomationItemLabel({ result }) {
       ) : (
         automationName
       )}
-      {policyInfo && (
-        <div style={{ marginTop: 3, color: '#6B7280', fontSize: '0.74rem', fontWeight: 600 }}>
-          {policyInfo.policyId}
-        </div>
-      )}
       {policyInfo && controlGroupName && (
         <div style={{ marginTop: 4, fontSize: '0.78rem', fontWeight: 600, lineHeight: 1.25 }}>
           {result?.automationUrl ? (
