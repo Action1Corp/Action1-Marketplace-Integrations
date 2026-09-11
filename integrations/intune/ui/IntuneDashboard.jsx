@@ -545,7 +545,7 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
           }
         };
       });
-      setMarkCompleteMessage(result.message || `${endpointName || 'Endpoint'} was marked as provisioning complete.`);
+      setMarkCompleteMessage('');
     } catch (markError) {
       setMarkCompleteMessage(markError.message);
     } finally {
