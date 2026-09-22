@@ -34,6 +34,9 @@ async function run() {
   assert.deepStrictEqual(endpointGroupResult, {
     organizationId: 'org-acme',
     allEndpointsAvailable: false,
+    organizationBlockedByAllEndpoints: false,
+    hasAnyGroupReservations: false,
+    reservedEndpointGroupIds: [],
     endpointGroups: [{ endpointGroupId: 'group-open', endpointGroupName: 'Open Group', endpointCount: 12 }]
   });
   assert.deepStrictEqual(JSON.parse(fetchCalls[1].options.body), {

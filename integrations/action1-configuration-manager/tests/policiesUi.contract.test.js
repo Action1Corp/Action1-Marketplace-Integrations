@@ -29,11 +29,11 @@ function run() {
   assert(policyPageSource.includes('saveDraft'), 'PolicyPage should own the save flow');
   assert(policyPageSource.includes('togglePolicyEnabled'), 'PolicyPage should own the enable/disable lifecycle transition');
   assert(policyPageSource.includes('deletePolicy'), 'PolicyPage should own the delete lifecycle transition');
-  const loadingStart = policyPageSource.indexOf('{loadingPolicies ?');
-  const loadedStart = policyPageSource.indexOf('{pageError ?', loadingStart);
+  const loadingStart = policyPageSource.indexOf('{loadingPolicies || loadingCatalog ?');
+  const loadedStart = policyPageSource.indexOf(': !catalog ? null : (', loadingStart);
   const loadingBranch = policyPageSource.slice(loadingStart, loadedStart);
   const loadedBranch = policyPageSource.slice(loadedStart, policyPageSource.indexOf('{pendingAction', loadedStart));
-  assert(loadingBranch.includes('Loading Policies…'), 'PolicyPage should show Loading Policies while policies are loading');
+  assert(loadingBranch.includes('Loading Configuration Manager…'), 'PolicyPage should show the Configuration Manager loading state while policies or catalog are loading');
   assert(!loadingBranch.includes('PolicyListView') && !loadingBranch.includes('No policies') && !loadingBranch.includes('Create Policy'), 'PolicyPage loading state must not render the empty or normal list content');
   assert(loadedBranch.includes('PolicyListView'), 'PolicyPage should render list content only after loading completes');
   assert(loadedBranch.includes('policies={policies}'), 'PolicyPage should preserve normal non-empty Policies rendering');
