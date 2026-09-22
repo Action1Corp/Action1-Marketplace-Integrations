@@ -1,5 +1,51 @@
 # Action1 Configuration Manager
 
+## Cross-integration Policy links and Delete
+
+Other Marketplace integrations can link to the existing Policy views:
+
+| View | URL |
+| --- | --- |
+| Details | `/apps/action1-configuration-manager/policies?policyId=<POLICY_ID>` |
+| Edit | `/apps/action1-configuration-manager/policies?policyId=<POLICY_ID>&mode=edit` |
+| Create | `/apps/action1-configuration-manager/policies?mode=create` |
+| Create with suggested name | `/apps/action1-configuration-manager/policies?mode=create&policyName=<URL_ENCODED_NAME>` |
+
+Use `URLSearchParams` to encode query values. For example, `?mode=create&policyName=Remote%20Workforce` opens the normal Create wizard at its first step with Policy Name set to `Remote Workforce`. The name is an initial suggestion only: user edits are retained during the wizard, and normal name trimming and validation still apply. `policyName` is ignored outside Create. No additional name-length rule applies to the prefill.
+
+Visiting a URL never creates or saves a Policy. The user must complete Organization, Target, Policy mode, Controls/Baseline, Review, and the normal final confirmation. Headless Create is not part of this cross-integration contract.
+
+Refresh reopens the requested view, using persisted Policy data for Edit or the original suggested name for Create; unsaved edits are not restored. Browser Back/Forward follows the requested views. Edit Cancel and successful Edit return to Details; Create Cancel and successful Create return to the Policies list. Closing an editor replaces its history entry so Back does not immediately reopen that dismissed wizard. Unsupported navigation modes fall back to Details when a Policy ID is present, or the list otherwise. Edit requires a Policy ID; unknown Policies show the normal not-found state. Create ignores a stray Policy ID.
+
+An integration frontend can delete a Policy through the authenticated Marketplace session:
+
+```http
+POST /api/integrations/action1-configuration-manager/actions/delete-policy
+Content-Type: application/json
+```
+
+```json
+{
+  "payload": {
+    "policyId": "POL-000064"
+  }
+}
+```
+
+The `payload` wrapper is required. `policyId` must be a nonempty string after trimming. Send only this identifier; Configuration Manager loads the stored Policy and its owned Automation information. Caller-supplied organization, scope, Automation identifiers, or cleanup settings cannot override that state.
+
+Delete uses the same lifecycle as Configuration Manager's Delete button: owned scheduled Automations are removed, transient endpoint-state cleanup is accepted, and the Policy, Controls, correlations, and scope reservation are removed. Cleanup acceptance does not mean every endpoint has completed cleanup. Failed or ambiguous cleanup keeps the Policy and reservation; do not blindly retry an ambiguous request.
+
+Callers should check HTTP status, `result.ok`, and `result.deleted`:
+
+| Outcome | Result |
+| --- | --- |
+| Deleted | `ok: true`, `deleted: true`, `message: "Policy deleted."`, `policy: <deleted Policy snapshot>`, `details: <History information>` |
+| Valid but unknown/already deleted ID | `ok: true`, `deleted: false`, `message: "Policy was not found."`, `policy: null`, `details: <History information>` |
+| Invalid ID or lifecycle failure | `ok: false`, `message: <safe error>`, `details: <History information>` |
+
+An HTTP-success response can still contain `ok: false`. Do not parse message text or `details` to determine the outcome. Delete remains History-tracked and subject to Marketplace authentication and write-access permissions; use the normal action request above without disabling History. Backend-to-backend integration invocation is not supported by this contract.
+
 Action1 Configuration Manager helps you define, deploy, monitor, and maintain Windows configuration policies through Action1.
 
 Policies are built from a versioned Configuration Manager Control Pack. Each policy targets an Action1 organization and either all Windows endpoints in that organization or a specific endpoint group.

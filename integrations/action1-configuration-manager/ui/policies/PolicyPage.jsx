@@ -18,7 +18,7 @@ import {
 } from './policyUiStyles.js';
 import { createDraftFromPolicy, createPolicyDraft } from './policyEditorState.js';
 import { validatePolicyDraft } from './policyValidation.js';
-import { buildPolicyDetailsPath, buildPoliciesListPath, getPolicyIdFromSearch } from './policyRouting.js';
+import { buildPolicyDetailsPath, buildPoliciesListPath, buildPolicyEditPath, buildPolicyCreatePath, getPolicyRouteFromSearch } from './policyRouting.js';
 
 const styles = {
   shell: {
@@ -171,14 +171,19 @@ function formatLifecycleMessage(kind, policy) {
 function PolicyPage({ integration }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const routePolicyId = getPolicyIdFromSearch(location.search);
+  const mode = getPolicyRouteFromSearch(location.search);
+  const routePolicyId = mode.policyId;
+  const routeKey = location.key + ':' + location.search;
+  // Each navigation initializes its editor once; rerenders must preserve user edits.
+  const currentRouteRef = useRef(routeKey);
+  currentRouteRef.current = routeKey;
+  const initializedEditorRef = useRef(null);
   const policyApiRef = useRef(createPolicyApi(integration));
   const discoveryApiRef = useRef(createPolicyDiscoveryApi(integration));
   const repositoriesRef = useRef({
     organizationRepository: createAction1OrganizationRepository(discoveryApiRef.current),
     endpointGroupRepository: createAction1EndpointGroupRepository(discoveryApiRef.current)
   });
-  const [mode, setMode] = useState(() => ({ kind: routePolicyId ? 'details' : 'list', policyId: routePolicyId }));
   const [draft, setDraft] = useState(null);
   const [validationResult, setValidationResult] = useState({ fieldErrors: {}, sectionErrors: [], blockingMessage: '' });
   const [pendingAction, setPendingAction] = useState(null);
@@ -218,17 +223,34 @@ function PolicyPage({ integration }) {
   }, [integration]);
 
   useEffect(() => {
-    if (routePolicyId) {
-      setMode({ kind: 'details', policyId: routePolicyId });
-      setDraft(null);
-      setRouteResolution('loading');
-      return;
-    }
-
-    setMode({ kind: 'list', policyId: null });
+    initializedEditorRef.current = null;
     setDraft(null);
-    setRouteResolution('ready');
-  }, [routePolicyId]);
+    setPendingAction(null);
+    setValidationResult({ fieldErrors: {}, sectionErrors: [], blockingMessage: '' });
+    setPageError('');
+    setOrganizationsLoading(false);
+    setRouteResolution(routePolicyId ? 'loading' : 'ready');
+    if (mode.kind === 'create') {
+      const params = new URLSearchParams(location.search);
+      if (params.has('policyId')) {
+        params.delete('policyId');
+        navigate('/apps/' + encodeURIComponent(integration) + '/policies?' + params, { replace: true });
+        return;
+      }
+      const now = new Date();
+      setDraft({ ...createPolicyDraft({
+        currentDate: formatCurrentDate(now),
+        currentTime: formatCurrentTimePlusThirtyMinutes(now),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      }), baseName: mode.policyName });
+      initializedEditorRef.current = routeKey;
+      setEndpointGroupsByOrganization({});
+      setEndpointGroupStateByOrganization({});
+      setAllEndpointsAvailableByOrganization({});
+      setOrganizationBlockedByAllEndpointsByOrganization({});
+      setHasGroupReservationsByOrganization({});
+    }
+  }, [routeKey]);
 
   async function refreshPolicies() {
     setLoadingPolicies(true);
@@ -273,13 +295,20 @@ function PolicyPage({ integration }) {
   }, [integration]);
 
   useEffect(() => {
-    if (!routePolicyId || loadingPolicies) {
+    if (!routePolicyId || loadingPolicies || loadingCatalog || !catalog) {
       return;
     }
 
+    function resolvePolicy(policy) {
+      setRouteResolution('found');
+      if (mode.kind === 'edit' && initializedEditorRef.current !== routeKey) {
+        setDraft(createDraftFromPolicy(policy, catalog));
+        initializedEditorRef.current = routeKey;
+      }
+    }
     const loadedPolicy = policies.find((policy) => policy.policyId === routePolicyId);
     if (loadedPolicy) {
-      setRouteResolution('found');
+      resolvePolicy(loadedPolicy);
       return;
     }
 
@@ -288,15 +317,15 @@ function PolicyPage({ integration }) {
     void (async () => {
       try {
         const policy = await policyApiRef.current.getPolicy(routePolicyId);
-        if (cancelled) return;
+        if (cancelled || currentRouteRef.current !== routeKey) return;
         if (policy) {
           setPolicies((current) => current.some((entry) => entry.policyId === policy.policyId) ? current : [...current, attachPolicyMetrics(policy)]);
-          setRouteResolution('found');
+          resolvePolicy(policy);
         } else {
           setRouteResolution('not-found');
         }
       } catch (error) {
-        if (!cancelled) {
+        if (!cancelled && currentRouteRef.current === routeKey) {
           setRouteResolution('not-found');
           setPageError(error?.message || 'Unable to load the requested Policy.');
         }
@@ -306,19 +335,21 @@ function PolicyPage({ integration }) {
     return () => {
       cancelled = true;
     };
-  }, [loadingPolicies, policies, routePolicyId]);
+  }, [loadingPolicies, loadingCatalog, catalog, policies, routeKey]);
 
   async function loadOrganizations() {
     setOrganizationsLoading(true);
     setOrganizationsError('');
     try {
       const nextOrganizations = await repositoriesRef.current.organizationRepository.listOrganizations();
+      if (currentRouteRef.current !== routeKey) return;
       setOrganizations(nextOrganizations || []);
     } catch (error) {
+      if (currentRouteRef.current !== routeKey) return;
       setOrganizations([]);
       setOrganizationsError(error?.message || 'Unable to load Action1 organizations.');
     } finally {
-      setOrganizationsLoading(false);
+      if (currentRouteRef.current === routeKey) setOrganizationsLoading(false);
     }
   }
 
@@ -334,6 +365,7 @@ function PolicyPage({ integration }) {
 
     try {
       const result = await repositoriesRef.current.endpointGroupRepository.listEndpointGroups(organizationId, options);
+      if (currentRouteRef.current !== routeKey) return;
       setEndpointGroupsByOrganization((current) => ({
         ...current,
         [organizationId]: result.endpointGroups || []
@@ -355,6 +387,7 @@ function PolicyPage({ integration }) {
         [organizationId]: { loading: false, error: '' }
       }));
     } catch (error) {
+      if (currentRouteRef.current !== routeKey) return;
       setEndpointGroupsByOrganization((current) => ({
         ...current,
         [organizationId]: []
@@ -382,58 +415,19 @@ function PolicyPage({ integration }) {
   }
 
   function openCreate() {
-    const now = new Date();
-    setMode({ kind: 'create', policyId: null });
-    setDraft(
-      createPolicyDraft({
-        currentDate: formatCurrentDate(now),
-        currentTime: formatCurrentTimePlusThirtyMinutes(now),
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-      })
-    );
-    setValidationResult({ fieldErrors: {}, sectionErrors: [], blockingMessage: '' });
-    setEndpointGroupsByOrganization({});
-    setEndpointGroupStateByOrganization({});
-    setAllEndpointsAvailableByOrganization({});
-    setOrganizationBlockedByAllEndpointsByOrganization({});
-    setHasGroupReservationsByOrganization({});
-    if (!organizationsLoading && organizations.length === 0 && !organizationsError) {
-      void loadOrganizations();
-    }
+    navigate(buildPolicyCreatePath(integration, location.search));
   }
 
-  function openDetails(policyId) {
-    setMode({ kind: 'details', policyId });
-    setDraft(null);
-    setValidationResult({ fieldErrors: {}, sectionErrors: [], blockingMessage: '' });
-    setRouteResolution('found');
-    navigate(buildPolicyDetailsPath(integration, policyId, location.search));
+  function openDetails(policyId, options) {
+    navigate(buildPolicyDetailsPath(integration, policyId, location.search), options);
   }
 
-  async function openEdit(policyId) {
-    try {
-      const policy = policies.find((entry) => entry.policyId === policyId) || (await policyApiRef.current.getPolicy(policyId));
-      if (!policy) {
-        setPageError('Policy was not found.');
-        return;
-      }
-
-      setMode({ kind: 'edit', policyId });
-      setDraft(createDraftFromPolicy(policy, catalog));
-      setValidationResult({ fieldErrors: {}, sectionErrors: [], blockingMessage: '' });
-      setPageError('');
-    } catch (error) {
-      setPageError(error?.message || 'Unable to load the Policy for editing.');
-    }
+  function openEdit(policyId) {
+    navigate(buildPolicyEditPath(integration, policyId, location.search));
   }
 
-  function returnToList() {
-    setMode({ kind: 'list', policyId: null });
-    setDraft(null);
-    setPendingAction(null);
-    setValidationResult({ fieldErrors: {}, sectionErrors: [], blockingMessage: '' });
-    setRouteResolution('ready');
-    navigate(buildPoliciesListPath(integration, location.search));
+  function returnToList(options) {
+    navigate(buildPoliciesListPath(integration, location.search), options);
   }
 
   function saveDraft(nextDraft) {
@@ -453,13 +447,14 @@ function PolicyPage({ integration }) {
       try {
         const savedPolicy = await policyApiRef.current.savePolicy(buildPolicyDraftPayload(nextDraft, catalog));
         await refreshPolicies();
+        if (currentRouteRef.current !== routeKey) return;
         if (nextDraft.mode === 'edit') {
-          openDetails(savedPolicy.policyId);
+          openDetails(savedPolicy.policyId, { replace: true });
         } else {
-          returnToList();
+          returnToList({ replace: true });
         }
       } catch (error) {
-        setPageError(error?.message || 'Unable to save the Policy.');
+        if (currentRouteRef.current === routeKey) setPageError(error?.message || 'Unable to save the Policy.');
       } finally {
         setBusyOperation('');
       }
@@ -473,11 +468,8 @@ function PolicyPage({ integration }) {
     setBusyOperation(enabled ? 'Enabling Policy…' : 'Disabling Policy…');
     void (async () => {
       try {
-        const updatedPolicy = await policyApiRef.current.setPolicyEnabled(policyId, enabled);
+        await policyApiRef.current.setPolicyEnabled(policyId, enabled);
         await refreshPolicies();
-        if (mode.kind === 'details') {
-          setMode({ kind: 'details', policyId: updatedPolicy.policyId });
-        }
       } catch (error) {
         setPageError(error?.message || 'Unable to update the Policy status.');
       } finally {
@@ -493,7 +485,7 @@ function PolicyPage({ integration }) {
       try {
         await policyApiRef.current.deletePolicy(policyId);
         await refreshPolicies();
-        returnToList();
+        if (currentRouteRef.current === routeKey) returnToList();
       } catch (error) {
         setPageError(error?.message || 'Unable to delete the Policy.');
       } finally {
@@ -559,10 +551,11 @@ function PolicyPage({ integration }) {
         Create and manage Windows configuration policies that assess and remediate endpoints through scheduled Action1 automations.
       </p>
       <OperationStatus label={busyOperation} />
+      {mode.kind === 'invalid' ? <div style={styles.errorNotice} role="alert">Policy id is required to edit a Policy.</div> : null}
       {(catalogError || pageError) ? <div style={styles.errorNotice}>{catalogError || pageError}</div> : null}
       {loadingPolicies || loadingCatalog ? <div style={styles.notice}>Loading Configuration Manager…</div> : !catalog ? null : (
         <>
-      {mode.kind === 'list' ? (
+      {(mode.kind === 'list' || mode.kind === 'invalid') ? (
             <PolicyListView
               integration={integration}
               policies={policies}
@@ -579,7 +572,7 @@ function PolicyPage({ integration }) {
         <PolicyDetailsView
           catalog={catalog}
           policy={selectedPolicy}
-          onBack={returnToList}
+          onBack={() => returnToList()}
           onDelete={() => openLifecycleConfirmation('delete', selectedPolicy.policyId)}
           onDisable={() => openLifecycleConfirmation('disable', selectedPolicy.policyId)}
           onEdit={() => openEdit(selectedPolicy.policyId)}
@@ -587,17 +580,18 @@ function PolicyPage({ integration }) {
           busy={Boolean(busyOperation)}
         />
       ) : null}
-      {mode.kind === 'details' && !selectedPolicy && routeResolution === 'not-found' ? (
+      {(mode.kind === 'details' || mode.kind === 'edit') && !selectedPolicy && routeResolution === 'not-found' ? (
         <div style={styles.notFound} role="status">
           <h2 style={styles.dialogTitle}>Policy not found</h2>
           <p style={styles.dialogText}>The requested Policy may have been deleted or is no longer available.</p>
           <div>
-            <button type="button" style={styles.button} onClick={returnToList}>Back to Policies</button>
+            <button type="button" style={styles.button} onClick={() => returnToList()}>Back to Policies</button>
           </div>
         </div>
       ) : null}
-      {(mode.kind === 'create' || mode.kind === 'edit') && draft ? (
+      {(mode.kind === 'create' || mode.kind === 'edit') && draft && initializedEditorRef.current === routeKey ? (
         <PolicyEditorView
+          key={routeKey}
           catalog={catalog}
           draft={draft}
           allEndpointsAvailable={allEndpointsAvailable}
@@ -607,7 +601,7 @@ function PolicyPage({ integration }) {
           endpointGroupsError={endpointGroupState.error}
           endpointGroupsLoading={endpointGroupState.loading}
           isEditMode={mode.kind === 'edit'}
-          onCancel={mode.kind === 'edit' ? () => openDetails(draft.policyId) : returnToList}
+          onCancel={mode.kind === 'edit' ? () => openDetails(draft.policyId, { replace: true }) : () => returnToList({ replace: true })}
           onChange={setDraft}
           onSave={saveDraft}
           organizations={organizations}

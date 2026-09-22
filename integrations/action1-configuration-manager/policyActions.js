@@ -224,15 +224,19 @@ async function disablePolicyAction(context, request = {}) {
 async function performDeletePolicy(context, request = {}, tracked) {
   let existing = null;
   try {
-    const store = createDbPolicyStore(context);
     const payload = getPayload(request);
-    existing = await store.getPolicy(payload.policyId);
+    if (typeof payload.policyId !== 'string' || !payload.policyId.trim()) {
+      throw new Error('Policy id is required and must be a nonempty string.');
+    }
+    const policyId = payload.policyId.trim();
+    const store = createDbPolicyStore(context);
+    existing = await store.getPolicy(policyId);
     if (!existing) {
       const result = { ok: true, message: 'Policy was not found.', deleted: false, policy: null };
       return tracked ? historyResult(result, 'POLICY_DELETED', null, 'Policy was not found.', { counts: { unchanged: 0 } }) : result;
     }
     const history = await cleanupPolicy(context, existing);
-    const result = await store.deletePolicy(payload.policyId);
+    const result = await store.deletePolicy(policyId);
     await writeAction1RuntimeLog(context, 'info', `Local Policy deleted: policyId=${existing.policyId}`);
     await writeAction1RuntimeLog(context, 'info', `Policy delete completed: policyId=${existing.policyId} automationDeletedCount=${history.counts.deleted} cleanup=${Boolean(history.cleanup)}`);
     const response = { ok: true, message: result.deleted ? 'Policy deleted.' : 'Policy was not found.', ...result };

@@ -297,6 +297,48 @@ async function run() {
   assert.strictEqual(source.includes('request.run'), false);
 
   const actions = require(path.join(__dirname, '..', 'actions.js')).actions;
+  assert.strictEqual(manifest.actions.find((action) => action.id === 'delete-policy').history, true);
+  for (const policyId of [undefined, null, '', '   ', 64, {}, [], true]) {
+    const invalidContext = createFakeContext();
+    invalidContext.db.get = async () => { throw new Error('Invalid ID reached Policy lookup'); };
+    const result = await actions['delete-policy'](invalidContext, { payload: { policyId } });
+    assert.strictEqual(result.ok, false, `Invalid ID must fail: ${JSON.stringify(policyId)}`);
+    assert.match(result.message, /Policy id.*(required|invalid)/i);
+    assert.strictEqual(typeof result.details, 'string');
+    assert.strictEqual(invalidContext.requests.length, 0);
+  }
+  const bareRequest = await actions['delete-policy'](createFakeContext(), { policyId: 'POL-000001' });
+  assert.strictEqual(bareRequest.ok, false, 'The payload envelope is required');
+  const unknown = await actions['delete-policy'](createFakeContext(), { payload: { policyId: 'POL-999999' } });
+  assert.strictEqual(unknown.ok, true);
+  assert.strictEqual(unknown.deleted, false);
+  assert.strictEqual(unknown.policy, null);
+
+  for (const failure of [{ instanceError: Object.assign(new Error('socket timeout after POST'), { code: 'ETIMEDOUT' }) }, { instanceResponse: { status: 400, data: { message: 'cleanup rejected' }, headers: {} } }]) {
+    const failingContext = createFakeContext(failure);
+    const created = await actions['create-policy'](failingContext, { payload: { draft: createValidDraft() } });
+    const failed = await actions['delete-policy'](failingContext, { payload: { policyId: created.policy.policyId } });
+    assert.strictEqual(failed.ok, false);
+    assert.strictEqual((await actions['get-policy'](failingContext, { payload: { policyId: created.policy.policyId } })).ok, true);
+    assert.strictEqual((await failingContext.db.all('SELECT * FROM action1_configuration_manager_scope_reservations WHERE organization_id = ?', ['org-acme'])).length, 1);
+    assert.strictEqual(failingContext.requests.filter((request) => request.url.includes('/automations/instances/')).length, 1);
+  }
+  const authoritativeContext = createFakeContext();
+  const authoritative = await actions['create-policy'](authoritativeContext, { payload: { draft: createValidDraft() } });
+  const requestStart = authoritativeContext.requests.length;
+  const removed = await actions['delete-policy'](authoritativeContext, { payload: {
+    policyId: ` ${authoritative.policy.policyId} `, organizationId: 'wrong-org', scopeType: 'ALL_ENDPOINTS',
+    endpointGroupId: 'wrong-group', automationIds: ['wrong-auto'], correlationIds: ['wrong'], cleanup: { retry_minutes: 1 }
+  } });
+  assert.strictEqual(removed.ok, true);
+  assert.strictEqual(removed.deleted, true);
+  const mutations = authoritativeContext.requests.slice(requestStart).filter((request) => request.method === 'DELETE' || request.url.includes('/automations/instances/'));
+  assert.deepStrictEqual(mutations.map((request) => request.method), ['DELETE', 'POST']);
+  assert(mutations.every((request) => request.url.includes('/org-acme')));
+  assert.deepStrictEqual(mutations[1].data.endpoints, [{ id: 'group-finance', type: 'EndpointGroup' }]);
+  assert.strictEqual(mutations[1].data.retry_minutes, '10080');
+  assert.strictEqual((await authoritativeContext.db.all('SELECT * FROM action1_configuration_manager_scope_reservations WHERE organization_id = ?', ['org-acme'])).length, 0);
+  assert.strictEqual((await actions['list-policies'](authoritativeContext)).policies.length, 0);
   const context = createFakeContext();
 
   const saveResult = await actions['save-policy'](context, { payload: { draft: createValidDraft() } });

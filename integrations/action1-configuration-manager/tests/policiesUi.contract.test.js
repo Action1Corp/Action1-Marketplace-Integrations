@@ -20,7 +20,7 @@ function run() {
   assert(policyPageSource.includes('openCreate'), 'PolicyPage should own the Create Policy shell transition');
   assert(policyPageSource.includes('openDetails'), 'PolicyPage should own the Policy Details shell transition');
   assert(policyPageSource.includes('useLocation') && policyPageSource.includes('useNavigate'), 'PolicyPage should use the Marketplace router for Policy navigation');
-  assert(policyPageSource.includes('getPolicyIdFromSearch'), 'PolicyPage should derive the selected Policy from the canonical query link');
+  assert(policyPageSource.includes('getPolicyRouteFromSearch'), 'PolicyPage should derive the view and selected Policy from the canonical query link');
   assert(policyPageSource.includes('buildPolicyDetailsPath'), 'PolicyPage should navigate Open details to the canonical query link');
   assert(policyPageSource.includes('getPolicy(routePolicyId)'), 'PolicyPage should resolve direct details navigation through the Policy API');
   assert(policyPageSource.includes('Policy not found'), 'PolicyPage should render a safe unknown Policy state');
