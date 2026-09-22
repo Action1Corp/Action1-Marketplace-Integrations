@@ -1,6 +1,6 @@
 const { createAction1DiscoveryClient, sanitizeMessage } = require('./action1DiscoveryClient');
 const { createDbPolicyStore } = require('./policyStore');
-const { getDefaultAction1RuntimeLogger } = require('./runtimeLogging');
+const { writeAction1RuntimeLog } = require('./runtimeLogging');
 
 const action1TokenCache = new Map();
 
@@ -17,8 +17,7 @@ function createFailureMessage(kind) {
 
 function logDiscoveryFailure(context, kind, error) {
   const diagnostics = error?.diagnostics && typeof error.diagnostics === 'object' ? error.diagnostics : {};
-  const runtimeLogger = context?.action1ConfigurationManagerRuntimeLogger || getDefaultAction1RuntimeLogger();
-  Promise.resolve(runtimeLogger.error(`Failed to load Action1 ${kind} | ${sanitizeMessage(diagnostics.statusCode ? `HTTP ${diagnostics.statusCode}` : error?.message || 'discovery failure')}`)).catch(() => {});
+  writeAction1RuntimeLog(context, 'error', `Failed to load Action1 ${kind} | ${sanitizeMessage(diagnostics.statusCode ? `HTTP ${diagnostics.statusCode}` : error?.message || 'discovery failure')}`);
 }
 
 async function discoverPolicyOrganizationsAction(context) {

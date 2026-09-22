@@ -2,7 +2,6 @@ import { countExpectedAutomations, countSelectedControlFamilies, findBaselineByI
 import { getVisibleWizardControls } from './policyEditorState.js';
 import { buildCompactControlFamilyGroups, formatParameterValue, formatPolicyMode } from './policyViewModel.js';
 
-const EM_DASH = '\u2014';
 
 function getSelectedControlMap(draft) {
   return new Map((draft.selectedControls || []).map((entry) => [entry.controlId, entry]));
@@ -181,7 +180,7 @@ export function buildReviewViewModel({ catalog, draft, displayName, appliedBasel
         label: 'Baseline',
         value: appliedBaseline
           ? `${appliedBaseline.name}${manualSelectionsCount > 0 ? ' + manual selections' : ''}`
-          : `None ${EM_DASH} manual selection`,
+          : 'None - manual selection',
         step: null
       },
       {

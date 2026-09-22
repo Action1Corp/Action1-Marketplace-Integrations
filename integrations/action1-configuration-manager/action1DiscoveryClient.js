@@ -3,7 +3,7 @@ const DEFAULT_PAGE_LIMIT = 100;
 const DEFAULT_MAX_RETRIES = 3;
 const REFRESH_SAFETY_MARGIN_MS = 60000;
 const DEFAULT_TOKEN_TTL_MS = 3600000;
-const { getDefaultAction1RuntimeLogger, formatRuntimeFields } = require('./runtimeLogging');
+const { formatRuntimeFields, writeAction1RuntimeLog } = require('./runtimeLogging');
 
 function trimString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -100,12 +100,9 @@ function safeRequestPath(url) {
 }
 
 function logDiscovery(context, level, event, fields = {}) {
-  const runtimeLogger = context?.action1ConfigurationManagerRuntimeLogger || getDefaultAction1RuntimeLogger();
   const message = formatRuntimeMessage(event, fields);
   const runtimeLevel = getRuntimeLogLevel(event, level);
-  if (message && typeof runtimeLogger?.[runtimeLevel] === 'function') {
-    Promise.resolve(runtimeLogger[runtimeLevel](message)).catch(() => {});
-  }
+  if (message) writeAction1RuntimeLog(context, runtimeLevel, message);
 }
 
 function getRuntimeLogLevel(event, fallbackLevel) {
@@ -453,8 +450,7 @@ function logRetryDiagnostic(context, input) {
 }
 
 function logDiscoveryFailure(context, diagnostics) {
-  const runtimeLogger = context?.action1ConfigurationManagerRuntimeLogger || getDefaultAction1RuntimeLogger();
-  Promise.resolve(runtimeLogger.error(`Action1 discovery failed | ${formatRuntimeFields({ operation: diagnostics.operation, status: diagnostics.statusCode, path: diagnostics.requestPath, error: diagnostics.errorMessage || diagnostics.responseExcerpt || 'unknown error' })}`)).catch(() => {});
+  writeAction1RuntimeLog(context, 'error', `Action1 discovery failed | ${formatRuntimeFields({ operation: diagnostics.operation, status: diagnostics.statusCode, path: diagnostics.requestPath, error: diagnostics.errorMessage || diagnostics.responseExcerpt || 'unknown error' })}`);
 }
 
 function createAction1DiscoveryClient(context, options = {}) {

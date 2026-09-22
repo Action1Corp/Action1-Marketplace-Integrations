@@ -23,7 +23,7 @@ async function run() {
   assert.strictEqual(resolveAction1RuntimeLogDir({ env: {}, packageDir: path.join(tempRoot, 'package') }), path.resolve(path.join(tempRoot, 'package', '.runtime-logs')));
 
   const logDir = path.join(tempRoot, 'log');
-  const logger = createAction1RuntimeLogger({ logDir });
+  const logger = createAction1RuntimeLogger({ logDir, debugLoggingEnabled: true });
   await logger.info('Loaded 2 Action1 organizations');
   await logger.debug('Reused Action1 access token; 2870s remaining');
   await logger.error('Failed to load Action1 organizations: HTTP 403');
@@ -32,6 +32,25 @@ async function run() {
   assert.match(text, /\d{4}-\d{2}-\d{2}T[^ ]+Z \[action1-config-manager\] INFO Loaded 2 Action1 organizations/);
   assert.match(text, /\[action1-config-manager\] DEBUG Reused Action1 access token/);
   assert.match(text, /\[action1-config-manager\] ERROR Failed to load Action1 organizations: HTTP 403/);
+
+  const filteredDir = path.join(tempRoot, 'filtered');
+  const filteredLogger = createAction1RuntimeLogger({ logDir: filteredDir });
+  await filteredLogger.debug('suppressed diagnostic');
+  await filteredLogger.info('retained lifecycle');
+  await filteredLogger.warn('retained warning');
+  await filteredLogger.error('retained failure');
+  const filteredText = await fsp.readFile(path.join(filteredDir, 'action1-configuration-manager-runtime.log'), 'utf8');
+  assert(!filteredText.includes('suppressed diagnostic'), 'DEBUG must be filtered when debug logging is disabled');
+  assert(filteredText.includes('retained lifecycle') && filteredText.includes('retained warning') && filteredText.includes('retained failure'), 'INFO/WARN/ERROR must remain when DEBUG is filtered');
+
+  const settingReads = [];
+  const contextLogger = createAction1RuntimeLogger({ logDir: path.join(tempRoot, 'context-enabled') });
+  const settingsContext = { settings: { get: async (key) => { settingReads.push(key); return true; } }, action1ConfigurationManagerRuntimeLogger: contextLogger };
+  await writeAction1RuntimeLog(settingsContext, 'debug', 'context diagnostic');
+  await writeAction1RuntimeLog(settingsContext, 'info', 'context lifecycle');
+  assert.strictEqual(settingReads.length, 1, 'debug setting should be read once per runtime context');
+  const contextText = await fsp.readFile(path.join(tempRoot, 'context-enabled', 'action1-configuration-manager-runtime.log'), 'utf8');
+  assert(contextText.includes('context diagnostic'), 'persisted debug setting should enable DEBUG diagnostics');
 
   const safeLogger = createAction1RuntimeLogger({ logDir: path.join(tempRoot, 'safe') });
   await safeLogger.info('credentials client_secret=super-secret access_token=raw-token Authorization: Bearer raw-token');

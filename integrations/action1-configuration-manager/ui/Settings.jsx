@@ -4,6 +4,7 @@ import { formControlStyle, pageSurfaceStyle, policyUiTokens, primaryButtonStyle,
 
 const SCHEDULE_KEY = 'CronSchedule_action1-configuration-manager';
 const TIMEZONE_KEY = 'CronTimezone_action1-configuration-manager';
+const DEBUG_LOGGING_KEY = 'DebugLogging_action1-configuration-manager';
 const INTERVALS = [3, 6, 12, 24];
 const REPORTING_NOT_CONFIGURED = 'Not configured';
 const REPORTING_CHECKING = 'Checking...';
@@ -38,6 +39,9 @@ const styles = {
   resourceName: { fontSize: policyUiTokens.fontSizes.label, fontWeight: 600 },
   resourceHelp: { margin: '0.2rem 0 0', color: policyUiTokens.textSecondary, fontSize: policyUiTokens.fontSizes.hint, lineHeight: 1.4 },
   status: { flex: '0 0 auto', color: policyUiTokens.textMuted, fontSize: policyUiTokens.fontSizes.hint, whiteSpace: 'nowrap' }
+  ,checkboxRow: { display: 'flex', alignItems: 'flex-start', gap: '0.6rem', fontSize: policyUiTokens.fontSizes.label, fontWeight: 600 }
+  ,checkbox: { marginTop: '0.15rem' }
+  ,checkboxDescription: { margin: '0.35rem 0 0 1.35rem', color: policyUiTokens.textSecondary, fontSize: policyUiTokens.fontSizes.hint, lineHeight: 1.45, maxWidth: 560 }
 };
 
 const SETTINGS_CSS = `
@@ -52,6 +56,7 @@ const SETTINGS_CSS = `
 export default function Settings({ integration }) {
   const [interval, setInterval] = useState(6);
   const [timezone, setTimezone] = useState(browserTimezone());
+  const [debugLogging, setDebugLogging] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [reconciling, setReconciling] = useState(false);
@@ -69,6 +74,7 @@ export default function Settings({ integration }) {
       const settings = data.settings || {};
       setInterval(hoursFromCron(settings[SCHEDULE_KEY]));
       setTimezone(settings[TIMEZONE_KEY] || browserTimezone());
+      setDebugLogging(settings[DEBUG_LOGGING_KEY] === true || String(settings[DEBUG_LOGGING_KEY]).toLowerCase() === 'true');
       const state = stateResult.reporting || {};
       const hasPersistedIds = Boolean(state.hasDataSourceId) || Boolean(state.reportIdsPresent?.length);
       setReporting(hasPersistedIds ? { dataSource: REPORTING_CHECKING, reports: REPORTING_CHECKING } : { dataSource: REPORTING_NOT_CONFIGURED, reports: REPORTING_NOT_CONFIGURED });
@@ -87,7 +93,7 @@ export default function Settings({ integration }) {
   async function saveSchedule(event) {
     event.preventDefault(); setSaving(true); setMessage(null);
     try {
-      const response = await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ _integration: integration, [SCHEDULE_KEY]: cronForHours(interval), [TIMEZONE_KEY]: timezone || browserTimezone() }) });
+      const response = await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ _integration: integration, [SCHEDULE_KEY]: cronForHours(interval), [TIMEZONE_KEY]: timezone || browserTimezone(), [DEBUG_LOGGING_KEY]: debugLogging }) });
       setMessage(response.ok ? { ok: true, text: 'Settings saved successfully.' } : { ok: false, text: 'Unable to save reconciliation settings.' });
     } catch (error) { setMessage({ ok: false, text: error.message || 'Unable to save reconciliation settings.' }); }
     finally { setSaving(false); }
@@ -164,6 +170,19 @@ export default function Settings({ integration }) {
           <div style={styles.reportingRow}><div><div style={styles.resourceName}>Data source</div><p style={styles.resourceHelp}>Required to collect and store Configuration Manager data in Action1.</p></div><span style={styles.status}>{reporting.dataSource}</span></div>
           <div style={{ ...styles.reportingRow, ...styles.reportingRowDivider }}><div><div style={styles.resourceName}>Reports</div><p style={styles.resourceHelp}>Custom Action1 reports for viewing Configuration Manager data.</p></div><span style={styles.status}>{reporting.reports}</span></div>
         </div>
+      </section>
+
+      <section style={styles.section}>
+        <details>
+          <summary style={{ ...styles.sectionTitle, cursor: 'pointer' }}>Advanced settings</summary>
+          <div style={{ marginTop: '1rem' }}>
+            <label htmlFor="debug-logging" style={styles.checkboxRow}>
+              <input id="debug-logging" type="checkbox" checked={debugLogging} onChange={event => setDebugLogging(event.target.checked)} style={styles.checkbox} />
+              <span>Enable debug logging</span>
+            </label>
+            <p style={styles.checkboxDescription}>Include detailed diagnostic information in Configuration Manager runtime logs. Leave disabled for normal operation.</p>
+          </div>
+        </details>
       </section>
 
       {message && <div role="status" style={{ marginTop: '1rem', color: message.ok ? '#15803D' : '#DC2626' }}>{message.text}</div>}

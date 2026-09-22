@@ -172,6 +172,18 @@ async function run() {
     ),
     'review view-model should expose compact review chips instead of only long-form rows'
   );
+
+  const manualReview = buildReviewViewModel({
+    catalog,
+    draft: mixedDraft,
+    displayName: 'Workstation Security - Finance Workstations',
+    appliedBaselineId: ''
+  });
+  assert.strictEqual(
+    manualReview.summaryRows.find((entry) => entry.label === 'Baseline').value,
+    'None - manual selection',
+    'review baseline summary should use the approved ASCII hyphen copy'
+  );
 }
 
 try {

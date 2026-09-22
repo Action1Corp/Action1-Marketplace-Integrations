@@ -5,6 +5,7 @@ const INTEGRATION_ID = 'action1-configuration-manager';
 const LOG_PREFIX = 'action1-config-manager';
 const DEFAULT_FILE_NAME = `${INTEGRATION_ID}-runtime.log`;
 const LOG_DIR_ENV = 'ACTION1_CONFIGURATION_MANAGER_LOG_DIR';
+const DEBUG_LOGGING_KEY = `DebugLogging_${INTEGRATION_ID}`;
 
 function resolveAction1RuntimeLogDir(options = {}) {
   const env = options.env || process.env;
@@ -70,6 +71,7 @@ function createAction1RuntimeLogger(options = {}) {
   const now = typeof options.now === 'function' ? options.now : () => Date.now();
   let initialized = false;
   let failureWarned = false;
+  let debugLoggingEnabled = options.debugLoggingEnabled === true;
 
   function warnOnce(message) {
     if (failureWarned) return;
@@ -81,6 +83,7 @@ function createAction1RuntimeLogger(options = {}) {
   }
 
   async function write(level, message) {
+    if (String(level).toUpperCase() === 'DEBUG' && debugLoggingEnabled !== true) return;
     try {
       await fileSystem.mkdir(logDir, { recursive: true });
       if (!initialized) {
@@ -97,21 +100,50 @@ function createAction1RuntimeLogger(options = {}) {
     }
   }
 
-  return { logDir, filePath, debug: (message) => write('DEBUG', message), info: (message) => write('INFO', message), warn: (message) => write('WARN', message), error: (message) => write('ERROR', message) };
+  return {
+    logDir,
+    filePath,
+    setDebugLoggingEnabled(value) { debugLoggingEnabled = value === true; },
+    debug: (message) => write('DEBUG', message),
+    info: (message) => write('INFO', message),
+    warn: (message) => write('WARN', message),
+    error: (message) => write('ERROR', message)
+  };
 }
 
 let defaultLogger;
+const debugSettingReads = new WeakMap();
 function getDefaultAction1RuntimeLogger() {
   if (!defaultLogger) defaultLogger = createAction1RuntimeLogger();
   return defaultLogger;
 }
 
+async function resolveDebugLoggingEnabled(context) {
+  if (!context || (typeof context !== 'object' && typeof context !== 'function')) return undefined;
+  const get = context.settings && typeof context.settings.get === 'function' ? context.settings.get.bind(context.settings) : null;
+  if (!get) return undefined;
+  if (!debugSettingReads.has(context)) {
+    debugSettingReads.set(context, Promise.resolve().then(() => get(DEBUG_LOGGING_KEY)).then(value => value === true || String(value).toLowerCase() === 'true').catch(() => false));
+  }
+  return debugSettingReads.get(context);
+}
+
 function writeAction1RuntimeLog(context, level, message) {
   try {
     const logger = context?.action1ConfigurationManagerRuntimeLogger || getDefaultAction1RuntimeLogger();
-    const writer = logger?.[level];
-    if (typeof writer !== 'function') return Promise.resolve();
-    return Promise.resolve(writer.call(logger, sanitizeRuntimeText(message))).catch(() => {});
+    const hasSettings = Boolean(context?.settings && typeof context.settings.get === 'function');
+    if (!hasSettings) {
+      const writer = logger?.[level];
+      if (typeof writer !== 'function') return Promise.resolve();
+      return Promise.resolve(writer.call(logger, sanitizeRuntimeText(message))).catch(() => {});
+    }
+    return resolveDebugLoggingEnabled(context).then(async (enabled) => {
+      if (String(level).toLowerCase() === 'debug' && enabled === false) return;
+      if (typeof logger?.setDebugLoggingEnabled === 'function' && enabled !== undefined) logger.setDebugLoggingEnabled(enabled);
+      const writer = logger?.[level];
+      if (typeof writer !== 'function') return;
+      await Promise.resolve(writer.call(logger, sanitizeRuntimeText(message))).catch(() => {});
+    }).catch(() => {});
   } catch {
     return Promise.resolve();
   }
@@ -119,6 +151,7 @@ function writeAction1RuntimeLog(context, level, message) {
 
 module.exports = {
   DEFAULT_FILE_NAME,
+  DEBUG_LOGGING_KEY,
   LOG_DIR_ENV,
   createAction1RuntimeLogger,
   formatAction1RuntimeLogLine,
