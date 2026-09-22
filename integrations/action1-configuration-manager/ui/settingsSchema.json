@@ -1,0 +1,9 @@
+[
+  {
+    "key": "DebugLogging_action1-configuration-manager",
+    "label": "Enable debug logging",
+    "type": "checkbox",
+    "group": "Advanced settings",
+    "defaultValue": "false"
+  }
+]

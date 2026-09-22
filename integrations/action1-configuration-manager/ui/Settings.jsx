@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import OperationStatus from './policies/OperationStatus.jsx';
+import { normalizeDebugLoggingEnabled } from './debugLogging.js';
 import { formControlStyle, pageSurfaceStyle, policyUiTokens, primaryButtonStyle, secondaryButtonStyle } from './policies/policyUiStyles.js';
 
 const SCHEDULE_KEY = 'CronSchedule_action1-configuration-manager';
@@ -74,7 +75,7 @@ export default function Settings({ integration }) {
       const settings = data.settings || {};
       setInterval(hoursFromCron(settings[SCHEDULE_KEY]));
       setTimezone(settings[TIMEZONE_KEY] || browserTimezone());
-      setDebugLogging(settings[DEBUG_LOGGING_KEY] === true || String(settings[DEBUG_LOGGING_KEY]).toLowerCase() === 'true');
+      setDebugLogging(normalizeDebugLoggingEnabled(settings[DEBUG_LOGGING_KEY]));
       const state = stateResult.reporting || {};
       const hasPersistedIds = Boolean(state.hasDataSourceId) || Boolean(state.reportIdsPresent?.length);
       setReporting(hasPersistedIds ? { dataSource: REPORTING_CHECKING, reports: REPORTING_CHECKING } : { dataSource: REPORTING_NOT_CONFIGURED, reports: REPORTING_NOT_CONFIGURED });
@@ -93,7 +94,7 @@ export default function Settings({ integration }) {
   async function saveSchedule(event) {
     event.preventDefault(); setSaving(true); setMessage(null);
     try {
-      const response = await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ _integration: integration, [SCHEDULE_KEY]: cronForHours(interval), [TIMEZONE_KEY]: timezone || browserTimezone(), [DEBUG_LOGGING_KEY]: debugLogging }) });
+      const response = await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ _integration: integration, [SCHEDULE_KEY]: cronForHours(interval), [TIMEZONE_KEY]: timezone || browserTimezone(), [DEBUG_LOGGING_KEY]: debugLogging ? 'true' : 'false' }) });
       setMessage(response.ok ? { ok: true, text: 'Settings saved successfully.' } : { ok: false, text: 'Unable to save reconciliation settings.' });
     } catch (error) { setMessage({ ok: false, text: error.message || 'Unable to save reconciliation settings.' }); }
     finally { setSaving(false); }

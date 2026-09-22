@@ -1,5 +1,6 @@
 const fs = require('fs/promises');
 const path = require('path');
+const { normalizeDebugLoggingEnabled } = require('./debugLogging');
 
 const INTEGRATION_ID = 'action1-configuration-manager';
 const LOG_PREFIX = 'action1-config-manager';
@@ -71,7 +72,7 @@ function createAction1RuntimeLogger(options = {}) {
   const now = typeof options.now === 'function' ? options.now : () => Date.now();
   let initialized = false;
   let failureWarned = false;
-  let debugLoggingEnabled = options.debugLoggingEnabled === true;
+  let debugLoggingEnabled = normalizeDebugLoggingEnabled(options.debugLoggingEnabled);
 
   function warnOnce(message) {
     if (failureWarned) return;
@@ -103,7 +104,7 @@ function createAction1RuntimeLogger(options = {}) {
   return {
     logDir,
     filePath,
-    setDebugLoggingEnabled(value) { debugLoggingEnabled = value === true; },
+    setDebugLoggingEnabled(value) { debugLoggingEnabled = normalizeDebugLoggingEnabled(value); },
     debug: (message) => write('DEBUG', message),
     info: (message) => write('INFO', message),
     warn: (message) => write('WARN', message),
@@ -123,7 +124,7 @@ async function resolveDebugLoggingEnabled(context) {
   const get = context.settings && typeof context.settings.get === 'function' ? context.settings.get.bind(context.settings) : null;
   if (!get) return undefined;
   if (!debugSettingReads.has(context)) {
-    debugSettingReads.set(context, Promise.resolve().then(() => get(DEBUG_LOGGING_KEY)).then(value => value === true || String(value).toLowerCase() === 'true').catch(() => false));
+    debugSettingReads.set(context, Promise.resolve().then(() => get(DEBUG_LOGGING_KEY)).then(normalizeDebugLoggingEnabled).catch(() => false));
   }
   return debugSettingReads.get(context);
 }

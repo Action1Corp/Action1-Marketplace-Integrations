@@ -245,8 +245,8 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
       failures += 1;
       continue;
     }
-    if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(setting.key)) {
-      console.error(`${entry.name}: setting key ${setting.key} must be alphanumeric and start with a letter`);
+    if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(setting.key)) {
+      console.error(`${entry.name}: setting key ${setting.key} must be alphanumeric, underscore, or hyphen and start with a letter`);
       failures += 1;
     }
     if (!supportedSettingTypes.has(setting.type)) {

@@ -44,6 +44,8 @@ assert(source.includes('const reportingChecking'), 'Settings must derive a Repor
 assert(source.includes('setLoading(false);'), 'Settings page loading must complete before Reporting remote verification');
 assert(source.includes('disabled={settingUpReporting}'), 'Reporting setup must retain duplicate-click protection when available');
 assert(source.includes('[DEBUG_LOGGING_KEY]: debugLogging'), 'Save settings must persist the debug logging value');
+assert(source.includes('debugLogging ? \'true\' : \'false\''), 'Save settings must use the Marketplace checkbox representation');
+assert(source.includes('normalizeDebugLoggingEnabled'), 'Settings load must use the shared debug logging normalization seam');
 assert(!source.includes('Marketplace manages these resources on your behalf'), 'Excluded management panel must not be implemented');
 assert(!source.includes('Refresh status'), 'Excluded refresh control must not be implemented');
 assert(!source.includes("'Report'"), 'Reporting resource must use the plural Reports label');

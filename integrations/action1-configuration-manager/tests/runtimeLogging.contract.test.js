@@ -14,6 +14,7 @@ const {
   formatRuntimeElapsed
   ,writeOperationalLog
 } = require('../runtimeLogging');
+const { normalizeDebugLoggingEnabled } = require('../debugLogging');
 
 async function run() {
   const tempRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'action1-config-logs-'));
@@ -51,6 +52,9 @@ async function run() {
   assert.strictEqual(settingReads.length, 1, 'debug setting should be read once per runtime context');
   const contextText = await fsp.readFile(path.join(tempRoot, 'context-enabled', 'action1-configuration-manager-runtime.log'), 'utf8');
   assert(contextText.includes('context diagnostic'), 'persisted debug setting should enable DEBUG diagnostics');
+  for (const value of [true, 'true', 1, '1']) assert.strictEqual(normalizeDebugLoggingEnabled(value), true);
+  for (const value of [false, 'false', 0, '0', null, undefined]) assert.strictEqual(normalizeDebugLoggingEnabled(value), false);
+  assert.strictEqual(normalizeDebugLoggingEnabled('false'), false);
 
   const safeLogger = createAction1RuntimeLogger({ logDir: path.join(tempRoot, 'safe') });
   await safeLogger.info('credentials client_secret=super-secret access_token=raw-token Authorization: Bearer raw-token');
