@@ -54,8 +54,19 @@ function historyFailure(operation, policy, error) {
 }
 
 async function listPoliciesAction(context) {
-  const store = createDbPolicyStore(context);
-  return { ok: true, policies: await store.listPolicies() };
+  const startedAt = Date.now();
+  let stage = 'initialization';
+  await writeOperationalLog(context, 'info', 'Policies load started');
+  try {
+    const store = createDbPolicyStore(context);
+    stage = 'policy-hydration';
+    const policies = await store.listPolicies();
+    await writeOperationalLog(context, 'info', 'Policies load completed', { policies: policies.length, elapsed: formatRuntimeElapsed(Date.now() - startedAt) });
+    return { ok: true, policies };
+  } catch (error) {
+    await writeOperationalLog(context, 'error', 'Policies load failed', { stage, error: sanitizePersistenceMessage(error?.message), elapsed: formatRuntimeElapsed(Date.now() - startedAt) });
+    throw error;
+  }
 }
 
 async function getPolicyAction(context, request = {}) {

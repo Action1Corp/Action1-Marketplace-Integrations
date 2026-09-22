@@ -1,7 +1,7 @@
 const assert = require('assert');
 const path = require('path');
 const { pathToFileURL } = require('url');
-const { loadControlPackFixture } = require('./controlPackFixture');
+const { loadControlPackFixture, PACK_VERSION } = require('./controlPackFixture');
 
 async function buildCatalog() {
   const { loadReleasedControlCatalog } = await import(
@@ -193,7 +193,7 @@ async function run() {
     },
     completionDeadlineMinutes: 360,
     controlPackId: 'windows-endpoint-configuration',
-    controlPackVersion: '0.5.0',
+    controlPackVersion: PACK_VERSION,
     selectedControls: [
       {
         controlId: control.controlId,

@@ -24,7 +24,7 @@ function resolveAction1RuntimeLogDir(options = {}) {
 function sanitizeRuntimeText(value) {
   return String(value ?? '')
     .replace(/bearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [redacted]')
-    .replace(/(access_token|refresh_token|id_token|client_secret|apiSecret|password|secret)\s*[:=]\s*[^\s,;]+/gi, '$1=[redacted]')
+    .replace(/["']?(apiKey|apiSecret|api_key|api_secret|client_id|client_secret|access_token|refresh_token|id_token|password|secret)["']?\s*([:=])\s*(?:"[^"]*"|'[^']*'|[^\s,;}&]+)/gi, '$1$2[redacted]')
     .replace(/authorization\s*[:=]\s*[^\r\n]+/gi, 'authorization=[redacted]');
 }
 
@@ -56,7 +56,6 @@ async function writeOperationalLog(context, level, message, fields = {}) {
   const suffix = formatRuntimeFields(fields);
   const line = suffix ? `${message} | ${suffix}` : message;
   await writeAction1RuntimeLog(context, level, line);
-  if (typeof context?.logger?.[level] === 'function') context.logger[level](line);
   return line;
 }
 

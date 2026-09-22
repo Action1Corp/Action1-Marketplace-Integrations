@@ -82,12 +82,12 @@ function validateBaselineRecommendation(contract, baselineId, controlId, rawPara
   return normalizeParameterValues(control, rawParameters, { requireAllDeclared: true });
 }
 
-function loadPolicyCatalogContract() {
+function loadPolicyCatalogContract(options = {}) {
   if (cachedContract) {
     return cachedContract;
   }
 
-  const resolved = loadControlPackArtifacts();
+  const resolved = loadControlPackArtifacts(options);
   const catalog = resolved.catalog;
   const baselines = resolved.baselinesArtifact.baselines || [];
   cachedContract = {

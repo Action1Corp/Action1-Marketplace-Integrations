@@ -19,18 +19,22 @@ const { getOverview } = require('./overviewService');
 const { getReportingState, getReportingStatus, setupReporting } = require('./reporting/reportingService');
 const { createHistoryEnvelope, resultDetails } = require('./historyContract');
 const { loadControlPackArtifacts } = require('./controlPackResolver');
+const { formatRuntimeElapsed, writeOperationalLog } = require('./runtimeLogging');
 
 module.exports = {
   actions: {
-    'get-control-pack': async () => {
-      const resolved = loadControlPackArtifacts();
-      return {
-        ok: true,
-        packId: resolved.packId,
-        packVersion: resolved.packVersion,
-        catalog: resolved.catalog,
-        baselines: resolved.baselinesArtifact.baselines || []
-      };
+    'get-control-pack': async (context) => {
+      const startedAt = Date.now();
+      await writeOperationalLog(context, 'info', 'Control Pack action started', { action: 'get-control-pack' });
+      try {
+        const resolved = loadControlPackArtifacts({ context });
+        const baselines = resolved.baselinesArtifact.baselines || [];
+        await writeOperationalLog(context, 'info', 'Control Pack action completed', { action: 'get-control-pack', version: resolved.packVersion, controls: resolved.catalog.controls?.length || 0, baselines: baselines.length, elapsed: formatRuntimeElapsed(Date.now() - startedAt) });
+        return { ok: true, packId: resolved.packId, packVersion: resolved.packVersion, catalog: resolved.catalog, baselines };
+      } catch (error) {
+        await writeOperationalLog(context, 'error', 'Control Pack action failed', { action: 'get-control-pack', error: String(error?.message || error).replace(/\s+/g, ' ').slice(0, 240), elapsed: formatRuntimeElapsed(Date.now() - startedAt) });
+        throw error;
+      }
     },
     'list-policies': listPoliciesAction,
     'get-policy': getPolicyAction,
@@ -59,7 +63,7 @@ module.exports = {
         return { ...result, details: resultDetails(createHistoryEnvelope({ operation: 'REPORTING_SETUP', summary: 'Data source and reports configured' })) };
       } catch (error) {
         const message = String(error?.diagnostics?.errorMessage || error?.message || 'Reporting setup failed.').replace(/\s+/g, ' ').slice(0, 240);
-        context?.logger?.error?.({ event: 'reporting-setup-failed', message });
+        await writeOperationalLog(context, 'error', 'Reporting setup failed', { error: message });
         return { ok: false, message: 'Reporting setup failed', details: resultDetails(createHistoryEnvelope({ operation: 'REPORTING_SETUP', summary: 'Reporting setup failed' })) };
       }
     }

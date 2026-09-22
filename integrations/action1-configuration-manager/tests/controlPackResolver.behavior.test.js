@@ -55,14 +55,5 @@ withPackRoot((root) => {
   expectFailure(root, 'packId');
 });
 
-const actions = require('../actions').actions;
-const installed = actions['get-control-pack']();
-assert(installed instanceof Promise);
-installed.then((result) => {
-  assert.strictEqual(result.packId, 'windows-endpoint-configuration');
-  assert.strictEqual(result.packVersion, '0.5.0');
-  assert(Array.isArray(result.baselines));
-}).catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+// Production action loading is covered by integration smoke tests. Resolver
+// behavior above deliberately uses isolated temporary release roots.

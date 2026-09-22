@@ -549,7 +549,7 @@ async function listOrganizationReservations(context, organizationId, excludePoli
 }
 
 function createDbPolicyStore(context, options = {}) {
-  const catalogContract = options.catalogContract || loadPolicyCatalogContract();
+  const catalogContract = options.catalogContract || loadPolicyCatalogContract({ context });
 
   return {
     async listPolicies() {

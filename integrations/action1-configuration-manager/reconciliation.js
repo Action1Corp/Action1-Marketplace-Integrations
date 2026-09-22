@@ -38,7 +38,6 @@ async function appendRun(request, message) {
 
 async function log(context, level, message) {
   await writeAction1RuntimeLog(context, level, message);
-  if (typeof context?.logger?.[level] === 'function') context.logger[level](message);
 }
 
 async function reconcileEnabledPolicy(context, policy, dependencies = {}) {

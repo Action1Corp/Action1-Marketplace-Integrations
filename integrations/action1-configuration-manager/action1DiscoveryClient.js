@@ -3,7 +3,7 @@ const DEFAULT_PAGE_LIMIT = 100;
 const DEFAULT_MAX_RETRIES = 3;
 const REFRESH_SAFETY_MARGIN_MS = 60000;
 const DEFAULT_TOKEN_TTL_MS = 3600000;
-const { getDefaultAction1RuntimeLogger } = require('./runtimeLogging');
+const { getDefaultAction1RuntimeLogger, formatRuntimeFields } = require('./runtimeLogging');
 
 function trimString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -100,11 +100,6 @@ function safeRequestPath(url) {
 }
 
 function logDiscovery(context, level, event, fields = {}) {
-  const logger = context?.logger;
-  const entry = { event, ...fields };
-  if (typeof logger?.[level] === 'function') {
-    logger[level](entry);
-  }
   const runtimeLogger = context?.action1ConfigurationManagerRuntimeLogger || getDefaultAction1RuntimeLogger();
   const message = formatRuntimeMessage(event, fields);
   const runtimeLevel = getRuntimeLogLevel(event, level);
@@ -114,14 +109,26 @@ function logDiscovery(context, level, event, fields = {}) {
 }
 
 function getRuntimeLogLevel(event, fallbackLevel) {
-  if (/token|page|request|response|credential|connection/.test(String(event))) return 'debug';
+  if (/failure|rejected|exhausted/.test(String(event))) return 'error';
   if (/rate-limit/.test(String(event))) return 'warn';
-  if (/failure|rejected/.test(String(event))) return 'error';
+  if (/token|page|request|response|credential|connection/.test(String(event))) return 'debug';
   return fallbackLevel;
 }
 
 function formatRuntimeMessage(event, fields) {
   switch (event) {
+    case 'action1-discovery-request-start':
+      return `Action1 request | ${formatRuntimeFields({ operation: fields.operation, method: fields.method, path: fields.requestPath, attempt: fields.requestAttempt })}`;
+    case 'action1-discovery-response':
+      return `Action1 response | ${formatRuntimeFields({ operation: fields.operation, status: fields.status, type: fields.contentType, shape: fields.payloadShape, rows: fields.itemCount, elapsed: fields.elapsedMs === undefined ? undefined : `${fields.elapsedMs}ms` })}`;
+    case 'action1-discovery-response-rejected':
+      return `Action1 request failed | ${formatRuntimeFields({ operation: fields.operation, status: fields.statusCode, path: fields.requestPath, error: fields.errorMessage || fields.message || fields.category })}`;
+    case 'action1-discovery-credential-resolution-failed':
+      return `Action1 credentials failed | ${formatRuntimeFields({ stage: fields.stage, error: fields.message })}`;
+    case 'action1-discovery-connection-validation-failed':
+      return `Action1 connection validation failed | ${formatRuntimeFields({ stage: fields.stage, error: fields.message })}`;
+    case 'action1-discovery-rate-limit-exhausted':
+      return `Action1 rate limit exhausted | ${formatRuntimeFields({ operation: fields.operation, attempt: `${Number(fields.retryAttempt || 0) + 1}/${fields.retryBudget}`, status: fields.status })}`;
     case 'action1-discovery-start':
       return `Discovery started: ${fields.action || 'Action1 discovery'}`;
     case 'action1-discovery-complete':
@@ -129,24 +136,24 @@ function formatRuntimeMessage(event, fields) {
         ? `Loaded ${fields.organizationsDiscovered} Action1 organizations`
         : `Loaded ${fields.endpointGroupsDiscovered || 0} endpoint groups for organization ${fields.organizationId || '<unknown>'}`;
     case 'action1-discovery-token-cache-reused':
-      return `Reused Action1 access token; ${Math.floor(Number(fields.ttlMs || 0) / 1000)}s remaining`;
+      return `Reused Action1 access token | ${formatRuntimeFields({ remaining: `${Math.floor(Number(fields.ttlMs || 0) / 1000)}s` })}`;
     case 'action1-discovery-token-refresh-required':
-      return `Action1 access token refresh required (${fields.cacheState || 'unknown'})`;
+      return `Action1 access token refresh required | ${formatRuntimeFields({ state: fields.cacheState || 'unknown' })}`;
     case 'action1-discovery-token-request-started':
       return 'Acquiring Action1 access token';
     case 'action1-discovery-token-response-accepted':
-      return `Action1 access token accepted; ${Math.floor(Number(fields.ttlMs || 0) / 1000)}s lifetime`;
+      return `Action1 access token accepted | ${formatRuntimeFields({ lifetime: `${Math.floor(Number(fields.ttlMs || 0) / 1000)}s` })}`;
     case 'action1-discovery-credentials-resolved':
-      return `Action1 credentials resolved; apiKeyPresent=${fields.hasApiKey} apiSecretPresent=${fields.hasApiSecret} baseUrlPresent=${fields.hasBaseUrl}`;
+      return `Action1 credentials resolved | ${formatRuntimeFields({ apiKeyPresent: fields.hasApiKey, apiSecretPresent: fields.hasApiSecret, baseUrlPresent: fields.hasBaseUrl })}`;
     case 'action1-discovery-page-complete':
-      return `Loaded Action1 page ${fields.page || 0}; ${fields.itemCount || 0} items`;
+      return `Loaded Action1 page ${fields.page || 0} | ${formatRuntimeFields({ operation: fields.operation, rows: fields.itemCount || 0, next: fields.continuationDetected })}`;
     case 'action1-discovery-rate-limit-detected':
-      return `Action1 rate limit received; retrying if budget remains (attempt ${Number(fields.retryAttempt || 0) + 1}/${fields.retryBudget})`;
+      return `Action1 rate limit | ${formatRuntimeFields({ operation: fields.operation, attempt: `${Number(fields.retryAttempt || 0) + 1}/${fields.retryBudget}`, retryAfter: fields.retryAfterMs === null || fields.retryAfterMs === undefined ? undefined : `${Math.ceil(Number(fields.retryAfterMs) / 1000)}s` })}`;
     case 'action1-rate-limit':
-      return `Action1 rate limit received; retrying in ${Math.ceil(Number(fields.delayMs || 0) / 1000)}s (attempt ${fields.retryAttempt}/${fields.retryBudget || '?'})`;
+      return `Action1 rate limit retry scheduled | ${formatRuntimeFields({ operation: fields.operation, attempt: `${fields.retryAttempt}/${fields.retryBudget || '?'}`, retryAfter: fields.retryAfterMs === null || fields.retryAfterMs === undefined ? undefined : `${Math.ceil(Number(fields.retryAfterMs) / 1000)}s`, delay: `${Math.ceil(Number(fields.delayMs || 0) / 1000)}s` })}`;
     case 'action1-discovery-failure':
     case 'action1-policy-discovery-failure':
-      return `Action1 discovery failed: ${fields.errorMessage || fields.message || fields.category || 'unknown error'}`;
+      return `Action1 discovery failed | ${formatRuntimeFields({ operation: fields.operation, error: fields.errorMessage || fields.message || fields.category || 'unknown error' })}`;
     default:
       return '';
   }
@@ -446,13 +453,8 @@ function logRetryDiagnostic(context, input) {
 }
 
 function logDiscoveryFailure(context, diagnostics) {
-  context.logger?.warn?.({
-    event: 'action1-discovery-failure',
-    ...diagnostics,
-    responseExcerpt: sanitizeMessage(diagnostics.responseExcerpt || ''),
-    errorCode: sanitizeMessage(diagnostics.errorCode || ''),
-    errorMessage: sanitizeMessage(diagnostics.errorMessage || '')
-  });
+  const runtimeLogger = context?.action1ConfigurationManagerRuntimeLogger || getDefaultAction1RuntimeLogger();
+  Promise.resolve(runtimeLogger.error(`Action1 discovery failed | ${formatRuntimeFields({ operation: diagnostics.operation, status: diagnostics.statusCode, path: diagnostics.requestPath, error: diagnostics.errorMessage || diagnostics.responseExcerpt || 'unknown error' })}`)).catch(() => {});
 }
 
 function createAction1DiscoveryClient(context, options = {}) {
@@ -472,7 +474,8 @@ function createAction1DiscoveryClient(context, options = {}) {
     const transportOptions = { ...requestOptions };
     delete transportOptions.operation;
     delete transportOptions.requestAttempt;
-    logDiscovery(context, 'info', 'action1-discovery-request-start', {
+    const requestStartedAt = Date.now();
+    logDiscovery(context, 'debug', 'action1-discovery-request-start', {
       stage: 'action1-request',
       operation,
       method: transportOptions.method,
@@ -505,13 +508,14 @@ function createAction1DiscoveryClient(context, options = {}) {
     }
 
     const responseContentType = trimString(response.headers?.['content-type'] || response.headers?.['Content-Type']);
-    logDiscovery(context, 'info', 'action1-discovery-response', {
+    logDiscovery(context, 'debug', 'action1-discovery-response', {
       stage: 'action1-response',
       operation,
       status: response.statusCode,
       contentType: responseContentType,
       payloadShape: Array.isArray(response.payload) ? 'array' : typeof response.payload,
-      itemCount: Array.isArray(response.payload?.items) ? response.payload.items.length : null
+      itemCount: Array.isArray(response.payload?.items) ? response.payload.items.length : null,
+      elapsedMs: Date.now() - requestStartedAt
     });
     if (!isSuccessStatus(response.statusCode)) {
       const diagnostics = buildFailureDiagnostics(operation, transportOptions, response);
@@ -572,7 +576,6 @@ function createAction1DiscoveryClient(context, options = {}) {
         expectedShape: 'object.access_token',
         actualShape: typeof response.payload
       });
-      logDiscoveryFailure(context, diagnostics);
       throw new DiscoveryRequestError('Action1 token acquisition failed because the access token was missing.', diagnostics);
     }
 
@@ -668,6 +671,7 @@ function createAction1DiscoveryClient(context, options = {}) {
       }
 
       const response = await requestAction1GetWithRateLimitRetry({
+        operation: input.operation,
         url: absoluteUrl,
         path: input.path || '',
         organizationId: input.organizationId,

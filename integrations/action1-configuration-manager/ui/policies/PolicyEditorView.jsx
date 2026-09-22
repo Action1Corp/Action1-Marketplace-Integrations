@@ -25,6 +25,7 @@ import ParameterField from './ParameterField.jsx';
 import { formatUtcOffset } from './timezoneModel.js';
 import { policyUiTokens } from './policyUiStyles.js';
 import { buildPolicyScopeAvailability } from './policyScopeAvailability.js';
+import { controlsStepDescription } from './controlStepCopy.js';
 
 function getCurrentTimezoneLabel(schedule = {}) {
   try {
@@ -943,7 +944,7 @@ function PolicyEditorView({
         <div className={cx('pane', wizardState.currentStep === 3 && 'active')} data-pane="3">
           <div className="section">
             <h3 className="section-title">Controls</h3>
-            <p className="section-sub">Choose Control Families and Controls from the released catalog metadata.</p>
+            <p className="section-sub">{controlsStepDescription(catalog)}</p>
 
             <div className="baseline-bar">
               <span className="b-label">Start from a baseline</span>

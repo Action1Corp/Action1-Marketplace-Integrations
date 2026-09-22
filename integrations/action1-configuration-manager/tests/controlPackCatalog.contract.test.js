@@ -1,7 +1,7 @@
 const assert = require('assert');
 const path = require('path');
 const { pathToFileURL } = require('url');
-const { loadControlPackFixture } = require('./controlPackFixture');
+const { loadControlPackFixture, PACK_VERSION } = require('./controlPackFixture');
 
 async function run() {
   const catalogModulePath = path.join(__dirname, '..', 'ui', 'catalog', 'controlPackCatalog.js');
@@ -24,7 +24,7 @@ async function run() {
   const baselineLookup = getBaselineMembershipByControlId(baselines);
 
   assert.strictEqual(catalog.packId, 'windows-endpoint-configuration', 'catalog adapter should expose the released pack id');
-  assert.strictEqual(catalog.packVersion, '0.5.0', 'catalog adapter should expose the released pack version');
+  assert.strictEqual(catalog.packVersion, PACK_VERSION, 'catalog adapter should expose the isolated fixture pack version');
   assert.strictEqual(Array.isArray(catalog.families), true, 'catalog adapter should expose released families');
   assert.strictEqual(Array.isArray(catalog.controlFamilies), true, 'catalog adapter should expose customer-facing control families');
   assert.strictEqual(Array.isArray(catalog.controls), true, 'catalog adapter should expose released controls');

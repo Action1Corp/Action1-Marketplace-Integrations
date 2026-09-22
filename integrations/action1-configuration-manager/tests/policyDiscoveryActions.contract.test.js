@@ -30,6 +30,7 @@ function createFakeDb() {
 
 function createFakeContext(options = {}) {
   const loggerCalls = [];
+  const runtimeCalls = { debug: [], info: [], warn: [], error: [] };
   return {
     db: createFakeDb(),
     action1: {
@@ -50,6 +51,8 @@ function createFakeContext(options = {}) {
       info() {},
       error() {}
     },
+    action1ConfigurationManagerRuntimeLogger: Object.fromEntries(Object.keys(runtimeCalls).map((level) => [level, (message) => runtimeCalls[level].push(message)])),
+    __runtimeCalls: runtimeCalls,
     __loggerCalls: loggerCalls
   };
 }
@@ -183,7 +186,7 @@ async function run() {
     const result = await actions['discover-policy-organizations'](context, {});
     assert.strictEqual(result.ok, false);
     assert(/Unable to load Action1 organizations/i.test(result.message));
-    const diagnosticText = JSON.stringify(context.__loggerCalls[0] || {});
+    const diagnosticText = context.__runtimeCalls.error.join('\n');
     assert.strictEqual(/super-secret-token|sensitive-secret/i.test(diagnosticText), false, 'logged diagnostics must be sanitized');
   }
 }

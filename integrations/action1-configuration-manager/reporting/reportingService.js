@@ -1,4 +1,5 @@
 const { createAction1DiscoveryClient } = require('../action1DiscoveryClient');
+const { writeOperationalLog } = require('../runtimeLogging');
 const { buildReportDefinitions, REPORTING_DATA_SOURCE_COLUMNS, REPORTS, validateReportPayload } = require('./reportDefinitions');
 const store = require('./reportingStore');
 
@@ -23,8 +24,8 @@ function isConclusiveMissing(error, id) {
 }
 function isPublished(payload) { return String(payload?.status || payload?.state || '').toLowerCase() === 'published'; }
 function safeMessage(error) { return errorMessage(error).replace(/\s+/g, ' ').slice(0, 240) || 'Reporting setup failed.'; }
-function log(context, level, message, fields = {}) {
-  if (typeof context?.logger?.[level] === 'function') context.logger[level]({ event: message, ...fields });
+async function log(context, level, message, fields = {}) {
+  await writeOperationalLog(context, level, message, fields);
 }
 async function runLog(request, message) {
   if (typeof request?.run?.appendLog === 'function') await request.run.appendLog(message);
@@ -57,14 +58,14 @@ async function ensureDataSource(context, request, state, client) {
     const observed = await observe(client, 'data-source', id);
     if (observed.state === EXISTENCE.UNRESOLVED) throw observed.error instanceof Error ? observed.error : new Error(safeMessage(observed.error));
     if (observed.state === EXISTENCE.MISSING) { id = null; replaced = true; }
-    else if (isPublished(observed.payload)) { log(context, 'info', 'reporting-data-source-verified', { dataSourceId: id }); await runLog(request, 'Existing Reporting Data Source verified.'); return { id, replaced }; }
+    else if (isPublished(observed.payload)) { await log(context, 'info', 'reporting-data-source-verified', { dataSourceId: id }); await runLog(request, 'Existing Reporting Data Source verified.'); return { id, replaced }; }
   }
   if (!id) {
-    log(context, 'info', 'reporting-data-source-create-started'); await runLog(request, 'Creating Reporting Data Source draft.');
+    await log(context, 'info', 'reporting-data-source-create-started'); await runLog(request, 'Creating Reporting Data Source draft.');
     const created = await client.requestAction1Mutation({ operation: 'create-reporting-data-source', method: 'POST', path: '/data-sources/all', body: draftPayload(script) });
     id = requiredId(created, 'Action1 Data Source id');
     await store.save(context, { dataSourceId: id });
-    log(context, 'info', 'reporting-data-source-draft-created', { dataSourceId: id });
+    await log(context, 'info', 'reporting-data-source-draft-created', { dataSourceId: id });
   }
   await runLog(request, 'Publishing Reporting Data Source.');
   const publishedBody = validatePublishedDataSourcePayload(publishedPayload(script));
@@ -86,7 +87,7 @@ async function ensureReport(context, request, client, definition, state, dataSou
     if (observed.state === EXISTENCE.EXISTS) {
       const sources = Array.isArray(observed.payload?.data_sources) ? observed.payload.data_sources.map(source => String(source?.id || source?.data_source_id || source)) : null;
       if (sources && !sources.includes(String(definition.payload.data_sources[0]))) throw new Error(`Report ${definition.name} references a different Configuration Management Data Source.`);
-      log(context, 'info', 'reporting-report-verified', { reportKey: stateKey, reportId: id, dataSourceReplaced }); return id;
+      await log(context, 'info', 'reporting-report-verified', { reportKey: stateKey, reportId: id, dataSourceReplaced }); return id;
     }
   }
   await runLog(request, `Creating report: ${definition.name}`);
@@ -96,7 +97,7 @@ async function ensureReport(context, request, client, definition, state, dataSou
   await store.save(context, { [stateKey]: id });
   const confirmed = await observe(client, 'report', id);
   if (confirmed.state !== EXISTENCE.EXISTS) throw confirmed.error instanceof Error ? confirmed.error : new Error(`Report ${definition.name} was not confirmed after creation.`);
-  log(context, 'info', 'reporting-report-created', { reportKey: stateKey, reportId: id });
+  await log(context, 'info', 'reporting-report-created', { reportKey: stateKey, reportId: id });
   return id;
 }
 
@@ -104,7 +105,7 @@ async function setupReporting(context, request = {}, options = {}) {
   const client = options.client || createAction1DiscoveryClient(context);
   let state = await store.load(context);
   await runLog(request, 'Reporting setup started.');
-  log(context, 'info', 'reporting-setup-started');
+  await log(context, 'info', 'reporting-setup-started');
   const source = await ensureDataSource(context, request, state, client);
   state = await store.load(context);
   const definitions = buildReportDefinitions(source.id);
@@ -113,7 +114,7 @@ async function setupReporting(context, request = {}, options = {}) {
     state = await store.save(context, { [definition.key]: id });
   }
   await runLog(request, 'Reporting setup completed.');
-  log(context, 'info', 'reporting-setup-completed');
+  await log(context, 'info', 'reporting-setup-completed');
   return { ok: true, reporting: { dataSource: 'Configured', reports: 'Configured' }, state };
 }
 

@@ -12,6 +12,7 @@ const {
   formatRuntimeFields,
   formatRuntimePercent,
   formatRuntimeElapsed
+  ,writeOperationalLog
 } = require('../runtimeLogging');
 
 async function run() {
@@ -42,6 +43,19 @@ async function run() {
   await failingLogger.info('first');
   await failingLogger.info('second');
   assert.strictEqual(hostLines.length, 1, 'file logging failure should warn once');
+  const runtimeMessages = [];
+  const hostMessages = [];
+  await writeOperationalLog({
+    action1ConfigurationManagerRuntimeLogger: { info: async (message) => runtimeMessages.push(message) },
+    logger: { info: (message) => hostMessages.push(message) }
+  }, 'info', 'Action1 request', { apiKey: 'SYNTHETIC_KEY', apiSecret: 'SYNTHETIC_SECRET', client_id: 'SYNTHETIC_ID', client_secret: 'SYNTHETIC_SECRET', access_token: 'SYNTHETIC_TOKEN' });
+  assert.strictEqual(hostMessages.length, 0, 'routine operational logs must not mirror to host logger');
+  assert(runtimeMessages.length === 1);
+  assert(!/SYNTHETIC_(KEY|SECRET|ID|TOKEN)/.test(runtimeMessages[0]));
+  const quoted = createAction1RuntimeLogger({ logDir: path.join(tempRoot, 'quoted') });
+  await quoted.info('{"apiKey":"SYNTHETIC_KEY","client_secret":"SYNTHETIC_SECRET","access_token":"SYNTHETIC_TOKEN","Authorization":"Bearer SYNTHETIC_BEARER"}');
+  const quotedText = await fsp.readFile(path.join(tempRoot, 'quoted', 'action1-configuration-manager-runtime.log'), 'utf8');
+  assert(!/SYNTHETIC_(KEY|SECRET|TOKEN|BEARER)/.test(quotedText), 'quoted JSON credential forms must be redacted');
   assert.match(formatAction1RuntimeLogLine('INFO', 'Loaded 4 endpoint groups for organization org-1'), /\[action1-config-manager\] INFO Loaded 4 endpoint groups for organization org-1/);
   assert.strictEqual(fs.existsSync(logPath), true);
   assert.strictEqual(formatRuntimeFields({ policy: 'POL-1', policyName: 'Windows Baseline', controls: 0, compliance: null }), 'policy=POL-1 | policyName="Windows Baseline" | controls=0 | compliance=—');

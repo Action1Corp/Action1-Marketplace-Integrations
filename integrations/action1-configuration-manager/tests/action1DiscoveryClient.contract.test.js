@@ -25,6 +25,7 @@ function createFakeContext(options = {}) {
     warn: [],
     error: []
   };
+  const runtimeCalls = { debug: [], info: [], warn: [], error: [] };
 
   return {
     action1: {
@@ -53,6 +54,8 @@ function createFakeContext(options = {}) {
         loggerCalls.error.push(entry);
       }
     },
+    action1ConfigurationManagerRuntimeLogger: Object.fromEntries(Object.keys(runtimeCalls).map((level) => [level, (message) => runtimeCalls[level].push(message)])),
+    __runtimeCalls: runtimeCalls,
     __loggerCalls: loggerCalls
   };
 }
@@ -77,8 +80,7 @@ async function run() {
 
   {
     const calls = [];
-    const client = createAction1DiscoveryClient(
-      createFakeContext({
+    const context = createFakeContext({
         credentials: { apiKey: 'client-id', apiSecret: 'client-secret' },
         http: async (requestOptions = {}) => {
           calls.push(requestOptions);
@@ -98,14 +100,17 @@ async function run() {
           }
           throw new Error(`Unexpected URL ${url}`);
         }
-      })
-    );
+      });
+    const client = createAction1DiscoveryClient(context);
 
     const rows = await client.listOrganizations();
     assert.deepStrictEqual(rows, [
       { organizationId: 'org-1', organizationName: 'Alpha Org' },
       { organizationId: 'org-2', organizationName: 'Beta Org' }
     ]);
+    const runtimeText = context.__runtimeCalls.debug.join('\n');
+    assert(runtimeText.includes('Action1 request') && runtimeText.includes('operation=organizations'), 'request diagnostics should use runtime DEBUG with operation identity');
+    assert(runtimeText.includes('Action1 response') && runtimeText.includes('status=200'), 'response diagnostics should use runtime DEBUG');
 
     const tokenCall = calls.find((entry) => String(entry.url).endsWith('/oauth2/token'));
     assert(tokenCall, 'token request should be issued');
@@ -370,12 +375,11 @@ async function run() {
     assert.strictEqual(rows.length, 1);
     assert.deepStrictEqual(retryDelayCalls, [{ retryAfterMs: 3000, consecutive429Count: 1 }]);
     assert.deepStrictEqual(sleepCalls, [3000]);
-    assert.strictEqual(context.__loggerCalls.warn.length > 0, true, '429 retries should emit diagnostics');
-    const retryDiagnostic = context.__loggerCalls.warn.find((entry) => entry.event === 'action1-rate-limit');
-    assert(retryDiagnostic, 'rate-limit retry diagnostics should be emitted');
-    const diagnosticText = JSON.stringify(retryDiagnostic);
-    assert(/retryAttempt/i.test(diagnosticText));
-    assert(/consecutive429Count/i.test(diagnosticText));
+    assert.strictEqual(context.__loggerCalls.warn.length, 0, 'routine request diagnostics should not use host logger');
+    const diagnosticText = context.__runtimeCalls.warn.join('\n');
+    assert(/rate limit/i.test(diagnosticText), 'rate-limit retry diagnostics should be emitted');
+    assert(/attempt/i.test(diagnosticText));
+    assert(/retryAfter|delay/i.test(diagnosticText));
     assert.strictEqual(/super-secret-token|sensitive-token|authorization=Bearer/i.test(diagnosticText), false, 'retry diagnostics must be sanitized');
   }
 

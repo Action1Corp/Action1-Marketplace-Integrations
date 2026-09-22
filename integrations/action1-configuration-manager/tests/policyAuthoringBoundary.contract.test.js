@@ -5,6 +5,7 @@ const { pathToFileURL } = require('url');
 const { loadPolicyCatalogContract, validateBaselineRecommendation } = require(path.join(__dirname, '..', 'policyCatalogContract.js'));
 const { normalizeAndValidatePolicyInput } = require(path.join(__dirname, '..', 'policyStore.js'));
 const { savePolicyAction } = require(path.join(__dirname, '..', 'policyActions.js'));
+const { loadControlPackFixture } = require('./controlPackFixture');
 
 function validInput(overrides = {}) {
   return {
@@ -39,7 +40,15 @@ function createNoMutationContext() {
 }
 
 async function run() {
-  const catalog = loadPolicyCatalogContract();
+  const fixture = loadControlPackFixture();
+  const catalog = {
+    packId: fixture.packId,
+    packVersion: fixture.packVersion,
+    catalog: fixture.catalog,
+    baselines: fixture.baselines,
+    controlsById: Object.fromEntries(fixture.catalog.controls.map((control) => [control.controlId, control])),
+    controlFamiliesById: Object.fromEntries(fixture.catalog.automationGroups.map((family) => [family.automationGroupId, family]))
+  };
   const minimumLength = catalog.controlsById['identity.password.minimum-length'];
 
   const normalized = normalizeAndValidatePolicyInput(validInput(), catalog);

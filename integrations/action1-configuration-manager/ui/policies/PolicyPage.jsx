@@ -187,6 +187,7 @@ function PolicyPage({ integration }) {
   const [loadingPolicies, setLoadingPolicies] = useState(true);
   const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [catalog, setCatalog] = useState(null);
+  const [catalogError, setCatalogError] = useState('');
   const [pageError, setPageError] = useState('');
   const [routeResolution, setRouteResolution] = useState(routePolicyId ? 'loading' : 'ready');
   const [organizations, setOrganizations] = useState([]);
@@ -204,9 +205,12 @@ function PolicyPage({ integration }) {
     let cancelled = false;
     setLoadingCatalog(true);
     void policyApiRef.current.getControlPack().then((result) => {
-      if (!cancelled) setCatalog(buildControlPackCatalog(result));
+      if (!cancelled) {
+        setCatalog(buildControlPackCatalog(result));
+        setCatalogError('');
+      }
     }).catch((error) => {
-      if (!cancelled) setPageError(error?.message || 'Unable to load the installed Control Pack.');
+      if (!cancelled) setCatalogError(error?.message || 'Unable to load the installed Control Pack.');
     }).finally(() => {
       if (!cancelled) setLoadingCatalog(false);
     });
@@ -555,9 +559,9 @@ function PolicyPage({ integration }) {
         Create and manage Windows configuration policies that assess and remediate endpoints through scheduled Action1 automations.
       </p>
       <OperationStatus label={busyOperation} />
-      {loadingPolicies || loadingCatalog || !catalog ? <div style={styles.notice}>Loading Configuration Manager…</div> : (
+      {(catalogError || pageError) ? <div style={styles.errorNotice}>{catalogError || pageError}</div> : null}
+      {loadingPolicies || loadingCatalog ? <div style={styles.notice}>Loading Configuration Manager…</div> : !catalog ? null : (
         <>
-      {pageError ? <div style={styles.errorNotice}>{pageError}</div> : null}
       {mode.kind === 'list' ? (
             <PolicyListView
               integration={integration}

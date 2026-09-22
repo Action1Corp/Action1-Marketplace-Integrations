@@ -275,22 +275,27 @@ async function readOverviewReports(client, organizationId, reportReads, options 
   }
 }
 
-async function getOverview(context, options = {}) {
+async function loadOverview(context, options = {}) {
   const operationType = options.operationType === 'manual-refresh' ? 'manual-refresh' : 'initial-load';
   const startedAt = Date.now();
+  options.stage = 'policy-store-initialization';
   const policyStore = options.policyStore || createDbPolicyStore(context);
   const client = options.client || createAction1DiscoveryClient(context);
+  options.stage = 'action1-console-resolution';
   const action1ConsoleOrigin = typeof client.resolveAction1ConsoleOrigin === 'function'
     ? await client.resolveAction1ConsoleOrigin()
     : null;
+  options.stage = 'policy-load';
   const policies = (await policyStore.listPolicies()).filter((policy) => policy.enabled === true);
   await logOverview(context, 'start', { operationType, activePolicies: policies.length });
+  options.stage = 'reporting-load';
   const reporting = options.reportingState || await reportingStore.load(context);
   if (!reporting.dashboardEndpoints || !reporting.dashboardNonCompliantEndpoints || !reporting.dashboardNonCompliantControls) {
     throw new Error('Configuration Manager Dashboard reporting is not configured.');
   }
 
   const assignedEndpointsByPolicy = {};
+  options.stage = 'endpoint-discovery';
   const inventoryCache = new Map();
   for (const policy of policies) {
     const inventoryKey = policy.scopeType === 'ALL_ENDPOINTS'
@@ -451,6 +456,21 @@ async function getOverview(context, options = {}) {
   }
   await logOverview(context, 'complete', { ...result.summary, partialCount: result.policies.reduce((total, policy) => total + policy.partialCount, 0), noDataCount: result.policies.reduce((total, policy) => total + policy.noDataCount, 0), operationType, elapsedMs: Date.now() - startedAt });
   return result;
+}
+
+async function getOverview(context, options = {}) {
+  const startedAt = Date.now();
+  await writeOperationalLog(context, 'info', 'Dashboard load started');
+  try {
+    return await loadOverview(context, options);
+  } catch (error) {
+    await writeOperationalLog(context, 'error', 'Dashboard load failed', {
+      stage: options.stage || 'initialization',
+      error: String(error?.message || error).replace(/\s+/g, ' ').slice(0, 240),
+      elapsed: formatRuntimeElapsed(Date.now() - startedAt)
+    });
+    throw error;
+  }
 }
 
 module.exports = { buildOverviewSummary, buildOverviewViewModel, getOverview, normalizeDashboardControlRow, normalizeEndpointRow, normalizeReportRow, roundPercent, selectTopControlsNeedingAttention };
