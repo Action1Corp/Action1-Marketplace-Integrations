@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Pencil, Play, RefreshCw, Trash2 } from 'lucide-react';
 
 const tokens = {
   accent: '#0337A1',
@@ -37,6 +38,12 @@ const FULL_PROFILE_STEPS = [
 ];
 
 const ENROLLMENT_ONLY_STEPS = FULL_PROFILE_STEPS.filter(step => ['organization', 'intune', 'review'].includes(step.id));
+
+const ACTION1_AUTOMATION_TYPES = [
+  { id: 'deploy-software', label: 'Deploy Software' },
+  { id: 'deploy-updates', label: 'Deploy Updates' },
+  { id: 'run-script', label: 'Run Script' }
+];
 
 const PROFILE_CSS = `
 .a1-profile-ui {
@@ -78,6 +85,8 @@ const PROFILE_CSS = `
 .a1-profile-ui .step.done { color: var(--text-2); cursor: pointer; }
 .a1-profile-ui .step.done .num { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
 .a1-profile-ui .step.done:hover { color: var(--text); }
+.a1-profile-ui .step.available { color: var(--text-2); cursor: pointer; }
+.a1-profile-ui .step.available:hover { color: var(--text); }
 .a1-profile-ui .step-sep { flex: 1; height: 1px; background: var(--border); min-width: 16px; }
 .a1-profile-ui .section { border-top: 1px solid var(--border); margin-top: 24px; padding-top: 18px; }
 .a1-profile-ui .section:first-of-type { border-top: none; margin-top: 0; padding-top: 0; }
@@ -143,8 +152,27 @@ const PROFILE_CSS = `
 .a1-profile-ui .pick-row.disabled { cursor: not-allowed; background: var(--bg-muted); color: var(--text-3); }
 .a1-profile-ui .pick-name { display: block; font-weight: 600; }
 .a1-profile-ui .pick-desc { display: block; color: var(--text-3); font-size: var(--fs-hint); margin-top: 1px; }
+.a1-profile-ui .automation-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 16px; }
+.a1-profile-ui .automation-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 18px 0 8px; }
+.a1-profile-ui .automation-list-heading h4 { margin: 0; font-size: var(--fs-label); }
+.a1-profile-ui .automation-table-wrap { max-width: 100%; overflow-x: auto; }
+.a1-profile-ui .automation-list { width: 100%; border-collapse: collapse; }
+.a1-profile-ui .automation-list th, .a1-profile-ui .automation-list td { padding: 9px 8px; text-align: left; border-bottom: 1px solid var(--border); font-size: var(--fs-label); }
+.a1-profile-ui .automation-list th { color: var(--text-2); font-weight: 600; background: var(--bg-muted); }
+.a1-profile-ui .automation-list td:first-child { font-weight: 600; overflow-wrap: anywhere; }
+.a1-profile-ui .automation-list .automation-actions { white-space: nowrap; text-align: right; }
+.a1-profile-ui .automation-list .automation-actions .btn { display: inline-flex; align-items: center; gap: 6px; margin-left: 6px; }
+.a1-profile-ui .automation-refresh { padding: 0 10px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.a1-profile-ui .modal-backdrop { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(20, 27, 45, .48); }
+.a1-profile-ui .modal-dialog { width: min(440px, 100%); background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-card); box-shadow: 0 18px 48px rgba(20, 27, 45, .22); padding: 20px; }
+.a1-profile-ui .modal-title { margin: 0 0 4px; font-size: var(--fs-section); font-weight: 600; }
+.a1-profile-ui .modal-sub { margin: 0 0 16px; color: var(--text-2); font-size: var(--fs-label); }
+.a1-profile-ui .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 @media (max-width: 640px) {
   .a1-profile-ui .summary-grid { grid-template-columns: 1fr; }
+  .a1-profile-ui .automation-list { min-width: 700px; }
+  .a1-profile-ui .automation-list .automation-actions { white-space: normal; }
+  .a1-profile-ui .automation-list .automation-actions .btn { margin: 0 0 4px 0; }
 }
 `;
 
@@ -402,15 +430,16 @@ function PolicyList({ policies, loading, onCreate, onEdit, onDelete }) {
   );
 }
 
-function Stepper({ steps, stepIndex, setStepIndex }) {
+function Stepper({ steps, stepIndex, onStepSelect, allowForwardNavigation }) {
   return (
     <div className="stepper">
       {steps.map((step, index) => (
         <div key={step.id} style={{ display: 'contents' }}>
           <button
             type="button"
-            onClick={() => index < stepIndex && setStepIndex(index)}
-            className={cx('step', index === stepIndex && 'active', index < stepIndex && 'done')}
+            onClick={() => (allowForwardNavigation || index < stepIndex) && onStepSelect(index)}
+            className={cx('step', index === stepIndex && 'active', index < stepIndex && 'done', allowForwardNavigation && index > stepIndex && 'available')}
+            aria-current={index === stepIndex ? 'step' : undefined}
           >
             <span className="num">
               {index + 1}
@@ -462,30 +491,24 @@ function Checklist({ rows, selectedIds, onChange, labelKey = 'name', emptyText, 
   );
 }
 
-function EndpointGroupChecklist({ rows, selectedIds, onChange, emptyText }) {
+function EndpointGroupTable({ rows, selectedIds, onChange, onDelete, deletingId, emptyText }) {
   return (
-    <div className="pick-list large">
-      {rows.length === 0 ? (
-        <div style={{ padding: '0.85rem', color: tokens.textMuted, fontSize: 13 }}>{emptyText}</div>
-      ) : rows.map(row => {
-        const selected = selectedIds.includes(row.id);
-
-        return (
-          <div key={row.id} className="pick-row">
-              <input
-                type="checkbox"
-                checked={selected}
-                onChange={event => onChange(event.target.checked ? [...selectedIds, row.id] : selectedIds.filter(id => id !== row.id))}
-                style={{ marginTop: 3 }}
-              />
-              <div style={{ flex: 1 }}>
-                <div className="pick-name">{row.name || row.id}</div>
-                {row.description ? <div className="pick-desc">{row.description}</div> : null}
-              </div>
-          </div>
-        );
-      })}
-    </div>
+    rows.length === 0 ? <p className="section-sub">{emptyText}</p> : (
+      <div className="automation-table-wrap"><table className="automation-list">
+        <thead><tr><th style={{ width: 72 }}>Select</th><th>Name</th><th style={{ width: 90 }}>Endpoints</th><th className="automation-actions">Actions</th></tr></thead>
+        <tbody>{rows.map(row => (
+          <tr key={row.id}>
+            <td><input type="checkbox" aria-label={`Select ${row.name || row.id}`} checked={selectedIds.includes(row.id)} onChange={event => onChange(event.target.checked ? [...selectedIds, row.id] : selectedIds.filter(id => id !== row.id))} /></td>
+            <td>{row.name || row.id}</td>
+            <td>{Number.isFinite(row.endpointCount) ? row.endpointCount : '-'}</td>
+            <td className="automation-actions">
+              {row.editable ? <a className="btn btn-secondary link-button" href={row.editUrl} target="_blank" rel="noopener noreferrer" title={`Edit ${row.name} in Action1`}><Pencil size={14} /> Edit</a> : <button type="button" className="btn btn-secondary" disabled title="This Action1 group cannot be customized"><Pencil size={14} /> Edit</button>}
+              <button type="button" className="btn btn-secondary btn-danger" disabled={!row.editable || !!deletingId} title={row.editable ? `Delete ${row.name}` : 'This Action1 group cannot be deleted'} onClick={() => onDelete(row)}><Trash2 size={14} /> {deletingId === row.id ? 'Deleting...' : 'Delete'}</button>
+            </td>
+          </tr>
+        ))}</tbody>
+      </table></div>
+    )
   );
 }
 
@@ -508,7 +531,7 @@ function ReviewEndpointGroupDetails({ selectedIds, selectedNames, detailsByGroup
                 <ul style={{ ...instructionListStyle, marginBottom: 0 }}>
                   {automations.map(automation => (
                     <li key={automation.id}>
-                      <a href={action1AutomationUrl(action1ConsoleBase, organizationId, automation.id)} target="_blank" rel="noreferrer" style={{ color: '#003DA6', fontWeight: 700 }}>
+                      <a href={automation.editUrl || action1AutomationUrl(action1ConsoleBase, organizationId, automation.id)} target="_blank" rel="noreferrer" style={{ color: '#003DA6', fontWeight: 700 }}>
                         {automation.name || automation.id}
                       </a>
                       {automation.enabled === false ? ' (disabled)' : ''}
@@ -551,7 +574,7 @@ function ReviewProvisioningAutomations({ selectedIds, selectedNames, detailsByGr
     <ul style={{ ...summaryListStyle, marginTop: 0 }}>
       {rows.map(automation => (
         <li key={`${automation.groupId}:${automation.id}`}>
-          <a href={action1AutomationUrl(action1ConsoleBase, organizationId, automation.id)} target="_blank" rel="noreferrer" style={{ color: '#003DA6', fontWeight: 700 }}>
+          <a href={automation.editUrl || action1AutomationUrl(action1ConsoleBase, organizationId, automation.id)} target="_blank" rel="noreferrer" style={{ color: '#003DA6', fontWeight: 700 }}>
             {automation.name || automation.id}
           </a>
           <span style={summaryMetaStyle}> in {selectedNames[automation.groupId] || automation.groupId}{automation.enabled === false ? ' (disabled)' : ''}</span>
@@ -598,11 +621,36 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
   const [organizations, setOrganizations] = useState([]);
   const [deviceGroups, setDeviceGroups] = useState([]);
   const [endpointGroups, setEndpointGroups] = useState([]);
+  const [endpointGroupDialogOpen, setEndpointGroupDialogOpen] = useState(false);
+  const [endpointGroupName, setEndpointGroupName] = useState('');
+  const [creatingEndpointGroup, setCreatingEndpointGroup] = useState(false);
+  const [endpointGroupError, setEndpointGroupError] = useState('');
+  const [deletingEndpointGroupId, setDeletingEndpointGroupId] = useState('');
+  const endpointGroupRequestId = useRef(0);
   const [endpointGroupDetails, setEndpointGroupDetails] = useState({});
   const [endpointGroupDetailWarning, setEndpointGroupDetailWarning] = useState('');
   const [loading, setLoading] = useState('');
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
+  const [automationDialog, setAutomationDialog] = useState(null);
+  const [automationName, setAutomationName] = useState('');
+  const [creatingAutomation, setCreatingAutomation] = useState(false);
+  const [automationError, setAutomationError] = useState('');
+  const [automations, setAutomations] = useState([]);
+  const [automationsLoading, setAutomationsLoading] = useState(false);
+  const [automationsError, setAutomationsError] = useState('');
+  const [deletingAutomationId, setDeletingAutomationId] = useState('');
+  const [enablingAutomationId, setEnablingAutomationId] = useState('');
+  const [automationRefresh, setAutomationRefresh] = useState(0);
+  const automationRequestId = useRef(0);
+  const [configPolicyDialogOpen, setConfigPolicyDialogOpen] = useState(false);
+  const [configPolicyName, setConfigPolicyName] = useState('');
+  const [configPolicies, setConfigPolicies] = useState([]);
+  const [configPoliciesLoading, setConfigPoliciesLoading] = useState(false);
+  const [configPoliciesError, setConfigPoliciesError] = useState('');
+  const [deletingConfigPolicyId, setDeletingConfigPolicyId] = useState('');
+  const [configPolicyRefresh, setConfigPolicyRefresh] = useState(0);
+  const configPolicyRequestId = useRef(0);
   const isEnrollmentOnly = draft.profileType === PROFILE_TYPE_ENROLLMENT_ONLY;
   const steps = isEnrollmentOnly ? ENROLLMENT_ONLY_STEPS : FULL_PROFILE_STEPS;
   const activeStep = steps[Math.min(stepIndex, steps.length - 1)]?.id || 'organization';
@@ -625,11 +673,12 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
 
   const loadEndpointGroups = useCallback((organizationId) => {
     if (!organizationId) return;
+    const requestId = ++endpointGroupRequestId.current;
     setLoading('endpoint-groups');
     apiAction(integration, 'list-action1-endpoint-groups', { organizationId })
-      .then(data => setEndpointGroups(data.groups || []))
-      .catch(error => setMessage(error.message))
-      .finally(() => setLoading(''));
+      .then(data => { if (requestId === endpointGroupRequestId.current) setEndpointGroups(data.groups || []); })
+      .catch(error => { if (requestId === endpointGroupRequestId.current) setEndpointGroupError(error.message); })
+      .finally(() => { if (requestId === endpointGroupRequestId.current) setLoading(current => current === 'endpoint-groups' ? '' : current); });
   }, [integration]);
 
   const loadEndpointGroupDetails = useCallback((organizationId) => {
@@ -663,14 +712,63 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
   }, [activeStep, draft.organizationId, loadEndpointGroups, loadEndpointGroupDetails]);
 
   useEffect(() => {
+    if (activeStep !== 'provisioning') return;
+    const requestId = ++automationRequestId.current;
+    if (!draft.organizationId || !draft.monitoredAction1GroupIds.length) {
+      setAutomations([]);
+      return;
+    }
+    setAutomationsLoading(true);
+    setAutomationsError('');
+    setAutomations([]);
+    apiAction(integration, 'list-provisioning-automations', {
+      organizationId: draft.organizationId,
+      endpointGroupIds: draft.monitoredAction1GroupIds
+    })
+      .then(data => {
+        if (requestId === automationRequestId.current) setAutomations(data.automations || []);
+      })
+      .catch(error => {
+        if (requestId === automationRequestId.current) setAutomationsError(error.message);
+      })
+      .finally(() => {
+        if (requestId === automationRequestId.current) setAutomationsLoading(false);
+      });
+    return () => { automationRequestId.current++; };
+  }, [activeStep, draft.organizationId, draft.monitoredAction1GroupIds, automationRefresh, integration]);
+
+  useEffect(() => {
+    if (activeStep !== 'provisioning') return;
+    const requestId = ++configPolicyRequestId.current;
+    if (!draft.organizationId || !draft.monitoredAction1GroupIds.length) {
+      setConfigPolicies([]);
+      return;
+    }
+    setConfigPoliciesLoading(true);
+    setConfigPoliciesError('');
+    apiAction('action1-configuration-manager', 'list-policies')
+      .then(data => {
+        if (requestId !== configPolicyRequestId.current) return;
+        const selectedGroups = new Set(draft.monitoredAction1GroupIds);
+        setConfigPolicies((Array.isArray(data.policies) ? data.policies : [])
+          .filter(policy => policy.organizationId === draft.organizationId && policy.scopeType === 'ENDPOINT_GROUP' && selectedGroups.has(policy.endpointGroupId))
+          .sort((a, b) => (a.displayName || a.baseName || '').localeCompare(b.displayName || b.baseName || '')));
+      })
+      .catch(error => {
+        if (requestId === configPolicyRequestId.current) setConfigPoliciesError(error.message);
+      })
+      .finally(() => {
+        if (requestId === configPolicyRequestId.current) setConfigPoliciesLoading(false);
+      });
+    return () => { configPolicyRequestId.current++; };
+  }, [activeStep, draft.organizationId, draft.monitoredAction1GroupIds, configPolicyRefresh]);
+
+  useEffect(() => {
     if (stepIndex >= steps.length) setStepIndex(Math.max(0, steps.length - 1));
   }, [stepIndex, steps.length]);
 
   const action1ConsoleBase = 'https://app.action1.com';
-  const createAutomationUrl = draft.organizationId
-    ? `${action1ConsoleBase}/console/automations?limit=50&from=0&add_endpoints-limit=50&add_endpoints-from=0&org=${encodeURIComponent(draft.organizationId)}`
-    : `${action1ConsoleBase}/console/automations?limit=50&from=0&add_endpoints-limit=50&add_endpoints-from=0`;
-  const createConfigPolicyUrl = '/apps/action1-configuration-manager/policies';
+  const configPolicyBaseUrl = '/apps/action1-configuration-manager/policies';
 
   const selectedIntuneNames = selectedLabels(draft.intuneDeviceGroupIds, draft.intuneDeviceGroupMap, deviceGroups, 'displayName');
   const selectedEndpointGroupNames = selectedLabels(draft.monitoredAction1GroupIds, draft.monitoredAction1GroupMap, endpointGroups, 'name');
@@ -705,7 +803,11 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
     const organization = organizations.find(item => item.id === organizationId);
     const organizationName = normalizeComparableName(organization?.name);
     if (organizationId && (usedOrganizationIds.has(organizationId) || usedOrganizationNames.has(organizationName))) return;
-    if (organizationId !== draft.organizationId) setEndpointGroups([]);
+    if (organizationId !== draft.organizationId) {
+      endpointGroupRequestId.current++;
+      setEndpointGroups([]);
+      setEndpointGroupError('');
+    }
     setDraft(current => ({
       ...current,
       organizationId,
@@ -729,6 +831,75 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
     const map = {};
     for (const group of endpointGroups) if (ids.includes(group.id)) map[group.id] = group.name || group.id;
     setDraft(current => ({ ...current, monitoredAction1GroupIds: ids, monitoredAction1GroupMap: { ...current.monitoredAction1GroupMap, ...map } }));
+  }
+
+  async function createEndpointGroup(event) {
+    event.preventDefault();
+    const name = endpointGroupName.trim();
+    if (!name || !draft.organizationId) return;
+
+    const groupWindow = window.open('about:blank', '_blank');
+    setCreatingEndpointGroup(true);
+    setEndpointGroupError('');
+    try {
+      const result = await apiAction(integration, 'create-action1-endpoint-group', {
+        organizationId: draft.organizationId,
+        name
+      });
+      endpointGroupRequestId.current++;
+      setEndpointGroups(current => [...current.filter(group => group.id !== result.group.id), result.group].sort((a, b) => a.name.localeCompare(b.name)));
+      setDraft(current => ({
+        ...current,
+        monitoredAction1GroupIds: [...new Set([...current.monitoredAction1GroupIds, result.group.id])],
+        monitoredAction1GroupMap: { ...current.monitoredAction1GroupMap, [result.group.id]: result.group.name }
+      }));
+      setEndpointGroupDialogOpen(false);
+      setEndpointGroupName('');
+      setLoading(current => current === 'endpoint-groups' ? '' : current);
+      if (groupWindow) groupWindow.location.replace(result.groupUrl);
+    } catch (error) {
+      groupWindow?.close();
+      setEndpointGroupError(error.message);
+    } finally {
+      setCreatingEndpointGroup(false);
+    }
+  }
+
+  async function deleteEndpointGroup(group) {
+    const wasSaved = initialPolicy?.organizationId === draft.organizationId && initialPolicy.monitoredAction1GroupIds?.includes(group.id);
+    if (wasSaved && draft.monitoredAction1GroupIds.includes(group.id)) {
+      setEndpointGroupError(`Deselect "${group.name}" before deleting it from this profile.`);
+      return;
+    }
+    const profileChange = wasSaved ? ' This will also save the profile\'s selected provisioning groups now.' : '';
+    if (!window.confirm(`Delete "${group.name}" from Action1? This cannot be undone and may affect automations or policies targeting this group.${profileChange}`)) return;
+    setDeletingEndpointGroupId(group.id);
+    setEndpointGroupError('');
+    try {
+      await apiAction(integration, 'delete-action1-endpoint-group', {
+        organizationId: draft.organizationId,
+        groupId: group.id,
+        profileId: initialPolicy?.policyId,
+        selectedGroupIds: draft.monitoredAction1GroupIds.filter(id => id !== group.id),
+        selectedGroupMap: draft.monitoredAction1GroupMap
+      });
+      endpointGroupRequestId.current++;
+      setEndpointGroups(current => current.filter(item => item.id !== group.id));
+      setLoading(current => current === 'endpoint-groups' ? '' : current);
+      setDraft(current => {
+        const groupMap = { ...current.monitoredAction1GroupMap };
+        delete groupMap[group.id];
+        return {
+          ...current,
+          monitoredAction1GroupIds: current.monitoredAction1GroupIds.filter(id => id !== group.id),
+          monitoredAction1GroupMap: groupMap
+        };
+      });
+    } catch (error) {
+      setEndpointGroupError(error.message);
+    } finally {
+      setDeletingEndpointGroupId('');
+    }
   }
 
   function updateProfileType(profileType) {
@@ -771,7 +942,18 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
     setStepIndex(current => Math.min(current + 1, steps.length - 1));
   }
 
+  function selectStep(index) {
+    setMessage('');
+    setStepIndex(index);
+  }
+
   async function save() {
+    const invalidStep = steps.find(step => validateStep(step.id));
+    if (invalidStep) {
+      setStepIndex(steps.indexOf(invalidStep));
+      setMessage(validateStep(invalidStep.id));
+      return;
+    }
     setSaving(true);
     setMessage('');
     try {
@@ -784,13 +966,141 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
     }
   }
 
+  function openAutomationDialog(type) {
+    setMessage('');
+    setAutomationError('');
+    setAutomationName('');
+    setAutomationDialog(type);
+  }
+
+  function closeAutomationDialog() {
+    if (creatingAutomation) return;
+    setAutomationDialog(null);
+    setAutomationName('');
+    setAutomationError('');
+  }
+
+  async function createAutomation(event) {
+    event?.preventDefault();
+    const name = automationName.trim();
+    if (!name) return;
+
+    const editWindow = window.open('about:blank', '_blank');
+    setCreatingAutomation(true);
+    setAutomationError('');
+    try {
+      const result = await apiAction(integration, 'create-action1-automation', {
+        organizationId: draft.organizationId,
+        endpointGroupIds: draft.monitoredAction1GroupIds,
+        automationType: automationDialog.id,
+        name
+      });
+      setAutomationDialog(null);
+      setAutomationName('');
+      automationRequestId.current++;
+      setAutomations(current => [...current.filter(item => item.id !== result.automationId), {
+        id: result.automationId,
+        name,
+        typeLabel: automationDialog.label,
+        enabled: false,
+        configurationReady: false,
+        endpointGroupIds: draft.monitoredAction1GroupIds,
+        editUrl: result.editUrl
+      }].sort((a, b) => a.name.localeCompare(b.name)));
+      setAutomationsLoading(false);
+      setAutomationsError('');
+      if (editWindow) {
+        try {
+          editWindow.location.replace(result.editUrl);
+        } catch {
+          editWindow.close();
+        }
+      }
+    } catch (error) {
+      editWindow?.close();
+      setAutomationError(error.message);
+    } finally {
+      setCreatingAutomation(false);
+    }
+  }
+
+  async function deleteAutomation(automation) {
+    if (!window.confirm(`Delete "${automation.name}" from Action1? This cannot be undone.`)) return;
+    setDeletingAutomationId(automation.id);
+    setAutomationsError('');
+    try {
+      await apiAction(integration, 'delete-provisioning-automation', {
+        organizationId: draft.organizationId,
+        endpointGroupIds: draft.monitoredAction1GroupIds,
+        automationId: automation.id
+      });
+      setAutomations(current => current.filter(item => item.id !== automation.id));
+    } catch (error) {
+      setAutomationsError(error.message);
+    } finally {
+      setDeletingAutomationId('');
+    }
+  }
+
+  async function enableAutomationHourly(automation) {
+    if (!window.confirm(`Enable "${automation.name}" to run every hour starting now on its Action1 provisioning groups? Only continue after finishing its configuration in Action1.`)) return;
+    setEnablingAutomationId(automation.id);
+    setAutomationsError('');
+    try {
+      await apiAction(integration, 'enable-hourly-provisioning-automation', {
+        organizationId: draft.organizationId,
+        endpointGroupIds: draft.monitoredAction1GroupIds,
+        automationId: automation.id
+      });
+      setAutomations(current => current.map(item => item.id === automation.id ? { ...item, enabled: true } : item));
+    } catch (error) {
+      setAutomationsError(error.message);
+    } finally {
+      setEnablingAutomationId('');
+    }
+  }
+
+  function refreshAutomations() {
+    setAutomationRefresh(value => value + 1);
+  }
+
+  function createConfigPolicy(event) {
+    event.preventDefault();
+    const name = configPolicyName.trim();
+    if (!name) return;
+    const params = new URLSearchParams({ mode: 'create', policyName: name });
+    window.open(`${configPolicyBaseUrl}?${params.toString()}`, '_blank', 'noopener,noreferrer');
+    setConfigPolicyDialogOpen(false);
+    setConfigPolicyName('');
+  }
+
+  async function deleteConfigPolicy(policy) {
+    const name = policy.displayName || policy.baseName || policy.policyId;
+    if (!window.confirm(`Delete "${name}" from Configuration Management? This also removes its automations and cannot be undone.`)) return;
+    setDeletingConfigPolicyId(policy.policyId);
+    setConfigPoliciesError('');
+    try {
+      const result = await apiAction('action1-configuration-manager', 'delete-policy', { policyId: policy.policyId });
+      if (result.deleted !== true) throw new Error(result.message || 'Configuration Management did not delete the policy.');
+      setConfigPolicies(current => current.filter(item => item.policyId !== policy.policyId));
+    } catch (error) {
+      setConfigPoliciesError(error.message);
+    } finally {
+      setDeletingConfigPolicyId('');
+    }
+  }
+
+  function refreshConfigPolicies() {
+    setConfigPolicyRefresh(value => value + 1);
+  }
+
   return (
     <div className="card">
       <h2 className="card-title">{initialPolicy ? 'Edit Enrollment and Provisioning Profile' : 'Enrollment and Provisioning Profile'}</h2>
       <p className="card-sub">
         Configure which Intune devices are enrolled in Action1 and which Action1 provisioning groups are configured for provisioning.
       </p>
-      <Stepper steps={steps} stepIndex={stepIndex} setStepIndex={setStepIndex} />
+      <Stepper steps={steps} stepIndex={stepIndex} onStepSelect={selectStep} allowForwardNavigation={Boolean(initialPolicy)} />
       {message && <div className="validation-notice">{message}</div>}
 
       {activeStep === 'organization' && (
@@ -859,19 +1169,22 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
 
       {activeStep === 'action1' && (
         <section className="section">
-          <h3 className="section-title">Create and Select Action1 Provisioning Groups</h3>
-          <Help>Create Action1 Provisioning Groups for enrolled devices. Use Action1 filters so devices move through the groups automatically as enrollment and provisioning state changes. After creating groups in Action1, return here and refresh the list.</Help>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', margin: '0.25rem 0 0.85rem' }}>
-            <a href={draft.organizationId ? `${action1ConsoleBase}/console/endpoints?limit=50&from=0&org=${encodeURIComponent(draft.organizationId)}` : `${action1ConsoleBase}/console/endpoints?limit=50&from=0`} target="_blank" rel="noreferrer" className="btn btn-primary link-button">Open Action1 Provisioning Groups</a>
-            <button type="button" className="btn btn-secondary" onClick={() => loadEndpointGroups(draft.organizationId)} disabled={!draft.organizationId || loading === 'endpoint-groups'}>
-              {loading === 'endpoint-groups' ? 'Refreshing...' : 'Refresh groups'}
-            </button>
+          <h3 className="section-title">Action1 Provisioning Groups</h3>
+          <Help>Create a provisioning group or select an existing group for this profile. Configure group membership in Action1 before using it to target automations.</Help>
+          <div className="automation-buttons">
+            <button type="button" className="btn btn-primary" disabled={!draft.organizationId} onClick={() => { setEndpointGroupError(''); setEndpointGroupName(''); setEndpointGroupDialogOpen(true); }}>Create Endpoint Group</button>
           </div>
-          <Help>Select the Action1 Provisioning Groups created for this profile.</Help>
-          <EndpointGroupChecklist
+          <div className="automation-list-heading">
+            <h4>Endpoint Groups</h4>
+            <button type="button" className="btn btn-secondary automation-refresh" title="Refresh endpoint groups" onClick={() => { setEndpointGroupError(''); loadEndpointGroups(draft.organizationId); }} disabled={!draft.organizationId || loading === 'endpoint-groups'}><RefreshCw size={16} /> {loading === 'endpoint-groups' ? 'Refreshing...' : 'Refresh'}</button>
+          </div>
+          {endpointGroupError && !endpointGroupDialogOpen && <div className="validation-notice" role="alert">{endpointGroupError}</div>}
+          <EndpointGroupTable
             rows={endpointGroups}
             selectedIds={draft.monitoredAction1GroupIds}
             onChange={updateEndpointGroups}
+            onDelete={deleteEndpointGroup}
+            deletingId={deletingEndpointGroupId}
             emptyText={loading === 'endpoint-groups' ? 'Loading Action1 provisioning groups...' : 'No Action1 provisioning groups were found for this organization.'}
           />
         </section>
@@ -884,11 +1197,61 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
 
           <h4 style={{ margin: '12px 0 4px', fontSize: 13 }}>Provisioning Automations</h4>
           <p className="section-sub">Create Action1 automations that install software, run scripts, or perform other provisioning work and target those automations to the Action1 provisioning groups selected in the previous step.</p>
-          <p><a href={createAutomationUrl} target="_blank" rel="noreferrer" style={{ color: '#003DA6', fontWeight: 700 }}>Create Action1 Provisioning Automations</a></p>
+          <div className="automation-buttons">
+            {ACTION1_AUTOMATION_TYPES.map(type => (
+              <button key={type.id} type="button" className="btn btn-primary" onClick={() => openAutomationDialog(type)}>
+                {type.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="automation-list-heading">
+            <h4>Created Automations</h4>
+            <button type="button" className="btn btn-secondary automation-refresh" title="Refresh automations" disabled={automationsLoading} onClick={refreshAutomations}><RefreshCw size={16} /> Refresh</button>
+          </div>
+          {automationsError && <div className="validation-notice" role="alert">{automationsError}</div>}
+          {automationsLoading ? <p className="section-sub">Loading automations...</p> : automations.length ? (
+            <div className="automation-table-wrap"><table className="automation-list">
+              <thead><tr><th>Name</th><th>Type</th><th>Status</th><th className="automation-actions">Actions</th></tr></thead>
+              <tbody>{automations.map(automation => (
+                <tr key={automation.id}>
+                  <td>{automation.name}</td>
+                  <td>{automation.typeLabel}</td>
+                  <td>{automation.enabled ? 'Enabled' : automation.configurationReady ? 'Ready to enable' : 'Needs configuration'}</td>
+                  <td className="automation-actions">
+                    <a className="btn btn-secondary link-button" href={automation.editUrl} target="_blank" rel="noopener noreferrer" title={`Edit ${automation.name} in Action1`}><Pencil size={14} /> Edit</a>
+                    {!automation.enabled && <button type="button" className="btn btn-secondary" title={automation.configurationReady ? `Enable ${automation.name} to run every hour from now` : 'Save an action configuration in Action1, then refresh automations'} disabled={!automation.configurationReady || !!enablingAutomationId || !!deletingAutomationId} onClick={() => enableAutomationHourly(automation)}><Play size={14} /> {enablingAutomationId === automation.id ? 'Enabling...' : 'Enable'}</button>}
+                    <button type="button" className="btn btn-secondary btn-danger" title={`Delete ${automation.name}`} disabled={!!deletingAutomationId || !!enablingAutomationId} onClick={() => deleteAutomation(automation)}><Trash2 size={14} /> {deletingAutomationId === automation.id ? 'Deleting...' : 'Delete'}</button>
+                  </td>
+                </tr>
+              ))}</tbody>
+            </table></div>
+          ) : <p className="section-sub">No automations found for the selected provisioning groups.</p>}
 
           <h4 style={{ margin: '12px 0 4px', fontSize: 13 }}>Configuration Management Policies</h4>
           <p className="section-sub">Create Configuration Management policies that contain the required controls and target the policies to the Action1 provisioning groups selected in the previous step.</p>
-          <p><a href={createConfigPolicyUrl} target="_blank" rel="noreferrer" style={{ color: '#003DA6', fontWeight: 700 }}>Create Configuration Management Policies</a></p>
+          <button type="button" className="btn btn-primary" onClick={() => { setConfigPolicyName(''); setConfigPolicyDialogOpen(true); }}>Create Policy</button>
+          <div className="automation-list-heading">
+            <h4>Created Policies</h4>
+            <button type="button" className="btn btn-secondary automation-refresh" title="Refresh policies" disabled={configPoliciesLoading} onClick={refreshConfigPolicies}><RefreshCw size={16} /> Refresh</button>
+          </div>
+          {configPoliciesError && <div className="validation-notice" role="alert">{configPoliciesError}</div>}
+          {configPoliciesLoading ? <p className="section-sub">Loading policies...</p> : configPolicies.length ? (
+            <div className="automation-table-wrap"><table className="automation-list">
+              <thead><tr><th>Name</th><th>Provisioning Group</th><th>Status</th><th className="automation-actions">Actions</th></tr></thead>
+              <tbody>{configPolicies.map(policy => (
+                <tr key={policy.policyId}>
+                  <td>{policy.displayName || policy.baseName || policy.policyId}</td>
+                  <td>{policy.endpointGroupNameSnapshot || selectedEndpointGroupNameMap[policy.endpointGroupId] || policy.endpointGroupId}</td>
+                  <td>{policy.enabled ? 'Enabled' : 'Disabled'}</td>
+                  <td className="automation-actions">
+                    <a className="btn btn-secondary link-button" href={`${configPolicyBaseUrl}?${new URLSearchParams({ policyId: policy.policyId, mode: 'edit' })}`} target="_blank" rel="noopener noreferrer" title={`Edit ${policy.displayName || policy.baseName || policy.policyId}`}><Pencil size={14} /> Edit</a>
+                    <button type="button" className="btn btn-secondary btn-danger" title={`Delete ${policy.displayName || policy.baseName || policy.policyId}`} disabled={!!deletingConfigPolicyId} onClick={() => deleteConfigPolicy(policy)}><Trash2 size={14} /> {deletingConfigPolicyId === policy.policyId ? 'Deleting...' : 'Delete'}</button>
+                  </td>
+                </tr>
+              ))}</tbody>
+            </table></div>
+          ) : <p className="section-sub">No Configuration Management policies found for the selected provisioning groups.</p>}
         </section>
       )}
 
@@ -907,6 +1270,59 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
             {!isEnrollmentOnly && <><div className="s-label">Configuration Management Policies</div><div><ReviewConfigurationPolicies selectedIds={draft.monitoredAction1GroupIds} selectedNames={selectedEndpointGroupNameMap} detailsByGroupId={endpointGroupDetails} loading={loadingEndpointGroupDetails} /></div></>}
           </div>
         </section>
+      )}
+
+      {automationDialog && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={event => event.target === event.currentTarget && closeAutomationDialog()}>
+          <form className="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="automation-dialog-title" onSubmit={createAutomation}>
+            <h3 id="automation-dialog-title" className="modal-title">Create {automationDialog.label} Automation</h3>
+            <p className="modal-sub">The new automation will target the selected provisioning groups and remain disabled. Save its action configuration in Action1, then refresh this list and click Enable to start hourly runs.</p>
+            <div className="field">
+              <label htmlFor="automation-name">Automation Name <span className="req">*</span></label>
+              <input id="automation-name" type="text" autoFocus maxLength={255} value={automationName} onChange={event => setAutomationName(event.target.value)} disabled={creatingAutomation} />
+            </div>
+            {automationError && <div className="validation-notice" role="alert">{automationError}</div>}
+            <div className="modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={closeAutomationDialog} disabled={creatingAutomation}>Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={creatingAutomation || !automationName.trim()}>{creatingAutomation ? 'Creating...' : 'OK'}</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {endpointGroupDialogOpen && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={event => event.target === event.currentTarget && !creatingEndpointGroup && setEndpointGroupDialogOpen(false)}>
+          <form className="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="endpoint-group-dialog-title" onSubmit={createEndpointGroup}>
+            <h3 id="endpoint-group-dialog-title" className="modal-title">Create Endpoint Group</h3>
+            <p className="modal-sub">The new group will be selected for this profile. Configure its membership in Action1.</p>
+            <div className="field">
+              <label htmlFor="endpoint-group-name">Group Name <span className="req">*</span></label>
+              <input id="endpoint-group-name" type="text" autoFocus maxLength={255} value={endpointGroupName} onChange={event => setEndpointGroupName(event.target.value)} disabled={creatingEndpointGroup} />
+            </div>
+            {endpointGroupError && <div className="validation-notice" role="alert">{endpointGroupError}</div>}
+            <div className="modal-actions">
+              <button type="button" className="btn btn-secondary" disabled={creatingEndpointGroup} onClick={() => setEndpointGroupDialogOpen(false)}>Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={!endpointGroupName.trim() || creatingEndpointGroup}>{creatingEndpointGroup ? 'Creating...' : 'OK'}</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {configPolicyDialogOpen && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={event => event.target === event.currentTarget && setConfigPolicyDialogOpen(false)}>
+          <form className="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="config-policy-dialog-title" onSubmit={createConfigPolicy}>
+            <h3 id="config-policy-dialog-title" className="modal-title">Create Configuration Management Policy</h3>
+            <p className="modal-sub">The policy wizard will open in a new tab. Select one of this profile's provisioning groups when choosing its target.</p>
+            <div className="field">
+              <label htmlFor="config-policy-name">Policy Name <span className="req">*</span></label>
+              <input id="config-policy-name" type="text" autoFocus maxLength={255} value={configPolicyName} onChange={event => setConfigPolicyName(event.target.value)} />
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setConfigPolicyDialogOpen(false)}>Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={!configPolicyName.trim()}>OK</button>
+            </div>
+          </form>
+        </div>
       )}
 
       <div className="wizard-footer">
@@ -985,7 +1401,7 @@ function Policies({ integration }) {
           integration={integration}
           initialPolicy={editingPolicy}
           policies={policies}
-          onCancel={() => setMode('list')}
+          onCancel={() => { setMode('list'); refreshPolicies(); }}
           onSaved={async () => {
             setMode('list');
             setEditingPolicy(null);

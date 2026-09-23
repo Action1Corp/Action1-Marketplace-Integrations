@@ -1,4 +1,5 @@
 const GRAPH_BASE = 'https://graph.microsoft.com/beta';
+const { hasSavedActionConfiguration } = require('./action1Automation');
 const ASSIGNMENT_MODE_ALL_DEVICES = 'allDevices';
 const ASSIGNMENT_MODE_SELECTED_GROUPS = 'selectedGroups';
 const DEFAULT_ACTION1_BASE_URL = 'https://app.action1.com/api/3.0';
@@ -296,7 +297,7 @@ async function listAction1EndpointGroups(credentials) {
       id: String(group.id || group.group_id || group.groupId || group.name || '').trim(),
       name: String(group.name || group.displayName || group.display_name || group.id || '').trim(),
       description: String(group.description || '').trim(),
-      endpointCount: Number(group.endpoint_count ?? group.endpointCount ?? group.endpoints_count ?? group.count ?? 0)
+      endpointCount: null
     }))
     .filter(group => group.id && group.name)
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -306,6 +307,19 @@ function normalizeAction1GroupIds(items = []) {
   return (Array.isArray(items) ? items : [])
     .map(item => String(item?.id || item?.group_id || item?.groupId || '').trim())
     .filter(Boolean);
+}
+
+function normalizeAction1AutomationSchedule(schedule) {
+  return {
+    id: String(schedule.id || schedule.schedule_id || schedule.scheduleId || schedule.name || '').trim(),
+    name: String(schedule.name || schedule.displayName || schedule.display_name || schedule.id || '').trim(),
+    enabled: schedule.enabled !== false && !/^DISABLED\b/i.test(String(schedule.settings || '')),
+    configurationReady: hasSavedActionConfiguration(schedule),
+    endpointGroupIds: normalizeAction1GroupIds(schedule.endpoints || schedule.endpoint_groups || schedule.endpointGroups || schedule.targets),
+    templateIds: (Array.isArray(schedule.actions) ? schedule.actions : [])
+      .map(action => String(action.template_id || action.templateId || '').trim())
+      .filter(Boolean)
+  };
 }
 
 async function listAction1AutomationSchedules(credentials) {
@@ -321,12 +335,7 @@ async function listAction1AutomationSchedules(credentials) {
   );
 
   return schedules
-    .map(schedule => ({
-      id: String(schedule.id || schedule.schedule_id || schedule.scheduleId || schedule.name || '').trim(),
-      name: String(schedule.name || schedule.displayName || schedule.display_name || schedule.id || '').trim(),
-      enabled: schedule.enabled !== false,
-      endpointGroupIds: normalizeAction1GroupIds(schedule.endpoints || schedule.endpoint_groups || schedule.endpointGroups || schedule.targets)
-    }))
+    .map(normalizeAction1AutomationSchedule)
     .filter(schedule => schedule.id && schedule.name);
 }
 
@@ -408,6 +417,7 @@ async function validate({ settings }) {
 
 module.exports = {
   listAction1AutomationSchedules,
+  normalizeAction1AutomationSchedule,
   listAction1EndpointGroups,
   listAction1Organizations,
   listDeviceGroups,

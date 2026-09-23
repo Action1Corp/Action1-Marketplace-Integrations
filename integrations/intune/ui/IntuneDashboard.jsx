@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Search
 } from 'lucide-react';
+import { mergePoliciesIntoDashboard } from './dashboardPolicyState';
 
 const endpointColumns = [
   { key: 'deviceName', label: 'Endpoint', minWidth: 220, maxWidth: 360 },
@@ -101,68 +102,18 @@ function buildDefaultIntuneAppName(organizationName) {
 
 function getConfigurationPolicyInfo(result) {
   const text = String(result?.automationName || '').trim();
-  const explicitPolicyId = String(result?.configurationPolicyId || '').trim();
-  const match = explicitPolicyId ? [explicitPolicyId] : text.match(/\bPOL-\d{6,}\b/i);
+  if (!/^A1CM\b/i.test(text)) return null;
+  const match = text.match(/\bPOL-\d{6,}\b/i);
   if (!match) return null;
   const policyId = match[0].toUpperCase();
-  const parts = /^A1CM\b/i.test(text) ? text.split(/\s+[—-]\s+/).map(part => part.trim()).filter(Boolean) : [];
+  const parts = text.split(/\s+[—-]\s+/).map(part => part.trim()).filter(Boolean);
   const policyIndex = parts.findIndex(part => part.toUpperCase() === policyId);
   const policyName = result?.configurationPolicyName || result?.policyControls?.find(control => control.policyName)?.policyName || (policyIndex >= 0 ? parts[policyIndex + 1] : '') || policyId;
-  const controlGroupName = result?.controlFamilyName || result?.automationGroupName || (policyIndex >= 0 ? parts[policyIndex + 2] : '') || '';
   return {
     policyId,
     policyName,
-    controlGroupName,
     url: `/apps/action1-configuration-manager/policies?policyId=${encodeURIComponent(policyId)}`
   };
-}
-
-function AutomationItemLabel({ result }) {
-  const policyInfo = getConfigurationPolicyInfo(result);
-  const automationName = String(result?.automationName || 'Unnamed automation').trim();
-  const controlGroupName = policyInfo?.controlGroupName || automationName;
-  return (
-    <div>
-      {policyInfo ? (
-        <a
-          href={policyInfo.url}
-          onClick={(event) => event.stopPropagation()}
-          style={{ color: '#003DA6', textDecoration: 'none' }}
-        >
-          {policyInfo.policyName}
-        </a>
-      ) : result?.automationUrl ? (
-        <a
-          href={result.automationUrl}
-          target="_blank"
-          rel="noreferrer"
-          onClick={(event) => event.stopPropagation()}
-          style={{ color: '#003DA6', textDecoration: 'none' }}
-        >
-          {automationName}
-        </a>
-      ) : (
-        automationName
-      )}
-      {policyInfo && controlGroupName && (
-        <div style={{ marginTop: 4, fontSize: '0.78rem', fontWeight: 600, lineHeight: 1.25 }}>
-          {result?.automationUrl ? (
-            <a
-              href={result.automationUrl}
-              target="_blank"
-              rel="noreferrer"
-              onClick={(event) => event.stopPropagation()}
-              style={{ color: '#003DA6', textDecoration: 'none' }}
-            >
-              {controlGroupName}
-            </a>
-          ) : (
-            <span style={{ color: '#4B5563' }}>{controlGroupName}</span>
-          )}
-        </div>
-      )}
-    </div>
-  );
 }
 
 function FilterCard({ label, value, icon: Icon, active, onClick, tone = '#0B4EA2' }) {
@@ -216,7 +167,7 @@ function SourcePill({ source }) {
   );
 }
 
-function ProvisioningStatusPill({ status, manualOverride = false }) {
+function ProvisioningStatusPill({ status }) {
   const config = {
     'In progress': { color: '#92400E', bg: '#FEF3C7' },
     Completed: { color: '#166534', bg: '#DCFCE7' },
@@ -237,26 +188,8 @@ function ProvisioningStatusPill({ status, manualOverride = false }) {
       fontWeight: 700,
       whiteSpace: 'nowrap'
     }}>
-      {manualOverride && status === 'Completed' ? 'Completed - Manual' : (status || 'N/A')}
+      {status || 'N/A'}
     </span>
-  );
-}
-
-function ManualOverrideNotice() {
-  return (
-    <div style={{
-      marginBottom: '0.7rem',
-      padding: '0.55rem 0.7rem',
-      border: '1px solid #FDBA74',
-      borderRadius: 6,
-      background: '#FFF7ED',
-      color: '#7C2D12',
-      fontSize: '0.8rem',
-      fontWeight: 700,
-      lineHeight: 1.35
-    }}>
-      Manually marked complete. Provisioning item results are retained below for review.
-    </div>
   );
 }
 
@@ -278,27 +211,6 @@ async function loadPolicyDefinitions() {
   return Array.isArray(result.policies) ? result.policies : [];
 }
 
-function mergePoliciesIntoDashboard(statusData, policies) {
-  const currentPolicies = Array.isArray(statusData?.policies) ? statusData.policies : [];
-  if (currentPolicies.length || !policies.length) return statusData;
-
-  const enabledPolicy = policies.find(policy => policy.enabled !== false) || policies[0];
-  return {
-    ...statusData,
-    status: statusData?.status || 'never_run',
-    policies,
-    selectedPolicyId: statusData?.selectedPolicyId || enabledPolicy?.policyId || '',
-    selectedAction1OrgId: statusData?.selectedAction1OrgId || enabledPolicy?.organizationId || '',
-    selectedAction1OrgName: statusData?.selectedAction1OrgName || enabledPolicy?.organizationName || '',
-    selectedGroupIds: Array.isArray(statusData?.selectedGroupIds) && statusData.selectedGroupIds.length
-      ? statusData.selectedGroupIds
-      : enabledPolicy?.intuneDeviceGroupIds || [],
-    selectedGroupMap: statusData?.selectedGroupMap || enabledPolicy?.intuneDeviceGroupMap || {},
-    assignmentMode: statusData?.assignmentMode || enabledPolicy?.assignmentMode || 'selectedGroups',
-    policyResults: statusData?.policyResults || {}
-  };
-}
-
 function IntuneDashboard({ syncing, runSync, canRunSync }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -317,12 +229,11 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
       if (showLoading) setLoading(true);
       setError('');
       try {
-        const statusJson = await fetchJson('/api/intune/status');
-        let dashboardJson = statusJson;
-        if (!Array.isArray(statusJson?.policies) || statusJson.policies.length === 0) {
-          const policies = await loadPolicyDefinitions();
-          dashboardJson = mergePoliciesIntoDashboard(statusJson, policies);
-        }
+        const [statusJson, policies] = await Promise.all([
+          fetchJson('/api/intune/status'),
+          loadPolicyDefinitions()
+        ]);
+        const dashboardJson = mergePoliciesIntoDashboard(statusJson, policies);
         if (!cancelled) setData(dashboardJson);
       } catch (loadError) {
         if (retry && !cancelled) {
@@ -353,16 +264,18 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
   }, [syncing]);
 
   useEffect(() => {
-    if (!selectedPolicyId && data?.selectedPolicyId) setSelectedPolicyId(data.selectedPolicyId);
-  }, [data?.selectedPolicyId, selectedPolicyId]);
+    if (data && !data.policies?.some(policy => policy.policyId === selectedPolicyId)) {
+      setSelectedPolicyId(data.selectedPolicyId || '');
+    }
+  }, [data, selectedPolicyId]);
 
   const policies = Array.isArray(data?.policies) ? data.policies : [];
   const selectedPolicy = policies.find(policy => policy.policyId === selectedPolicyId) || policies.find(policy => policy.policyId === data?.selectedPolicyId) || null;
   const policyResults = data?.policyResults && typeof data.policyResults === 'object' ? data.policyResults : {};
   const selectedPolicyResult = selectedPolicy?.policyId ? policyResults[selectedPolicy.policyId] : null;
-  const selectedPolicyIsActive = Boolean(selectedPolicy?.policyId && selectedPolicy.policyId === data?.selectedPolicyId);
+  const selectedPolicyIsActive = Boolean(selectedPolicy?.policyId && selectedPolicy.policyId === data?.snapshotPolicyId);
   const selectedDeployment = selectedPolicyResult?.intuneDeployment || (selectedPolicyIsActive ? data : selectedPolicyResult) || {};
-  const endpointRegistration = selectedPolicyResult?.endpointRegistration || data?.endpointRegistration || {};
+  const endpointRegistration = selectedPolicyResult?.endpointRegistration || (selectedPolicyIsActive ? data?.endpointRegistration : null) || {};
   const missingDevices = Array.isArray(endpointRegistration.missingDevices) ? endpointRegistration.missingDevices : [];
   const endpointRows = useMemo(() => {
     const endpoints = Array.isArray(endpointRegistration.endpoints) ? endpointRegistration.endpoints : [];
@@ -513,17 +426,17 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
               return {
                 ...endpoint,
                 provisioningCompletedByAttribute: true,
-                provisioningManualOverride: true,
                 provisioningStatus: 'Completed',
                 provisioningDetail: 'Action1 Provisioning Status set to Completed by manual override.',
                 provisioningAttributeStatus: 'completed',
-                provisioningAttributeMessage: 'Action1 Provisioning Status set to Completed by manual override.'
+                provisioningAttributeMessage: 'Action1 Provisioning Status set to Completed by manual override.',
+                automationResults: []
               };
             })
           }
         };
       });
-      setMarkCompleteMessage('');
+      setMarkCompleteMessage(result.message || `${endpointName || 'Endpoint'} was marked as provisioning complete.`);
     } catch (markError) {
       setMarkCompleteMessage(markError.message);
     } finally {
@@ -541,7 +454,7 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
           {policies.length > 0 && (
             <select
-              value={selectedPolicyId || data?.selectedPolicyId || ''}
+              value={selectedPolicy?.policyId || ''}
               onChange={event => setSelectedPolicyId(event.target.value)}
               title="Choose which Action1 organization profile to display"
               style={{ minHeight: 34, padding: '0.4rem 0.75rem', border: '1px solid var(--border-color)', borderRadius: 6, background: '#fff', color: '#111827', fontSize: '0.8rem' }}
@@ -591,7 +504,7 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {selectedPolicy && selectedPolicy.policyId !== data?.selectedPolicyId && !selectedPolicyResult && (
+          {selectedPolicy && !selectedPolicyIsActive && !selectedPolicyResult && (
             <div style={{ padding: '0.85rem 1rem', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, color: '#9A3412', fontSize: '0.85rem', marginBottom: '1rem', order: 0 }}>
               Results for {selectedPolicy.organizationName || selectedPolicy.name} have not been synced in this dashboard payload yet. Run Sync Now after selecting or enabling this profile.
             </div>
@@ -710,14 +623,7 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
                               </span>
                             </td>
                             <td style={columnCellStyle(endpointColumns[1])}><SourcePill source={device.source} /></td>
-                            <td style={columnCellStyle(endpointColumns[2])} title={device.provisioningDetail || ''}>
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-                                <ProvisioningStatusPill
-                                  status={device.provisioningStatus || 'N/A'}
-                                  manualOverride={device.provisioningManualOverride}
-                                />
-                              </span>
-                            </td>
+                            <td style={columnCellStyle(endpointColumns[2])} title={device.provisioningDetail || ''}><ProvisioningStatusPill status={device.provisioningStatus || 'N/A'} /></td>
                             <td style={columnCellStyle(endpointColumns[3])}>{Array.isArray(device.action1EndpointGroups) && device.action1EndpointGroups.length ? device.action1EndpointGroups.join(', ') : 'N/A'}</td>
                             <td style={columnCellStyle(endpointColumns[4])}>{Array.isArray(device.deviceGroups) && device.deviceGroups.length ? device.deviceGroups.join(', ') : groupMembershipLimited && device.source !== 'Action1' ? 'Permission required' : 'N/A'}</td>
                             <td style={columnCellStyle(endpointColumns[5])}>{device.os || 'N/A'}</td>
@@ -743,7 +649,6 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
                                       </button>
                                     )}
                                   </div>
-                                  {device.provisioningManualOverride && <ManualOverrideNotice />}
                                   {markCompleteMessage && (
                                     <div style={{ padding: '0.55rem 0.7rem', marginBottom: '0.7rem', background: '#EAF3FF', border: '1px solid #BFDBFE', borderRadius: 6, color: '#0B4EA2', fontSize: '0.8rem', fontWeight: 600 }}>
                                       {markCompleteMessage}
@@ -764,13 +669,34 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
                                       </thead>
                                       <tbody>
                                         {automationResults.map((result, resultIndex) => {
+                                          const policyInfo = getConfigurationPolicyInfo(result);
                                           const nonCompliantControls = Array.isArray(result.nonCompliantControls) ? result.nonCompliantControls : [];
                                           const details = [result.statusDetail, result.policyComplianceDetail].filter(Boolean).join(' ');
                                           return (
                                             <Fragment key={`${key}-automation-${resultIndex}`}>
                                               <tr>
                                                 <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6', fontWeight: 600 }}>
-                                                  <AutomationItemLabel result={result} />
+                                                  {policyInfo ? (
+                                                    <a
+                                                      href={policyInfo.url}
+                                                      onClick={(event) => event.stopPropagation()}
+                                                      style={{ color: '#003DA6', textDecoration: 'none' }}
+                                                    >
+                                                      {policyInfo.policyName}
+                                                    </a>
+                                                  ) : result.automationUrl ? (
+                                                    <a
+                                                      href={result.automationUrl}
+                                                      target="_blank"
+                                                      rel="noreferrer"
+                                                      onClick={(event) => event.stopPropagation()}
+                                                      style={{ color: '#003DA6', textDecoration: 'none' }}
+                                                    >
+                                                      {result.automationName || 'Unnamed automation'}
+                                                    </a>
+                                                  ) : (
+                                                    result.automationName || 'Unnamed automation'
+                                                  )}
                                                 </td>
                                                 <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6' }}><ProvisioningStatusPill status={result.status || 'N/A'} /></td>
                                                 <td style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6' }}>{result.actionName || 'N/A'}</td>

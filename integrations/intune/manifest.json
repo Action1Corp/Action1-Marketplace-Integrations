@@ -2,7 +2,7 @@
   "id": "intune",
   "name": "Enrollment and Provisioning",
   "vendor": "Microsoft",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "marketplaceApiVersion": "1.0",
   "minimumMarketplaceVersion": "1.0.0",
   "description": "Deploy the Action1 Agent with Intune, track enrollment, and monitor provisioning automations.",
@@ -60,6 +60,24 @@
       "history": false
     },
     {
+      "id": "create-action1-endpoint-group",
+      "kind": "action",
+      "label": "Create Action1 Endpoint Group",
+      "buttonLabel": "Create Group",
+      "description": "Creates a named Action1 endpoint group in the selected organization.",
+      "placement": "policies",
+      "history": false
+    },
+    {
+      "id": "delete-action1-endpoint-group",
+      "kind": "action",
+      "label": "Delete Action1 Endpoint Group",
+      "buttonLabel": "Delete Group",
+      "description": "Deletes an Action1 endpoint group that is not assigned to a saved profile.",
+      "placement": "policies",
+      "history": false
+    },
+    {
       "id": "list-action1-endpoint-group-details",
       "kind": "read",
       "label": "List Action1 Endpoint Group Details",
@@ -106,6 +124,46 @@
       "buttonLabel": "Delete Profile",
       "runningLabel": "Deleting...",
       "description": "Deletes an Enrollment and Provisioning profile.",
+      "placement": "policies",
+      "history": false
+    },
+    {
+      "id": "create-action1-automation",
+      "kind": "action",
+      "label": "Create Action1 Automation",
+      "buttonLabel": "Create Automation",
+      "runningLabel": "Creating...",
+      "description": "Creates a disabled Action1 automation linked to the selected provisioning endpoint groups.",
+      "placement": "policies",
+      "history": false
+    },
+    {
+      "id": "list-provisioning-automations",
+      "kind": "read",
+      "label": "List Provisioning Automations",
+      "buttonLabel": "Refresh Automations",
+      "runningLabel": "Loading...",
+      "description": "Lists Action1 automations linked to the selected provisioning endpoint groups.",
+      "placement": "policies",
+      "history": false
+    },
+    {
+      "id": "delete-provisioning-automation",
+      "kind": "action",
+      "label": "Delete Provisioning Automation",
+      "buttonLabel": "Delete Automation",
+      "runningLabel": "Deleting...",
+      "description": "Deletes an Action1 automation linked to the selected provisioning endpoint groups.",
+      "placement": "policies",
+      "history": false
+    },
+    {
+      "id": "enable-hourly-provisioning-automation",
+      "kind": "action",
+      "label": "Enable Hourly Provisioning Automation",
+      "buttonLabel": "Enable Hourly",
+      "runningLabel": "Enabling...",
+      "description": "Enables a configured Action1 provisioning automation with an hourly schedule.",
       "placement": "policies",
       "history": false
     },

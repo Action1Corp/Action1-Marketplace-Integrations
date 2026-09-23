@@ -160,7 +160,7 @@ function createIntunePolicyStore(context) {
     async getPolicy(policyId) {
       return (await listPolicies()).find(policy => policy.policyId === policyId) || null;
     },
-    async savePolicy(input) {
+    async savePolicy(input, beforeSave) {
       const policies = await listPolicies();
       const existingIndex = policies.findIndex(policy => policy.policyId === input.policyId);
       const now = new Date().toISOString();
@@ -196,6 +196,7 @@ function createIntunePolicyStore(context) {
           throw new Error(`One or more selected Intune device groups are already assigned to profile "${overlappingPolicy.name}".`);
         }
       }
+      if (beforeSave) await beforeSave(policy);
       const nextPolicies = clone(policies);
       if (existingIndex >= 0) nextPolicies[existingIndex] = policy;
       else nextPolicies.push(policy);

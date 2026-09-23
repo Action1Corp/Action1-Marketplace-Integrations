@@ -923,54 +923,6 @@ async function ensureAction1ProvisioningCustomAttribute(headers, action1ApiBase 
     return { changed: true, message: `${desired} custom attribute setting was created.` };
 }
 
-async function fetchAction1EndpointGroup(headers, action1OrgId, groupId, action1ApiBase = DEFAULT_ACTION1_BASE_URL) {
-    const response = await requestAction1({
-        method: 'get',
-        url: `${action1ApiBase}/endpoints/groups/${encodeURIComponent(action1OrgId)}/${encodeURIComponent(groupId)}`,
-        headers
-    }, 'Action1 endpoint group request');
-    return response.data || {};
-}
-
-function hasProvisionedAttributeExclusion(filters = []) {
-    const desiredField = `custom:${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE}`.toLowerCase();
-    const desiredValue = ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE.toLowerCase();
-    return (Array.isArray(filters) ? filters : []).some(filter => (
-        String(filter?.field_name || '').trim().toLowerCase() === desiredField &&
-        String(filter?.field_value || '').trim().toLowerCase() === desiredValue &&
-        String(filter?.mode || '').trim().toLowerCase() === 'include'
-    ));
-}
-
-async function ensureAction1ProvisioningGroupExclusion(headers, action1OrgId, groupId, action1ApiBase = DEFAULT_ACTION1_BASE_URL) {
-    const group = await fetchAction1EndpointGroup(headers, action1OrgId, groupId, action1ApiBase);
-    const excludeFilter = Array.isArray(group.exclude_filter) ? group.exclude_filter : [];
-    if (hasProvisionedAttributeExclusion(excludeFilter)) {
-        return { changed: false, message: `${group.name || groupId} already excludes provisioned endpoints.` };
-    }
-
-    const desiredField = `custom:${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE}`.toLowerCase();
-    const desiredValue = ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE.toLowerCase();
-    const updatedExcludeFilter = [
-        ...excludeFilter.filter(filter => !(
-            String(filter?.field_name || '').trim().toLowerCase() === desiredField &&
-            String(filter?.field_value || '').trim().toLowerCase() === desiredValue
-        )),
-        {
-            field_name: `custom:${ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE}`,
-            field_value: ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE_VALUE,
-            mode: 'include'
-        }
-    ];
-    await requestAction1({
-        method: 'patch',
-        url: `${action1ApiBase}/endpoints/groups/${encodeURIComponent(action1OrgId)}/${encodeURIComponent(groupId)}`,
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        data: { exclude_filter: updatedExcludeFilter }
-    }, 'Action1 endpoint group exclusion request');
-    return { changed: true, message: `${group.name || groupId} now excludes provisioned endpoints.` };
-}
-
 async function setAction1EndpointProvisioningAttribute(headers, action1OrgId, endpointId, action1ApiBase = DEFAULT_ACTION1_BASE_URL) {
     const response = await requestAction1({
         method: 'patch',
@@ -1734,14 +1686,6 @@ async function compareIntuneDevicesToAction1(graphHeaders, { assignmentMode = AS
                 if (attributeDefinition.changed) await updateProgress(attributeDefinition.message);
             } catch (attributeDefinitionError) {
                 await updateProgress(`Warning: Could not verify Action1 provisioning custom attribute definition: ${attributeDefinitionError.response?.data?.error?.message || attributeDefinitionError.message}`);
-            }
-            for (const groupId of selectedAction1GroupIds.map(id => String(id || '').trim()).filter(Boolean)) {
-                try {
-                    const exclusion = await ensureAction1ProvisioningGroupExclusion(headers, action1OrgId, groupId, action1ApiBase);
-                    if (exclusion.changed) await updateProgress(exclusion.message);
-                } catch (exclusionError) {
-                    await updateProgress(`Warning: Could not add provisioned-endpoint exclusion to ${selectedAction1GroupMap?.[groupId] || groupId}: ${exclusionError.response?.data?.error?.message || exclusionError.message}`);
-                }
             }
             for (const endpoint of automationCompletedEndpoints) {
                 const previous = findPreviousProvisioning(endpoint, previousProvisioning);
