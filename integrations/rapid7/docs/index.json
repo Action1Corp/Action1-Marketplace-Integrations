@@ -1,0 +1,10 @@
+{
+  "documents": [
+    {
+      "id": "user-guide",
+      "title": "Rapid7 InsightVM User Guide",
+      "description": "Connect InsightVM, run a sync, and review exposure data.",
+      "file": "user-guide.md"
+    }
+  ]
+}

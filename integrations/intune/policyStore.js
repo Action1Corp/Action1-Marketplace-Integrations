@@ -9,10 +9,6 @@ function trim(value) {
   return String(value || '').trim();
 }
 
-function normalizeComparableName(value) {
-  return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
-}
-
 function parseJson(value, fallback) {
   if (Array.isArray(value) || (value && typeof value === 'object')) return value;
   const text = trim(value);
@@ -29,6 +25,13 @@ function normalizeStringArray(value) {
   const parsed = parseJson(value, null);
   if (Array.isArray(parsed)) return normalizeStringArray(parsed);
   return trim(value).split(',').map(item => trim(item)).filter(Boolean);
+}
+
+const SUPPORTED_PLATFORMS = ['windows', 'macos', 'linux'];
+
+function normalizePlatforms(value) {
+  const selected = normalizeStringArray(value).map(item => item.toLowerCase());
+  return SUPPORTED_PLATFORMS.filter(platform => selected.includes(platform));
 }
 
 function normalizeStringMap(value) {
@@ -61,6 +64,8 @@ function normalizePolicy(input = {}, fallbackId = '') {
   const monitoredAction1GroupIds = profileType === 'enrollmentOnly' ? [] : normalizeStringArray(input.monitoredAction1GroupIds ?? input.IntuneProvisioningAction1GroupIds);
   const monitoredAction1GroupMap = profileType === 'enrollmentOnly' ? {} : normalizeStringMap(input.monitoredAction1GroupMap ?? input.IntuneProvisioningAction1GroupMap);
   const name = trim(input.name) || (organizationName ? `${organizationName} enrollment` : 'Enrollment profile');
+  const platforms = input.platforms == null ? ['windows'] : normalizePlatforms(input.platforms);
+  const installerIds = normalizeStringMap(input.agentIds);
 
   return {
     policyId,
@@ -70,7 +75,9 @@ function normalizePolicy(input = {}, fallbackId = '') {
     organizationId,
     organizationName,
     agentId: trim(input.agentId || input.IntuneAgentId),
+    agentIds: { macos: trim(installerIds.macos), deb: trim(installerIds.deb), rpm: trim(installerIds.rpm) },
     agentDownloadOrgName: trim(input.agentDownloadOrgName || input.IntuneAgentDownloadOrgName || input.IntuneOrgName || organizationName),
+    platforms,
     profileType,
     assignmentMode,
     intuneDeviceGroupIds,
@@ -88,7 +95,10 @@ function validatePolicy(policy) {
   if (!policy.name) throw new Error('Profile name is required.');
   if (!policy.organizationId) throw new Error('Action1 organization is required.');
   if (!policy.organizationName) throw new Error('Action1 organization name is required.');
-  if (!policy.agentId) throw new Error('Action1 agent installer ID is required.');
+  if (policy.platforms.includes('windows') && !policy.agentId) throw new Error('Action1 Windows MSI installer is required.');
+  if (policy.platforms.includes('macos') && !policy.agentIds.macos) throw new Error('Action1 macOS PKG installer is unavailable for this organization. Refresh organizations and try again.');
+  if (policy.platforms.includes('linux') && (!policy.agentIds.deb || !policy.agentIds.rpm)) throw new Error('Action1 Linux DEB and RPM installers are required. Refresh organizations and try again.');
+  if (policy.platforms.length === 0) throw new Error('Select at least one device platform.');
   if (policy.assignmentMode === 'selectedGroups' && policy.intuneDeviceGroupIds.length === 0) {
     throw new Error('Select at least one Intune device group, or choose all devices.');
   }
@@ -171,19 +181,13 @@ function createIntunePolicyStore(context) {
         updatedAt: now
       });
       validatePolicy(policy);
-      const duplicate = policies.find(existing => {
-        if (existing.policyId === policy.policyId) return false;
-        const existingOrganizationId = trim(existing.organizationId).toLowerCase();
-        const nextOrganizationId = policy.organizationId.toLowerCase();
-        const existingOrganizationName = normalizeComparableName(existing.organizationName);
-        const nextOrganizationName = normalizeComparableName(policy.organizationName);
-        return (
-          (existingOrganizationId && existingOrganizationId === nextOrganizationId) ||
-          (existingOrganizationName && existingOrganizationName === nextOrganizationName)
-        );
-      });
-      if (duplicate) {
-        throw new Error(`Action1 organization "${policy.organizationName}" is already assigned to profile "${duplicate.name}".`);
+      const endpointGroupIds = new Set(policy.monitoredAction1GroupIds.map(id => id.toLowerCase()));
+      const overlappingEndpointPolicy = policies.find(existing =>
+        existing.policyId !== policy.policyId &&
+        existing.monitoredAction1GroupIds.some(id => endpointGroupIds.has(id.toLowerCase()))
+      );
+      if (overlappingEndpointPolicy) {
+        throw new Error(`One or more selected Action1 endpoint groups are already assigned to profile "${overlappingEndpointPolicy.name}".`);
       }
       if (policy.assignmentMode === 'selectedGroups') {
         const selectedGroupIds = new Set(policy.intuneDeviceGroupIds.map(id => id.toLowerCase()));

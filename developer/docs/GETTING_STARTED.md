@@ -52,6 +52,24 @@ Use lowercase kebab-case for integration IDs. The folder name and `manifest.id` 
 }
 ```
 
+### Add customer documentation
+
+Put customer guides in `integrations/acme-vm/docs/` and list them in `docs/index.json`. For example, a `docs/user-guide.pdf` can be listed as:
+
+```json
+{
+  "documents": [
+    {
+      "id": "user-guide",
+      "title": "Acme VM User Guide",
+      "file": "user-guide.pdf"
+    }
+  ]
+}
+```
+
+The Marketplace supports PDF and Markdown files directly inside `docs/`. The package command includes this folder automatically. Without `docs/index.json`, the integration's root `README.md` appears as a single Overview document instead. See [Customer Documentation](DEVELOPER_CONTRACT.md#customer-documentation) for the full format and file limits.
+
 ## 2. Update Metadata
 
 Edit `integrations/acme-vm/manifest.json` so the catalog fields describe the integration.

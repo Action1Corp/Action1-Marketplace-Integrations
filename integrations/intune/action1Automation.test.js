@@ -34,6 +34,16 @@ test('builds a disabled draft linked to unique endpoint groups', () => {
   assert.deepEqual(payload.actions[0].params.packages, [{ '': '' }]);
 });
 
+test('run-script drafts use Bash on Mac and Linux', () => {
+  for (const [platform, expected] of [['macos', 'Mac'], ['linux', 'Linux']]) {
+    const payload = buildAutomationPayload({ name: 'Configure', typeId: 'run-script', endpointGroupIds: ['group-a'], platform });
+    assert.equal(payload.actions[0].params.platform, expected);
+    assert.equal(payload.actions[0].params.run_script_language, 'Bash');
+    assert.equal(payload.actions[0].params.condition_script_language, 'Bash');
+  }
+  assert.throws(() => buildAutomationPayload({ name: 'Configure', typeId: 'run-script', endpointGroupIds: ['group-a'], platform: 'android' }), /script platform/);
+});
+
 test('rejects missing names, groups, and unsupported automation types', () => {
   assert.throws(() => buildAutomationPayload({ typeId: 'run-script', endpointGroupIds: ['group-a'] }), /name is required/i);
   assert.throws(() => buildAutomationPayload({ name: 'Test', typeId: 'run-script', endpointGroupIds: [] }), /at least one/i);

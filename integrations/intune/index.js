@@ -59,12 +59,14 @@ async function hydratePoliciesWithAction1Organizations(context, policies) {
         organizationId: organization.id || policy.organizationId,
         organizationName: organization.name || policy.organizationName,
         agentId: organization.agentId || policy.agentId,
+        agentIds: organization.agentIds || policy.agentIds,
         agentDownloadOrgName: organization.agentDownloadOrgName || policy.agentDownloadOrgName || policy.organizationName
       };
       changed = changed ||
         nextPolicy.organizationId !== policy.organizationId ||
         nextPolicy.organizationName !== policy.organizationName ||
         nextPolicy.agentId !== policy.agentId ||
+        JSON.stringify(nextPolicy.agentIds) !== JSON.stringify(policy.agentIds) ||
         nextPolicy.agentDownloadOrgName !== policy.agentDownloadOrgName;
       hydrated.push(nextPolicy);
     }
@@ -473,7 +475,8 @@ async function createAction1AutomationAction(context, request = {}) {
   const payload = buildAutomationPayload({
     name: request.payload?.name,
     typeId,
-    endpointGroupIds: request.payload?.endpointGroupIds
+    endpointGroupIds: request.payload?.endpointGroupIds,
+    platform: request.payload?.platform || 'windows'
   });
   const credentials = await context.action1.getCredentials();
   if (!credentials.apiKey || !credentials.apiSecret) throw new Error('Action1 API credentials are required.');

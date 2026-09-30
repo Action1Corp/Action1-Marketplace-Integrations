@@ -21,6 +21,9 @@ integrations/
       remote.js
     migrations/
       001_create_schema.sql
+    docs/
+      index.json
+      user-guide.pdf
     README.md
 
 developer/
@@ -58,8 +61,28 @@ Each integration owns its vendor-specific behavior:
 - vendor API calls and data mapping
 - integration-owned database schema in `migrations/*.sql`
 - setup notes and required vendor permissions in `README.md`
+- customer documentation in `README.md` or `docs/index.json` with Markdown/PDF files
 
 Integrations should use the provided runtime `context` and helpers from `sdk/`. They must not import Marketplace backend internals directly.
+
+## Marketplace Documentation
+
+The Marketplace automatically shows an integration's root `README.md` as its Overview document. To publish multiple documents or an illustrated PDF guide, add `docs/index.json` inside that integration folder:
+
+```json
+{
+  "documents": [
+    {
+      "id": "user-guide",
+      "title": "User Guide",
+      "description": "Setup and daily use.",
+      "file": "user-guide.pdf"
+    }
+  ]
+}
+```
+
+Place each listed `.md` or `.pdf` file directly in `docs/`. IDs use lowercase letters, numbers, and hyphens. The package build copies the files automatically; the Marketplace serves only files listed in the index. Keep Markdown under 1 MB and PDFs under 20 MB. If `docs/index.json` exists, it replaces the README fallback. Bump the integration version when changing published documentation so an updated package can be released.
 
 ## Create An Integration
 

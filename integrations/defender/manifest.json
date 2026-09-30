@@ -2,7 +2,7 @@
     "id":  "defender",
     "name":  "Microsoft Defender",
     "vendor":  "Microsoft",
-    "version":  "1.0.6",
+    "version":  "1.0.7",
     "marketplaceApiVersion":  "1.0",
     "minimumMarketplaceVersion":  "1.0.0",
     "description":  "Correlate Microsoft Defender vulnerabilities with Action1 endpoint and patch context.",

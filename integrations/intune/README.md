@@ -1,16 +1,18 @@
-# Microsoft Intune
+# Enrollment and Provisioning
 
-Create and maintain the Action1 Agent Win32 app in Microsoft Intune, assign it to devices, and report which Intune managed devices are registered in Action1.
+Deploy Action1 agents through Microsoft Intune and report which managed devices are registered in Action1.
 
 ## What This Integration Does
 
 - Packages the Action1 Agent MSI as a Microsoft Intune Win32 app.
-- Creates or updates a single Action1 Agent app in Intune when the Action1 Agent version changes.
-- Assigns that app as a required install target to either all Intune devices or selected Intune device groups.
-- Lists Intune device groups in the settings page so administrators can choose the assignment target.
-- Validates that the Intune app assignment matches the selected target mode.
+- Uploads the Action1 macOS PKG as an Intune macOS app (PKG), with version detection ignored because the agent self-updates.
+- Creates an Intune Linux Bash-script policy. Linux devices download and install the Action1 DEB or RPM appropriate to their package manager; Intune does not accept DEB/RPM files as apps.
+- Reuses one deployment per Action1 organization and selected platform across profiles, updating it when needed.
+- Assigns Windows and macOS apps as required installs and targets the Linux script policy to all applicable devices or selected Intune device groups.
+- Lets administrators select platforms and Intune groups in each profile's Enrollment Groups step.
+- Supports multiple profiles for an Action1 organization; an Action1 provisioning endpoint group can belong to only one profile.
 - Compares Intune managed devices with Action1 managed endpoints and reports registered and missing endpoints on the dashboard.
-- Shows Intune group membership for missing endpoints when Microsoft Graph returns device group membership data.
+- Shows profile, provisioning status, operating system, and Intune group membership for endpoints when Microsoft Graph returns that data.
 
 ## Microsoft Graph Permissions
 
@@ -18,7 +20,8 @@ Configure the Entra ID app registration used by this integration with Microsoft 
 
 Required:
 
-- `DeviceManagementApps.ReadWrite.All` - read, create, update, upload content for, and assign the Action1 Agent Win32 app.
+- `DeviceManagementApps.ReadWrite.All` - create, upload, and assign Windows and macOS agent apps.
+- `DeviceManagementConfiguration.ReadWrite.All` - create and assign the Linux script policy when Linux is selected.
 - `DeviceManagementManagedDevices.Read.All` - read Intune managed devices for endpoint registration comparison.
 - `Group.Read.All` - list device groups, validate selected group assignments, and read device group membership.
 - `Device.Read.All` - read basic device properties when expanding group membership for endpoint device group names.
@@ -29,22 +32,22 @@ Recommended:
 
 The integration uses the Microsoft identity platform client credentials flow, so delegated user permissions are not used.
 
+The Linux script policy contains organization-specific Action1 agent download URLs. Restrict access to that policy and its exports as you would to the installers themselves. The policy requires Linux devices already enrolled in Intune and able to reach the Action1 download host.
+
 ## Assignment Options
 
-The Action1 Enrollment settings support two target modes:
+Each profile selects Windows, macOS, Linux, or a combination. Existing profiles remain Windows-only until edited. The selected Intune target applies to each chosen platform:
 
-- All devices - the single Action1 Agent Win32 app is assigned as a required install to Intune All devices.
-- Selected device groups - the single Action1 Agent Win32 app is assigned as a required install to each selected Intune device group.
+- All devices - required app assignments and the Linux policy target all applicable Intune devices.
+- Selected device groups - assignments target the selected Intune device groups.
 
-Use Load Device Groups to read available device groups from Intune, then select one or more groups. The selected group names are stored with the settings so the dashboard can show human-readable assignment targets.
-
-Use Validate Assignments to confirm that the Action1 Agent app in Intune has the expected required assignments. Validation checks for the All devices assignment in All devices mode, or verifies that each selected group has a required assignment in Selected device groups mode.
+Create or edit a profile under Profiles to load Intune device groups and select one or more targets. A sync reconciles assignments for the organization's selected platforms and refreshes endpoint and provisioning status on the dashboard.
 
 ## Endpoint Registration
 
 During sync, the integration reads Intune managed devices and Action1 managed endpoints, normalizes device names, and counts how many Intune devices are already registered in Action1. Devices found in Intune but not in Action1 are shown in the Endpoint Registration list with operating system, primary user, last Intune sync time, and device group names when available.
 
-Action1 API credentials must be configured in Marketplace settings for endpoint registration comparison. If Action1 credentials are missing, the app version and assignment checks can still run, but endpoint registration reporting is skipped.
+Action1 API credentials must be configured in Marketplace settings for endpoint registration comparison and organization-specific installer discovery.
 
 ## Files
 
@@ -55,7 +58,7 @@ Action1 API credentials must be configured in Marketplace settings for endpoint 
 - `index.js` - Small entrypoint that exports Marketplace action handlers.
 - Validation action - Integration-owned credential validation logic declared in `manifest.json`.
 - List Device Groups action - Reads Intune device groups for the assignment selector.
-- Validate Assignments action - Confirms the Intune app is associated with the configured assignment target.
+- Validate Assignments action - Confirms the configured Intune assignments for the selected deployment.
 - Sync action - Integration-owned job logic for collecting and writing integration data declared in `manifest.json`.
 
 ## Runtime Behavior
@@ -72,6 +75,7 @@ The Marketplace infers supported operations from this integration's files, manif
 ## Integration-Owned Views
 
 - dashboard
+- profiles
 - history
 - settings
 

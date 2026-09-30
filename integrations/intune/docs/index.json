@@ -1,0 +1,16 @@
+{
+  "documents": [
+    {
+      "id": "user-guide",
+      "title": "Enrollment and Provisioning User Guide",
+      "description": "Set up the integration and configure enrollment and provisioning profiles.",
+      "file": "user-guide.pdf"
+    },
+    {
+      "id": "autopilot-guide",
+      "title": "Windows Autopilot Configuration Guide",
+      "description": "Configure Windows Autopilot, Intune, and Enrollment and Provisioning for new devices.",
+      "file": "autopilot-guide.pdf"
+    }
+  ]
+}

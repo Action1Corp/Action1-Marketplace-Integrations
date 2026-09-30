@@ -120,7 +120,10 @@ async function action1Get(token, url) {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data.message || data.error_description || data.error || `Action1 request failed with HTTP ${response.status}.`);
+    const error = new Error(data.message || data.error_description || data.error || `Action1 request failed with HTTP ${response.status}.`);
+    error.status = response.status;
+    error.retryAfter = response.headers?.get?.('retry-after');
+    throw error;
   }
   return data;
 }
@@ -183,25 +186,45 @@ function extractAgentIdFromDownloadUrl(downloadUrl) {
 }
 
 function extractAgentDownloadOrgNameFromDownloadUrl(downloadUrl) {
-  const match = String(downloadUrl || '').match(/\/Windows\/agent\(([^)]+)\)\.msi(?:$|[?#])/i);
-  return match ? decodeURIComponent(match[1]) : '';
+  try {
+    const path = decodeURIComponent(new URL(downloadUrl).pathname);
+    return path.match(/\/(?:Windows|Mac|Linux)\/agent\((.*)\)\.(?:msi|pkg|deb|rpm)$/i)?.[1] || '';
+  } catch {
+    return '';
+  }
+}
+
+async function getAgentDownload(token, baseUrl, organizationId, installType) {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      const data = await action1Get(token, `${baseUrl}/endpoints/agent-installation/${encodeURIComponent(organizationId)}/${installType}`);
+      const downloadUrl = data.download_URL || data.downloadUrl || data.url || '';
+      return { agentId: extractAgentIdFromDownloadUrl(downloadUrl), organizationName: extractAgentDownloadOrgNameFromDownloadUrl(downloadUrl) };
+    } catch (error) {
+      if (error.status === 404 || error.status === 400) return { agentId: '', organizationName: '' };
+      if ((error.status === 429 || error.status === 503) && attempt < 3) {
+        const retryAfter = Number(error.retryAfter);
+        const delay = error.retryAfter != null && Number.isFinite(retryAfter)
+          ? Math.min(15000, Math.max(0, retryAfter * 1000))
+          : Math.min(8000, 1000 * 2 ** attempt);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      throw new Error(`Unable to load the ${installType} installer from Action1: ${error.status === 429 ? 'API rate limit exceeded. Try refreshing in a moment.' : error.message}`);
+    }
+  }
 }
 
 async function getAction1AgentInstallerForOrganization(token, baseUrl, organizationId) {
-  if (!organizationId) return { agentId: '', agentDownloadOrgName: '' };
-  try {
-    const data = await action1Get(
-      token,
-      `${baseUrl}/endpoints/agent-installation/${encodeURIComponent(organizationId)}/windowsMSI`
-    );
-    const downloadUrl = data.download_URL || data.downloadUrl || data.url || '';
-    return {
-      agentId: extractAgentIdFromDownloadUrl(downloadUrl),
-      agentDownloadOrgName: extractAgentDownloadOrgNameFromDownloadUrl(downloadUrl)
-    };
-  } catch {
-    return { agentId: '', agentDownloadOrgName: '' };
-  }
+  if (!organizationId) return { agentId: '', agentDownloadOrgName: '', agentIds: {} };
+  const windows = await getAgentDownload(token, baseUrl, organizationId, 'WindowsMSI');
+  const macos = await getAgentDownload(token, baseUrl, organizationId, 'MacPKG');
+  const linux = await getAgentDownload(token, baseUrl, organizationId, 'LinuxDEB');
+  return {
+    agentId: windows.agentId,
+    agentDownloadOrgName: windows.organizationName || macos.organizationName || linux.organizationName,
+    agentIds: { macos: macos.agentId, deb: linux.agentId, rpm: linux.agentId }
+  };
 }
 
 async function listAction1Organizations(credentials) {
@@ -223,14 +246,17 @@ async function listAction1Organizations(credentials) {
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  return Promise.all(normalizedOrganizations.map(async organization => {
+  const result = [];
+  for (const organization of normalizedOrganizations) {
     const installer = await getAction1AgentInstallerForOrganization(token, baseUrl, organization.id);
-    return {
+    result.push({
       ...organization,
       agentId: organization.agentId || installer.agentId,
-      agentDownloadOrgName: installer.agentDownloadOrgName || organization.name
-    };
-  }));
+      agentDownloadOrgName: installer.agentDownloadOrgName || organization.name,
+      agentIds: installer.agentIds
+    });
+  }
+  return result;
 }
 
 async function findAction1App(token) {

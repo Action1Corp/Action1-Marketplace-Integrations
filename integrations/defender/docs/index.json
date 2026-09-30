@@ -1,0 +1,10 @@
+{
+  "documents": [
+    {
+      "id": "user-guide",
+      "title": "Microsoft Defender User Guide",
+      "description": "Connect Defender, run a sync, and review vulnerability results.",
+      "file": "user-guide.md"
+    }
+  ]
+}

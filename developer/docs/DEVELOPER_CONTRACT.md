@@ -18,10 +18,40 @@ integrations/
       view components
     migrations/
       001_create_schema.sql
+    docs/
+      index.json
+      user-guide.pdf
+      setup-guide.md
     README.md
 ```
 
 `manifest.json`, `index.js`, `ui/index.jsx`, and `README.md` are always required. Other files depend on the integration's behavior.
+
+## Customer Documentation
+
+Keep customer-facing documentation in the integration's own `docs/` folder. Add a `docs/index.json` file to list the documents shown in the Marketplace Docs view, in display order:
+
+```json
+{
+  "documents": [
+    {
+      "id": "user-guide",
+      "title": "User Guide",
+      "description": "Install, configure, and use the integration.",
+      "file": "user-guide.pdf"
+    },
+    {
+      "id": "setup-guide",
+      "title": "Setup Guide",
+      "file": "setup-guide.md"
+    }
+  ]
+}
+```
+
+Each entry needs a unique lowercase `id` using letters, numbers, and hyphens, a `title`, and a `file` name. `description` is optional. Place `.pdf` or `.md` files directly in `docs/`; nested paths and other file types are not supported. Markdown files must be at most 1 MB and PDFs at most 20 MB. The package script includes `docs/` automatically, so keep the index and referenced files in the integration folder before packaging.
+
+If `docs/index.json` is absent, the Marketplace shows the integration's root `README.md` as a single Overview document. If an index exists, only its valid listed documents are shown; the README is not added automatically. Documentation is available for an installed integration even when that integration is disabled.
 
 ## Core Principles
 

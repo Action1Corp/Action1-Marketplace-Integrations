@@ -1,0 +1,10 @@
+{
+  "documents": [
+    {
+      "id": "user-guide",
+      "title": "Tenable VM User Guide",
+      "description": "Connect Tenable VM, run a sync, and review vulnerability results.",
+      "file": "user-guide.md"
+    }
+  ]
+}

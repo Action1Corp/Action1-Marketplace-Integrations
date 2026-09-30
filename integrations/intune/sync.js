@@ -10,6 +10,7 @@ let nvdService;
 const crypto = require('crypto');
 const zlib = require('zlib');
 const { legacyPolicyFromSettings, normalizePolicy } = require('./policyStore');
+const { agentDownload, macPkgMetadata, linuxInstallScript, linuxPolicyBody } = require('./agentPackages');
 
 const ACTION1_APP_IMAGE_URL = 'https://www.action1.com/wp-content/uploads/2025/03/Action1_2560x1600.png';
 const ACTION1_APP_INFORMATION_URL = 'https://www.action1.com/documentation/';
@@ -158,6 +159,20 @@ async function findManagedIntuneApp(graphHeaders, desiredAppName) {
     const primary = matches.find(isCommittedIntuneApp) || null;
     const duplicateApps = matches.filter(app => !primary || app.id !== primary.id);
     return { primary, duplicateApps };
+}
+
+async function findManagedMacApp(graphHeaders, desiredAppName) {
+    let nextUrl = `${INTUNE_GRAPH_BASE}/deviceAppManagement/mobileApps?$filter=isof('microsoft.graph.macOSPkgApp')`;
+    const apps = [];
+    while (nextUrl) {
+        const response = await axios.get(nextUrl, { headers: graphHeaders });
+        apps.push(...(response.data.value || []));
+        nextUrl = response.data['@odata.nextLink'] || '';
+    }
+    return apps
+        .filter(app => normalizeIntuneAppName(app.displayName) === normalizeIntuneAppName(desiredAppName))
+        .sort(compareIntuneAppsForRetention)
+        .find(isCommittedIntuneApp) || null;
 }
 
 async function deleteDuplicateIntuneApps(graphHeaders, desiredAppName, duplicateApps = []) {
@@ -457,16 +472,17 @@ function buildAssignmentSettings() {
     };
 }
 
-function buildRequiredAssignment(target) {
-    return {
+function buildRequiredAssignment(target, platform = 'windows') {
+    const assignment = {
         "@odata.type": "#microsoft.graph.mobileAppAssignment",
         intent: "required",
-        target,
-        settings: buildAssignmentSettings()
+        target
     };
+    if (platform !== 'macos') assignment.settings = buildAssignmentSettings();
+    return assignment;
 }
 
-function buildDesiredAssignments(mode, selectedGroupIds) {
+function buildDesiredAssignments(mode, selectedGroupIds, platform = 'windows') {
     if (mode === ASSIGNMENT_MODE_SELECTED_GROUPS) {
         if (selectedGroupIds.length === 0) {
             throw new Error('Select at least one Intune device group, or choose All devices.');
@@ -474,12 +490,12 @@ function buildDesiredAssignments(mode, selectedGroupIds) {
         return selectedGroupIds.map(groupId => buildRequiredAssignment({
             "@odata.type": "#microsoft.graph.groupAssignmentTarget",
             groupId
-        }));
+        }, platform));
     }
 
     return [buildRequiredAssignment({
         "@odata.type": "#microsoft.graph.allDevicesAssignmentTarget"
-    })];
+    }, platform)];
 }
 
 function describeDesiredAssignments(mode, selectedGroupIds) {
@@ -488,10 +504,55 @@ function describeDesiredAssignments(mode, selectedGroupIds) {
         : 'All devices';
 }
 
-async function assignIntuneApp(graphHeaders, appId, mode, selectedGroupIds) {
+async function assignIntuneApp(graphHeaders, appId, mode, selectedGroupIds, platform = 'windows') {
+    const desired = buildDesiredAssignments(mode, selectedGroupIds, platform);
     await axios.post(`${INTUNE_GRAPH_BASE}/deviceAppManagement/mobileApps/${appId}/assign`, {
-        mobileAppAssignments: buildDesiredAssignments(mode, selectedGroupIds)
+        mobileAppAssignments: desired
     }, { headers: graphHeaders });
+    if (platform !== 'macos') return;
+
+    const assignmentsUrl = `${INTUNE_GRAPH_BASE}/deviceAppManagement/mobileApps/${appId}/assignments`;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        const response = await axios.get(assignmentsUrl, { headers: graphHeaders });
+        const actual = response.data.value || [];
+        const matches = desired.every(expected => actual.some(item =>
+            item.intent === expected.intent &&
+            item.target?.['@odata.type'] === expected.target['@odata.type'] &&
+            item.target?.groupId === expected.target.groupId
+        ));
+        if (matches && actual.length === desired.length) return;
+        if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    throw new Error('Intune accepted the macOS app assignment request but did not retain the selected groups.');
+}
+
+function organizationKey(policy) {
+    return String(policy.organizationId || policy.organizationName || '').trim().toLowerCase();
+}
+
+function buildOrganizationPlatformPlans(policies) {
+    const plans = new Map();
+    for (const policy of policies) {
+        const key = organizationKey(policy);
+        if (!plans.has(key)) plans.set(key, new Map());
+        const platforms = plans.get(key);
+        for (const platform of policy.platforms || ['windows']) {
+            const existing = platforms.get(platform);
+            if (!existing) {
+                platforms.set(platform, {
+                    ...policy,
+                    platforms: [platform],
+                    intuneDeviceGroupIds: [...new Set(policy.intuneDeviceGroupIds || [])]
+                });
+                continue;
+            }
+            existing.intuneDeviceGroupIds = [...new Set([...existing.intuneDeviceGroupIds, ...(policy.intuneDeviceGroupIds || [])])];
+            if (normalizeAssignmentMode(policy.assignmentMode) === ASSIGNMENT_MODE_ALL_DEVICES) {
+                existing.assignmentMode = ASSIGNMENT_MODE_ALL_DEVICES;
+            }
+        }
+    }
+    return plans;
 }
 
 function normalizeEndpointName(value) {
@@ -1940,6 +2001,158 @@ async function clearIntuneAppRequirementRules(graphHeaders, app) {
     return true;
 }
 
+async function createMacIntuneApp(graphHeaders, pkgBuffer, fileName, appName, metadata) {
+    let appId = null;
+    try {
+        const app = await axios.post(`${INTUNE_GRAPH_BASE}/deviceAppManagement/mobileApps`, {
+            '@odata.type': '#microsoft.graph.macOSPkgApp',
+            displayName: appName,
+            description: `${appName} macOS agent`,
+            publisher: 'Action1 Corporation',
+            informationUrl: ACTION1_APP_INFORMATION_URL,
+            privacyInformationUrl: ACTION1_APP_PRIVACY_URL,
+            fileName,
+            primaryBundleId: metadata.bundleId,
+            primaryBundleVersion: metadata.version,
+            includedApps: [{ bundleId: metadata.bundleId, bundleVersion: metadata.version }],
+            ignoreVersionDetection: true,
+            minimumSupportedOperatingSystem: { v12_0: true }
+        }, { headers: graphHeaders });
+        appId = app.data.id;
+        const contentBase = `${INTUNE_GRAPH_BASE}/deviceAppManagement/mobileApps/${appId}/microsoft.graph.macOSPkgApp/contentVersions`;
+        const version = await axios.post(contentBase, {}, { headers: graphHeaders });
+        const encrypted = encryptForIntune(pkgBuffer);
+        const file = await axios.post(`${contentBase}/${version.data.id}/files`, {
+            '@odata.type': '#microsoft.graph.mobileAppContentFile',
+            name: fileName,
+            size: encrypted.sizeOriginal,
+            sizeEncrypted: encrypted.sizeEncrypted,
+            isDependency: false
+        }, { headers: graphHeaders });
+        const fileUrl = `${contentBase}/${version.data.id}/files/${file.data.id}`;
+        const upload = await waitForFileState(graphHeaders, fileUrl, 'macOS PKG upload URL', entry => Boolean(entry.azureStorageUri), 450);
+        await uploadToAzureStorage(upload.azureStorageUri, encrypted.uploadData);
+        await axios.post(`${fileUrl}/commit`, { fileEncryptionInfo: encrypted.encryptionInfo }, { headers: graphHeaders });
+        await waitForFileState(graphHeaders, fileUrl, 'macOS PKG commit', entry => entry.uploadState === 'commitFileSuccess', 450);
+        await axios.patch(`${INTUNE_GRAPH_BASE}/deviceAppManagement/mobileApps/${appId}`, {
+            '@odata.type': '#microsoft.graph.macOSPkgApp',
+            committedContentVersion: version.data.id
+        }, { headers: graphHeaders });
+        return appId;
+    } catch (error) {
+        if (appId) await deleteIntuneApp(graphHeaders, appId).catch(() => {});
+        throw error;
+    }
+}
+
+async function ensureMacIntuneApp(graphHeaders, policy, credentials) {
+    const appName = `${buildIntuneAppName(policy.organizationName)} (macOS)`;
+    const { fileName, downloadUrl } = agentDownload('macos', policy.agentIds?.macos, policy.agentDownloadOrgName, action1ConsoleUrl(credentials));
+    await updateProgress(`Downloading Action1 macOS PKG for ${policy.organizationName}...`);
+    const response = await axios.get(downloadUrl, { responseType: 'arraybuffer', timeout: 120000, validateStatus: () => true });
+    if (response.status < 200 || response.status >= 300) throw new Error(`Action1 macOS PKG download returned HTTP ${response.status}.`);
+    const pkgBuffer = Buffer.from(response.data);
+    const metadata = macPkgMetadata(pkgBuffer);
+    const existing = await findManagedMacApp(graphHeaders, appName);
+    const existingVersion = existing?.primaryBundleVersion || existing?.displayVersion || '';
+    let appId = existing?.id || null;
+    let action = 'none';
+    if (!appId || !existingVersion || compareVersions(metadata.version, existingVersion) > 0) {
+        await updateProgress(`Publishing ${appName} v${metadata.version} to Intune...`);
+        const oldAppId = appId;
+        appId = await createMacIntuneApp(graphHeaders, pkgBuffer, fileName, appName, metadata);
+        action = oldAppId ? 'update' : 'create';
+        await assignIntuneApp(graphHeaders, appId, normalizeAssignmentMode(policy.assignmentMode), policy.intuneDeviceGroupIds || [], 'macos');
+        if (oldAppId) await deleteIntuneApp(graphHeaders, oldAppId);
+    } else {
+        await assignIntuneApp(graphHeaders, appId, normalizeAssignmentMode(policy.assignmentMode), policy.intuneDeviceGroupIds || [], 'macos');
+    }
+    await updateProgress(`${appName} v${metadata.version} assigned in Intune.`);
+    return { platform: 'macos', intuneAppId: appId, latestVersion: metadata.version, lastAction: action, assignmentStatus: 'configured' };
+}
+
+async function reconcileLinuxPolicySettings(graphClient, policyBase, policyId, desiredSettings, graphHeaders) {
+    const settingsBase = `${policyBase}/${policyId}/settings`;
+    const existingSettings = [];
+    let nextUrl = settingsBase;
+    while (nextUrl) {
+        const page = await graphClient.get(nextUrl, { headers: graphHeaders });
+        existingSettings.push(...(page.data.value || []));
+        nextUrl = page.data['@odata.nextLink'] || '';
+    }
+    for (const desired of desiredSettings) {
+        const definitionId = desired.settingInstance.settingDefinitionId;
+        const current = existingSettings.find(item => item.settingInstance?.settingDefinitionId === definitionId);
+        if (!current) {
+            await graphClient.post(settingsBase, desired, { headers: graphHeaders });
+            continue;
+        }
+        const desiredValue = desired.settingInstance.choiceSettingValue?.value ?? desired.settingInstance.simpleSettingValue?.value;
+        const currentValue = current.settingInstance.choiceSettingValue?.value ?? current.settingInstance.simpleSettingValue?.value;
+        if (currentValue !== desiredValue) {
+            await graphClient.patch(`${settingsBase}/${encodeURIComponent(current.id)}`, {
+                settingInstance: desired.settingInstance
+            }, { headers: graphHeaders });
+        }
+    }
+}
+
+async function ensureLinuxIntunePolicy(graphHeaders, policy, credentials) {
+    const baseUrl = action1ConsoleUrl(credentials);
+    const organizationName = policy.agentDownloadOrgName;
+    const deb = agentDownload('deb', policy.agentIds?.deb, organizationName, baseUrl);
+    const rpm = agentDownload('rpm', policy.agentIds?.rpm, organizationName, baseUrl);
+    for (const [format, download] of [['DEB', deb], ['RPM', rpm]]) {
+        await updateProgress(`Checking Action1 Linux ${format} package for ${policy.organizationName}...`);
+        const response = await axios.get(download.downloadUrl, { responseType: 'arraybuffer', timeout: 120000, validateStatus: () => true });
+        const buffer = Buffer.from(response.data);
+        const valid = format === 'DEB' ? buffer.subarray(0, 8).toString('ascii') === '!<arch>\n' : buffer.subarray(0, 4).toString('hex') === 'edabeedb';
+        if (response.status < 200 || response.status >= 300 || !valid) throw new Error(`Action1 Linux ${format} download is unavailable or is not a ${format} package (HTTP ${response.status}).`);
+    }
+    const name = `${buildIntuneAppName(policy.organizationName)} (Linux)`;
+    const script = linuxInstallScript(deb.downloadUrl, rpm.downloadUrl);
+    const body = linuxPolicyBody(name, script);
+    const policyBase = `${INTUNE_GRAPH_BASE}/deviceManagement/configurationPolicies`;
+    let nextUrl = `${policyBase}?$select=id,name,platforms`;
+    let existing = null;
+    while (nextUrl && !existing) {
+        const page = await axios.get(nextUrl, { headers: graphHeaders });
+        existing = (page.data.value || []).find(item => item.name === name && item.platforms === 'linux') || null;
+        nextUrl = page.data['@odata.nextLink'] || '';
+    }
+    let policyId = existing?.id;
+    if (policyId) {
+        await axios.patch(`${policyBase}/${policyId}`, { description: body.description }, { headers: graphHeaders });
+        await reconcileLinuxPolicySettings(axios, policyBase, policyId, body.settings, graphHeaders);
+    } else {
+        const created = await axios.post(policyBase, body, { headers: graphHeaders });
+        policyId = created.data.id;
+    }
+    const mode = normalizeAssignmentMode(policy.assignmentMode);
+    const assignments = mode === ASSIGNMENT_MODE_SELECTED_GROUPS
+        ? (policy.intuneDeviceGroupIds || []).map(groupId => ({ target: { '@odata.type': '#microsoft.graph.groupAssignmentTarget', groupId } }))
+        : [{ target: { '@odata.type': '#microsoft.graph.allDevicesAssignmentTarget' } }];
+    await axios.post(`${policyBase}/${policyId}/assign`, { assignments }, { headers: graphHeaders });
+    await updateProgress(`${name} script policy assigned in Intune. Linux endpoints download the DEB or RPM that matches their package manager.`);
+    return { platform: 'linux', intunePolicyId: policyId, lastAction: existing ? 'update' : 'create', assignmentStatus: 'configured' };
+}
+
+async function ensureAdditionalPlatforms(graphHeaders, policy, credentials) {
+    const results = {};
+    for (const platform of (policy.platforms || ['windows']).filter(item => item !== 'windows')) {
+        try {
+            results[platform] = platform === 'macos'
+                ? await ensureMacIntuneApp(graphHeaders, policy, credentials)
+                : await ensureLinuxIntunePolicy(graphHeaders, policy, credentials);
+        } catch (error) {
+            const message = error.response?.data?.error?.message || error.message;
+            results[platform] = { platform, assignmentStatus: 'failed', message };
+            await updateProgress(`${platform} deployment failed: ${message}`);
+        }
+    }
+    return results;
+}
+
 async function ensureIntuneAppForPolicy(graphHeaders, policy, baseAction1Credentials = {}) {
     const agentId = policy?.agentId || '';
     const organizationName = policy?.organizationName || '';
@@ -1951,8 +2164,12 @@ async function ensureIntuneAppForPolicy(graphHeaders, policy, baseAction1Credent
     const action1Credentials = { ...baseAction1Credentials };
     if (organizationId) action1Credentials.organizationId = organizationId;
 
-    if (!agentId || !organizationName) throw new Error(`Policy ${policy?.name || policy?.policyId || ''} is missing the Action1 agent installer ID or organization name.`);
+    if (!organizationName || ((policy.platforms || ['windows']).includes('windows') && !agentId)) throw new Error(`Policy ${policy?.name || policy?.policyId || ''} is missing the Action1 Windows installer ID or organization name.`);
     if (assignmentMode === ASSIGNMENT_MODE_SELECTED_GROUPS && selectedGroupIds.length === 0) throw new Error(`Policy ${policy?.name || policy?.policyId || ''} must select at least one Intune device group, or choose All devices.`);
+
+    if (!(policy.platforms || ['windows']).includes('windows')) {
+        return { platforms: await ensureAdditionalPlatforms(graphHeaders, policy, action1Credentials) };
+    }
 
     await updateProgress(`Downloading latest Action1 Agent MSI for ${organizationName}...`);
     const { msiFileName, downloadUrl } = buildAction1AgentDownloadUrl(agentId, agentDownloadOrgName, action1ConsoleUrl(action1Credentials));
@@ -2020,6 +2237,7 @@ async function ensureIntuneAppForPolicy(graphHeaders, policy, baseAction1Credent
         await updateProgress(`Assignments configured for "${desiredAppName}": ${assignmentTarget}.`);
     }
 
+    const platforms = await ensureAdditionalPlatforms(graphHeaders, policy, action1Credentials);
     return {
         latestVersion,
         intuneVersion,
@@ -2028,7 +2246,8 @@ async function ensureIntuneAppForPolicy(graphHeaders, policy, baseAction1Credent
         versionStatus: action === 'none' || action === 'create' || action === 'update' ? 'up_to_date' : 'unknown',
         lastAction: action,
         assignmentStatus,
-        assignmentMessage
+        assignmentMessage,
+        platforms
     };
 }
 
@@ -2043,10 +2262,12 @@ function compareVersions(v1, v2) {
     return 0;
 }
 
-async function getPreviousEndpointRegistration() {
+async function getPreviousEndpointRegistration(policyId = '') {
     try {
         const previousData = JSON.parse(await getSetting('IntuneVersionData') || '{}');
-        const previousRegistration = previousData?.endpointRegistration;
+        const previousRegistration = policyId
+            ? previousData?.policyResults?.[policyId]?.endpointRegistration || (previousData?.selectedPolicyId === policyId ? previousData?.endpointRegistration : null)
+            : previousData?.endpointRegistration;
         return previousRegistration && Array.isArray(previousRegistration.endpoints)
             ? previousRegistration
             : null;
@@ -2071,6 +2292,10 @@ async function runSync() {
         const IntuneClientSecret = await getSetting('IntuneClientSecret');
         const enrollmentPolicies = await getEnrollmentPoliciesForSync();
         const activePolicy = enrollmentPolicies[0];
+        const organizationPlans = buildOrganizationPlatformPlans(enrollmentPolicies);
+        const deployedPlatforms = new Map();
+        const activeOrganizationKey = activePolicy ? organizationKey(activePolicy) : '';
+        const activeWindowsPlan = organizationPlans.get(activeOrganizationKey)?.get('windows');
         const IntuneAgentId = activePolicy?.agentId || '';
         const IntuneOrgName = activePolicy?.organizationName || '';
         const IntuneAgentDownloadOrgName = activePolicy?.agentDownloadOrgName || activePolicy?.organizationName || '';
@@ -2078,6 +2303,8 @@ async function runSync() {
         const intuneDesiredAppName = buildIntuneAppName(IntuneOrgName);
         const assignmentMode = normalizeAssignmentMode(activePolicy?.assignmentMode);
         const selectedGroupIds = activePolicy?.intuneDeviceGroupIds || [];
+        const deploymentAssignmentMode = normalizeAssignmentMode(activeWindowsPlan?.assignmentMode);
+        const deploymentGroupIds = activeWindowsPlan?.intuneDeviceGroupIds || [];
         const selectedGroupMap = activePolicy?.intuneDeviceGroupMap || {};
         const selectedAction1GroupIds = activePolicy?.monitoredAction1GroupIds || [];
         const selectedAction1GroupMap = activePolicy?.monitoredAction1GroupMap || {};
@@ -2086,7 +2313,7 @@ async function runSync() {
 
         if (!IntuneTenantId || !IntuneClientId || !IntuneClientSecret) throw new Error("Intune credentials missing.");
         if (!activePolicy) throw new Error("Create at least one Enrollment and Provisioning profile before syncing.");
-        if (!IntuneAgentId || !IntuneOrgName) throw new Error("The selected policy is missing the Action1 agent installer ID or organization name.");
+        if (!IntuneOrgName || ((activePolicy.platforms || ['windows']).includes('windows') && !IntuneAgentId)) throw new Error("The selected policy is missing the Action1 Windows installer ID or organization name.");
         if (assignmentMode === ASSIGNMENT_MODE_SELECTED_GROUPS && selectedGroupIds.length === 0) throw new Error("Select at least one Intune device group, or choose All devices.");
 
         // 1. Auth to Graph API
@@ -2103,6 +2330,15 @@ async function runSync() {
         const graphToken = authRes.data.access_token;
         const graphHeaders = { 'Authorization': `Bearer ${graphToken}`, 'Content-Type': 'application/json' };
 
+        let latestVersion = 'Not selected';
+        let intuneVersion = 'Not selected';
+        let intuneAppId = null;
+        let intuneAppName = null;
+        let action = 'none';
+        let assignmentStatus = 'not_selected';
+        let assignmentMessage = 'Windows was not selected for this profile.';
+
+        if ((activePolicy.platforms || ['windows']).includes('windows')) {
         // 2. Download latest Action1 Agent MSI
         await updateProgress("Downloading latest Action1 Agent MSI...");
         const { msiFileName, downloadUrl } = buildAction1AgentDownloadUrl(IntuneAgentId, IntuneAgentDownloadOrgName, action1ConsoleUrl(action1Credentials));
@@ -2110,7 +2346,7 @@ async function runSync() {
         const msiRes = await axios.get(downloadUrl, { responseType: 'arraybuffer', timeout: 120000, validateStatus: () => true });
         const msiBuffer = Buffer.from(msiRes.data);
         assertMsiDownload(msiRes, msiBuffer);
-        const latestVersion = extractMsiVersion(msiBuffer) || 'Unknown';
+        latestVersion = extractMsiVersion(msiBuffer) || 'Unknown';
         const productCode = extractMsiProductCode(msiBuffer);
 
         if (latestVersion === 'Unknown') {
@@ -2120,10 +2356,7 @@ async function runSync() {
 
         // 3. Check for existing Intune Win32 LOB app
         await updateProgress(`Checking Intune for existing "${intuneDesiredAppName}" app...`);
-        let intuneVersion = 'Not Found';
-        let intuneAppId = null;
-        let intuneAppName = null;
-        let action = 'none';
+        intuneVersion = 'Not Found';
 
         try {
             const { primary: action1App, duplicateApps } = await findManagedIntuneApp(graphHeaders, intuneDesiredAppName);
@@ -2190,13 +2423,13 @@ async function runSync() {
             await updateProgress(`Agent is up to date (v${intuneVersion}). No action needed.`);
         }
 
-        let assignmentStatus = 'not_checked';
-        let assignmentMessage = 'Assignments were not checked.';
+        assignmentStatus = 'not_checked';
+        assignmentMessage = 'Assignments were not checked.';
         if (intuneAppId && !action.includes('failed')) {
             try {
-                const assignmentTarget = describeDesiredAssignments(assignmentMode, selectedGroupIds);
+                const assignmentTarget = describeDesiredAssignments(deploymentAssignmentMode, deploymentGroupIds);
                 await updateProgress(`Configuring Intune assignment target: ${assignmentTarget}...`);
-                await assignIntuneApp(graphHeaders, intuneAppId, assignmentMode, selectedGroupIds);
+                await assignIntuneApp(graphHeaders, intuneAppId, deploymentAssignmentMode, deploymentGroupIds);
                 assignmentStatus = 'configured';
                 assignmentMessage = `Assigned to ${assignmentTarget}.`;
                 await updateProgress(`Assignments configured: ${assignmentTarget}.`);
@@ -2208,7 +2441,23 @@ async function runSync() {
             }
         }
 
-        const previousEndpointRegistration = await getPreviousEndpointRegistration();
+        }
+
+        if ((activePolicy.platforms || ['windows']).includes('windows')) {
+            deployedPlatforms.set(`${activeOrganizationKey}:windows`, {
+                latestVersion, intuneVersion, intuneAppId, intuneAppName,
+                versionStatus: action === 'none' || action === 'create' || action === 'update' ? 'up_to_date' : 'unknown',
+                lastAction: action, assignmentStatus, assignmentMessage
+            });
+        }
+        const additionalPlatforms = {};
+        for (const platform of (activePolicy.platforms || ['windows']).filter(item => item !== 'windows')) {
+            const plan = organizationPlans.get(activeOrganizationKey).get(platform);
+            const result = await ensureAdditionalPlatforms(graphHeaders, plan, action1Credentials);
+            additionalPlatforms[platform] = result[platform];
+            deployedPlatforms.set(`${activeOrganizationKey}:${platform}`, result[platform]);
+        }
+        const previousEndpointRegistration = await getPreviousEndpointRegistration(activePolicy.policyId);
         let endpointRegistration = {
             status: 'not_checked',
             message: 'Endpoint registration was not checked.',
@@ -2266,12 +2515,36 @@ async function runSync() {
                 policyName: activePolicy.name,
                 organizationId: IntuneAction1OrgId,
                 organizationName: IntuneOrgName,
+                intuneDeployment: {
+                    latestVersion,
+                    intuneVersion,
+                    intuneAppId,
+                    intuneAppName,
+                    versionStatus: action === 'none' || action === 'create' || action === 'update' ? 'up_to_date' : 'unknown',
+                    assignmentStatus,
+                    assignmentMessage,
+                    platforms: additionalPlatforms
+                },
                 endpointRegistration
             }
         };
         for (const policy of enrollmentPolicies.slice(1)) {
             try {
-                const policyDeployment = await ensureIntuneAppForPolicy(graphHeaders, policy, action1Credentials);
+                const policyDeployment = { platforms: {} };
+                const key = organizationKey(policy);
+                for (const platform of policy.platforms || ['windows']) {
+                    const deploymentKey = `${key}:${platform}`;
+                    if (!deployedPlatforms.has(deploymentKey)) {
+                        const plan = organizationPlans.get(key).get(platform);
+                        const result = await ensureIntuneAppForPolicy(graphHeaders, plan, action1Credentials);
+                        deployedPlatforms.set(deploymentKey, platform === 'windows' ? result : result.platforms[platform]);
+                    }
+                    if (platform === 'windows') {
+                        const { platforms: _platforms, ...windowsDeployment } = deployedPlatforms.get(deploymentKey);
+                        Object.assign(policyDeployment, windowsDeployment);
+                    }
+                    else policyDeployment.platforms[platform] = deployedPlatforms.get(deploymentKey);
+                }
                 await updateProgress(`Refreshing dashboard results for policy ${policy.name}...`);
                 const policyEndpointRegistration = await compareIntuneDevicesToAction1(graphHeaders, {
                     assignmentMode: normalizeAssignmentMode(policy.assignmentMode),
@@ -2280,7 +2553,7 @@ async function runSync() {
                     selectedAction1GroupIds: policy.monitoredAction1GroupIds || [],
                     selectedAction1GroupMap: policy.monitoredAction1GroupMap || {},
                     selectedAction1OrgId: policy.organizationId,
-                    previousEndpointRegistration
+                    previousEndpointRegistration: await getPreviousEndpointRegistration(policy.policyId)
                 });
                 policyResults[policy.policyId] = {
                     policyId: policy.policyId,
@@ -2333,6 +2606,7 @@ async function runSync() {
             policyResults,
             assignmentStatus,
             assignmentMessage,
+            platforms: additionalPlatforms,
             endpointRegistration,
             checkedAt: new Date().toISOString()
         });
@@ -2342,6 +2616,17 @@ async function runSync() {
         const failureReasons = [];
         if (action.includes('failed')) failureReasons.push(`Action failed: ${action}`);
         if (assignmentStatus === 'failed') failureReasons.push(`Assignment failed: ${assignmentMessage}`);
+        for (const [platform, deployment] of Object.entries(additionalPlatforms)) {
+            if (deployment.assignmentStatus === 'failed') failureReasons.push(`${platform} deployment failed: ${deployment.message}`);
+        }
+        for (const policy of enrollmentPolicies.slice(1)) {
+            const result = policyResults[policy.policyId];
+            if (result.endpointRegistration?.status === 'failed') failureReasons.push(`${policy.name} dashboard refresh failed: ${result.endpointRegistration.message}`);
+            if (result.intuneDeployment?.assignmentStatus === 'failed') failureReasons.push(`${policy.name} Windows assignment failed: ${result.intuneDeployment.assignmentMessage}`);
+            for (const [platform, deployment] of Object.entries(result.intuneDeployment?.platforms || {})) {
+                if (deployment.assignmentStatus === 'failed') failureReasons.push(`${policy.name} ${platform} deployment failed: ${deployment.message}`);
+            }
+        }
         if (endpointRegistration.status === 'failed') failureReasons.push(`Endpoint registration comparison failed: ${endpointRegistration.message}`);
         if (endpointRegistration.provisioningStatus === 'failed' && endpointRegistration.provisioningMessage && endpointRegistration.provisioningMessage !== endpointRegistration.message) {
             failureReasons.push(`Provisioning status failed: ${endpointRegistration.provisioningMessage}`);
@@ -2372,5 +2657,8 @@ async function sync(context) {
 }
 
 module.exports = {
-  sync
+  sync,
+  buildDesiredAssignments,
+  buildOrganizationPlatformPlans,
+  reconcileLinuxPolicySettings
 };

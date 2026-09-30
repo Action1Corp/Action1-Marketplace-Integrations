@@ -50,6 +50,57 @@ function validateMigrations(entryName, integrationDir) {
   }
 }
 
+function validateDocumentation(entryName, integrationDir) {
+  const docsDir = path.join(integrationDir, 'docs');
+  const indexPath = path.join(docsDir, 'index.json');
+  if (!fs.existsSync(indexPath)) {
+    if (!fs.existsSync(path.join(integrationDir, 'README.md'))) {
+      console.error(`${entryName}: add README.md or docs/index.json for Marketplace documentation`);
+      failures += 1;
+    }
+    return;
+  }
+  let index;
+  try {
+    index = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
+  } catch (error) {
+    console.error(`${entryName}: invalid docs/index.json - ${error.message}`);
+    failures += 1;
+    return;
+  }
+  if (!Array.isArray(index.documents) || index.documents.length === 0) {
+    console.error(`${entryName}: docs/index.json must contain a nonempty documents array`);
+    failures += 1;
+    return;
+  }
+  const ids = new Set();
+  const docsRoot = fs.realpathSync(docsDir);
+  if (path.dirname(docsRoot) !== fs.realpathSync(integrationDir)) {
+    console.error(`${entryName}: docs/ must be inside the integration folder`);
+    failures += 1;
+    return;
+  }
+  for (const document of index.documents) {
+    const id = String(document?.id || '');
+    const file = String(document?.file || '');
+    const format = path.extname(file).toLowerCase();
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(id) || ids.has(id) || !String(document?.title || '').trim() ||
+        path.basename(file) !== file || !/\.(md|pdf)$/i.test(file) || !fs.existsSync(path.join(docsDir, file))) {
+      console.error(`${entryName}: invalid documentation entry ${id || '<missing>'}`);
+      failures += 1;
+    } else {
+      const filePath = fs.realpathSync(path.join(docsDir, file));
+      const stat = fs.statSync(filePath);
+      const maxBytes = format === '.pdf' ? 20 * 1024 * 1024 : 1024 * 1024;
+      if (path.dirname(filePath) !== docsRoot || !stat.isFile() || stat.size > maxBytes) {
+        console.error(`${entryName}: documentation file ${file} is outside docs/ or exceeds the size limit`);
+        failures += 1;
+      }
+    }
+    ids.add(id);
+  }
+}
+
 function readUiViewKeys(integrationDir) {
   const uiEntryPath = path.join(integrationDir, 'ui', 'index.jsx');
   if (!fs.existsSync(uiEntryPath)) return null;
@@ -269,6 +320,7 @@ for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
   }
 
   validateMigrations(entry.name, integrationDir);
+  validateDocumentation(entry.name, integrationDir);
 }
 }
 

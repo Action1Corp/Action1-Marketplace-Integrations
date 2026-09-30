@@ -142,7 +142,7 @@ function hasSavedActionConfiguration(schedule) {
   });
 }
 
-function buildAutomationPayload({ name, typeId, endpointGroupIds }) {
+function buildAutomationPayload({ name, typeId, endpointGroupIds, platform = 'windows' }) {
   const automationName = String(name || '').trim();
   if (!automationName) throw new Error('Automation name is required.');
 
@@ -151,13 +151,22 @@ function buildAutomationPayload({ name, typeId, endpointGroupIds }) {
   const groupIds = normalizeEndpointGroupIds(endpointGroupIds);
   if (!groupIds.length) throw new Error('Select at least one Action1 provisioning group before creating an automation.');
 
+  const params = JSON.parse(JSON.stringify(type.params));
+  if (typeId === 'run-script') {
+    const action1Platform = { windows: 'Windows', macos: 'Mac', linux: 'Linux' }[platform];
+    if (!action1Platform) throw new Error('Select a supported script platform.');
+    params.platform = action1Platform;
+    params.run_script_language = platform === 'windows' ? 'PowerShell' : 'Bash';
+    params.condition_script_language = params.run_script_language;
+  }
+
   return {
     name: automationName,
     endpoints: groupIds.map(id => ({ id, type: 'EndpointGroup' })),
     actions: [{
       name: type.label,
       template_id: type.templateId,
-      params: JSON.parse(JSON.stringify(type.params))
+      params
     }],
     settings: hourlyScheduleSettings(false),
     settings_timezone: 'UTC',

@@ -188,7 +188,9 @@ function defaultDraft() {
     organizationId: '',
     organizationName: '',
     agentId: '',
+    agentIds: {},
     agentDownloadOrgName: '',
+    platforms: ['windows'],
     profileType: PROFILE_TYPE_ENROLLMENT_AND_PROVISIONING,
     assignmentMode: 'allDevices',
     intuneDeviceGroupIds: [],
@@ -214,10 +216,6 @@ function apiAction(integration, actionId, payload = {}, settings = {}) {
 
 function selectedLabels(ids, map, rows, labelKey = 'name') {
   return ids.map(id => rows.find(row => row.id === id)?.[labelKey] || map[id] || id);
-}
-
-function normalizeComparableName(value) {
-  return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
 function formatDisplayName(value) {
@@ -391,7 +389,7 @@ function PolicyList({ policies, loading, onCreate, onEdit, onDelete }) {
         <div className="empty-state">
           <h2>No profiles</h2>
           <p>
-            Create an Enrollment and Provisioning Profile for each Action1 organization you want Intune to deploy and monitor.
+            Create an Enrollment and Provisioning Profile for each device target you want Intune to deploy and monitor.
           </p>
         </div>
       ) : (
@@ -408,6 +406,7 @@ function PolicyList({ policies, loading, onCreate, onEdit, onDelete }) {
               <tr key={policy.policyId}>
                 <td>
                   <button type="button" className="profile-name-link" onClick={() => onEdit(policy)}>{policy.name}</button>
+                  <div style={{ color: tokens.textMuted, fontSize: 12, marginTop: 3 }}>{(policy.platforms || ['windows']).map(platform => ({ windows: 'Windows', macos: 'macOS', linux: 'Linux' })[platform] || platform).join(', ')}</div>
                 </td>
                 <td><p className="value-text">{formatDisplayName(policy.organizationName) || policy.organizationId}</p></td>
                 <td><p className="value-text">{formatPolicyTarget(policy)}</p></td>
@@ -491,19 +490,19 @@ function Checklist({ rows, selectedIds, onChange, labelKey = 'name', emptyText, 
   );
 }
 
-function EndpointGroupTable({ rows, selectedIds, onChange, onDelete, deletingId, emptyText }) {
+function EndpointGroupTable({ rows, selectedIds, usedByProfile, onChange, onDelete, deletingId, emptyText }) {
   return (
     rows.length === 0 ? <p className="section-sub">{emptyText}</p> : (
       <div className="automation-table-wrap"><table className="automation-list">
         <thead><tr><th style={{ width: 72 }}>Select</th><th>Name</th><th style={{ width: 90 }}>Endpoints</th><th className="automation-actions">Actions</th></tr></thead>
         <tbody>{rows.map(row => (
           <tr key={row.id}>
-            <td><input type="checkbox" aria-label={`Select ${row.name || row.id}`} checked={selectedIds.includes(row.id)} onChange={event => onChange(event.target.checked ? [...selectedIds, row.id] : selectedIds.filter(id => id !== row.id))} /></td>
-            <td>{row.name || row.id}</td>
+            <td><input type="checkbox" aria-label={`Select ${row.name || row.id}`} checked={selectedIds.includes(row.id)} disabled={!!usedByProfile[row.id]} title={usedByProfile[row.id] ? `Used by ${usedByProfile[row.id]}` : undefined} onChange={event => onChange(event.target.checked ? [...selectedIds, row.id] : selectedIds.filter(id => id !== row.id))} /></td>
+            <td>{row.name || row.id}{usedByProfile[row.id] && <div className="section-sub">Used by {usedByProfile[row.id]}</div>}</td>
             <td>{Number.isFinite(row.endpointCount) ? row.endpointCount : '-'}</td>
             <td className="automation-actions">
               {row.editable ? <a className="btn btn-secondary link-button" href={row.editUrl} target="_blank" rel="noopener noreferrer" title={`Edit ${row.name} in Action1`}><Pencil size={14} /> Edit</a> : <button type="button" className="btn btn-secondary" disabled title="This Action1 group cannot be customized"><Pencil size={14} /> Edit</button>}
-              <button type="button" className="btn btn-secondary btn-danger" disabled={!row.editable || !!deletingId} title={row.editable ? `Delete ${row.name}` : 'This Action1 group cannot be deleted'} onClick={() => onDelete(row)}><Trash2 size={14} /> {deletingId === row.id ? 'Deleting...' : 'Delete'}</button>
+              <button type="button" className="btn btn-secondary btn-danger" disabled={!row.editable || !!deletingId || !!usedByProfile[row.id]} title={usedByProfile[row.id] ? `Used by ${usedByProfile[row.id]}` : row.editable ? `Delete ${row.name}` : 'This Action1 group cannot be deleted'} onClick={() => onDelete(row)}><Trash2 size={14} /> {deletingId === row.id ? 'Deleting...' : 'Delete'}</button>
             </td>
           </tr>
         ))}</tbody>
@@ -634,6 +633,7 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
   const [saving, setSaving] = useState(false);
   const [automationDialog, setAutomationDialog] = useState(null);
   const [automationName, setAutomationName] = useState('');
+  const [automationPlatform, setAutomationPlatform] = useState('windows');
   const [creatingAutomation, setCreatingAutomation] = useState(false);
   const [automationError, setAutomationError] = useState('');
   const [automations, setAutomations] = useState([]);
@@ -658,7 +658,19 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
   const loadOrganizations = useCallback(() => {
     setLoading('organizations');
     apiAction(integration, 'list-action1-organizations')
-      .then(data => setOrganizations(data.organizations || []))
+      .then(data => {
+        const loaded = data.organizations || [];
+        setOrganizations(loaded);
+        setDraft(current => {
+          const organization = loaded.find(item => item.id === current.organizationId);
+          return organization ? {
+            ...current,
+            agentId: organization.agentId || '',
+            agentIds: organization.agentIds || {},
+            agentDownloadOrgName: organization.agentDownloadOrgName || organization.name || ''
+          } : current;
+        });
+      })
       .catch(error => setMessage(error.message))
       .finally(() => setLoading(''));
   }, [integration]);
@@ -778,17 +790,10 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
     return map;
   }, [draft.monitoredAction1GroupMap, endpointGroups]);
   const loadingEndpointGroupDetails = loading === 'endpoint-group-details';
-  const usedOrganizationIds = useMemo(() => new Set(
+  const usedEndpointGroups = useMemo(() => Object.fromEntries(
     policies
       .filter(policy => policy.policyId !== initialPolicy?.policyId)
-      .map(policy => String(policy.organizationId || '').trim())
-      .filter(Boolean)
-  ), [policies, initialPolicy?.policyId]);
-  const usedOrganizationNames = useMemo(() => new Set(
-    policies
-      .filter(policy => policy.policyId !== initialPolicy?.policyId)
-      .map(policy => normalizeComparableName(policy.organizationName))
-      .filter(Boolean)
+      .flatMap(policy => (policy.monitoredAction1GroupIds || []).map(id => [id, policy.name]))
   ), [policies, initialPolicy?.policyId]);
   const usedIntuneDeviceGroupIds = useMemo(() => new Set(
     policies
@@ -801,8 +806,6 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
 
   function updateOrganization(organizationId) {
     const organization = organizations.find(item => item.id === organizationId);
-    const organizationName = normalizeComparableName(organization?.name);
-    if (organizationId && (usedOrganizationIds.has(organizationId) || usedOrganizationNames.has(organizationName))) return;
     if (organizationId !== draft.organizationId) {
       endpointGroupRequestId.current++;
       setEndpointGroups([]);
@@ -813,6 +816,7 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
       organizationId,
       organizationName: organization?.name || '',
       agentId: organization?.agentId || '',
+      agentIds: organization?.agentIds || {},
       agentDownloadOrgName: organization?.agentDownloadOrgName || organization?.name || '',
       monitoredAction1GroupIds: current.organizationId === organizationId ? current.monitoredAction1GroupIds : [],
       monitoredAction1GroupMap: current.organizationId === organizationId ? current.monitoredAction1GroupMap : {},
@@ -828,9 +832,10 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
   }
 
   function updateEndpointGroups(ids) {
+    const availableIds = ids.filter(id => !usedEndpointGroups[id]);
     const map = {};
-    for (const group of endpointGroups) if (ids.includes(group.id)) map[group.id] = group.name || group.id;
-    setDraft(current => ({ ...current, monitoredAction1GroupIds: ids, monitoredAction1GroupMap: { ...current.monitoredAction1GroupMap, ...map } }));
+    for (const group of endpointGroups) if (availableIds.includes(group.id)) map[group.id] = group.name || group.id;
+    setDraft(current => ({ ...current, monitoredAction1GroupIds: availableIds, monitoredAction1GroupMap: { ...current.monitoredAction1GroupMap, ...map } }));
   }
 
   async function createEndpointGroup(event) {
@@ -924,10 +929,14 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
   }
 
   function validateStep(stepId) {
-    if (stepId === 'organization' && (!draft.name || !draft.organizationId || !draft.agentId)) return 'Choose an Action1 organization. The organization must expose an agent installer ID.';
-    if (stepId === 'organization' && (usedOrganizationIds.has(draft.organizationId) || usedOrganizationNames.has(normalizeComparableName(draft.organizationName)))) return 'This Action1 organization is already assigned to another profile.';
+    if (stepId === 'organization' && (!draft.name || !draft.organizationId)) return 'Choose an Action1 organization.';
+    if (stepId === 'intune' && !(draft.platforms || []).length) return 'Select at least one device platform.';
+    if (stepId === 'intune' && draft.platforms.includes('windows') && !draft.agentId) return 'The Action1 Windows MSI installer is unavailable for this organization.';
+    if (stepId === 'intune' && draft.platforms.includes('macos') && !draft.agentIds?.macos) return 'The Action1 macOS PKG installer is unavailable for this organization.';
+    if (stepId === 'intune' && draft.platforms.includes('linux') && (!draft.agentIds?.deb || !draft.agentIds?.rpm)) return 'The Action1 Linux installers are unavailable for this organization.';
     if (stepId === 'intune' && draft.assignmentMode === 'selectedGroups' && draft.intuneDeviceGroupIds.length === 0) return 'Select at least one Intune device group, or choose all devices.';
     if (stepId === 'intune' && draft.intuneDeviceGroupIds.some(id => usedIntuneDeviceGroupIds.has(id))) return 'One or more selected Intune device groups are already assigned to another profile.';
+    if (stepId === 'action1' && draft.monitoredAction1GroupIds.some(id => usedEndpointGroups[id])) return 'One or more selected Action1 endpoint groups are already assigned to another profile.';
     if (stepId === 'action1' && !isEnrollmentOnly && draft.monitoredAction1GroupIds.length === 0) return 'Select the Action1 provisioning groups this profile should monitor.';
     return '';
   }
@@ -970,6 +979,7 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
     setMessage('');
     setAutomationError('');
     setAutomationName('');
+    setAutomationPlatform((draft.platforms || ['windows'])[0] || 'windows');
     setAutomationDialog(type);
   }
 
@@ -993,6 +1003,7 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
         organizationId: draft.organizationId,
         endpointGroupIds: draft.monitoredAction1GroupIds,
         automationType: automationDialog.id,
+        platform: automationPlatform,
         name
       });
       setAutomationDialog(null);
@@ -1128,24 +1139,36 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
             <label>Action1 Organization <span className="req">*</span></label>
             <select value={draft.organizationId} onChange={event => updateOrganization(event.target.value)}>
               <option value="">{loading === 'organizations' ? 'Loading organizations...' : 'Select Organization'}</option>
-              {organizations.map(organization => {
-                const isUsed = usedOrganizationIds.has(organization.id) || usedOrganizationNames.has(normalizeComparableName(organization.name));
-                return (
-                  <option key={organization.id} value={organization.id} disabled={isUsed} style={isUsed ? { color: tokens.textMuted, background: tokens.mutedBackground } : undefined}>
-                    {formatDisplayName(organization.name)}{isUsed ? ' (in use)' : ''}
-                  </option>
-                );
-              })}
+              {organizations.map(organization => <option key={organization.id} value={organization.id}>{formatDisplayName(organization.name)}</option>)}
             </select>
           </div>
-          <Help>Organizations already assigned to another Enrollment and Provisioning Profile are unavailable, because each Action1 organization can only have one profile.</Help>
+          <Help>You can create multiple profiles for an Action1 organization. Each Action1 endpoint group can belong to only one profile.</Help>
         </section>
       )}
 
       {activeStep === 'intune' && (
         <section className="section">
           <h3 className="section-title">Choose the Devices to Enroll</h3>
-          <Help>Select which Intune-managed Windows devices should be enrolled into Action1.</Help>
+          <Help>Select the device platforms and Intune targets to enroll into Action1.</Help>
+          <div className="field">
+            <label>Device Platforms <span className="req">*</span></label>
+            <div className="radio-row">
+              {[
+                { id: 'windows', label: 'Windows' },
+                { id: 'macos', label: 'macOS' },
+                { id: 'linux', label: 'Linux' }
+              ].map(platform => (
+                <label key={platform.id} className="radio-item">
+                  <input type="checkbox" checked={(draft.platforms || ['windows']).includes(platform.id)} onChange={event => setDraft(current => ({
+                    ...current,
+                    platforms: event.target.checked
+                      ? [...new Set([...(current.platforms || ['windows']), platform.id])]
+                      : (current.platforms || ['windows']).filter(id => id !== platform.id)
+                  }))} /> {platform.label}
+                </label>
+              ))}
+            </div>
+          </div>
           <div className="radio-row">
             <label className="radio-item"><input type="radio" checked={draft.assignmentMode === 'allDevices'} onChange={() => setDraft(current => ({ ...current, assignmentMode: 'allDevices' }))} /> All Devices</label>
             <label className="radio-item"><input type="radio" checked={draft.assignmentMode === 'selectedGroups'} onChange={() => setDraft(current => ({ ...current, assignmentMode: 'selectedGroups' }))} /> Selected Device Groups</label>
@@ -1182,6 +1205,7 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
           <EndpointGroupTable
             rows={endpointGroups}
             selectedIds={draft.monitoredAction1GroupIds}
+            usedByProfile={usedEndpointGroups}
             onChange={updateEndpointGroups}
             onDelete={deleteEndpointGroup}
             deletingId={deletingEndpointGroupId}
@@ -1198,7 +1222,7 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
           <h4 style={{ margin: '12px 0 4px', fontSize: 13 }}>Provisioning Automations</h4>
           <p className="section-sub">Create Action1 automations that install software, run scripts, or perform other provisioning work and target those automations to the Action1 provisioning groups selected in the previous step.</p>
           <div className="automation-buttons">
-            {ACTION1_AUTOMATION_TYPES.map(type => (
+            {ACTION1_AUTOMATION_TYPES.filter(type => type.id !== 'deploy-software' || (draft.platforms || ['windows']).some(platform => platform !== 'linux')).map(type => (
               <button key={type.id} type="button" className="btn btn-primary" onClick={() => openAutomationDialog(type)}>
                 {type.label}
               </button>
@@ -1264,6 +1288,7 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
             <div className="s-label">Profile</div><div><strong>{draft.name}</strong></div>
             <div className="s-label">Profile Type</div><div>{isEnrollmentOnly ? 'Enrollment Only' : 'Enrollment and Provisioning'}</div>
             <div className="s-label">Action1 Organization</div><div>{formatDisplayName(draft.organizationName) || 'Not selected'}</div>
+            <div className="s-label">Device Platforms</div><div>{(draft.platforms || ['windows']).map(platform => ({ windows: 'Windows', macos: 'macOS', linux: 'Linux' })[platform] || platform).join(', ') || 'None selected'}</div>
             <div className="s-label">Intune Enrollment Group</div><div>{draft.assignmentMode === 'allDevices' ? 'All Devices' : selectedIntuneNames.join(', ') || 'No groups selected'}</div>
             {!isEnrollmentOnly && <><div className="s-label">Action1 Provisioning Groups</div><div>{selectedEndpointGroupNames.join(', ') || 'No groups selected'}</div></>}
             {!isEnrollmentOnly && <><div className="s-label">Provisioning Automations</div><div><ReviewProvisioningAutomations selectedIds={draft.monitoredAction1GroupIds} selectedNames={selectedEndpointGroupNameMap} detailsByGroupId={endpointGroupDetails} action1ConsoleBase={action1ConsoleBase} organizationId={draft.organizationId} loading={loadingEndpointGroupDetails} /></div></>}
@@ -1281,6 +1306,12 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
               <label htmlFor="automation-name">Automation Name <span className="req">*</span></label>
               <input id="automation-name" type="text" autoFocus maxLength={255} value={automationName} onChange={event => setAutomationName(event.target.value)} disabled={creatingAutomation} />
             </div>
+            {automationDialog.id === 'run-script' && <div className="field">
+              <label htmlFor="automation-platform">Platform</label>
+              <select id="automation-platform" value={automationPlatform} onChange={event => setAutomationPlatform(event.target.value)} disabled={creatingAutomation}>
+                {(draft.platforms || ['windows']).map(platform => <option key={platform} value={platform}>{({ windows: 'Windows', macos: 'macOS', linux: 'Linux' })[platform]}</option>)}
+              </select>
+            </div>}
             {automationError && <div className="validation-notice" role="alert">{automationError}</div>}
             <div className="modal-actions">
               <button type="button" className="btn btn-secondary" onClick={closeAutomationDialog} disabled={creatingAutomation}>Cancel</button>

@@ -103,15 +103,18 @@ async function run() {
   const intuneDashboardSource = fs.readFileSync(path.join(__dirname, '..', 'integrations', 'intune', 'ui', 'IntuneDashboard.jsx'), 'utf8');
   assert(
     intuneDashboardSource.includes('selectedPolicyResult?.intuneDeployment || (selectedPolicyIsActive ? data : selectedPolicyResult)'),
-    'intune: dashboard application details must use the selected policy deployment instead of always using top-level active-policy data'
+    'intune: dashboard assignment targeting must use the selected policy deployment instead of top-level active-policy data'
   );
   assert(
-    intuneDashboardSource.includes('selectedDeployment.intuneAppName || buildDefaultIntuneAppName(selectedOrganizationName)'),
-    'intune: dashboard app name must be scoped to the selected organization'
+    intuneDashboardSource.includes(".map(device => ({ ...device, profileName: selectedPolicy?.name || '' }))") &&
+      intuneDashboardSource.includes("{ key: 'profileName', label: 'Profile'"),
+    'intune: dashboard endpoint rows must identify the selected profile'
   );
   assert(
-    intuneDashboardSource.includes('selectedDeployment.assignmentMessage ||'),
-    'intune: dashboard assignment status must be scoped to the selected policy deployment'
+    !intuneDashboardSource.includes('Agent Deployment') &&
+      !intuneDashboardSource.includes('Latest Action1 Agent Version') &&
+      !intuneDashboardSource.includes('Application Details'),
+    'intune: dashboard must not render the obsolete single-agent deployment panel'
   );
   assert(
     intuneDashboardSource.includes('/api/integrations/intune/actions/list-policies') &&

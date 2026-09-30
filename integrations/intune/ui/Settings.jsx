@@ -81,7 +81,7 @@ function Settings({ integration }) {
           <div key={groupName} className="glass-panel" style={{ marginBottom: '1.5rem' }}>
             <h3>{groupName}</h3>
             <p style={{ marginTop: 0, color: '#4B5563', fontSize: '0.9rem', lineHeight: 1.45 }}>
-              Enter the Microsoft Intune application credentials used to publish and assign the Action1 Agent Win32 app. Action1 organizations and enrollment targets are configured under Profiles.
+              Enter the Microsoft Intune application credentials used to publish and assign Action1 agents. Action1 organizations and enrollment targets are configured under Profiles.
             </p>
             {fields.map(setting => (
               <div key={setting.key} style={{ marginBottom: '1rem' }}>

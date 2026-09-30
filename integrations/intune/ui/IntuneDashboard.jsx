@@ -13,6 +13,7 @@ import { mergePoliciesIntoDashboard } from './dashboardPolicyState';
 
 const endpointColumns = [
   { key: 'deviceName', label: 'Endpoint', minWidth: 220, maxWidth: 360 },
+  { key: 'profileName', label: 'Profile', minWidth: 140, maxWidth: 240 },
   { key: 'source', label: 'Enrollment Status', nowrap: true },
   { key: 'provisioningStatus', label: 'Provisioning Status', nowrap: true },
   { key: 'action1EndpointGroups', label: 'Action1 Provisioning Groups', minWidth: 150, maxWidth: 260 },
@@ -93,11 +94,6 @@ function formatDateTime(value) {
 
 function formatFinishedDateTime(value) {
   return value ? formatDateTime(value) : 'Never';
-}
-
-function buildDefaultIntuneAppName(organizationName) {
-  const name = String(organizationName || '').trim();
-  return name ? `Action1 Agent - ${name}` : 'Action1 Agent';
 }
 
 function getConfigurationPolicyInfo(result) {
@@ -279,9 +275,9 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
   const missingDevices = Array.isArray(endpointRegistration.missingDevices) ? endpointRegistration.missingDevices : [];
   const endpointRows = useMemo(() => {
     const endpoints = Array.isArray(endpointRegistration.endpoints) ? endpointRegistration.endpoints : [];
-    if (endpoints.length) return endpoints;
-    return missingDevices.map(device => ({ ...device, source: 'Intune' }));
-  }, [endpointRegistration.endpoints, missingDevices]);
+    return (endpoints.length ? endpoints : missingDevices.map(device => ({ ...device, source: 'Intune' })))
+      .map(device => ({ ...device, profileName: selectedPolicy?.name || '' }));
+  }, [endpointRegistration.endpoints, missingDevices, selectedPolicy?.name]);
   const selectedGroupIds = parseSelectedGroupIds(selectedPolicy?.intuneDeviceGroupIds || (selectedPolicyIsActive ? data?.selectedGroupIds : []));
   const selectedGroupMap = parseSelectedGroupMap(selectedPolicy?.intuneDeviceGroupMap || (selectedPolicyIsActive ? data?.selectedGroupMap : {}));
   const selectedGroupLabels = selectedGroupIds.map(groupId => selectedGroupMap[groupId] || 'Group name unavailable');
@@ -322,7 +318,7 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
     }));
   }, [columnFilters, endpointFilter, endpointRows, selectedGroupLabelSet, usesSelectedGroups]);
 
-  if (loading) return <div style={{ padding: '2rem' }}>Loading Intune Agent Status...</div>;
+  if (loading) return <div style={{ padding: '2rem' }}>Loading enrollment dashboard...</div>;
   if (error) {
     return (
       <div className="glass-panel" style={{ borderLeft: '4px solid #ef4444', background: '#FEF2F2' }}>
@@ -339,7 +335,7 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
     return (
       <div style={{ width: '100%', maxWidth: '100%', margin: 0 }}>
         <div style={{ marginBottom: '2rem' }}>
-          <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 700 }}>Windows Device Enrollment and Provisioning</h1>
+          <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 700 }}>Enrollment and Provisioning</h1>
           <div style={{ marginTop: '0.4rem', fontSize: '0.82rem', color: '#6B7280' }}>
             Create an Enrollment and Provisioning Profile before dashboard results are shown.
           </div>
@@ -356,16 +352,7 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
   }
 
   const neverRun = data?.status === 'never_run';
-  const selectedOrganizationName = selectedPolicyResult?.organizationName || selectedPolicy?.organizationName || (selectedPolicyIsActive ? data?.selectedAction1OrgName : '');
-  const latestVersion = selectedDeployment.latestVersion || 'Unknown';
-  const intuneVersion = selectedDeployment.intuneVersion || 'Not Found';
-  const versionStatus = selectedDeployment.versionStatus || 'unknown';
-  const intuneAppName = selectedDeployment.intuneAppName || buildDefaultIntuneAppName(selectedOrganizationName);
   const lastRun = data?.lastRun ? new Date(data.lastRun).toLocaleString() : 'Never';
-  const assignmentModeLabel = usesSelectedGroups ? 'Selected Device Groups' : 'All Devices';
-  const assignmentStatus = selectedDeployment.assignmentStatus || 'not_checked';
-  const assignmentMessage = selectedDeployment.assignmentMessage || 'Assignments have not been checked.';
-  const assignmentColor = assignmentStatus === 'configured' ? '#10b981' : assignmentStatus === 'failed' ? '#ef4444' : '#6B7280';
   const assignmentTargetDeviceCount = targetEndpointRows.length;
   const registrationStatus = endpointRegistration.status || 'not_checked';
   const registrationColor = registrationStatus === 'checked'
@@ -375,15 +362,6 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
   const endpointFailureMessage = endpointRegistration.staleEndpointDataReason || endpointRegistration.provisioningMessage || endpointRegistration.message || '';
   const endpointDataStale = registrationStatus === 'failed' && endpointRegistration.usingStaleEndpointData;
 
-  const statusConfig = {
-    up_to_date: { label: 'Up to Date', color: '#10b981' },
-    update_available: { label: 'Update Available', color: '#f59e0b' },
-    not_deployed: { label: 'Not Deployed', color: '#ef4444' },
-    unknown: { label: 'Unknown', color: '#6B7280' }
-  };
-
-  const status = statusConfig[versionStatus] || statusConfig.unknown;
-  const intuneVersionColor = versionStatus === 'up_to_date' ? '#10b981' : '#ef4444';
   const hasActiveFilters = endpointFilter !== DEFAULT_ENDPOINT_FILTER || Object.values(columnFilters).some(Boolean);
   const updateColumnFilter = (key, value) => setColumnFilters(current => ({ ...current, [key]: value }));
   const toggleEndpointFilter = filter => setEndpointFilter(current => current === filter ? 'all' : filter);
@@ -448,7 +426,7 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
     <div style={{ width: '100%', maxWidth: '100%', margin: 0 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem', gap: '1rem' }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 700 }}>Windows Device Enrollment and Provisioning</h1>
+          <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 700 }}>Enrollment and Provisioning</h1>
           <div style={{ marginTop: '0.4rem', fontSize: '0.82rem', color: '#6B7280' }}>Status refreshes automatically every 15 minutes.</div>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
@@ -456,12 +434,12 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
             <select
               value={selectedPolicy?.policyId || ''}
               onChange={event => setSelectedPolicyId(event.target.value)}
-              title="Choose which Action1 organization profile to display"
+              title="Choose which profile to display"
               style={{ minHeight: 34, padding: '0.4rem 0.75rem', border: '1px solid var(--border-color)', borderRadius: 6, background: '#fff', color: '#111827', fontSize: '0.8rem' }}
             >
               {policies.map(policy => (
                 <option key={policy.policyId} value={policy.policyId}>
-                  {policy.organizationName || policy.name}
+                  {policy.name}{policy.organizationName ? ` (${policy.organizationName})` : ''}
                 </option>
               ))}
             </select>
@@ -499,7 +477,7 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
           <Package size={48} style={{ color: '#9CA3AF', marginBottom: '1rem' }} />
           <h2 style={{ margin: '0 0 0.5rem 0', fontWeight: 600 }}>No Check Performed Yet</h2>
           <p style={{ color: 'var(--text-light)', margin: 0 }}>
-            {canRunSync ? 'Click "Sync Now" to verify the Action1 Agent version in Intune.' : 'No check has been performed yet.'}
+            {canRunSync ? 'Select Sync Now to load enrollment and provisioning status.' : 'No check has been performed yet.'}
           </p>
         </div>
       ) : (
@@ -509,43 +487,6 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
               Results for {selectedPolicy.organizationName || selectedPolicy.name} have not been synced in this dashboard payload yet. Run Sync Now after selecting or enabling this profile.
             </div>
           )}
-          <div className="glass-panel" style={{ padding: '1.5rem', marginTop: '1.5rem', order: 2 }}>
-            <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', fontWeight: 600 }}>Application Details</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <div style={{ padding: '0.75rem', background: '#F9FAFB', borderRadius: 8 }}>
-                <div style={{ fontSize: '0.75rem', color: '#6B7280', fontWeight: 600 }}>Latest Action1 Agent Version</div>
-                <div style={{ fontSize: '0.95rem', fontWeight: 700, marginTop: '0.25rem', fontFamily: 'monospace' }}>{latestVersion}</div>
-              </div>
-              <div style={{ padding: '0.75rem', background: '#F9FAFB', borderRadius: 8 }}>
-                <div style={{ fontSize: '0.75rem', color: '#6B7280', fontWeight: 600 }}>Action1 Agent Version in Intune</div>
-                <div style={{ fontSize: '0.95rem', fontWeight: 700, marginTop: '0.25rem', fontFamily: 'monospace', color: intuneVersionColor }}>{intuneVersion}</div>
-              </div>
-              <div style={{ padding: '0.75rem', background: '#F9FAFB', borderRadius: 8 }}>
-                <div style={{ fontSize: '0.75rem', color: '#6B7280', fontWeight: 600 }}>Intune App Name</div>
-                <div style={{ fontSize: '0.9rem', fontWeight: 500, marginTop: '0.25rem' }}>{intuneAppName}</div>
-              </div>
-              <div style={{ padding: '0.75rem', background: '#F9FAFB', borderRadius: 8 }}>
-                <div style={{ fontSize: '0.75rem', color: '#6B7280', fontWeight: 600 }}>Version Status</div>
-                <div style={{ fontSize: '0.9rem', fontWeight: 500, marginTop: '0.25rem', color: status.color }}>{status.label}</div>
-              </div>
-              <div style={{ padding: '0.75rem', background: '#F9FAFB', borderRadius: 8 }}>
-                <div style={{ fontSize: '0.75rem', color: '#6B7280', fontWeight: 600 }}>Assignment Target</div>
-                <div style={{ fontSize: '0.9rem', fontWeight: 700, marginTop: '0.25rem' }}>{assignmentModeLabel}</div>
-                {usesSelectedGroups && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.55rem' }}>
-                    {(selectedGroupLabels.length ? selectedGroupLabels : ['No device groups selected']).map(groupName => (
-                      <span key={groupName} style={{ display: 'inline-flex', maxWidth: '100%', padding: '0.22rem 0.5rem', borderRadius: 999, background: '#EAF3FF', color: '#0B4EA2', border: '1px solid #BFDBFE', fontSize: '0.78rem', fontWeight: 600, lineHeight: 1.25 }}>{groupName}</span>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div style={{ padding: '0.75rem', background: '#F9FAFB', borderRadius: 8 }}>
-                <div style={{ fontSize: '0.75rem', color: '#6B7280', fontWeight: 600 }}>Assignment Status</div>
-                <div style={{ fontSize: '0.9rem', fontWeight: 500, marginTop: '0.25rem', color: assignmentColor }}>{assignmentMessage}</div>
-              </div>
-            </div>
-          </div>
-
           <div className="glass-panel" style={{ padding: '1.5rem', marginTop: 0, order: 1 }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
               <FilterCard label="Total Target Enrollment Devices" value={assignmentTargetDeviceCount} icon={Package} active={endpointFilter === 'assignmentTarget'} onClick={() => toggleEndpointFilter('assignmentTarget')} tone="#0B4EA2" />
@@ -622,11 +563,12 @@ function IntuneDashboard({ syncing, runSync, canRunSync }) {
                                 <span style={{ overflowWrap: 'anywhere' }}>{device.deviceName}</span>
                               </span>
                             </td>
-                            <td style={columnCellStyle(endpointColumns[1])}><SourcePill source={device.source} /></td>
-                            <td style={columnCellStyle(endpointColumns[2])} title={device.provisioningDetail || ''}><ProvisioningStatusPill status={device.provisioningStatus || 'N/A'} /></td>
-                            <td style={columnCellStyle(endpointColumns[3])}>{Array.isArray(device.action1EndpointGroups) && device.action1EndpointGroups.length ? device.action1EndpointGroups.join(', ') : 'N/A'}</td>
-                            <td style={columnCellStyle(endpointColumns[4])}>{Array.isArray(device.deviceGroups) && device.deviceGroups.length ? device.deviceGroups.join(', ') : groupMembershipLimited && device.source !== 'Action1' ? 'Permission required' : 'N/A'}</td>
-                            <td style={columnCellStyle(endpointColumns[5])}>{device.os || 'N/A'}</td>
+                            <td style={columnCellStyle(endpointColumns[1])}>{device.profileName}</td>
+                            <td style={columnCellStyle(endpointColumns[2])}><SourcePill source={device.source} /></td>
+                            <td style={columnCellStyle(endpointColumns[3])} title={device.provisioningDetail || ''}><ProvisioningStatusPill status={device.provisioningStatus || 'N/A'} /></td>
+                            <td style={columnCellStyle(endpointColumns[4])}>{Array.isArray(device.action1EndpointGroups) && device.action1EndpointGroups.length ? device.action1EndpointGroups.join(', ') : 'N/A'}</td>
+                            <td style={columnCellStyle(endpointColumns[5])}>{Array.isArray(device.deviceGroups) && device.deviceGroups.length ? device.deviceGroups.join(', ') : groupMembershipLimited && device.source !== 'Action1' ? 'Permission required' : 'N/A'}</td>
+                            <td style={columnCellStyle(endpointColumns[6])}>{device.os || 'N/A'}</td>
                           </tr>
                           {expanded && (
                             <tr>
