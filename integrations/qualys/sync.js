@@ -4,6 +4,7 @@ let getSetting;
 let getAction1Credentials;
 let computeAndSaveRunMetrics;
 let nvdService;
+const { discoverAction1Inventory } = require('./action1Organizations');
 const DEFAULT_ACTION1_BASE_URL = 'https://app.action1.com/api/3.0';
 
 function action1BaseUrl(credentials = {}) {
@@ -170,12 +171,12 @@ async function runSync() {
         QualysBaseUrl = QualysBaseUrl.replace(/\/$/, '');
 
         const action1Credentials = await getAction1Credentials();
-        const { apiKey: action1ApiKey, apiSecret: action1ApiSecret, organizationId: action1OrgId } = action1Credentials;
+        const { apiKey: action1ApiKey, apiSecret: action1ApiSecret } = action1Credentials;
 
         if (!QualysUsername || !QualysPassword) {
             throw new Error('Qualys username or password is not configured in integration settings.');
         }
-        if (!action1ApiKey || !action1ApiSecret || !action1OrgId) {
+        if (!action1ApiKey || !action1ApiSecret) {
             throw new Error('Action1 credentials are not configured. Configure and validate Action1 in Marketplace Settings.');
         }
 
@@ -206,17 +207,21 @@ async function runSync() {
 
         // 2. Fetch Action1 Endpoints
         await updateProgress("Retrieving Action1 endpoints...");
-        let action1Assets = [];
-        const a1Res = await axios.get(`${a1Base}/endpoints/managed/${action1OrgId}?limit=9999`, { headers: a1Headers });
-        action1Assets = a1Res.data.items || a1Res.data.data || a1Res.data.endpoints || (Array.isArray(a1Res.data) ? a1Res.data : []);
+        const { organizations: action1Organizations, endpoints: action1Assets } =
+            await discoverAction1Inventory(axios, a1Base, a1Headers);
 
         let a1eps = {};
+        const action1Names = new Set();
         for (let ep of action1Assets) {
-            if (!ep.device_name) continue;
-            let name = ep.device_name.trim().split('.')[0].toLowerCase();
-            a1eps[name] = { id: ep.id, device_name: ep.device_name, ipv4: ep.address, os: ep.OS, mac: ep.Mac };
+            const name = ep.match_name;
+            action1Names.add(name);
+            a1eps[`${ep.action1_organization_id}::${name}`] = {
+                id: ep.id, match_name: name, device_name: ep.device_name, ipv4: ep.address, os: ep.OS, mac: ep.Mac,
+                action1_organization_id: ep.action1_organization_id,
+                action1_organization_name: ep.action1_organization_name
+            };
         }
-        await updateProgress(`Retrieved ${Object.keys(a1eps).length} Action1 endpoints.`);
+        await updateProgress(`Retrieved ${Object.keys(a1eps).length} Action1 endpoints across ${action1Organizations.length} organizations.`);
 
         // 3. Fetch Qualys VM Detections (CSV)
         await updateProgress("Requesting host detections from Qualys VM...");
@@ -347,13 +352,14 @@ async function runSync() {
         await updateProgress("Fetching Action1 vulnerability catalog...");
         let action1Vulns = {};
         try {
-            let offset = 0;
             const limit = 5000;
             let totalFetched = 0;
-            let hasMore = true;
-
-            while (hasMore) {
-                const catRes = await axios.get(`${a1Base}/Vulnerabilities/${action1OrgId}?limit=${limit}&from=${offset}`, { headers: a1Headers });
+            for (const organization of action1Organizations) {
+              let offset = 0;
+              let organizationFetched = 0;
+              let hasMore = true;
+              while (hasMore) {
+                const catRes = await axios.get(`${a1Base}/Vulnerabilities/${organization.id}?limit=${limit}&from=${offset}`, { headers: a1Headers });
                 const p = catRes.data;
                 let catData = Array.isArray(p) ? p : (p.items || p.data || p.vulnerabilities || []);
 
@@ -373,11 +379,13 @@ async function runSync() {
                         action1Vulns[v.cve_id] = { hasUpdates, remediationStatus: action1RemediationStatus(v), score: isNaN(score) ? null : score, severity: v.severity };
                     }
                     totalFetched += catData.length;
+                    organizationFetched += catData.length;
                     offset += limit;
-                    if (totalFetched >= (p.total_items || 50000)) hasMore = false;
+                    if (organizationFetched >= (p.total_items || 50000)) hasMore = false;
                     // Safety break
                     if (offset > 100000) hasMore = false;
                 }
+              }
             }
             await updateProgress(`Cataloged ${totalFetched} Action1 vulnerabilities.`);
         } catch(e) {
@@ -590,12 +598,15 @@ async function runSync() {
 
         const endpointsToSave = [];
         // Reconcile Action1
-        for (let name in a1eps) {
-            const d = a1eps[name];
+        for (let key in a1eps) {
+            const d = a1eps[key];
+            const name = d.match_name;
             const sevs = endpointSeverityCounts[name] || { Critical: 0, High: 0, Medium: 0, Low: 0, Patchable: 0 };
             endpointsToSave.push({
                 integration_id: 'qualys', run_id: runId, endpoint_name: name,
                 ipv4: d.ipv4, mac: d.mac, os: d.os, action1_id: d.id,
+                action1_organization_id: d.action1_organization_id,
+                action1_organization_name: d.action1_organization_name,
                 has_agent: !!qualysHostsSeen[name],
                 missing_from_vm: !qualysHostsSeen[name],
                 missing_from_action1: false,
@@ -604,7 +615,7 @@ async function runSync() {
         }
         // Reconcile Qualys (not in Action1)
         for (let name in qualysHostsSeen) {
-            if (!a1eps[name]) {
+            if (!action1Names.has(name)) {
                 const d = qualysHostsSeen[name];
                 const sevs = endpointSeverityCounts[name] || { Critical: 0, High: 0, Medium: 0, Low: 0, Patchable: 0 };
                 endpointsToSave.push({
@@ -622,27 +633,22 @@ async function runSync() {
         // 8. Save to DB
         await updateProgress(`Saving data for ${endpointsToSave.length} total machines...`);
         const action1EndpointCounts = {};
-        const action1EndpointIds = Array.from(new Set(endpointsToSave
-            .filter(e => e.action1_id)
-            .map(e => e.action1_id)));
-        const action1EndpointNamesById = endpointsToSave.reduce((names, endpoint) => {
-            if (endpoint.action1_id) names[endpoint.action1_id] = endpoint.endpoint_name;
-            return names;
-        }, {});
+        const action1Endpoints = endpointsToSave.filter(e => e.action1_id);
 
-        if (action1EndpointIds.length > 0) {
-            await updateProgress(`Fetching authoritative Action1 vulnerability counts for ${action1EndpointIds.length} endpoints...`);
+        if (action1Endpoints.length > 0) {
+            await updateProgress(`Fetching authoritative Action1 vulnerability counts for ${action1Endpoints.length} endpoints...`);
             const batchSize = 10;
             let action1EndpointFetchFailures = 0;
-            for (let i = 0; i < action1EndpointIds.length; i += batchSize) {
-                const batch = action1EndpointIds.slice(i, i + batchSize);
-                await Promise.all(batch.map(async (id) => {
+            for (let i = 0; i < action1Endpoints.length; i += batchSize) {
+                const batch = action1Endpoints.slice(i, i + batchSize);
+                await Promise.all(batch.map(async (endpoint) => {
+                    const key = `${endpoint.action1_organization_id}::${endpoint.action1_id}`;
                     try {
-                        action1EndpointCounts[id] = await fetchAction1EndpointVulnCounts(a1Base, action1OrgId, id, a1Headers);
+                        action1EndpointCounts[key] = await fetchAction1EndpointVulnCounts(a1Base, endpoint.action1_organization_id, endpoint.action1_id, a1Headers);
                     } catch (e) {
                         action1EndpointFetchFailures++;
-                        action1EndpointCounts[id] = null;
-                        await updateProgress(`Failed fetching Action1 endpoint vulnerability counts for ${action1EndpointNamesById[id] || id}: ${e.response?.status || e.message}`);
+                        action1EndpointCounts[key] = null;
+                        await updateProgress(`Failed fetching Action1 endpoint vulnerability counts for ${endpoint.endpoint_name}: ${e.response?.status || e.message}`);
                     }
                 }));
             }
@@ -650,7 +656,7 @@ async function runSync() {
             const action1EndpointCveTotal = Object.values(action1EndpointCounts)
                 .filter(Boolean)
                 .reduce((total, counts) => total + (counts.total || 0), 0);
-            await updateProgress(`Loaded Action1 endpoint vulnerability counts for ${action1EndpointFetchSuccesses}/${action1EndpointIds.length} endpoints (${action1EndpointCveTotal} CVEs, ${action1EndpointFetchFailures} failures).`);
+            await updateProgress(`Loaded Action1 endpoint vulnerability counts for ${action1EndpointFetchSuccesses}/${action1Endpoints.length} endpoints (${action1EndpointCveTotal} CVEs, ${action1EndpointFetchFailures} failures).`);
         }
 
         await new Promise((resolveDb, rejectDb) => {
@@ -658,14 +664,15 @@ async function runSync() {
                 db.run('BEGIN TRANSACTION');
 
                 for (let ep of endpointsToSave) {
-                    const action1Counts = ep.action1_id ? action1EndpointCounts[ep.action1_id] : null;
+                    const action1Counts = ep.action1_id ? action1EndpointCounts[`${ep.action1_organization_id}::${ep.action1_id}`] : null;
                     const qualysCves = ep.missing_from_vm ? {} : (endpointUniqueCVEs[ep.endpoint_name] || {});
                     const qualysCounts = countBySeverity(qualysCves);
                     const integrationTotal = (qualysCounts.Critical || 0) + (qualysCounts.High || 0) + (qualysCounts.Medium || 0) + (qualysCounts.Low || 0);
-                    db.run(`INSERT INTO qualys_endpoints (integration_id, run_id, endpoint_name, ipv4, mac, os, action1_id, tenable_has_agent, missing_from_tenable, missing_from_action1, defender_total_vulns, critical_vulns, high_vulns, medium_vulns, low_vulns, action1_critical_vulns, action1_high_vulns, action1_medium_vulns, action1_low_vulns, patchable_vulns)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    db.run(`INSERT INTO qualys_endpoints (integration_id, run_id, endpoint_name, ipv4, mac, os, action1_id, action1_organization_id, action1_organization_name, tenable_has_agent, missing_from_tenable, missing_from_action1, defender_total_vulns, critical_vulns, high_vulns, medium_vulns, low_vulns, action1_critical_vulns, action1_high_vulns, action1_medium_vulns, action1_low_vulns, patchable_vulns)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                         [
                             ep.integration_id, runId, ep.endpoint_name, ep.ipv4, ep.mac, ep.os, ep.action1_id,
+                            ep.action1_organization_id || null, ep.action1_organization_name || null,
                             ep.has_agent, ep.missing_from_vm, ep.missing_from_action1,
                             integrationTotal,
                             qualysCounts.Critical || 0, qualysCounts.High || 0, qualysCounts.Medium || 0, qualysCounts.Low || 0,
@@ -680,7 +687,7 @@ async function runSync() {
 
                 finalCVEList = [];
                 for (let ep of endpointsToSave) {
-                    const action1Counts = ep.action1_id ? action1EndpointCounts[ep.action1_id] : null;
+                    const action1Counts = ep.action1_id ? action1EndpointCounts[`${ep.action1_organization_id}::${ep.action1_id}`] : null;
                     const qualysCves = ep.missing_from_vm ? {} : (endpointUniqueCVEs[ep.endpoint_name] || {});
                     const action1Cves = action1Counts?.cves || {};
                     const cveIds = Array.from(new Set([...Object.keys(qualysCves), ...Object.keys(action1Cves)]));
@@ -692,12 +699,13 @@ async function runSync() {
                             ? chooseCveEntry(qualysCve, action1Cve)
                             : (qualysCve || action1Cve);
                         const source = qualysCve && action1Cve ? 'Both' : action1Cve ? 'Action1' : 'VM Scanner';
-                        const status = ep.action1_id && (action1Cve?.patchable || qualysCve?.patchable)
+                        const status = ep.action1_id && action1Cve?.patchable
                             ? 'Patch Available'
                             : 'Non Patchable';
                         finalCVEList.push({
                             integration_id: 'qualys',
                             endpoint_name: ep.endpoint_name,
+                            action1_organization_id: ep.action1_organization_id || null,
                             cve: cveData.cve || cveId,
                             severity: normalizeSeverityLabel(cveData.severity, cveData.cvss),
                             plugin_name: cveData.plugin_name || cveData.title || cveData.cve || cveId,
@@ -721,10 +729,10 @@ async function runSync() {
                 stmtDetails.finalize();
 
                 // Insert endpoint_cves rows without text blobs
-                let stmt2 = db.prepare(`INSERT INTO qualys_endpoint_cves (integration_id, run_id, endpoint_name, cve, severity, status, source)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)`);
+                let stmt2 = db.prepare(`INSERT INTO qualys_endpoint_cves (integration_id, run_id, endpoint_name, action1_organization_id, cve, severity, status, source)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
                 for (let cve of finalCVEList) {
-                    stmt2.run([cve.integration_id, runId, cve.endpoint_name, cve.cve, cve.severity, cve.status, cve.source]);
+                    stmt2.run([cve.integration_id, runId, cve.endpoint_name, cve.action1_organization_id, cve.cve, cve.severity, cve.status, cve.source]);
                 }
                 stmt2.finalize();
 

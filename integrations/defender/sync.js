@@ -4,6 +4,7 @@ let getSetting;
 let getAction1Credentials;
 let computeAndSaveRunMetrics;
 let nvdService;
+const { discoverAction1Inventory } = require('./action1Organizations');
 const DEFAULT_ACTION1_BASE_URL = 'https://app.action1.com/api/3.0';
 
 function action1BaseUrl(credentials = {}) {
@@ -238,12 +239,12 @@ async function runSync() {
         DefenderBaseUrl = cleanBaseUrl(DefenderBaseUrl, 'https://api.securitycenter.microsoft.com');
 
         const action1Credentials = await getAction1Credentials();
-        const { apiKey: action1Id, apiSecret: action1Secret, organizationId: action1Org } = action1Credentials;
+        const { apiKey: action1Id, apiSecret: action1Secret } = action1Credentials;
 
         if (!DefenderTenantId || !DefenderClientId || !DefenderClientSecret) {
             throw new Error('Defender tenant ID, client ID, or client secret is not configured in integration settings.');
         }
-        if (!action1Id || !action1Secret || !action1Org) {
+        if (!action1Id || !action1Secret) {
             throw new Error('Action1 credentials are not configured. Configure and validate Action1 in Marketplace Settings.');
         }
 
@@ -281,20 +282,20 @@ async function runSync() {
         // 3. Get Action1 Endpoints
         await updateProgress("Fetching Action1 endpoints...");
         const a1eps = {};
-        let action1Assets = [];
-        const epsRes = await axios.get(`${a1Base}/endpoints/managed/${action1Org}?limit=9999`, { headers: a1Headers });
-        const payload = epsRes.data;
-        if (Array.isArray(payload)) action1Assets = payload;
-        else if (Array.isArray(payload.items)) action1Assets = payload.items;
-        else if (Array.isArray(payload.data)) action1Assets = payload.data;
-        else if (Array.isArray(payload.endpoints)) action1Assets = payload.endpoints;
+        const { organizations: action1Organizations, endpoints: action1Assets } =
+            await discoverAction1Inventory(axios, a1Base, a1Headers);
+        const action1Names = new Set();
 
         for (let ep of action1Assets) {
-            if (!ep.device_name) continue;
-            const name = ep.device_name.trim().split('.')[0].toLowerCase();
-            a1eps[name] = { id: ep.id, device_name: ep.device_name, ipv4: ep.address, os: ep.OS, mac: ep.Mac };
+            const name = ep.match_name;
+            action1Names.add(name);
+            a1eps[`${ep.action1_organization_id}::${name}`] = {
+                id: ep.id, match_name: name, device_name: ep.device_name, ipv4: ep.address, os: ep.OS, mac: ep.Mac,
+                action1_organization_id: ep.action1_organization_id,
+                action1_organization_name: ep.action1_organization_name
+            };
         }
-        await updateProgress(`Retrieved ${Object.keys(a1eps).length} Action1 endpoints.`);
+        await updateProgress(`Retrieved ${Object.keys(a1eps).length} Action1 endpoints across ${action1Organizations.length} organizations.`);
 
         // 4. Fetch Defender Machines
         await updateProgress("Fetching Microsoft Defender machines...");
@@ -353,13 +354,14 @@ async function runSync() {
         await updateProgress(`Fetched ${rawVulns.length} Defender vulns. Checking Action1 patch catalog...`);
         let action1Vulns = {};
         try {
-            let offset = 0;
             const limit = 5000;
             let totalFetched = 0;
-            let hasMore = true;
-
-            while (hasMore) {
-                const catRes = await axios.get(`${a1Base}/Vulnerabilities/${action1Org}?limit=${limit}&from=${offset}`, { headers: a1Headers });
+            for (const organization of action1Organizations) {
+              let offset = 0;
+              let hasMore = true;
+              let organizationFetched = 0;
+              while (hasMore) {
+                const catRes = await axios.get(`${a1Base}/Vulnerabilities/${organization.id}?limit=${limit}&from=${offset}`, { headers: a1Headers });
                 const p = catRes.data;
                 let catData = Array.isArray(p) ? p : (p.items || p.data || p.vulnerabilities || []);
 
@@ -387,10 +389,12 @@ async function runSync() {
                         };
                     }
                     totalFetched += catData.length;
+                    organizationFetched += catData.length;
                     offset += limit;
-                    if (totalFetched >= (p.total_items || 50000)) hasMore = false;
+                    if (organizationFetched >= (p.total_items || 50000)) hasMore = false;
                     if (offset > 100000) hasMore = false;
                 }
+              }
             }
             await updateProgress(`Cataloged ${totalFetched} Action1 vulnerabilities.`);
         } catch (e) {
@@ -516,20 +520,23 @@ async function runSync() {
 
         const endpointsToSave = [];
 
-        for (let name in a1eps) {
-            const a = a1eps[name];
+        for (let key in a1eps) {
+            const a = a1eps[key];
+            const name = a.match_name;
             const has_vm = !!dHostSeen[name];
             const sevs = endpointSeverityCounts[name] || { Critical: 0, High: 0, Medium: 0, Low: 0 };
             endpointsToSave.push({
                 integration_id: 'defender', run_id: runId, endpoint_name: name,
                 ipv4: a.ipv4 || null, mac: a.mac || null, os: a.os || null, action1_id: a.id,
+                action1_organization_id: a.action1_organization_id,
+                action1_organization_name: a.action1_organization_name,
                 has_agent: has_vm,
                 missing_from_vm: !has_vm, missing_from_action1: false,
                 critical: sevs.Critical, high: sevs.High, medium: sevs.Medium, low: sevs.Low
             });
         }
         for (let name in dHostSeen) {
-            if (!a1eps[name]) {
+            if (!action1Names.has(name)) {
                 const d = dHostSeen[name];
                 const sevs = endpointSeverityCounts[name] || { Critical: 0, High: 0, Medium: 0, Low: 0 };
                 endpointsToSave.push({
@@ -544,28 +551,23 @@ async function runSync() {
 
         // --- AUTHORITATIVE RECONCILIATION ---
         await updateProgress(`Saving ${endpointsToSave.length} endpoints...`);
-        const epIdsForSync = Array.from(new Set(endpointsToSave
-            .filter(e => e.action1_id)
-            .map(e => e.action1_id)));
-        const action1EndpointNamesById = endpointsToSave.reduce((names, endpoint) => {
-            if (endpoint.action1_id) names[endpoint.action1_id] = endpoint.endpoint_name;
-            return names;
-        }, {});
+        const action1EndpointsForSync = endpointsToSave.filter(e => e.action1_id);
         const authoritativeCounts = {};
 
-        if (epIdsForSync.length > 0) {
-            await updateProgress(`Fetching authoritative Action1 patch counts for ${epIdsForSync.length} endpoints...`);
+        if (action1EndpointsForSync.length > 0) {
+            await updateProgress(`Fetching authoritative Action1 patch counts for ${action1EndpointsForSync.length} endpoints...`);
             const batchSize = 10;
             let action1EndpointFetchFailures = 0;
-            for (let i = 0; i < epIdsForSync.length; i += batchSize) {
-                const batch = epIdsForSync.slice(i, i + batchSize);
-                await Promise.all(batch.map(async (id) => {
+            for (let i = 0; i < action1EndpointsForSync.length; i += batchSize) {
+                const batch = action1EndpointsForSync.slice(i, i + batchSize);
+                await Promise.all(batch.map(async (endpoint) => {
+                    const key = `${endpoint.action1_organization_id}::${endpoint.action1_id}`;
                     try {
-                        authoritativeCounts[id] = await fetchAction1EndpointVulnCounts(a1Base, action1Org, id, a1Headers);
+                        authoritativeCounts[key] = await fetchAction1EndpointVulnCounts(a1Base, endpoint.action1_organization_id, endpoint.action1_id, a1Headers);
                     } catch (e) {
                         action1EndpointFetchFailures++;
-                        authoritativeCounts[id] = null;
-                        await updateProgress(`Failed fetching Action1 endpoint vulnerability counts for ${action1EndpointNamesById[id] || id}: ${e.response?.status || e.message}`);
+                        authoritativeCounts[key] = null;
+                        await updateProgress(`Failed fetching Action1 endpoint vulnerability counts for ${endpoint.endpoint_name}: ${e.response?.status || e.message}`);
                     }
                 }));
             }
@@ -573,13 +575,13 @@ async function runSync() {
             const action1EndpointCveTotal = Object.values(authoritativeCounts)
                 .filter(Boolean)
                 .reduce((total, counts) => total + (counts.total || 0), 0);
-            await updateProgress(`Loaded Action1 endpoint vulnerability counts for ${action1EndpointFetchSuccesses}/${epIdsForSync.length} endpoints (${action1EndpointCveTotal} CVEs, ${action1EndpointFetchFailures} failures).`);
+            await updateProgress(`Loaded Action1 endpoint vulnerability counts for ${action1EndpointFetchSuccesses}/${action1EndpointsForSync.length} endpoints (${action1EndpointCveTotal} CVEs, ${action1EndpointFetchFailures} failures).`);
         }
 
         const finalCVEList = [];
         for (let ep of endpointsToSave) {
             const defenderCves = endpointUniqueCVEs[ep.endpoint_name] || {};
-            const action1Counts = ep.action1_id ? authoritativeCounts[ep.action1_id] : null;
+            const action1Counts = ep.action1_id ? authoritativeCounts[`${ep.action1_organization_id}::${ep.action1_id}`] : null;
             const mergedCves = mergeCveMaps(defenderCves, action1Counts?.cves || {});
 
             for (const [cveId, action1Cve] of Object.entries(action1Counts?.cves || {})) {
@@ -590,10 +592,11 @@ async function runSync() {
             }
 
             for (const [cveId, cveData] of Object.entries(mergedCves)) {
-                const remediationStatus = ep.action1_id && cveData.patchable ? 'Patch Available' : 'Non Patchable';
+                const remediationStatus = ep.action1_id && action1Counts?.cves?.[cveId]?.patchable ? 'Patch Available' : 'Non Patchable';
                 finalCVEList.push({
                     integration_id: 'defender',
                     endpoint_name: ep.endpoint_name,
+                    action1_organization_id: ep.action1_organization_id || null,
                     cve: cveId,
                     severity: normalizeSeverityLabel(cveData.severity, cveData.cvss),
                     status: remediationStatus,
@@ -611,16 +614,17 @@ async function runSync() {
                 db.run('BEGIN TRANSACTION');
 
                 for (let ep of endpointsToSave) {
-                    const action1Counts = ep.action1_id ? authoritativeCounts[ep.action1_id] : null;
+                    const action1Counts = ep.action1_id ? authoritativeCounts[`${ep.action1_organization_id}::${ep.action1_id}`] : null;
                     const defenderCves = endpointUniqueCVEs[ep.endpoint_name] || {};
                     const defenderCounts = countBySeverity(defenderCves);
                     const mergedCounts = countBySeverity(mergeCveMaps(defenderCves, action1Counts?.cves || {}));
                     const finalPatchCount = action1Counts ? action1Counts.patchableTotal : 0;
 
-                    db.run(`INSERT INTO defender_endpoints (integration_id, run_id, endpoint_name, ipv4, mac, os, action1_id, tenable_has_agent, missing_from_tenable, missing_from_action1, defender_total_vulns, critical_vulns, high_vulns, medium_vulns, low_vulns, action1_critical_vulns, action1_high_vulns, action1_medium_vulns, action1_low_vulns, patchable_vulns)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    db.run(`INSERT INTO defender_endpoints (integration_id, run_id, endpoint_name, ipv4, mac, os, action1_id, action1_organization_id, action1_organization_name, tenable_has_agent, missing_from_tenable, missing_from_action1, defender_total_vulns, critical_vulns, high_vulns, medium_vulns, low_vulns, action1_critical_vulns, action1_high_vulns, action1_medium_vulns, action1_low_vulns, patchable_vulns)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                         [
                             ep.integration_id, runId, ep.endpoint_name, ep.ipv4, ep.mac, ep.os, ep.action1_id,
+                            ep.action1_organization_id || null, ep.action1_organization_name || null,
                             ep.has_agent, ep.missing_from_vm, ep.missing_from_action1,
                             defenderCounts.total,
                             mergedCounts.Critical,
@@ -647,10 +651,10 @@ async function runSync() {
                 stmtDetails.finalize();
 
                 // Insert endpoint_cves rows without text blobs
-                let stmt2 = db.prepare(`INSERT INTO defender_endpoint_cves (integration_id, run_id, endpoint_name, cve, severity, status, source)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)`);
+                let stmt2 = db.prepare(`INSERT INTO defender_endpoint_cves (integration_id, run_id, endpoint_name, action1_organization_id, cve, severity, status, source)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
                 for (let cve of finalCVEList) {
-                    stmt2.run([cve.integration_id, runId, cve.endpoint_name, cve.cve, cve.severity, cve.status, cve.source]);
+                    stmt2.run([cve.integration_id, runId, cve.endpoint_name, cve.action1_organization_id, cve.cve, cve.severity, cve.status, cve.source]);
                 }
                 stmt2.finalize();
 

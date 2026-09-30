@@ -1,3 +1,5 @@
+const { discoverAction1Inventory } = require('./action1Organizations');
+
 // Wait utility
 const delay = ms => new Promise(res => setTimeout(res, ms));
 const DEFAULT_ACTION1_BASE_URL = 'https://app.action1.com/api/3.0';
@@ -196,12 +198,12 @@ async function sync(context) {
         const TenableAccessKey = await getSetting('TenableAccessKey');
         const TenableSecretKey = await getSetting('TenableSecretKey');
         const action1Credentials = await getAction1Credentials();
-        const { apiKey: action1ApiKey, apiSecret: action1ApiSecret, organizationId: action1OrgId } = action1Credentials;
+        const { apiKey: action1ApiKey, apiSecret: action1ApiSecret } = action1Credentials;
 
         if (!TenableAccessKey || !TenableSecretKey) {
             throw new Error('Tenable access key or secret key is not configured in integration settings.');
         }
-        if (!action1ApiKey || !action1ApiSecret || !action1OrgId) {
+        if (!action1ApiKey || !action1ApiSecret) {
             throw new Error('Action1 credentials are not configured. Configure and validate Action1 in Marketplace Settings.');
         }
 
@@ -234,32 +236,24 @@ async function sync(context) {
         // 1. Fetch Action1 Endpoints
         // -------------------------------------------------------------
         await updateProgress("Retrieving Action1 endpoints...");
-        let action1Assets = [];
-        try {
-            const a1Res = await axios.get(`${a1Base}/endpoints/managed/${action1OrgId}?limit=9999`, { headers: a1Headers });
-            const payload = a1Res.data;
-            if (Array.isArray(payload)) action1Assets = payload;
-            else if (Array.isArray(payload.items)) action1Assets = payload.items;
-            else if (Array.isArray(payload.data)) action1Assets = payload.data;
-            else if (Array.isArray(payload.endpoints)) action1Assets = payload.endpoints;
-            else {
-                await updateProgress(`Unrecognized Action1 endpoint structure: ${Object.keys(payload)}`);
-            }
-        } catch (e) {
-            await updateProgress(`Failed fetching Action1 endpoints. Response code: ${e.response?.status} ${e.message}`);
-        }
+        const { organizations: action1Organizations, endpoints: action1Assets } =
+            await discoverAction1Inventory(axios, a1Base, a1Headers);
 
-        await updateProgress(`Retrieved ${action1Assets.length} Action1 endpoints.`); // Lookup
+        await updateProgress(`Retrieved ${action1Assets.length} Action1 endpoints across ${action1Organizations.length} organizations.`); // Lookup
         let a1eps = {}; // Lookup
+        const action1Names = new Set();
         for (let ep of action1Assets) {
-            if (!ep.device_name) continue;
-            let name = ep.device_name.trim().split('.')[0].toLowerCase();
-            a1eps[name] = {
+            const name = ep.match_name;
+            action1Names.add(name);
+            a1eps[`${ep.action1_organization_id}::${name}`] = {
                 id: ep.id,
+                match_name: name,
                 device_name: ep.device_name,
                 ipv4: ep.address,
                 os: ep.OS,
-                mac: ep.Mac
+                mac: ep.Mac,
+                action1_organization_id: ep.action1_organization_id,
+                action1_organization_name: ep.action1_organization_name
             };
         }
 
@@ -331,13 +325,14 @@ async function sync(context) {
         await updateProgress("Fetching Action1 vulnerability catalog...");
         let action1Vulns = {};
         try {
-            let offset = 0;
             const limit = 5000;
             let totalFetched = 0;
-            let hasMore = true;
-
-            while (hasMore) {
-                const catRes = await axios.get(`${a1Base}/Vulnerabilities/${action1OrgId}?limit=${limit}&from=${offset}`, { headers: a1Headers });
+            for (const organization of action1Organizations) {
+              let offset = 0;
+              let organizationFetched = 0;
+              let hasMore = true;
+              while (hasMore) {
+                const catRes = await axios.get(`${a1Base}/Vulnerabilities/${organization.id}?limit=${limit}&from=${offset}`, { headers: a1Headers });
                 const p = catRes.data;
                 let catData = Array.isArray(p) ? p : (p.items || p.data || p.vulnerabilities || []);
 
@@ -358,10 +353,12 @@ async function sync(context) {
                         action1Vulns[v.cve_id] = { hasUpdates, remediationStatus, score: isNaN(score) ? null : score, severity: v.severity };
                     }
                     totalFetched += catData.length;
+                    organizationFetched += catData.length;
                     offset += limit;
-                    if (totalFetched >= (p.total_items || 50000)) hasMore = false;
+                    if (organizationFetched >= (p.total_items || 50000)) hasMore = false;
                     if (offset > 100000) hasMore = false;
                 }
+              }
             }
             await updateProgress(`Action1 catalog loaded: ${totalFetched} vulnerabilities.`);
         } catch (e) {
@@ -464,7 +461,7 @@ async function sync(context) {
 
         // Finalize lists and counts from de-duplicated data
         for (let ep in endpointUniqueCVEs) {
-            const endpointHasAction1 = !!a1eps[ep];
+            const endpointHasAction1 = action1Names.has(ep);
             endpointSeverityCounts[ep] = { Critical: 0, High: 0, Medium: 0, Low: 0, Patchable: 0 };
             const hostCVEMap = endpointUniqueCVEs[ep];
             for (let cveId in hostCVEMap) {
@@ -538,8 +535,9 @@ async function sync(context) {
         let endpointsToSave = [];
 
         // Loop Action1 Assets to find missing from Tenable
-        for (let a1 in a1eps) {
-            const d = a1eps[a1];
+        for (let key in a1eps) {
+            const d = a1eps[key];
+            const a1 = d.match_name;
             let missingFromTenable = !allTenableAssets.hasOwnProperty(a1);
 
             const sevs = endpointSeverityCounts[a1] || {Critical:0,High:0,Medium:0,Low:0,Patchable:0};
@@ -550,6 +548,8 @@ async function sync(context) {
                 mac: d.mac,
                 os: d.os,
                 action1_id: d.id,
+                action1_organization_id: d.action1_organization_id,
+                action1_organization_name: d.action1_organization_name,
                 has_agent: allTenableAssets[a1] ? allTenableAssets[a1].has_agent : false,
                 missing_from_tenable: missingFromTenable,
                 missing_from_action1: false,
@@ -563,7 +563,7 @@ async function sync(context) {
 
         // Loop Tenable Assets to find missing from Action1
         for (let t in allTenableAssets) {
-            if (!a1eps.hasOwnProperty(t)) {
+            if (!action1Names.has(t)) {
                 const tv = allTenableAssets[t];
                 const sevs = endpointSeverityCounts[t] || {Critical:0,High:0,Medium:0,Low:0,Patchable:0};
                 endpointsToSave.push({
@@ -585,27 +585,22 @@ async function sync(context) {
         }
 
         const action1EndpointCounts = {};
-        const action1EndpointIds = Array.from(new Set(endpointsToSave
-            .filter(e => e.action1_id)
-            .map(e => e.action1_id)));
-        const action1EndpointNamesById = endpointsToSave.reduce((names, endpoint) => {
-            if (endpoint.action1_id) names[endpoint.action1_id] = endpoint.name;
-            return names;
-        }, {});
+        const action1Endpoints = endpointsToSave.filter(e => e.action1_id);
 
-        if (action1EndpointIds.length > 0) {
-            await updateProgress(`Fetching authoritative Action1 vulnerability counts for ${action1EndpointIds.length} endpoints...`);
+        if (action1Endpoints.length > 0) {
+            await updateProgress(`Fetching authoritative Action1 vulnerability counts for ${action1Endpoints.length} endpoints...`);
             const batchSize = 10;
             let action1EndpointFetchFailures = 0;
-            for (let i = 0; i < action1EndpointIds.length; i += batchSize) {
-                const batch = action1EndpointIds.slice(i, i + batchSize);
-                await Promise.all(batch.map(async (id) => {
+            for (let i = 0; i < action1Endpoints.length; i += batchSize) {
+                const batch = action1Endpoints.slice(i, i + batchSize);
+                await Promise.all(batch.map(async (endpoint) => {
+                    const key = `${endpoint.action1_organization_id}::${endpoint.action1_id}`;
                     try {
-                        action1EndpointCounts[id] = await fetchAction1EndpointVulnCounts(a1Base, action1OrgId, id, a1Headers, axios);
+                        action1EndpointCounts[key] = await fetchAction1EndpointVulnCounts(a1Base, endpoint.action1_organization_id, endpoint.action1_id, a1Headers, axios);
                     } catch (e) {
                         action1EndpointFetchFailures++;
-                        action1EndpointCounts[id] = null;
-                        await updateProgress(`Failed fetching Action1 endpoint vulnerability counts for ${action1EndpointNamesById[id] || id}: ${e.response?.status || e.message}`);
+                        action1EndpointCounts[key] = null;
+                        await updateProgress(`Failed fetching Action1 endpoint vulnerability counts for ${endpoint.name}: ${e.response?.status || e.message}`);
                     }
                 }));
             }
@@ -613,7 +608,7 @@ async function sync(context) {
             const action1EndpointCveTotal = Object.values(action1EndpointCounts)
                 .filter(Boolean)
                 .reduce((total, counts) => total + (counts.total || 0), 0);
-            await updateProgress(`Loaded Action1 endpoint vulnerability counts for ${action1EndpointFetchSuccesses}/${action1EndpointIds.length} endpoints (${action1EndpointCveTotal} CVEs, ${action1EndpointFetchFailures} failures).`);
+            await updateProgress(`Loaded Action1 endpoint vulnerability counts for ${action1EndpointFetchSuccesses}/${action1Endpoints.length} endpoints (${action1EndpointCveTotal} CVEs, ${action1EndpointFetchFailures} failures).`);
         }
 
         // -------------------------------------------------------------
@@ -626,12 +621,12 @@ async function sync(context) {
                 db.run('BEGIN TRANSACTION');
                 const stmtEp = db.prepare(
                     `INSERT INTO tenable_endpoints
-                     (integration_id, run_id, endpoint_name, ipv4, mac, os, action1_id, tenable_has_agent, missing_from_tenable, missing_from_action1, defender_total_vulns, critical_vulns, high_vulns, medium_vulns, low_vulns, action1_critical_vulns, action1_high_vulns, action1_medium_vulns, action1_low_vulns, patchable_vulns)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                     (integration_id, run_id, endpoint_name, ipv4, mac, os, action1_id, action1_organization_id, action1_organization_name, tenable_has_agent, missing_from_tenable, missing_from_action1, defender_total_vulns, critical_vulns, high_vulns, medium_vulns, low_vulns, action1_critical_vulns, action1_high_vulns, action1_medium_vulns, action1_low_vulns, patchable_vulns)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
                 );
                 for (const ep of endpointsToSave) {
                     const tenableCves = ep.missing_from_tenable ? {} : (endpointUniqueCVEs[ep.name] || {});
-                    const action1Counts = ep.action1_id ? action1EndpointCounts[ep.action1_id] : null;
+                    const action1Counts = ep.action1_id ? action1EndpointCounts[`${ep.action1_organization_id}::${ep.action1_id}`] : null;
                     const tenableCounts = countBySeverity(tenableCves);
                     const mergedCounts = countBySeverity(mergeCveMaps(tenableCves, action1Counts?.cves || {}));
                     const tenablePatchableCount = Object.values(tenableCves).filter((cve) => cve.patchable).length;
@@ -644,6 +639,8 @@ async function sync(context) {
                         ep.mac,
                         ep.os,
                         ep.action1_id,
+                        ep.action1_organization_id || null,
+                        ep.action1_organization_name || null,
                         ep.has_agent,
                         ep.missing_from_tenable,
                         ep.missing_from_action1,
@@ -667,7 +664,7 @@ async function sync(context) {
         finalCVEList = [];
         for (const ep of endpointsToSave) {
             const tenableCves = ep.missing_from_tenable ? {} : (endpointUniqueCVEs[ep.name] || {});
-            const action1Counts = ep.action1_id ? action1EndpointCounts[ep.action1_id] : null;
+            const action1Counts = ep.action1_id ? action1EndpointCounts[`${ep.action1_organization_id}::${ep.action1_id}`] : null;
             const action1Cves = action1Counts?.cves || {};
             const cveIds = Array.from(new Set([...Object.keys(tenableCves), ...Object.keys(action1Cves)]));
 
@@ -678,11 +675,12 @@ async function sync(context) {
                     ? chooseCveEntry(tenableCve, action1Cve)
                     : (tenableCve || action1Cve);
                 const source = tenableCve && action1Cve ? 'Both' : action1Cve ? 'Action1' : 'VM Scanner';
-                const status = ep.action1_id && (action1Cve?.patchable || tenableCve?.patchable)
+                const status = ep.action1_id && action1Cve?.patchable
                     ? 'Patch Available'
                     : 'Non Patchable';
                 finalCVEList.push({
                     endpoint_name: ep.name,
+                    action1_organization_id: ep.action1_organization_id || null,
                     cve: cveData.cve || cveId,
                     severity: normalizeSeverityLabel(cveData.severity, cveData.cvss),
                     plugin_name: cveData.plugin_name || cveData.title || cveData.cve || cveId,
@@ -715,11 +713,11 @@ async function sync(context) {
 
                 // 2. Insert endpoint_cves rows (no text blobs)
                 const stmtCve = db.prepare(
-                    `INSERT INTO tenable_endpoint_cves (integration_id, run_id, endpoint_name, cve, severity, status, source)
-                     VALUES (?, ?, ?, ?, ?, ?, ?)`
+                    `INSERT INTO tenable_endpoint_cves (integration_id, run_id, endpoint_name, action1_organization_id, cve, severity, status, source)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
                 );
                 for (const cve of finalCVEList) {
-                    stmtCve.run('tenable', runId, cve.endpoint_name, cve.cve, cve.severity, cve.status, cve.source);
+                    stmtCve.run('tenable', runId, cve.endpoint_name, cve.action1_organization_id, cve.cve, cve.severity, cve.status, cve.source);
                 }
                 stmtCve.finalize();
 

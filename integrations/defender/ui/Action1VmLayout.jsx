@@ -1162,6 +1162,7 @@ export function Action1Endpoints() {
   const vulnerabilitySummary = row => `${row.critical_vulns || 0} critical, ${(row.high_vulns || 0) + (row.medium_vulns || 0) + (row.low_vulns || 0)} non-critical`;
   const endpointColumns = [
     { key: 'endpoint_name', label: 'Name', width: 180 },
+    { key: 'action1_organization_name', label: 'Action1 Organization', width: 180 },
     { key: 'status', label: 'Status', width: 130, exportValue: getStatus },
     { key: 'os', label: 'OS', width: 180 },
     { key: 'vulnerabilities', label: 'Vulnerabilities', width: 170, exportValue: vulnerabilitySummary }
@@ -1184,6 +1185,7 @@ export function Action1Endpoints() {
       return (
         <KeyValueRows rows={[
           ['Name', endpoint.endpoint_name],
+          ['Action1 organization', endpoint.action1_organization_name || 'N/A'],
           ['User', endpoint.user],
           ['AD organizational unit', endpoint.adOrganizationalUnit],
           ['Comment', endpoint.comment],

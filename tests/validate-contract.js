@@ -161,6 +161,38 @@ async function run() {
     'tenable: must migrate existing endpoint CVE rows to include source'
   );
 
+  for (const integrationId of ['defender', 'qualys', 'rapid7', 'tenable']) {
+    const integrationDir = path.join(__dirname, '..', 'integrations', integrationId);
+    const syncSource = fs.readFileSync(path.join(integrationDir, 'sync.js'), 'utf8');
+    assert(syncSource.includes('discoverAction1Inventory'), `${integrationId}: sync must discover every accessible Action1 organization`);
+    assert(!syncSource.includes('organizationId:'), `${integrationId}: sync must not depend on a default Action1 organization ID`);
+    assert(syncSource.includes('action1_organization_id'), `${integrationId}: sync must persist the Action1 organization identity`);
+    assert(
+      fs.existsSync(path.join(integrationDir, 'migrations', '003_add_action1_organization.sql')),
+      `${integrationId}: must migrate endpoint data to include Action1 organization identity`
+    );
+  }
+
+  const { discoverAction1Inventory } = require('../integrations/defender/action1Organizations');
+  const mockAxios = {
+    get: async (url) => {
+      if (url.includes('/organizations?')) {
+        return { data: { organizations: [{ id: 'org-a', name: 'North' }, { id: 'org-b', name: 'South' }] } };
+      }
+      if (url.includes('/org-a?')) return { data: { endpoints: [{ id: 'endpoint-a', device_name: 'shared-host.example.com' }] } };
+      if (url.includes('/org-b?')) return { data: { endpoints: [{ id: 'endpoint-b', device_name: 'shared-host.example.com' }] } };
+      throw new Error(`Unexpected Action1 test URL: ${url}`);
+    }
+  };
+  const inventory = await discoverAction1Inventory(mockAxios, 'https://action1.example/api/3.0', {});
+  assert.strictEqual(inventory.organizations.length, 2, 'Action1 discovery must return every accessible organization');
+  assert.strictEqual(inventory.endpoints.length, 2, 'same-named endpoints in separate organizations must both be retained');
+  assert.deepStrictEqual(
+    inventory.endpoints.map((endpoint) => endpoint.action1_organization_id).sort(),
+    ['org-a', 'org-b'],
+    'Action1 endpoints must retain their source organization ID'
+  );
+
   console.log('Integration handler contract tests passed.');
 }
 
