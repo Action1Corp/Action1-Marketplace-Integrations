@@ -41,6 +41,7 @@ for (const entry of fs.readdirSync(packageDir, { withFileTypes: true })) {
     latestVersion: manifest.version,
     minimumMarketplaceVersion: manifest.minimumMarketplaceVersion || '1.0.0',
     status: manifest.status || 'production',
+    hasDocumentation: true,
     releaseNotesUrl: manifest.releaseNotesUrl || releaseNotesUrl,
     package: {
       url: baseUrl ? `${baseUrl}/${entry.name}` : entry.name,

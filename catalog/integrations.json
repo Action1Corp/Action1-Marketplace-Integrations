@@ -11,6 +11,7 @@
       "latestVersion": "0.1.4",
       "minimumMarketplaceVersion": "1.0.0",
       "status": "production",
+      "hasDocumentation": true,
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
         "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-64/action1-integration-action1-configuration-manager-0.1.4.tgz",
@@ -27,6 +28,7 @@
       "latestVersion": "1.0.7",
       "minimumMarketplaceVersion": "1.0.0",
       "status": "production",
+      "hasDocumentation": true,
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
         "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-64/action1-integration-defender-1.0.7.tgz",
@@ -43,6 +45,7 @@
       "latestVersion": "1.0.0",
       "minimumMarketplaceVersion": "1.0.0",
       "status": "production",
+      "hasDocumentation": true,
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
         "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-64/action1-integration-entra-id-1.0.0.tgz",
@@ -59,6 +62,7 @@
       "latestVersion": "1.0.0",
       "minimumMarketplaceVersion": "1.0.0",
       "status": "production",
+      "hasDocumentation": true,
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
         "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-64/action1-integration-halo-psa-1.0.0.tgz",
@@ -75,6 +79,7 @@
       "latestVersion": "1.0.21",
       "minimumMarketplaceVersion": "1.0.0",
       "status": "production",
+      "hasDocumentation": true,
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
         "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-64/action1-integration-intune-1.0.21.tgz",
@@ -91,6 +96,7 @@
       "latestVersion": "1.0.0",
       "minimumMarketplaceVersion": "1.0.0",
       "status": "production",
+      "hasDocumentation": true,
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
         "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-64/action1-integration-jira-cloud-1.0.0.tgz",
@@ -107,6 +113,7 @@
       "latestVersion": "1.0.7",
       "minimumMarketplaceVersion": "1.0.0",
       "status": "production",
+      "hasDocumentation": true,
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
         "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-64/action1-integration-qualys-1.0.7.tgz",
@@ -123,6 +130,7 @@
       "latestVersion": "1.0.7",
       "minimumMarketplaceVersion": "1.0.0",
       "status": "production",
+      "hasDocumentation": true,
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
         "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-64/action1-integration-rapid7-1.0.7.tgz",
@@ -139,6 +147,7 @@
       "latestVersion": "1.0.7",
       "minimumMarketplaceVersion": "1.0.0",
       "status": "production",
+      "hasDocumentation": true,
       "releaseNotesUrl": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases",
       "package": {
         "url": "https://github.com/Action1Corp/Action1-Marketplace-Integrations/releases/download/integration-packages-64/action1-integration-tenable-1.0.7.tgz",
