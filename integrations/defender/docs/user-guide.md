@@ -1,11 +1,11 @@
 # Microsoft Defender User Guide
 
-Use this integration to compare Microsoft Defender machine vulnerabilities with Action1-managed endpoints and available patch information. Although the Marketplace categorizes Defender as EDR/XDR, its vulnerability views follow the same workflow as the VM integrations.
+Use this integration to compare Microsoft Defender machine vulnerabilities with Action1-managed endpoints and available patch information.
 
 ## Before you begin
 
 - Have a Microsoft Entra application with a tenant ID, client ID, and client secret. The application must be able to read Defender machine and vulnerability data.
-- Configure the shared Action1 API key, secret, and organization in **Marketplace > Settings**.
+- Configure the shared Action1 server, API key, and secret in **Marketplace > Settings**. The integration discovers every accessible Action1 organization automatically.
 - Make sure the Marketplace server can reach Microsoft sign-in, the Defender API, and the Action1 API.
 
 ## Connect Microsoft Defender
