@@ -56,13 +56,16 @@ export function scheduleToCron(schedule) {
 }
 
 export function metricValue(metric, stats) {
+  const integrationAssets = Math.max(0, Number(stats.totalIntegrationAssets || 0));
+  const missingFromAction1 = Math.max(0, Number(stats.missingFromAction1 || 0));
+  const matchedAssets = Math.max(0, integrationAssets - missingFromAction1);
   const remediationTotal = (stats.totalPatchable || 0) + (stats.totalNotPatchable || 0) + (stats.totalUnrecognized || 0);
   const severityTotal = (stats.totalCritical || 0) + (stats.totalHigh || 0) + (stats.totalMedium || 0) + (stats.totalLow || 0);
   const totalCves = remediationTotal || severityTotal;
   const computed = {
     totalCves,
     patchRate: remediationTotal > 0 ? Math.round(((stats.totalPatchable || 0) / remediationTotal) * 100) : 0,
-    syncRate: stats.totalIntegrationAssets > 0 ? Math.round(((stats.totalAction1Assets || 0) / stats.totalIntegrationAssets) * 100) : 0
+    syncRate: integrationAssets > 0 ? Math.min(100, Math.round((matchedAssets / integrationAssets) * 100)) : 0
   };
   return Object.prototype.hasOwnProperty.call(computed, metric) ? computed[metric] : (stats[metric] ?? 0);
 }

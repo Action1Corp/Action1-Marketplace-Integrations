@@ -2,7 +2,7 @@
     "id":  "qualys",
     "name":  "Qualys VMDR",
     "vendor":  "Qualys",
-    "version":  "1.0.8",
+    "version":  "1.0.9",
     "marketplaceApiVersion":  "1.0",
     "minimumMarketplaceVersion":  "1.0.0",
     "description":  "Correlate Qualys VMDR findings with Action1 endpoint and patch context.",

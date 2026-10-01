@@ -171,6 +171,18 @@ async function run() {
       fs.existsSync(path.join(integrationDir, 'migrations', '003_add_action1_organization.sql')),
       `${integrationId}: must migrate endpoint data to include Action1 organization identity`
     );
+    for (const uiFile of ['Dashboard.jsx', 'viewToolkit.jsx']) {
+      const uiSource = fs.readFileSync(path.join(integrationDir, 'ui', uiFile), 'utf8');
+      assert(
+        uiSource.includes('integrationAssets - missingFromAction1') &&
+          uiSource.includes('Math.min(100, Math.round((matchedAssets / integrationAssets) * 100))'),
+        `${integrationId}: ${uiFile} sync rate must measure matched scanner assets and never exceed 100%`
+      );
+      assert(
+        !uiSource.includes('(stats.totalAction1Assets || 0) / stats.totalIntegrationAssets'),
+        `${integrationId}: ${uiFile} must not divide the full Action1 inventory by the scanner inventory`
+      );
+    }
   }
 
   const { discoverAction1Inventory } = require('../integrations/defender/action1Organizations');
