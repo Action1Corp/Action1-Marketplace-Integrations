@@ -62,24 +62,34 @@ function parseHistoryRow(row, extractEnvelope) {
 }
 
 export function createHistoryAdapter({ integration, fetchImpl = fetch, extractEnvelope }) {
+  async function listRaw({ page = 1, pageSize = DEFAULT_PAGE_SIZE, sortKey = 'id', sortDirection = 'desc' } = {}) {
+    const params = new URLSearchParams({
+      integration,
+      page: String(page),
+      pageSize: String(pageSize),
+      sortKey,
+      sortDirection
+    });
+    const response = await fetchImpl(`/api/history?${params.toString()}`);
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error('Unable to load Policy History.');
+    return {
+      rows: Array.isArray(payload.rows) ? payload.rows : [],
+      total: Number(payload.total) || 0,
+      page: Number(payload.page) || page,
+      pageSize: Number(payload.pageSize) || pageSize
+    };
+  }
+
   return {
+    listRaw,
     async list({ page = 1, pageSize = DEFAULT_PAGE_SIZE } = {}) {
-      const params = new URLSearchParams({
-        integration,
-        page: String(page),
-        pageSize: String(pageSize),
-        sortKey: 'timestamp',
-        sortDirection: 'desc'
-      });
-      const response = await fetchImpl(`/api/history?${params.toString()}`);
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error('Unable to load Policy History.');
-      const rows = Array.isArray(payload.rows) ? payload.rows : [];
+      const payload = await listRaw({ page, pageSize, sortKey: 'timestamp', sortDirection: 'desc' });
       return {
-        rows: rows.map((row) => parseHistoryRow(row, extractEnvelope)),
-        total: Number(payload.total) || 0,
-        page: Number(payload.page) || page,
-        pageSize: Number(payload.pageSize) || pageSize
+        rows: payload.rows.map((row) => parseHistoryRow(row, extractEnvelope)),
+        total: payload.total,
+        page: payload.page,
+        pageSize: payload.pageSize
       };
     }
   };

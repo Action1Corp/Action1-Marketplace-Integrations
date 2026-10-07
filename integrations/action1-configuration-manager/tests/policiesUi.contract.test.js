@@ -179,11 +179,14 @@ function run() {
 
   const pageSource = readSource('ui/policies/PolicyPage.jsx');
   assert(pageSource.includes('OperationStatus'), 'PolicyPage should render the shared operation indicator');
-  assert(pageSource.includes('Creating Action1 automations'), 'PolicyPage should identify Create progress');
+  assert(pageSource.includes('Creating Policy...'), 'PolicyPage should use the approved Create primary copy');
   assert(pageSource.includes('Applying Policy changes'), 'PolicyPage should identify Edit progress');
   assert(pageSource.includes('Disabling Policy'), 'PolicyPage should identify Disable progress');
   assert(pageSource.includes('Enabling Policy'), 'PolicyPage should identify Enable progress');
   assert(pageSource.includes('Deleting Policy'), 'PolicyPage should identify Delete progress');
+  const progressSource = readSource('ui/policies/historyProgressPoller.js');
+  assert(progressSource.includes('Creating automations: ${checkpoint.completed} of ${checkpoint.total}'), 'Progress helper should format the approved Create secondary copy');
+  assert(progressSource.includes('Deleting automations: ${checkpoint.completed} of ${checkpoint.total}'), 'Progress helper should format the approved Delete secondary copy');
 
   const operationStatusSource = readSource('ui/policies/OperationStatus.jsx');
   assert(operationStatusSource.includes("position: 'fixed'"), 'OperationStatus should be viewport-fixed');

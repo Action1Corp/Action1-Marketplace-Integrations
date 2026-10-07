@@ -1,15 +1,6 @@
 const assert = require('assert');
 const path = require('path');
-const { loadControlPackFixture, PACK_VERSION } = require('./controlPackFixture');
-const fixtureData = loadControlPackFixture();
-const fixtureCatalogContract = {
-  packId: fixtureData.packId,
-  packVersion: fixtureData.packVersion,
-  catalog: fixtureData.catalog,
-  baselines: fixtureData.baselines,
-  controlsById: Object.fromEntries(fixtureData.catalog.controls.map((control) => [control.controlId, control])),
-  controlFamiliesById: Object.fromEntries(fixtureData.catalog.automationGroups.map((family) => [family.automationGroupId, family]))
-};
+const { withIsolatedControlPackRuntime } = require('./isolatedControlPackRuntime');
 
 function createFakeDb(options = {}) {
   const state = {
@@ -277,10 +268,11 @@ function createValidInput(overrides = {}) {
 }
 
 async function run() {
+  await withIsolatedControlPackRuntime(async ({ contract, fixture }) => {
   const { createDbPolicyStore } = require(path.join(__dirname, '..', 'policyStore.js'));
   const { savePolicyAction } = require(path.join(__dirname, '..', 'policyActions.js'));
   const context = createFakeContext();
-  const store = createDbPolicyStore(context, { catalogContract: fixtureCatalogContract });
+  const store = createDbPolicyStore(context, { catalogContract: contract });
 
   const saved = await store.savePolicy(createValidInput());
   assert.strictEqual(saved.policyId, 'POL-000001');
@@ -311,14 +303,14 @@ async function run() {
     /already reserved/i
   );
 
-  const allEndpointsStore = createDbPolicyStore(createFakeContext(), { catalogContract: fixtureCatalogContract });
+  const allEndpointsStore = createDbPolicyStore(createFakeContext(), { catalogContract: contract });
   await allEndpointsStore.savePolicy(createValidInput({ scopeType: 'ALL_ENDPOINTS', endpointGroupId: '', endpointGroupName: '' }));
   await assert.rejects(
     () => allEndpointsStore.savePolicy(createValidInput({ baseName: 'Endpoint Group Policy' })),
     /all endpoints/i
   );
 
-  const groupFirstStore = createDbPolicyStore(createFakeContext(), { catalogContract: fixtureCatalogContract });
+  const groupFirstStore = createDbPolicyStore(createFakeContext(), { catalogContract: contract });
   await groupFirstStore.savePolicy(createValidInput());
   await assert.rejects(
     () => groupFirstStore.savePolicy(createValidInput({ baseName: 'All Endpoints Policy', scopeType: 'ALL_ENDPOINTS', endpointGroupId: '', endpointGroupName: '' })),
@@ -356,7 +348,7 @@ async function run() {
   });
   assert.strictEqual(updated.baseName, 'Workstation Security Updated');
   assert.strictEqual(updated.policyMode, 'ASSESS_AND_REMEDIATE');
-  assert.strictEqual(updated.controlPackVersion, PACK_VERSION);
+  assert.strictEqual(updated.controlPackVersion, fixture.packVersion);
   assert.strictEqual(updated.selectedControls[0].parameters.minimumLength, 12);
 
   await assert.rejects(
@@ -399,13 +391,14 @@ async function run() {
   const replacement = await store.savePolicy(createValidInput({ baseName: 'Replacement Policy' }));
   assert.strictEqual(replacement.policyId, 'POL-000002', 'policy sequence should remain monotonic after delete');
 
-  const marketplaceLikeStore = createDbPolicyStore(createFakeContext({ throwOnSqliteSequence: true }), { catalogContract: fixtureCatalogContract });
+  const marketplaceLikeStore = createDbPolicyStore(createFakeContext({ throwOnSqliteSequence: true }), { catalogContract: contract });
   const postgresLikeSaved = await marketplaceLikeStore.savePolicy(createValidInput({ baseName: 'Postgres Save' }));
   assert.strictEqual(
     postgresLikeSaved.policyId,
     'POL-000001',
     'savePolicy should derive its stable policy id from the inserted row identity without querying sqlite_sequence'
   );
+  });
 }
 
 try {

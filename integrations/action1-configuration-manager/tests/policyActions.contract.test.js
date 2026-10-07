@@ -1,8 +1,34 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const { loadControlPackFixture } = require('./controlPackFixture');
 const { pathToFileURL } = require('url');
+const { withIsolatedControlPackRuntime } = require('./isolatedControlPackRuntime');
+let activePack;
+
+function selectedControl(control) {
+  const group = activePack.catalog.automationGroups.find((entry) => entry.automationGroupId === control.automationGroupId);
+  return {
+    controlId: control.controlId, controlVersion: control.version,
+    automationGroupId: control.automationGroupId, automationGroupVersion: group.version,
+    parameters: Object.fromEntries((control.parameters || []).map((parameter) => [parameter.id, parameter.defaultValue]))
+  };
+}
+
+function differentFamilyControl(draft) {
+  const selectedGroups = new Set(draft.selectedControls.map((control) => control.automationGroupId));
+  return selectedControl(activePack.catalog.controls.find((control) => !selectedGroups.has(control.automationGroupId)));
+}
+
+function changedParameters(control) {
+  const definition = activePack.catalog.controls.find((entry) => entry.controlId === control.controlId);
+  const parameter = definition.parameters[0];
+  const next = { ...control.parameters };
+  if (parameter.type === 'integer') next[parameter.id] = Number(control.parameters[parameter.id]) < parameter.maximum ? Number(control.parameters[parameter.id]) + 1 : Number(control.parameters[parameter.id]) - 1;
+  else if (parameter.type === 'enum') next[parameter.id] = parameter.options.find((option) => option.value !== control.parameters[parameter.id]).value;
+  else if (parameter.type === 'boolean') next[parameter.id] = !control.parameters[parameter.id];
+  else next[parameter.id] = `${control.parameters[parameter.id]} changed`;
+  return next;
+}
 
 function createFakeDb() {
   const state = {
@@ -49,6 +75,8 @@ function createFakeDb() {
 
   return {
     raw: { provider: 'sqlite' },
+    state,
+    state,
     async run(sql, params = []) {
       if (sql.startsWith('BEGIN') || sql.startsWith('COMMIT') || sql.startsWith('ROLLBACK')) {
         return { changes: 0 };
@@ -214,7 +242,7 @@ function createFakeDb() {
       }
 
       if (sql.includes('FROM action1_configuration_manager_automation_correlations') && sql.includes('WHERE policy_id = ?')) {
-        return clone(state.correlations.filter((entry) => entry.policy_id === params[0]));
+        return clone(state.correlations.filter((entry) => entry.policy_id === params[0] && (!sql.includes('AND active = 1') || entry.active === 1)));
       }
 
       throw new Error(`Unhandled SQL in fake db.all: ${sql}`);
@@ -224,12 +252,16 @@ function createFakeDb() {
 
 function createFakeContext(contextOptions = {}) {
   let automationNumber = 0;
+  let creationAttempts = 0;
   const requests = [];
   return {
     db: createFakeDb(),
     action1: { async getCredentials() { return { baseUrl: 'https://action1.test/api/3.0', apiKey: 'test-key', apiSecret: 'test-secret' }; } },
     async http(options) {
       requests.push(options);
+      if (options.method === 'POST' && options.url.includes('/automations/schedules/') && contextOptions.failAutomationAt && ++creationAttempts === contextOptions.failAutomationAt) {
+        const error = new Error('Scheduled Automation creation failed'); error.statusCode = 500; throw error;
+      }
       if (options.url.endsWith('/oauth2/token')) return { status: 200, data: { access_token: 'token', expires_in: 3600 }, headers: {} };
       if (options.url.includes('/automations/instances/')) {
         if (contextOptions.instanceError) throw contextOptions.instanceError;
@@ -271,19 +303,13 @@ function createValidDraft() {
       timezone: 'America/Los_Angeles'
     },
     completionDeadlineMinutes: 1440,
-    selectedControls: [
-      {
-        controlId: 'identity.password.minimum-length',
-        controlVersion: '0.1.0',
-        automationGroupId: 'identity.password-policy',
-        automationGroupVersion: '0.1.0',
-        parameters: { minimumLength: 14 }
-      }
-    ]
+    selectedControls: [selectedControl(activePack.catalog.controls[0])]
   };
 }
 
 async function run() {
+  await withIsolatedControlPackRuntime(async ({ fixture }) => {
+  activePack = { ...fixture, baselinesArtifact: { baselines: fixture.baselines } };
   const manifest = require(path.join(__dirname, '..', 'manifest.json'));
   const actionIds = manifest.actions.map((action) => action.id);
 
@@ -294,7 +320,7 @@ async function run() {
   const source = fs.readFileSync(path.join(__dirname, '..', 'policyActions.js'), 'utf8');
   assert.strictEqual(source.includes('context.action1.getCredentials'), false);
   assert.strictEqual(source.includes('run_script_text'), false);
-  assert.strictEqual(source.includes('request.run'), false);
+  assert(source.includes('request.run'), 'Create/Delete should append progress checkpoints to the tracked Marketplace action run');
 
   const actions = require(path.join(__dirname, '..', 'actions.js')).actions;
   assert.strictEqual(manifest.actions.find((action) => action.id === 'delete-policy').history, true);
@@ -317,6 +343,7 @@ async function run() {
   for (const failure of [{ instanceError: Object.assign(new Error('socket timeout after POST'), { code: 'ETIMEDOUT' }) }, { instanceResponse: { status: 400, data: { message: 'cleanup rejected' }, headers: {} } }]) {
     const failingContext = createFakeContext(failure);
     const created = await actions['create-policy'](failingContext, { payload: { draft: createValidDraft() } });
+    assert.strictEqual(created.ok, true, created.message);
     const failed = await actions['delete-policy'](failingContext, { payload: { policyId: created.policy.policyId } });
     assert.strictEqual(failed.ok, false);
     assert.strictEqual((await actions['get-policy'](failingContext, { payload: { policyId: created.policy.policyId } })).ok, true);
@@ -384,16 +411,7 @@ async function run() {
   const multiContext = createFakeContext();
   const multiDraft = createValidDraft();
   multiDraft.baseName = 'Multi Family Policy';
-  multiDraft.selectedControls = [
-    ...multiDraft.selectedControls,
-    {
-      controlId: 'audit.policy.audit-policy-change',
-      controlVersion: '0.1.0',
-      automationGroupId: 'audit-policy.policy-and-firewall-changes',
-      automationGroupVersion: '0.1.0',
-      parameters: { auditing: 'success' }
-    }
-  ];
+  multiDraft.selectedControls = [...multiDraft.selectedControls, differentFamilyControl(multiDraft)];
   const multiResult = await actions['save-policy'](multiContext, { payload: { draft: multiDraft } });
   assert.strictEqual(multiResult.ok, true);
   assert.strictEqual(multiResult.policy.enabled, true);
@@ -401,15 +419,72 @@ async function run() {
   assert(multiResult.policy.action1Automations.every((automation) => automation.action1AutomationActionId), 'initial apply must persist every Action1 action ID');
   const { formatPolicyDetails } = await import(pathToFileURL(path.join(__dirname, '..', 'ui', 'policies', 'policyViewModel.js')).href);
   const { loadReleasedControlCatalog } = await import(pathToFileURL(path.join(__dirname, '..', 'ui', 'catalog', 'controlPackCatalog.js')).href);
-  const projected = formatPolicyDetails(multiResult.policy, loadReleasedControlCatalog(loadControlPackFixture()));
+  const projected = formatPolicyDetails(multiResult.policy, loadReleasedControlCatalog({ packId: activePack.packId, packVersion: activePack.packVersion, catalog: activePack.catalog, baselines: activePack.baselinesArtifact.baselines }));
   assert.strictEqual(projected.controlFamilyGroups.length, 2, 'hydrated family correlations should project one group per selected family');
   assert(projected.controlFamilyGroups.every((group) => group.automationLink?.automationId && group.automationLink?.action1Url), 'hydrated correlations should expose real Action1 ids and self links');
+
+  const progressContext = createFakeContext();
+  const progressLogs = [];
+  const operationId = '11111111-2222-4333-8444-555555555555';
+  const progressDraft = { ...multiDraft, baseName: 'Progress Policy' };
+  const progressCreate = await actions['create-policy'](progressContext, {
+    payload: { draft: progressDraft, progressOperationId: operationId },
+    run: { async appendLog(message) {
+      progressLogs.push({ message, correlations: progressContext.db.state.correlations.length });
+    } }
+  });
+  assert.strictEqual(progressCreate.ok, true);
+  const createCheckpoints = progressLogs.map(({ message }) => parseProgressCheckpoint(message)).filter(Boolean);
+  assert.deepStrictEqual(createCheckpoints.map(({ operation, completed, total }) => [operation, completed, total]), [
+    ['create', 0, 2], ['create', 1, 2], ['create', 2, 2]
+  ], 'Create denominator must come from backend definitions and advance after each persisted correlation');
+  assert.deepStrictEqual(progressLogs.map(({ correlations }) => correlations), [0, 1, 2], 'Create checkpoints must follow correlation persistence');
+  assert(createCheckpoints.every((checkpoint) => checkpoint.operationId === operationId));
+  assert(createCheckpoints.every((checkpoint) => !Object.keys(checkpoint).some((key) => /policy|endpoint|automation.?id|secret|token/i.test(key))));
+
+  const failingProgressContext = createFakeContext({ failAutomationAt: 2 });
+  const failedProgressLogs = [];
+  const failedProgress = await actions['create-policy'](failingProgressContext, {
+    payload: { draft: progressDraft, progressOperationId: operationId },
+    run: { async appendLog(message) { failedProgressLogs.push(message); } }
+  });
+  assert.strictEqual(failedProgress.ok, false, 'Existing Create failure result must remain unchanged');
+  assert.deepStrictEqual(failedProgressLogs.map(parseProgressCheckpoint).filter(Boolean).map(({ completed }) => completed), [0, 1], 'A failed Automation must not increment completed');
+
+  const deleteProgressContext = createFakeContext();
+  const deleteProgressInitial = await actions['create-policy'](deleteProgressContext, { payload: { draft: progressDraft } });
+  deleteProgressContext.db.state.correlations.push({ ...deleteProgressContext.db.state.correlations[0], policy_id: deleteProgressInitial.policy.policyId, automation_group_id: 'inactive-family', active: 0 });
+  deleteProgressContext.db.state.correlations.push({ ...deleteProgressContext.db.state.correlations[0], policy_id: 'OTHER-POLICY', automation_group_id: 'other-family', active: 1 });
+  let absentDeleteHandled = false;
+  const deleteProgressLogs = [];
+  const deleteProgressAction = require(path.join(__dirname, '..', 'policyActions.js'));
+  const deleteProgressResult = await deleteProgressAction.deletePolicyAction({
+    ...deleteProgressContext,
+    async http(options) {
+      if (options.method === 'DELETE' && !absentDeleteHandled) {
+        absentDeleteHandled = true;
+        const automationId = decodeURIComponent(options.url.split('/').pop());
+        return { status: 400, data: { message: `Automation with id=${automationId} does not exists` }, headers: { 'content-type': 'application/json' } };
+      }
+      return deleteProgressContext.http(options);
+    }
+  }, {
+    payload: { policyId: deleteProgressInitial.policy.policyId, progressOperationId: operationId },
+    run: { async appendLog(message) {
+      deleteProgressLogs.push({ message, inactive: deleteProgressContext.db.state.correlations.filter((entry) => entry.policy_id === deleteProgressInitial.policy.policyId && entry.active === 0).length });
+    } }
+  });
+  assert.strictEqual(deleteProgressResult.ok, true, `Already-absent Automations remain successfully processed: ${deleteProgressResult.message}`);
+  assert.deepStrictEqual(deleteProgressLogs.map(({ message }) => parseProgressCheckpoint(message)).filter(Boolean).map(({ operation, completed, total }) => [operation, completed, total]), [
+    ['delete', 0, 2], ['delete', 1, 2], ['delete', 2, 2]
+  ], 'Delete total must include active owned correlations only, with absent remotes counted after successful inactive marking');
+  assert.deepStrictEqual(deleteProgressLogs.map((entry) => entry.inactive), [1, 2, 3], 'Delete checkpoints must follow successful remote-delete handling and correlation inactivation; the preexisting inactive correlation remains excluded');
 
   const editDraft = {
     ...multiResult.policy,
     mode: 'edit',
     enabled: true,
-    selectedControls: multiResult.policy.selectedControls.map((control, index) => index === 0 ? { ...control, parameters: { ...control.parameters, minimumLength: 13 } } : control)
+    selectedControls: multiResult.policy.selectedControls.map((control, index) => index === 0 ? { ...control, parameters: changedParameters(control) } : control)
   };
   const editResult = await actions['save-policy'](multiContext, { payload: { draft: editDraft } });
   assert.strictEqual(editResult.ok, true, editResult.message);
@@ -488,6 +563,12 @@ async function run() {
   const enabled = await actions['set-policy-enabled'](disabledContext, { payload: { policyId: disabledInitial.policy.policyId, enabled: true } });
   assert.strictEqual(enabled.ok, true, enabled.message);
   assert.strictEqual(enabled.policy.enabled, true);
+  });
+}
+
+function parseProgressCheckpoint(message) {
+  const match = String(message).match(/^A1CM_PROGRESS_V1 (\{.*\})$/);
+  return match ? JSON.parse(match[1]) : null;
 }
 
 try {

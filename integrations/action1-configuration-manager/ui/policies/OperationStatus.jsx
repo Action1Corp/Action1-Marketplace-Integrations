@@ -20,6 +20,8 @@ const styles = {
     color: policyUiTokens.textPrimary,
     boxShadow: policyUiTokens.shadowOverlay
   },
+  copy: { display: 'grid', gap: '0.15rem' },
+  secondary: { color: policyUiTokens.textSecondary, fontSize: policyUiTokens.fontSizes.label, lineHeight: 1.35 },
   spinner: {
     width: 14,
     height: 14,
@@ -30,8 +32,8 @@ const styles = {
   }
 };
 
-export default function OperationStatus({ label }) {
-  if (!label) return null;
+export default function OperationStatus({ label, primaryLabel = label, secondaryLabel = '' }) {
+  if (!primaryLabel) return null;
   return (
     <div role="status" aria-live="polite" aria-busy="true" style={styles.overlay}>
       <style>{`
@@ -45,7 +47,10 @@ export default function OperationStatus({ label }) {
       `}</style>
       <div role="presentation" style={styles.panel}>
         <span className="a1cm-operation-spinner" aria-hidden="true" style={styles.spinner} />
-        <span>{label}</span>
+        <span style={styles.copy}>
+          <span>{primaryLabel}</span>
+          {secondaryLabel ? <span style={styles.secondary}>{secondaryLabel}</span> : null}
+        </span>
       </div>
     </div>
   );

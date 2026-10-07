@@ -5,8 +5,8 @@ const { pathToFileURL } = require('url');
 
 async function run() {
   const source = fs.readFileSync(path.join(__dirname, '..', 'ui', 'catalog', 'controlPackCatalog.js'), 'utf8');
-  assert(!source.includes('control-packs/windows-endpoint-configuration/0.5.0'));
-  assert(!source.includes('control-packs\\windows-endpoint-configuration\\0.5.0'));
+  assert(!source.includes('control-packs/windows-endpoint-configuration/'));
+  assert(!source.includes('control-packs\\windows-endpoint-configuration\\'));
   const pageSource = fs.readFileSync(path.join(__dirname, '..', 'ui', 'policies', 'PolicyPage.jsx'), 'utf8');
   assert(pageSource.includes('getControlPack'));
 

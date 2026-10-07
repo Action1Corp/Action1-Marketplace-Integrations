@@ -1,0 +1,2041 @@
+{
+  "schemaVersion": 1,
+  "packId": "windows-endpoint-configuration",
+  "packVersion": "0.10.1",
+  "sourceDefinitionPath": "pack-definitions/windows-endpoint-configuration/composition.yaml",
+  "sourcePackPath": "pack-definitions/windows-endpoint-configuration/pack.json",
+  "builderVersion": "0.1.0",
+  "includedControls": [
+    {
+      "controlId": "audit.policy.account-lockout",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.application-group-management",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.audit-policy-change",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.authentication-policy-change",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.authorization-policy-change",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.credential-validation",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.detailed-file-share",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.file-share",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.group-membership",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.ipsec-driver",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.logoff",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.logon",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.mpssvc-rule-level-policy-change",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.other-logon-logoff-events",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.other-object-access-events",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.other-policy-change-events",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.other-system-events",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.pnp-activity",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.process-creation",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.removable-storage",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.security-group-management",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.security-state-change",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.security-system-extension",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.sensitive-privilege-use",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.special-logon",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.system-integrity",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "audit.policy.user-account-management",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender-baseline-policy.app-browser-prevent-exploit-protection-override",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender-baseline-policy.microsoft-windows-defender-disable-local-admin-merge",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender-baseline-policy.microsoft-windows-defender-disable-routinely-taking-action",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender-baseline-policy.microsoft-windows-defender-hide-exclusions-from-local-admins",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender-baseline-policy.web-threat-defense-automatic-data-collection",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender-baseline-policy.web-threat-defense-notify-malicious",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender-baseline-policy.web-threat-defense-notify-password-reuse",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender-baseline-policy.web-threat-defense-notify-unsafe-app",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender-baseline-policy.web-threat-defense-service-enabled",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender-baseline-policy.windows-defender-exploit-guard-asr-exploit-guard-asr-rules",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender-baseline-policy.windows-defender-exploit-guard-network-protection-enable-network-protection",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender-baseline-policy.windows-defender-features-passive-remediation",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender-baseline-policy.windows-defender-mp-engine-mp-cloud-block-level",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender-baseline-policy.windows-defender-nis-enable-convert-warn-to-block",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender-baseline-policy.windows-defender-real-time-protection-disable-ioavprotection",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender-baseline-policy.windows-defender-real-time-protection-disable-on-access-protection",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender-baseline-policy.windows-defender-real-time-protection-disable-scan-on-realtime-enable",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender-baseline-policy.windows-defender-real-time-protection-disable-script-scanning",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender-baseline-policy.windows-defender-real-time-protection-oobe-enable-rtp-and-sig-update",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender-baseline-policy.windows-defender-real-time-protection-realtime-scan-direction",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender-baseline-policy.windows-defender-reporting-enable-dynamic-signature-dropped-event-reporting",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender-baseline-policy.windows-defender-scan-quick-scan-include-exclusions",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender-baseline-policy.windows-defender-spynet-disable-block-at-first-seen",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender.protection.behavior-monitoring",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender.protection.cloud-delivered",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender.protection.cloud-timeout",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender.protection.pua",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender.protection.real-time",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender.protection.sample-submission",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender.scan.day",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender.scan.maximum-cpu",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender.scan.removable-drives",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender.scan.time",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "defender.scan.type",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "devices-app-installer.enable-app-installer",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "devices-app-installer.enable-bypass-certificate-pinning-for-microsoft-store",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "devices-app-installer.enable-experimental-features",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "devices-app-installer.enable-hash-override",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "devices-app-installer.enable-local-archive-malware-scan-override",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "devices-app-installer.enable-ms-appinstaller-protocol",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "devices-app-installer.enable-windows-package-manager-command-line-interfaces",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "devices-media-and-autoplay.policies-explorer-no-autorun",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "devices-media-and-autoplay.policies-explorer-no-drive-type-auto-run",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "devices-microsoft-store.disable-auto-download-updates",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "devices-microsoft-store.turn-off-store-application",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "devices-microsoft-store.turn-off-store-open-with",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "devices.portable-devices.block-read",
+      "version": "0.2.0"
+    },
+    {
+      "controlId": "devices.portable-devices.block-write",
+      "version": "0.2.0"
+    },
+    {
+      "controlId": "devices.removable-storage.block-execution",
+      "version": "0.2.0"
+    },
+    {
+      "controlId": "devices.removable-storage.block-read",
+      "version": "0.2.0"
+    },
+    {
+      "controlId": "devices.removable-storage.block-write",
+      "version": "0.2.0"
+    },
+    {
+      "controlId": "firewall-advanced-policy.domain-profile-logging-log-file-size",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "firewall-advanced-policy.domain-profile-logging-log-successful-connections",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "firewall-advanced-policy.private-profile-logging-log-file-size",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "firewall-advanced-policy.private-profile-logging-log-successful-connections",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "firewall-advanced-policy.public-profile-logging-log-file-size",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "firewall-advanced-policy.public-profile-logging-log-successful-connections",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "firewall-advanced-policy.windows-firewall-domain-profile-disable-notifications",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "firewall-advanced-policy.windows-firewall-private-profile-disable-notifications",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "firewall-advanced-policy.windows-firewall-public-profile-allow-local-ipsec-policy-merge",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "firewall-advanced-policy.windows-firewall-public-profile-allow-local-policy-merge",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "firewall-advanced-policy.windows-firewall-public-profile-disable-notifications",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "firewall.default-inbound-action",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "firewall.default-outbound-action",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "firewall.domain.enabled",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "firewall.logging.dropped-packets",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "firewall.private.enabled",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "firewall.public.enabled",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.lockout.allow-administrator-lockout",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.lockout.duration",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.lockout.reset-counter-after",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.lockout.threshold",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.password.clear-text-password",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.password.history-size",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.password.lsaanonymous-name-lookup",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.password.maximum-age",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.password.minimum-age",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.password.minimum-length",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.password.password-complexity",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.secedit.machine-software-microsoft-windows-nt-current-version-winlogon-cached-logons-count",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.sign-in.block-account-details-on-sign-in",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.sign-in.disable-convenience-pin",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.sign-in.disable-local-user-enumeration",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.sign-in.disable-lock-screen-app-notifications",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.sign-in.disable-picture-password",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.sign-in.do-not-enumerate-connected-users",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.sign-in.hide-last-user",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.sign-in.legal-notice-caption",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.sign-in.legal-notice-text",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.sign-in.machine-inactivity-timeout",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "identity.sign-in.require-secure-attention",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-file-explorer.no-data-execution-prevention",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-file-explorer.no-heap-termination-on-corruption",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-file-explorer.shell-protocol-protected-mode",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-file-explorer.smartscreen-shell-policy",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.app-runtime-block-hosted-winrt",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.biometrics-enable-ess-with-supported-peripherals",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.biometrics-facial-features-enhanced-anti-spoofing",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.credentials-ui-disable-password-reveal",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.credentials-ui-no-local-password-reset-questions",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.current-version-internet-settings-certificate-revocation",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.current-version-internet-settings-enable-ssl3-fallback",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.current-version-internet-settings-prevent-ignore-cert-errors",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.current-version-internet-settings-secure-protocols",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.current-version-internet-settings-security-hklm-only",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.current-version-internet-settings-security-options-edit",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.current-version-internet-settings-security-zones-map-edit",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.current-version-internet-settings-warn-on-bad-cert-recving",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.device-installation-prevent-matching-classes",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.device-installation-prevent-metadata-download",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.devices-prevent-users-from-installing-printer-drivers",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.internet-settings-zone-map-uncas-intranet",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.kernel-dma-device-enumeration-policy",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.lockdown-zones-0-1-c00",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.lockdown-zones-1-1-c00",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.lockdown-zones-2-1-c00",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.lockdown-zones-3-2301",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.lockdown-zones-4-1-c00",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.lockdown-zones-4-2301",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.microsoft-fve-disable-external-dmaunder-lock",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.microsoft-fve-rdvdeny-cross-org",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.microsoft-fve-use-enhanced-pin",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.msdt-support-provider",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.mss-enable-icmp-redirect",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.policies-cred-ui-enumerate-administrators",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.policies-explorer-no-web-services",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.policies-ext-run-this-time-enabled",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.policies-ext-version-check-enabled",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.policies-system-disable-automatic-restart-sign-on",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.policies-system-enable-mpr",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.policies-system-local-account-token-filter-policy",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.policies-system-msaoptional",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.power-settings-0e796bdb-100d-47d6-a2d5-f7d2daa51f51-acsetting-index",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.power-settings-0e796bdb-100d-47d6-a2d5-f7d2daa51f51-dcsetting-index",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.power-settings-abfc2519-3608-4c2a-94ea-171b0ed546ab-acsetting-index",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.printers-allow-spooler-client-connections",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.printers-point-and-print-restrict-driver-installation-to-administrators",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.printers-point-and-print-security-prompts",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.printers-rpc-force-kerberos-for-rpc",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.printers-rpc-rpc-authentication",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.printers-rpc-rpc-authn-level-privacy-enabled",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.printers-rpc-rpc-protocols",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.printers-rpc-rpc-tcp-port",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.printers-rpc-rpc-use-named-pipe-protocol",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.printers-windows-protected-print",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.system-audit-process-creation-include-cmd-line-enabled",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.wifinetworkmanager-config-auto-connect-allowed-oem",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.windows-ax-installer-only-use-axisfor-active-xinstall",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.windows-bowser-enable-mailslots",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.windows-connect-now-configuration-of-wireless-settings",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.windows-connect-now-prohibit-wizards",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.windows-connection-manager-block-non-domain",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.windows-connection-manager-minimize-connections",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.windows-credentials-delegation-allow-protected-creds",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.windows-nt-dnsclient-enable-mdns",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.windows-nt-dnsclient-enable-multicast",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.windows-nt-dnsclient-enable-netbios",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.windows-nt-printers-copy-files-policy",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.windows-nt-printers-disable-web-pn-pdownload",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.windows-nt-printers-redirection-guard-policy",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.windows-nt-rpc-restrict-remote-clients",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.wireless-display-require-pin-for-pairing",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.zones-0-1-c00",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.zones-0-270-c",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.zones-1-1-c00",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.zones-1-1201",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.zones-1-270-c",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.zones-2-1-c00",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.zones-2-1201",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.zones-2-270-c",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.zones-3-1001",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-os-hardening.zones-3-1004",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-remote-shell.allow-remote-shell-access",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-btagservice",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-bthserv",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-computer-browser",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-ftpsvc",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-gameinputsvc",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-icssvc",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-iisadmin",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-irmon",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-lanmanserver",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-lfsvc",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-lltdsvc",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-mapsbroker",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-msiscsi",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-p2pimsvc",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-p2psvc",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-pnrpautoreg",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-pnrpsvc",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-pushtoinstall",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-rasauto",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-remoteaccess",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-remoteregistry",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-rpclocator",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-sacsvr",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-sessionenv",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-simptcp",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-snmp",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-spooler",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-ssdpsrv",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-sshd",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-termservice",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-umrdpservice",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-upnphost",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-w3svc",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-wecsvc",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-wercplsupport",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-wersvc",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-winrm",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-wmpnetworksvc",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-wmsvc",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-wpnservice",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-xblauthmanager",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-xblgamesave",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-services.service-xboxgipsvc",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-windows-installer.allow-user-control-over-installs",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-windows-installer.prevent-ie-security-prompt-for-installer-scripts",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-windows-sandbox.allow-clipboard-sharing",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-windows-sandbox.allow-mapped-folders",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-windows-sandbox.allow-networking",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-windows-update.allow-optional-updates",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-windows-update.defer-quality-updates",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-windows-update.manage-preview-builds",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-windows-update.remove-pause-updates-access",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-winrm-security.allow-remote-server-management",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-winrm-security.client-allow-basic-authentication",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-winrm-security.client-allow-unencrypted-traffic",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-winrm-security.client-disallow-digest-authentication",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-winrm-security.disallow-runas-credentials",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform-winrm-security.service-allow-basic-authentication",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.application-compatibility.disable-api-sampling",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.event-log.application-max-size",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.event-log.application-retention",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.event-log.security-max-size",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.event-log.security-retention",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.event-log.setup-max-size",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.event-log.setup-retention",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.event-log.system-max-size",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.event-log.system-retention",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.group-policy.background-refresh",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.group-policy.configure-security-processing-background",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.group-policy.configure-security-processing-reapply",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.group-policy.continue-experiences",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.http-proxy.disable-proxy-authentication",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.http-proxy.disable-wpad",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.mss.auto-admin-logon",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.mss.ignore-netbios-name-release",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.mss.keep-alive-time",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.mss.router-discovery",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.mss.safe-dll-search-mode",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.mss.sehop",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.mss.tcp-max-data-retransmissions",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.mss.tcp-max-data-retransmissions-ipv6",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.netlogon.block-netbios-discovery",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.powershell.script-block-logging",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.powershell.transcription",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.registry.machine-software-microsoft-windows-current-version-policies-system-kerberos-supported-encryption-types",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.registry.machine-software-microsoft-windows-nt-current-version-winlogon-password-expiry-warning",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.rpc-security.endpoint-mapper-authentication",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.rpc-security.sam-change-password-policy",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-software-microsoft-windows-current-version-policies-system-consent-prompt-behavior-admin",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-software-microsoft-windows-current-version-policies-system-consent-prompt-behavior-enhanced-admin",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-software-microsoft-windows-current-version-policies-system-consent-prompt-behavior-user",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-software-microsoft-windows-current-version-policies-system-enable-installer-detection",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-software-microsoft-windows-current-version-policies-system-enable-lua",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-software-microsoft-windows-current-version-policies-system-enable-secure-uiapaths",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-software-microsoft-windows-current-version-policies-system-enable-virtualization",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-software-microsoft-windows-current-version-policies-system-filter-administrator-token",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-software-microsoft-windows-current-version-policies-system-type-of-admin-approval-mode",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-software-microsoft-windows-nt-current-version-winlogon-sc-remove-option",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-system-current-control-set-control-lsa-limit-blank-password-use",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-system-current-control-set-control-lsa-lm-compatibility-level",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-system-current-control-set-control-lsa-msv1-0-allownullsessionfallback",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-system-current-control-set-control-lsa-msv1-0-ntlmmin-client-sec",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-system-current-control-set-control-lsa-msv1-0-ntlmmin-server-sec",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-system-current-control-set-control-lsa-pku2u-allowonlineid",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-system-current-control-set-control-lsa-restrict-anonymous",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-system-current-control-set-control-lsa-restrict-anonymous-sam",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-system-current-control-set-control-lsa-restrict-remote-sam",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-system-current-control-set-control-lsa-sceno-apply-legacy-audit-policy",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-system-current-control-set-control-lsa-use-machine-id",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-system-current-control-set-control-session-manager-protection-mode",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-system-current-control-set-services-lan-man-server-parameters-restrict-null-sess-access",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-system-current-control-set-services-lanman-workstation-parameters-enable-plain-text-password",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-system-current-control-set-services-ldap-ldapclient-integrity",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-system-current-control-set-services-netlogon-parameters-disable-password-change",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-system-current-control-set-services-netlogon-parameters-maximum-password-age",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-system-current-control-set-services-netlogon-parameters-requiresignorseal",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-system-current-control-set-services-netlogon-parameters-requirestrongkey",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-system-current-control-set-services-netlogon-parameters-sealsecurechannel",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.secedit.machine-system-current-control-set-services-netlogon-parameters-signsecurechannel",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.security.certificate-padding",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.security.wdigest-authentication",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.smb.legacy-client-driver",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.smb.netbt-node-type",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.time-service.ntp-client",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.time-service.ntp-server",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.vbs.code-integrity-uefi-lock",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.vbs.credential-guard",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.vbs.enable",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.vbs.kernel-mode-code-integrity",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.vbs.memory-attributes",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.vbs.platform-security-level",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "platform.vbs.secure-launch",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy-advanced-windows-experience.windows-app-privacy-let-apps-activate-with-voice-above-lock",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy-advanced-windows-experience.windows-cloud-content-disable-cloud-optimized-content",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy-advanced-windows-experience.windows-cloud-content-disable-consumer-account-state",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy-advanced-windows-experience.windows-cloud-content-disable-windows-consumer-features",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.advertising-id",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.camera.allow-use",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.diagnostic-data",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.input-personalization",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.location-access",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.lock-screen.prevent-camera",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.lock-screen.prevent-slideshow",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.privacy-settings-experience",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.allow-cross-device-clipboard",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.allow-game-recording-and-broadcasting",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.allow-message-service-cloud-sync",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.allow-recall-to-be-enabled",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.allow-suggested-ink-apps",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.allow-upload-user-activities",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.allow-widgets",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.allow-windows-tips",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.disable-authenticated-proxy",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.disable-kms-client-online-avs-validation",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.disable-perftrack",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.do-not-show-feedback-notifications",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.enable-onesettings-auditing",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.limit-diagnostic-log-collection",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.limit-dump-collection",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.prevent-onedrive-file-storage",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.remove-personalized-website-recommendations",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.search-cloud-search-disabled",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.search-cortana-above-lock-disabled",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.search-cortana-disabled",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.search-encrypted-indexing-disabled",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.search-highlights-disabled",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.search-location-disabled",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.turn-off-handwriting-error-reporting",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.turn-off-handwriting-personalization-data-sharing",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.turn-off-internet-connection-wizard-for-microsoft",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "privacy.windows-experience.turn-off-notifications-network-usage",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "remote-desktop-advanced-policy.cred-ssp-parameters-allow-encryption-oracle",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "remote-desktop-advanced-policy.windows-nt-terminal-services-disable-password-saving",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "remote-desktop-advanced-policy.windows-nt-terminal-services-f-allow-to-get-help",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "remote-desktop-advanced-policy.windows-nt-terminal-services-f-allow-unsolicited",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "remote-desktop-advanced-policy.windows-nt-terminal-services-f-encrypt-rpctraffic",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "remote-desktop-advanced-policy.windows-nt-terminal-services-min-encryption-level",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "remote-desktop.always-prompt-password",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "remote-desktop.clipboard-redirection",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "remote-desktop.drive-redirection",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "remote-desktop.enabled",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "remote-desktop.printer-redirection",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "remote-desktop.require-nla",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "remote-desktop.session-limits.max-idle-time",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "smb.client-policy.audit-insecure-guest-logon",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "smb.client-policy.audit-server-no-encryption",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "smb.client-policy.audit-server-no-signing",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "smb.client-policy.remote-mailslots",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "smb.client.insecure-guest-auth",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "smb.client.require-signing",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "smb.server-policy.audit-client-no-encryption",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "smb.server-policy.audit-client-no-signing",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "smb.server-policy.audit-insecure-guest-logon",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "smb.server-policy.authentication-rate-limiter",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "smb.server-policy.authentication-rate-limiter-delay",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "smb.server.default-workstation-shares",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "smb.server.require-encryption",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "smb.server.require-signing",
+      "version": "0.1.0"
+    },
+    {
+      "controlId": "smb.server.smb1-protocol",
+      "version": "0.1.0"
+    }
+  ],
+  "includedAutomationGroups": [
+    {
+      "automationGroupId": "applications.app-installer-and-package-deployment",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "applications.application-compatibility",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "applications.microsoft-store-and-app-experience",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "applications.windows-file-explorer-and-shell",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "applications.windows-installer-and-deployment",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "applications.windows-runtime-and-application-platform",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "applications.windows-sandbox",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "applications.windows-shell-and-removable-media",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "audit-logging.advanced-audit-policy",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "audit-logging.audit-account-and-privilege-management",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "audit-logging.audit-policy-and-firewall-changes",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "audit-logging.audit-process-and-object-access",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "audit-logging.audit-sign-in-and-logon",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "audit-logging.audit-system-integrity-and-hardware",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "audit-logging.event-logging-and-powershell-audit",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "devices-hardware.bitlocker-and-pre-boot-security",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "devices-hardware.device-and-connectivity-services",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "devices-hardware.device-installation",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "devices-hardware.power-and-sleep-security",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "devices-hardware.removable-storage",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "identity-access.account-lockout",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "identity-access.anonymous-access-and-legacy-authentication",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "identity-access.interactive-sign-in",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "identity-access.netlogon-and-domain-trust",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "identity-access.ntlm-ldap-and-kerberos-security",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "identity-access.password-policy",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "identity-access.sign-in-and-administrator-protection",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "identity-access.sign-in-method-protection",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "identity-access.sign-in-session-and-local-account-security",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "identity-access.uac-and-administrator-protection",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "network-security.dns-proxy-and-discovery-security",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "network-security.firewall-domain-and-private-logging",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "network-security.firewall-local-policy-merge",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "network-security.firewall-notifications",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "network-security.firewall-profiles",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "network-security.firewall-public-logging",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "network-security.mss-network-stack-and-protocol-security",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "network-security.name-resolution-and-legacy-network-security",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "network-security.network-discovery-and-connection-policy",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "network-security.smb-client-policy",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "network-security.smb-legacy-authentication",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "network-security.smb-security",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "network-security.smb-server-policy",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "network-security.windows-rpc-security",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "printing.print-drivers-and-point-and-print",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "printing.print-rpc-security",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "printing.print-spooler-and-protected-printing",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "remote-access.remote-assistance",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "remote-access.remote-desktop-advanced-security",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "remote-access.remote-desktop-security",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "remote-access.remote-desktop-session-limits",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "remote-access.winrm-and-remote-shell",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "threat-protection.defender-advanced-features",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "threat-protection.defender-cloud-and-local-policy",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "threat-protection.defender-protection",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "threat-protection.defender-scan-and-real-time-options",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "threat-protection.defender-scanning",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "threat-protection.enhanced-phishing-protection",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "threat-protection.virtualization-based-security",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "update-servicing.windows-update",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "web-internet-security.certificates-and-tls-security",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "web-internet-security.internet-zone-administration",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "web-internet-security.internet-zone-settings",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "web-internet-security.intranet-and-trusted-sites-settings",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "web-internet-security.legacy-web-and-activex-components",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "web-internet-security.locked-down-security-zones",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "windows-experience-privacy.activity-history-and-cross-device-experience",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "windows-experience-privacy.cloud-and-consumer-experience",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "windows-experience-privacy.diagnostic-data-and-telemetry",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "windows-experience-privacy.feedback-and-support-experience",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "windows-experience-privacy.gaming-and-consumer-services",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "windows-experience-privacy.lock-screen-camera-and-application-privacy",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "windows-experience-privacy.personalization-and-input-privacy",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "windows-experience-privacy.search-and-online-content",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "windows-services-platform.biometrics-and-process-audit-detail",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "windows-services-platform.connectivity-and-media-services",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "windows-services-platform.core-windows-platform-services",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "windows-services-platform.diagnostics-and-reporting-services",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "windows-services-platform.group-policy-processing",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "windows-services-platform.network-discovery-services",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "windows-services-platform.network-infrastructure-services",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "windows-services-platform.remote-access-services",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "windows-services-platform.web-and-server-services",
+      "version": "0.1.0"
+    },
+    {
+      "automationGroupId": "windows-services-platform.windows-time-service",
+      "version": "0.1.0"
+    }
+  ],
+  "validationLevels": [
+    "MOCK_VALIDATED",
+    "WINDOWS_LAB_CANDIDATE_VALIDATED",
+    "WINDOWS_LAB_VALIDATED"
+  ],
+  "generatedArtifacts": [
+    "dist/windows-endpoint-configuration/0.10.1/baselines.json",
+    "dist/windows-endpoint-configuration/0.10.1/build-manifest.json",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/applications.app-installer-and-package-deployment.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/applications.application-compatibility.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/applications.microsoft-store-and-app-experience.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/applications.windows-file-explorer-and-shell.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/applications.windows-installer-and-deployment.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/applications.windows-runtime-and-application-platform.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/applications.windows-sandbox.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/applications.windows-shell-and-removable-media.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/audit-logging.advanced-audit-policy.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/audit-logging.audit-account-and-privilege-management.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/audit-logging.audit-policy-and-firewall-changes.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/audit-logging.audit-process-and-object-access.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/audit-logging.audit-sign-in-and-logon.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/audit-logging.audit-system-integrity-and-hardware.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/audit-logging.event-logging-and-powershell-audit.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/devices-hardware.bitlocker-and-pre-boot-security.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/devices-hardware.device-and-connectivity-services.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/devices-hardware.device-installation.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/devices-hardware.power-and-sleep-security.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/devices-hardware.removable-storage.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/identity-access.account-lockout.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/identity-access.anonymous-access-and-legacy-authentication.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/identity-access.interactive-sign-in.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/identity-access.netlogon-and-domain-trust.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/identity-access.ntlm-ldap-and-kerberos-security.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/identity-access.password-policy.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/identity-access.sign-in-and-administrator-protection.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/identity-access.sign-in-method-protection.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/identity-access.sign-in-session-and-local-account-security.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/identity-access.uac-and-administrator-protection.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/network-security.dns-proxy-and-discovery-security.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/network-security.firewall-domain-and-private-logging.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/network-security.firewall-local-policy-merge.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/network-security.firewall-notifications.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/network-security.firewall-profiles.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/network-security.firewall-public-logging.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/network-security.mss-network-stack-and-protocol-security.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/network-security.name-resolution-and-legacy-network-security.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/network-security.network-discovery-and-connection-policy.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/network-security.smb-client-policy.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/network-security.smb-legacy-authentication.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/network-security.smb-security.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/network-security.smb-server-policy.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/network-security.windows-rpc-security.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/printing.print-drivers-and-point-and-print.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/printing.print-rpc-security.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/printing.print-spooler-and-protected-printing.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/remote-access.remote-assistance.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/remote-access.remote-desktop-advanced-security.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/remote-access.remote-desktop-security.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/remote-access.remote-desktop-session-limits.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/remote-access.winrm-and-remote-shell.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/threat-protection.defender-advanced-features.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/threat-protection.defender-cloud-and-local-policy.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/threat-protection.defender-protection.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/threat-protection.defender-scan-and-real-time-options.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/threat-protection.defender-scanning.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/threat-protection.enhanced-phishing-protection.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/threat-protection.virtualization-based-security.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/update-servicing.windows-update.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/web-internet-security.certificates-and-tls-security.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/web-internet-security.internet-zone-administration.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/web-internet-security.internet-zone-settings.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/web-internet-security.intranet-and-trusted-sites-settings.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/web-internet-security.legacy-web-and-activex-components.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/web-internet-security.locked-down-security-zones.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/windows-experience-privacy.activity-history-and-cross-device-experience.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/windows-experience-privacy.cloud-and-consumer-experience.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/windows-experience-privacy.diagnostic-data-and-telemetry.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/windows-experience-privacy.feedback-and-support-experience.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/windows-experience-privacy.gaming-and-consumer-services.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/windows-experience-privacy.lock-screen-camera-and-application-privacy.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/windows-experience-privacy.personalization-and-input-privacy.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/windows-experience-privacy.search-and-online-content.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/windows-services-platform.biometrics-and-process-audit-detail.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/windows-services-platform.connectivity-and-media-services.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/windows-services-platform.core-windows-platform-services.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/windows-services-platform.diagnostics-and-reporting-services.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/windows-services-platform.group-policy-processing.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/windows-services-platform.network-discovery-services.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/windows-services-platform.network-infrastructure-services.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/windows-services-platform.remote-access-services.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/windows-services-platform.web-and-server-services.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/bundles/windows-services-platform.windows-time-service.bundle.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/control-catalog.json",
+    "dist/windows-endpoint-configuration/0.10.1/pack.json",
+    "dist/windows-endpoint-configuration/0.10.1/samples/identity-access.account-lockout.assess-and-remediate.ps1",
+    "dist/windows-endpoint-configuration/0.10.1/samples/identity-access.account-lockout.assess-only.ps1"
+  ]
+}

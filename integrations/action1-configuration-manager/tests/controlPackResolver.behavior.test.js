@@ -4,6 +4,7 @@ const os = require('os');
 const path = require('path');
 
 const { resolveControlPack } = require('../controlPackResolver');
+const FIXTURE_RELEASE = 'isolated-valid-release';
 
 function writeRelease(root, directoryName, overrides = {}) {
   const releaseRoot = path.join(root, directoryName);
@@ -30,28 +31,28 @@ function expectFailure(root, message) {
 }
 
 withPackRoot((root) => {
-  const releaseRoot = writeRelease(root, '0.5.0');
+  const releaseRoot = writeRelease(root, FIXTURE_RELEASE);
   const resolved = resolveControlPack({ packRoot: root });
   assert.strictEqual(resolved.packId, 'windows-endpoint-configuration');
-  assert.strictEqual(resolved.packVersion, '0.5.0');
+  assert.strictEqual(resolved.packVersion, FIXTURE_RELEASE);
   assert.strictEqual(resolved.releaseRoot, releaseRoot);
 });
 
 withPackRoot((root) => {
-  writeRelease(root, '0.5.0', { packVersion: '0.6.0' });
+  writeRelease(root, FIXTURE_RELEASE, { packVersion: 'different-fixture-release' });
   expectFailure(root, 'directory.*packVersion');
 });
 
 withPackRoot((root) => expectFailure(root, 'exactly one'));
 
 withPackRoot((root) => {
-  writeRelease(root, '0.5.0');
-  writeRelease(root, '0.6.0');
+  writeRelease(root, FIXTURE_RELEASE);
+  writeRelease(root, 'second-fixture-release');
   expectFailure(root, 'exactly one');
 });
 
 withPackRoot((root) => {
-  writeRelease(root, '0.5.0', { packId: 'wrong-pack' });
+  writeRelease(root, FIXTURE_RELEASE, { packId: 'wrong-pack' });
   expectFailure(root, 'packId');
 });
 

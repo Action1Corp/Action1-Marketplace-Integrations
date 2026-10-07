@@ -56,6 +56,12 @@ async function run() {
   assert.strictEqual(result.page, 2);
   assert.strictEqual(result.pageSize, 50);
   assert(!JSON.stringify(result).includes('A1CM_HISTORY_V1'));
+  const { extractHistoryEnvelope } = await import(pathToFileURL(path.join(__dirname, '..', 'ui', 'historyEnvelope.js')).href);
+  const internalLogRow = parseHistoryRow({
+    id: 102, timestamp: '2026-08-14T17:00:00.000Z', action_label: 'Policy created', status: 'Success',
+    details: 'A1CM_PROGRESS_V1 {"operation":"create","completed":1,"total":1}\nA1CM_HISTORY_V1 {"schemaVersion":1,"operation":"POLICY_CREATED","summary":"Policy created."}'
+  }, extractHistoryEnvelope);
+  assert(!JSON.stringify(internalLogRow).includes('A1CM_PROGRESS_V1'), 'History UI model must not expose internal progress logs');
 
   const defaultCalls = [];
   const defaultAdapter = createHistoryAdapter({
@@ -65,6 +71,17 @@ async function run() {
   });
   await defaultAdapter.list();
   assert(defaultCalls[0].includes('pageSize=50'));
+
+  const rawCalls = [];
+  const rawAdapter = createHistoryAdapter({
+    integration: 'action1-configuration-manager',
+    fetchImpl: async (url) => { rawCalls.push(url); return { ok: true, async json() { return { rows: [{ id: 42, action_id: 'create-policy', status: 'Running', details: 'A1CM_PROGRESS_V1 {}' }], total: 1, page: 1, pageSize: 50 }; } }; },
+    extractEnvelope: () => null
+  });
+  const raw = await rawAdapter.listRaw({ page: 1, pageSize: 50, sortKey: 'id', sortDirection: 'desc' });
+  assert(rawCalls[0].includes('integration=action1-configuration-manager'));
+  assert(rawCalls[0].includes('sortKey=id'));
+  assert.strictEqual(raw.rows[0].details, 'A1CM_PROGRESS_V1 {}', 'Progress polling must access tracked run details');
 }
 
 run().then(() => console.log('Configuration Manager History adapter behavior passed.')).catch((error) => {

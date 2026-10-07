@@ -4,6 +4,7 @@ const { createAutomationCorrelationStore } = require('./automationCorrelationSto
 const { planLifecycleDiff, summarizeLifecycleDiff } = require('./lifecyclePlanner');
 const { formatRuntimeElapsed, writeAction1RuntimeLog, writeOperationalLog } = require('./runtimeLogging');
 const { classifyMissingAutomationGet } = require('./action1AutomationClient');
+const { appendProgressCheckpoint, progressCheckpoint } = require('./lifecycleProgress');
 const {
   buildPolicyEndpointCleanupInstance,
   buildDeselectedControlCleanupInstance
@@ -244,11 +245,15 @@ async function cleanupPolicy(context, policy, options = {}) {
   const client = options.client || createAction1AutomationClient(context);
   const correlations = options.correlations || createAutomationCorrelationStore(context);
   const owned = await correlations.listCorrelations(policy.policyId, { includeInactive: true });
+  const active = owned.filter((entry) => entry.active !== false);
   const history = { counts: { deleted: 0, failed: 0 }, familyOutcomes: [] };
   let currentFamilyName = '';
   await log(context, 'info', `Policy Delete started: ${policy.policyId}`);
+  await appendProgressCheckpoint(options.run, progressCheckpoint({
+    operation: 'delete', completed: 0, total: active.length, operationId: options.progressOperationId
+  }));
   try {
-    for (const correlation of owned.filter((entry) => entry.active !== false)) {
+    for (const correlation of active) {
       currentFamilyName = correlation.controlFamilyNameSnapshot;
       await log(context, 'info', `Automation delete started: policyId=${policy.policyId} family=${correlation.controlFamilyNameSnapshot} automationId=${correlation.action1AutomationId}`);
       const deletion = await client.deleteAutomation(policy.organizationId, correlation.action1AutomationId);
@@ -257,6 +262,9 @@ async function cleanupPolicy(context, policy, options = {}) {
       await log(context, 'debug', `Correlation marked inactive: ${correlation.automationGroupId}`);
       history.counts.deleted += 1;
       history.familyOutcomes.push({ familyName: correlation.controlFamilyNameSnapshot, outcome: 'Removed' });
+      await appendProgressCheckpoint(options.run, progressCheckpoint({
+        operation: 'delete', completed: history.counts.deleted, total: active.length, operationId: options.progressOperationId
+      }));
     }
   } catch (error) {
     if (currentFamilyName) history.familyOutcomes.push({ familyName: currentFamilyName, outcome: 'Failed' });

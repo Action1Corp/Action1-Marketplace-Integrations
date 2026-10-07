@@ -28,12 +28,12 @@ async function run() {
   assert.strictEqual(Array.isArray(catalog.families), true, 'catalog adapter should expose released families');
   assert.strictEqual(Array.isArray(catalog.controlFamilies), true, 'catalog adapter should expose customer-facing control families');
   assert.strictEqual(Array.isArray(catalog.controls), true, 'catalog adapter should expose released controls');
-  assert(catalog.families.length > 0, 'catalog adapter should expose released families from the current pack');
-  assert(catalog.controlFamilies.length > 0, 'catalog adapter should expose released control families from the current pack');
-  assert(catalog.controls.length > 0, 'catalog adapter should expose released controls from the current pack');
+  assert(catalog.families.length > 0, 'catalog adapter should expose families from the isolated fixture pack');
+  assert(catalog.controlFamilies.length > 0, 'catalog adapter should expose control families from the isolated fixture pack');
+  assert(catalog.controls.length > 0, 'catalog adapter should expose controls from the isolated fixture pack');
 
   assert.strictEqual(Array.isArray(baselines), true, 'catalog adapter should expose released baselines');
-  assert.strictEqual(baselines.length, 1, 'catalog adapter should expose the current released baselines');
+  assert.strictEqual(baselines.length, 1, 'catalog adapter should expose the isolated fixture baseline');
   assert.deepStrictEqual(
     baselineOptions,
     [

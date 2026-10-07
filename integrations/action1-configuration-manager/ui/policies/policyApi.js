@@ -20,8 +20,12 @@ export function createPolicyApi(integration) {
     getControlPack: async () => invoke('get-control-pack'),
     listPolicies: async () => (await invoke('list-policies')).policies || [],
     getPolicy: async (policyId) => (await invoke('get-policy', { policyId })).policy,
-    savePolicy: async (draft) => (await invoke(draft?.mode === 'create' ? 'create-policy' : 'update-policy', { draft })).policy,
+    savePolicy: async (draft, progressOperationId) => (await invoke(draft?.mode === 'create' ? 'create-policy' : 'update-policy', {
+      draft, ...(progressOperationId ? { progressOperationId } : {})
+    })).policy,
     setPolicyEnabled: async (policyId, enabled) => (await invoke(enabled ? 'enable-policy' : 'disable-policy', { policyId, enabled })).policy,
-    deletePolicy: async (policyId) => invoke('delete-policy', { policyId })
+    deletePolicy: async (policyId, progressOperationId) => invoke('delete-policy', {
+      policyId, ...(progressOperationId ? { progressOperationId } : {})
+    })
   };
 }

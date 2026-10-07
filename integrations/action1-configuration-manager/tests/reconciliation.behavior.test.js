@@ -1,6 +1,6 @@
 const assert = require('assert');
-const { reconcileEnabledPolicies } = require('../reconciliation');
 const { extractHistoryEnvelope } = require('../historyContract');
+const { withIsolatedControlPackRuntime } = require('./isolatedControlPackRuntime');
 
 function policy(policyId, enabled = true) {
   return {
@@ -25,6 +25,8 @@ function policy(policyId, enabled = true) {
 }
 
 async function run() {
+  await withIsolatedControlPackRuntime(async () => {
+  const { reconcileEnabledPolicies } = require('../reconciliation');
   const policies = [policy('POL-EXISTS'), policy('POL-MISSING'), policy('POL-DISABLED', false)];
   const correlations = new Map([
     ['POL-EXISTS', [{ policyId: 'POL-EXISTS', automationGroupId: 'identity.password-policy', action1AutomationId: 'auto-exists', action1AutomationName: 'A1CM — POL-EXISTS — POL-EXISTS — Password Policy', active: true }]],
@@ -122,6 +124,7 @@ async function run() {
   assert.strictEqual(unresolvedResult.ok, false);
   assert(unresolvedLogs.some(message => message.includes('Reconciliation failed') && message.includes('policy=POL-UNRESOLVED') && message.includes('stage=automation-check')));
   assert(!unresolvedLogs.some(message => /test-secret|run_script|payload|base64/i.test(message)));
+  });
 }
 
 run().catch((error) => { console.error(error); process.exit(1); });

@@ -11,7 +11,7 @@ async function harness(search = '', options = {}) {
   const { transformWithOxc } = await import('vite');
   const directory = path.join(__dirname, '..', 'ui', 'policies');
   const bindings = {};
-  for (const file of ['policyRouting.js', 'policyEditorState.js', 'policyValidation.js', 'policyUiStyles.js', '../catalog/controlPackCatalog.js']) {
+  for (const file of ['policyRouting.js', 'policyEditorState.js', 'policyValidation.js', 'policyUiStyles.js', './historyProgressPoller.js', '../catalog/controlPackCatalog.js']) {
     Object.assign(bindings, await import(pathToFileURL(path.join(directory, file)).href));
   }
   const source = fs.readFileSync(path.join(directory, 'PolicyPage.jsx'), 'utf8')
@@ -32,7 +32,14 @@ async function harness(search = '', options = {}) {
     async getControlPack() { return loadControlPackFixture(); },
     async listPolicies() { return options.emptyList ? [] : [policy]; },
     async getPolicy(id) { return options.getPolicy ? options.getPolicy(id) : id === policy.policyId ? policy : null; },
-    async savePolicy(draft) { mutations.push(draft); return { ...policy, ...draft, policyId: policy.policyId }; }
+    async savePolicy(draft, progressOperationId) {
+      mutations.push(draft); options.onProgressOperationId?.(progressOperationId);
+      return options.savePolicy ? options.savePolicy(draft, progressOperationId) : { ...policy, ...draft, policyId: policy.policyId };
+    },
+    async deletePolicy(policyId, progressOperationId) {
+      options.onProgressOperationId?.(progressOperationId);
+      return options.deletePolicy ? options.deletePolicy(policyId, progressOperationId) : { ok: true, deleted: true };
+    }
   };
   const navigate = (url, config = {}) => {
     const entry = { search: new URL(url, 'http://localhost').search, key: String(++serial) };
@@ -60,6 +67,12 @@ async function harness(search = '', options = {}) {
     },
     useLocation: () => history[position], useNavigate: () => navigate,
     createPolicyApi: () => api, createPolicyDiscoveryApi: () => ({}),
+    extractHistoryEnvelope: () => null,
+    createHistoryAdapter: () => ({ async listRaw() { return { rows: [] }; } }),
+    createHistoryProgressPoller: (pollOptions) => {
+      if (options.progressCheckpoint) pollOptions.onProgress({ ...options.progressCheckpoint, operationId: pollOptions.operationId });
+      return () => options.onPollStop?.();
+    },
     createAction1OrganizationRepository: () => ({ async listOrganizations() { return [{ id: 'org-test', name: 'Test' }]; } }),
     createAction1EndpointGroupRepository: () => ({ async listEndpointGroups() { return options.getEndpointGroups ? options.getEndpointGroups() : { endpointGroups: [] }; } }),
     PolicyDetailsView: 'Details', PolicyEditorView: 'Editor', PolicyListView: 'List', OperationStatus: 'OperationStatus'
@@ -83,8 +96,17 @@ async function harness(search = '', options = {}) {
     }
     return null;
   }
+  function findButton(label, node = tree) {
+    if (!node || typeof node !== 'object') return null;
+    if (node.type === 'button' && [node.props?.children].flat(Infinity).includes(label)) return node.props;
+    for (const child of [node.props?.children || node].flat(Infinity)) {
+      if (child === node) continue;
+      const found = findButton(label, child); if (found) return found;
+    }
+    return null;
+  }
   await flush();
-  return { flush, find, policy, mutations, text: () => JSON.stringify(tree), search: () => history[position].search,
+  return { flush, find, findButton, policy, mutations, text: () => JSON.stringify(tree), search: () => history[position].search,
     async go(query) { navigate(`/policies${query}`); await flush(); },
     async back() { position = Math.max(0, position - 1); dirty = true; await flush(); },
     async forward() { position = Math.min(history.length - 1, position + 1); dirty = true; await flush(); },
@@ -165,6 +187,41 @@ async function run() {
     await page.flush();
     assert.strictEqual(page.search(), query.includes('mode=edit') ? '?policyId=POL-000064' : '');
   }
+
+  let finishCreate, createOperationId, createPollStopped = 0;
+  const createProgressPage = await harness('?mode=create&policyName=Progress', {
+    onProgressOperationId(id) { createOperationId = id; },
+    onPollStop() { createPollStopped++; },
+    progressCheckpoint: { operation: 'create', completed: 3, total: 7 },
+    savePolicy: () => new Promise((resolve) => { finishCreate = resolve; })
+  });
+  const createEditor = createProgressPage.find('Editor');
+  const createControl = createEditor.catalog.controls.find((entry) => !(entry.parameters || []).length);
+  createEditor.onSave({ ...createEditor.draft, baseName: 'Progress', organizationId: 'org-test', selectedControls: [{ controlId: createControl.controlId, parameters: {} }] });
+  await createProgressPage.flush();
+  assert.strictEqual(createProgressPage.find('OperationStatus').primaryLabel, 'Creating Policy...');
+  assert.strictEqual(createProgressPage.find('OperationStatus').secondaryLabel, 'Creating automations: 3 of 7');
+  assert.match(createOperationId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  await createProgressPage.go('');
+  assert(createPollStopped > 0, 'Navigation out of the operation route should stop history polling');
+  finishCreate(createProgressPage.policy); await createProgressPage.flush();
+
+  let finishDelete, deleteOperationId, deletePollStopped = 0;
+  const deleteProgressPage = await harness('', {
+    onProgressOperationId(id) { deleteOperationId = id; },
+    onPollStop() { deletePollStopped++; },
+    progressCheckpoint: { operation: 'delete', completed: 2, total: 7 },
+    deletePolicy: () => new Promise((resolve) => { finishDelete = resolve; })
+  });
+  deleteProgressPage.find('List').onDelete(deleteProgressPage.policy.policyId); await deleteProgressPage.flush();
+  deleteProgressPage.findButton('Delete Policy').onClick(); await deleteProgressPage.flush();
+  assert.strictEqual(deleteProgressPage.find('OperationStatus').primaryLabel, 'Deleting Policy...');
+  assert.strictEqual(deleteProgressPage.find('OperationStatus').secondaryLabel, 'Deleting automations: 2 of 7');
+  assert(deleteOperationId);
+  deleteProgressPage.unmount();
+  assert(deletePollStopped > 0, 'Unmount should stop history polling');
+  finishDelete({ ok: true, deleted: true }); await deleteProgressPage.flush();
+  createProgressPage.unmount();
   for (const item of [page, refreshed, refreshedEdit, delayed, discovery]) item.unmount();
   console.log('Policy page routing flows passed.');
 }

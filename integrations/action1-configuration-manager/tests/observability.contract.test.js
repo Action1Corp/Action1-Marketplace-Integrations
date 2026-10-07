@@ -3,10 +3,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { loadControlPackArtifacts } = require('../controlPackResolver');
-const actions = require('../actions').actions;
-const { listPoliciesAction } = require('../policyActions');
-const { getOverview } = require('../overviewService');
 const { loadControlPackFixture } = require('./controlPackFixture');
+const { withIsolatedControlPackRuntime } = require('./isolatedControlPackRuntime');
 
 function context(logs) {
   const logger = {};
@@ -15,6 +13,10 @@ function context(logs) {
 }
 
 async function run() {
+  await withIsolatedControlPackRuntime(async () => {
+  const actions = require('../actions').actions;
+  const { listPoliciesAction } = require('../policyActions');
+  const { getOverview } = require('../overviewService');
   const pageSource = fs.readFileSync(path.join(__dirname, '..', 'ui', 'policies', 'PolicyPage.jsx'), 'utf8');
   assert(pageSource.includes('catalogError'));
   assert(!pageSource.includes('loadingPolicies || loadingCatalog || !catalog ?'));
@@ -55,6 +57,7 @@ async function run() {
   assert(dashboardLogs.some((entry) => entry.message.includes('Dashboard load started')));
   assert(dashboardLogs.some((entry) => entry.level === 'error' && entry.message.includes('Dashboard load failed')));
   fs.rmSync(packRoot, { recursive: true, force: true });
+  });
 }
 
 run().catch((error) => { console.error(error); process.exit(1); });

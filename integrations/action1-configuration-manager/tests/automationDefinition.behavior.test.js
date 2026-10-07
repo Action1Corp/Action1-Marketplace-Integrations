@@ -1,5 +1,6 @@
 const assert = require('assert');
 const path = require('path');
+const { withIsolatedControlPackRuntime } = require('./isolatedControlPackRuntime');
 
 function policy(overrides = {}) {
   return {
@@ -14,6 +15,7 @@ function policy(overrides = {}) {
 }
 
 async function run() {
+  await withIsolatedControlPackRuntime(async ({ releaseRoot }) => {
   const { buildAutomationDefinitions, buildAutomationDisplayName, serializeAction1Schedule } = require(path.join(__dirname, '..', 'automationDefinition.js'));
   assert.strictEqual(
     buildAutomationDisplayName({ policyId: 'POL-000055', policyName: 'Windows 11 Security Baseline', controlFamilyName: 'Removable Storage' }),
@@ -28,7 +30,7 @@ async function run() {
   assert.strictEqual(schedule.settings, 'ENABLED EVERY:360 AT:22-07-00 DATE:2026-08-13');
   assert.strictEqual(schedule.settings_timezone, 'UTC');
   assert.strictEqual(schedule.retry_minutes, '360');
-  const [definition] = buildAutomationDefinitions(policy({ baseName: 'Workstation Security' }));
+  const [definition] = buildAutomationDefinitions(policy({ baseName: 'Workstation Security' }), { releaseRoot });
   assert.deepStrictEqual(definition.target, [{ id: 'ALL', type: 'EndpointGroup' }]);
   assert.strictEqual(definition.payload.actions[0].template_id, 'run_script');
   assert.deepStrictEqual(definition.payload.actions[0].params.run_script_params, []);
@@ -43,17 +45,18 @@ async function run() {
   assert(definition.fingerprint.startsWith('sha256:'));
   assert.strictEqual(definition.name, 'A1CM - POL-000001 - Workstation Security - Password Policy');
   assert(!definition.name.includes('All endpoints'));
-  const renamedDefinition = buildAutomationDefinitions(policy({ baseName: 'Finance Hardening' }))[0];
+  const renamedDefinition = buildAutomationDefinitions(policy({ baseName: 'Finance Hardening' }), { releaseRoot })[0];
   assert.strictEqual(renamedDefinition.name, 'A1CM - POL-000001 - Finance Hardening - Password Policy');
   assert.strictEqual(renamedDefinition.envelope.policyId, 'POL-000001');
   assert.strictEqual(renamedDefinition.envelope.policyName, 'Finance Hardening');
   assert.strictEqual(renamedDefinition.name.split(' - ').at(-1), 'Password Policy');
-  const scopeOnlyDefinition = buildAutomationDefinitions(policy({ baseName: 'Workstation Security', displayName: 'Workstation Security — Finance Workstations' }))[0];
+  const scopeOnlyDefinition = buildAutomationDefinitions(policy({ baseName: 'Workstation Security', displayName: 'Workstation Security — Finance Workstations' }), { releaseRoot })[0];
   assert.strictEqual(scopeOnlyDefinition.envelope.policyName, 'Workstation Security');
   const groupPolicy = policy({ scopeType: 'ENDPOINT_GROUP', endpointGroupId: 'group-1', baseName: 'Workstation Security' });
-  const [groupDefinition] = buildAutomationDefinitions(groupPolicy);
+  const [groupDefinition] = buildAutomationDefinitions(groupPolicy, { releaseRoot });
   assert.deepStrictEqual(groupDefinition.target, [{ id: 'group-1', type: 'EndpointGroup' }]);
-  assert.throws(() => buildAutomationDefinitions(policy({ runSchedule: { ...policy().runSchedule, timezone: 'LOCALTIME' } })), /IANA timezone/i);
+  assert.throws(() => buildAutomationDefinitions(policy({ runSchedule: { ...policy().runSchedule, timezone: 'LOCALTIME' } }), { releaseRoot }), /IANA timezone/i);
+  });
 }
 
 run().catch((error) => { console.error(error); process.exit(1); });

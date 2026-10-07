@@ -5,6 +5,9 @@ import PolicyDetailsView from './PolicyDetailsView.jsx';
 import PolicyEditorView from './PolicyEditorView.jsx';
 import PolicyListView from './PolicyListView.jsx';
 import OperationStatus from './OperationStatus.jsx';
+import { createHistoryAdapter } from '../historyAdapter.js';
+import { extractHistoryEnvelope } from '../historyEnvelope.js';
+import { createHistoryProgressPoller, formatAutomationProgressCopy } from './historyProgressPoller.js';
 import { createPolicyApi } from './policyApi.js';
 import { createPolicyDiscoveryApi } from './policyDiscoveryApi.js';
 import { createAction1OrganizationRepository } from './action1OrganizationRepository.js';
@@ -156,6 +159,14 @@ function buildPolicyDraftPayload(draft, catalog) {
   };
 }
 
+function createProgressOperationId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
+    const value = Math.floor(Math.random() * 16);
+    return (character === 'x' ? value : (value & 0x3) | 0x8).toString(16);
+  });
+}
+
 function formatLifecycleMessage(kind, policy) {
   if (kind === 'enable') {
     return `Enable ${policy.displayName}. The Policy remains reserved for its current scope.`;
@@ -179,6 +190,7 @@ function PolicyPage({ integration }) {
   currentRouteRef.current = routeKey;
   const initializedEditorRef = useRef(null);
   const policyApiRef = useRef(createPolicyApi(integration));
+  const historyApiRef = useRef(createHistoryAdapter({ integration, extractEnvelope: extractHistoryEnvelope }));
   const discoveryApiRef = useRef(createPolicyDiscoveryApi(integration));
   const repositoriesRef = useRef({
     organizationRepository: createAction1OrganizationRepository(discoveryApiRef.current),
@@ -188,6 +200,8 @@ function PolicyPage({ integration }) {
   const [validationResult, setValidationResult] = useState({ fieldErrors: {}, sectionErrors: [], blockingMessage: '' });
   const [pendingAction, setPendingAction] = useState(null);
   const [busyOperation, setBusyOperation] = useState('');
+  const [busySecondary, setBusySecondary] = useState('');
+  const [progressOperation, setProgressOperation] = useState(null);
   const [policies, setPolicies] = useState([]);
   const [loadingPolicies, setLoadingPolicies] = useState(true);
   const [loadingCatalog, setLoadingCatalog] = useState(true);
@@ -205,6 +219,19 @@ function PolicyPage({ integration }) {
   const [hasGroupReservationsByOrganization, setHasGroupReservationsByOrganization] = useState({});
 
   const selectedPolicy = mode.policyId ? policies.find((policy) => policy.policyId === mode.policyId) || null : null;
+
+  useEffect(() => {
+    if (!progressOperation || progressOperation.routeKey !== routeKey) return undefined;
+    return createHistoryProgressPoller({
+      historyAdapter: historyApiRef.current,
+      actionId: progressOperation.actionId,
+      operation: progressOperation.operation,
+      operationId: progressOperation.operationId,
+      onProgress: (checkpoint) => setBusySecondary(formatAutomationProgressCopy(progressOperation.operation, checkpoint)),
+      onFinished: () => setProgressOperation(null),
+      intervalMs: 2000
+    });
+  }, [progressOperation, routeKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -443,9 +470,13 @@ function PolicyPage({ integration }) {
     }
 
     void (async () => {
-      setBusyOperation(nextDraft.mode === 'edit' ? 'Applying Policy changes…' : 'Creating Action1 automations…');
+      const isCreate = nextDraft.mode !== 'edit';
+      const progressOperationId = isCreate ? createProgressOperationId() : null;
+      setBusyOperation(nextDraft.mode === 'edit' ? 'Applying Policy changes…' : 'Creating Policy...');
+      setBusySecondary('');
+      setProgressOperation(isCreate ? { operation: 'create', actionId: 'create-policy', operationId: progressOperationId, routeKey } : null);
       try {
-        const savedPolicy = await policyApiRef.current.savePolicy(buildPolicyDraftPayload(nextDraft, catalog));
+        const savedPolicy = await policyApiRef.current.savePolicy(buildPolicyDraftPayload(nextDraft, catalog), progressOperationId);
         await refreshPolicies();
         if (currentRouteRef.current !== routeKey) return;
         if (nextDraft.mode === 'edit') {
@@ -457,6 +488,8 @@ function PolicyPage({ integration }) {
         if (currentRouteRef.current === routeKey) setPageError(error?.message || 'Unable to save the Policy.');
       } finally {
         setBusyOperation('');
+        setBusySecondary('');
+        setProgressOperation(null);
       }
     })();
 
@@ -480,16 +513,21 @@ function PolicyPage({ integration }) {
 
   function deletePolicy(policyId) {
     if (busyOperation) return;
-    setBusyOperation('Deleting Policy…');
+    const progressOperationId = createProgressOperationId();
+    setBusyOperation('Deleting Policy...');
+    setBusySecondary('');
+    setProgressOperation({ operation: 'delete', actionId: 'delete-policy', operationId: progressOperationId, routeKey });
     void (async () => {
       try {
-        await policyApiRef.current.deletePolicy(policyId);
+        await policyApiRef.current.deletePolicy(policyId, progressOperationId);
         await refreshPolicies();
         if (currentRouteRef.current === routeKey) returnToList();
       } catch (error) {
         setPageError(error?.message || 'Unable to delete the Policy.');
       } finally {
         setBusyOperation('');
+        setBusySecondary('');
+        setProgressOperation(null);
       }
     })();
   }
@@ -550,7 +588,7 @@ function PolicyPage({ integration }) {
       <p style={styles.description}>
         Create and manage Windows configuration policies that assess and remediate endpoints through scheduled Action1 automations.
       </p>
-      <OperationStatus label={busyOperation} />
+      <OperationStatus primaryLabel={busyOperation} secondaryLabel={busySecondary} />
       {mode.kind === 'invalid' ? <div style={styles.errorNotice} role="alert">Policy id is required to edit a Policy.</div> : null}
       {(catalogError || pageError) ? <div style={styles.errorNotice}>{catalogError || pageError}</div> : null}
       {loadingPolicies || loadingCatalog ? <div style={styles.notice}>Loading Configuration Manager…</div> : !catalog ? null : (

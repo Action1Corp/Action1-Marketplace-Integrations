@@ -1,6 +1,5 @@
 const assert = require('assert');
-const { buildAutomationDefinitions } = require('../automationDefinition');
-const { applyEdit } = require('../lifecycleMutations');
+const { withIsolatedControlPackRuntime } = require('./isolatedControlPackRuntime');
 
 function basePolicy() {
   return {
@@ -26,9 +25,12 @@ function context() {
 }
 
 async function run() {
+  await withIsolatedControlPackRuntime(async ({ releaseRoot }) => {
+  const { buildAutomationDefinitions } = require('../automationDefinition');
+  const { applyEdit } = require('../lifecycleMutations');
   const previous = basePolicy();
   const desired = { ...previous, selectedControls: [{ ...previous.selectedControls[0], parameters: { minimumLength: 15 } }] };
-  const desiredDefinition = buildAutomationDefinitions(desired)[0];
+  const desiredDefinition = buildAutomationDefinitions(desired, { releaseRoot })[0];
   const calls = { observe: 0, update: 0, create: [] };
   const correlations = {
     async listCorrelations() {
@@ -68,7 +70,7 @@ async function run() {
   assert.strictEqual(calls.replacement.action1AutomationActionId, 'Run_PowerShell_auto-new');
 
   const unchanged = basePolicy();
-  const unchangedDefinition = buildAutomationDefinitions(unchanged)[0];
+  const unchangedDefinition = buildAutomationDefinitions(unchanged, { releaseRoot })[0];
   const unchangedCorrelations = {
     async listCorrelations() {
       return [{ policyId: 'POL-EDIT', automationGroupId: unchangedDefinition.automationGroupId,
@@ -88,6 +90,7 @@ async function run() {
   assert.strictEqual(unchangedCreatePayload.definition.envelope.policyName, 'Edit Policy');
   assert.strictEqual(unchangedCorrelations.replacement.action1AutomationId, 'auto-recreated');
   assert.strictEqual(unchangedCorrelations.replacement.action1AutomationActionId, 'Run_PowerShell_auto-recreated');
+  });
 }
 
 run().catch((error) => { console.error(error); process.exit(1); });

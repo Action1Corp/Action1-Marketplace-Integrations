@@ -5,6 +5,7 @@ const { createAutomationCorrelationStore } = require('./automationCorrelationSto
 const { formatRuntimeElapsed, writeAction1RuntimeLog, writeOperationalLog } = require('./runtimeLogging');
 const { applyEdit, cleanupDeselectedControls, cleanupPolicy, disablePolicy, enablePolicy, getRemovedControlIds } = require('./lifecycleMutations');
 const { createHistoryEnvelope, resultDetails, OPERATION_LABELS } = require('./historyContract');
+const { appendProgressCheckpoint, progressCheckpoint } = require('./lifecycleProgress');
 
 function sanitizePersistenceMessage(message) {
   return String(message || 'Unable to complete the policy request.').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 240);
@@ -122,6 +123,10 @@ async function performSavePolicy(context, request = {}, operation) {
     const history = { counts: { automationsRequested: definitions.length, created: 0, failed: 0 }, familyOutcomes: [] };
     await writeOperationalLog(context, 'debug', 'Initial automation apply started', { policy: intent.policyId, families: definitions.length });
 
+    await appendProgressCheckpoint(request.run, progressCheckpoint({
+      operation: 'create', completed: 0, total: definitions.length, operationId: getPayload(request).progressOperationId
+    }));
+
     for (const [index, definition] of definitions.entries()) {
       await writeOperationalLog(context, 'debug', 'Automation create started', { policy: intent.policyId, family: definition.familyName, scope: intent.scopeType });
       try {
@@ -142,6 +147,9 @@ async function performSavePolicy(context, request = {}, operation) {
         });
         history.counts.created += 1;
         history.familyOutcomes.push({ familyName: definition.familyName, outcome: 'Created' });
+        await appendProgressCheckpoint(request.run, progressCheckpoint({
+          operation: 'create', completed: history.counts.created, total: definitions.length, operationId: getPayload(request).progressOperationId
+        }));
       } catch (error) {
         history.familyOutcomes.push({ familyName: definition.familyName, outcome: 'Failed' });
         history.counts.failed = Math.max(1, definitions.length - history.familyOutcomes.filter((outcome) => outcome.outcome !== 'Failed').length);
@@ -235,7 +243,10 @@ async function performDeletePolicy(context, request = {}, tracked) {
       const result = { ok: true, message: 'Policy was not found.', deleted: false, policy: null };
       return tracked ? historyResult(result, 'POLICY_DELETED', null, 'Policy was not found.', { counts: { unchanged: 0 } }) : result;
     }
-    const history = await cleanupPolicy(context, existing);
+    const history = await cleanupPolicy(context, existing, {
+      run: request.run,
+      progressOperationId: payload.progressOperationId
+    });
     const result = await store.deletePolicy(policyId);
     await writeAction1RuntimeLog(context, 'info', `Local Policy deleted: policyId=${existing.policyId}`);
     await writeAction1RuntimeLog(context, 'info', `Policy delete completed: policyId=${existing.policyId} automationDeletedCount=${history.counts.deleted} cleanup=${Boolean(history.cleanup)}`);

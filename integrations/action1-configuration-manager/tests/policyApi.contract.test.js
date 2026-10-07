@@ -28,9 +28,9 @@ async function run() {
     baseName: 'Workstation Security'
   };
 
-  await api.savePolicy(validDraft);
+  await api.savePolicy(validDraft, '11111111-2222-4333-8444-555555555555');
   assert.deepStrictEqual(JSON.parse(fetchCalls[1].options.body), {
-    payload: { draft: validDraft }
+    payload: { draft: validDraft, progressOperationId: '11111111-2222-4333-8444-555555555555' }
   });
 
   await api.getPolicy('POL-000001');
@@ -43,9 +43,9 @@ async function run() {
     payload: { policyId: 'POL-000001', enabled: false }
   });
 
-  await api.deletePolicy('POL-000001');
+  await api.deletePolicy('POL-000001', '11111111-2222-4333-8444-555555555555');
   assert.deepStrictEqual(JSON.parse(fetchCalls[4].options.body), {
-    payload: { policyId: 'POL-000001' }
+    payload: { policyId: 'POL-000001', progressOperationId: '11111111-2222-4333-8444-555555555555' }
   });
 
   global.fetch = async () => ({
