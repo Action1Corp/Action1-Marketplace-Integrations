@@ -1,352 +1,484 @@
 # Action1 Configuration Manager — User Guide
+Action1 Configuration Manager enables centralized management of the desired configuration of Windows endpoints.
 
-Action1 Configuration Manager helps you define, apply, and monitor Windows configuration policies across your endpoints. Instead of configuring devices one at a time, you can combine settings into a policy, assign it to an organization or endpoint group, and use Action1 reports to see the results.
+Individual configuration requirements are represented as Controls, which are combined into Policies and assigned to an organization or endpoint group.
 
-You can **assess** settings without changing them, or choose to **assess and remediate** settings where the selected Controls support remediation. A policy can contain individual Controls or start from a predefined security baseline.
+Configuration Manager supports two operating modes: Assess only, which evaluates the current endpoint configuration, and Assess and remediate, which evaluates and enforces supported settings when the current configuration does not match the desired state.
 
-This guide follows the current Configuration Manager screens: **Dashboard**, **Policies**, **History**, and **Settings**.
+This guide covers Policy creation and lifecycle management, configuration status monitoring, reporting, and troubleshooting.
 
-### Find your way around
+**---**
 
-```text
-Configuration Management
-|
-+-- Dashboard   Review coverage and compliance
-+-- Policies    Create, edit, enable, disable, or delete Policies
-+-- History     Review Policy management and setup operations
-+-- Settings    Configure reconciliation, reporting, and logging
-```
+## Get started
+Configuration Manager uses Policies to define which Windows settings should be assessed or enforced across selected endpoints.
 
-Action1 reports open in the **Action1 Console**, not in a separate Configuration Manager Reports screen.
+Before creating the first Policy, reporting must be set up once for the Action1 organization.
 
-> **Important:** A policy defines the configuration you want and provisions Action1 scheduled automations. Creating or enabling a policy does not mean that every endpoint has already run it or is compliant. Use reporting to review observed results.
+### First-time setup
+1. Open ****Settings → Reporting**** and select ****Set up reporting****.
 
-## 1. Get started
+2. Wait until both ****Data source**** and ****Reports**** show ****Configured****.
 
-Open **Configuration Management** in your Action1 Marketplace. Configuration Manager uses the Action1 connection already provided by Marketplace; there is no separate credential-entry screen in this integration.
+3. Open ****Policies**** and create the first Policy.
 
-A straightforward first-time workflow is:
+4. After the Policy runs and results become available, open ****Dashboard**** to review configuration status and compliance.
 
-```text
-Set up reporting
-       |
-       v
-Create a Policy --> Choose target, mode, and Controls
-       |
-       v
-Save and apply --> Action1 scheduled automations are provisioned
-       |
-       v
-Endpoints execute --> Results become available in reports
-       |
-       v
-Review Dashboard --> Open Action1 reports for details
-```
+Configuration Manager automatically creates the Action1 Custom Reports required for the Dashboard and detailed reporting. These reports are also available directly under ****Custom Reports**** in the ****Action1 Console****.
 
-The arrows show the normal sequence, not an immediate or guaranteed endpoint execution after saving.
+Configuration Manager has four main areas:
 
-1. Open **Settings → Reporting** and select **Set up reporting** if reporting has not yet been configured. Wait until **Data source** and **Reports** show **Configured**.
-2. Open **Policies** and select **Create Policy**.
-3. Choose an organization and target, decide whether to assess only or also remediate, and select at least one Control.
-4. Review the policy and select **Save and apply**. Confirm the action when prompted.
-5. After endpoints run the scheduled automations and report data is available, use **Dashboard** to review coverage and compliance. Open Action1 reports for detailed results.
-
-You need appropriate Marketplace access to manage policies, and the selected organization and endpoint group must be available through Action1. Exact roles, licensing, and supported Windows versions depend on your deployment; this guide does not specify permissions or platform support beyond those exposed in the product.
-
-## 2. Understand policies, Controls, and baselines
-
-A **Policy** combines a set of Windows configuration Controls with a target, an operating mode, and a schedule. Its target is one Action1 organization with either **All endpoints** or **one endpoint group**. A Policy cannot target a custom list of individual endpoints or multiple groups.
-
-A **Control** represents a setting to check, and, when supported, remediate. Controls are organized as **Category → Control Family → Control**. One scheduled Action1 automation is created for each selected, non-empty Control Family; that automation runs the family’s selected Controls according to the Policy schedule.
-
-A **Baseline** provides a starting collection of Controls and recommended values. Applying a baseline fills your current draft; it is not an ongoing subscription that automatically adds future Controls to an existing Policy. You can adjust its values and add other Controls before saving.
-
-The Controls step identifies the version of the currently loaded **Control Pack**. Available Controls and baselines come from that installed release. See the [Control Pack Reference](control-pack/README.md) for the separate catalog and release notes when those documents are available.
-
-## 3. Create your first Policy
-
-Go to **Policies → Create Policy**. The wizard has four steps.
-
-```text
-1. Details & Target --> 2. Mode --> 3. Controls --> 4. Review
-      name             assess       individual      inspect
-      organization     or remediate Controls        confirm
-      target           schedule     or baseline     Save and apply
-```
-
-You can go **Back** to revise earlier steps without creating a Policy. Nothing is saved until the final confirmation.
-
-### Step 1 — Details & Target
-
-Enter a **Policy name** and, if useful, a **Description**. The wizard also shows the generated **Policy display name**.
-
-Choose the **Organization** that owns the target devices. Under **Apply Policy to**, select either **All endpoints** or **Endpoint group**; select the group if applicable. Then select **Next**.
-
-A target can be reserved by only one Policy according to these rules:
-
-- An **All endpoints** Policy reserves the entire organization. You cannot create another Policy for that organization while it holds this reservation.
-- A group-scoped Policy reserves its group. While any group is reserved, **All endpoints** is unavailable for that organization.
-- Reserved groups remain in the list but are disabled and identified as **Used by another Policy**.
-
-Disabled Policies retain their reservations. Different groups may still contain some of the same physical devices; reservations apply to group identity rather than checking every group member.
-
-**Choose the target carefully:** you cannot change a Policy’s organization or target after creation. To use a different target, create a new Policy.
-
-### Step 2 — Mode
-
-Choose one of the two modes:
-
-- **Assess only** checks the selected settings and writes reporting results without changing the endpoint configuration.
-- **Assess and remediate** checks settings, attempts supported remediation when needed, and verifies again during that execution. Remediation is not guaranteed to succeed; a result may remain non-compliant or be blocked.
-
-Choosing **Assess and remediate** opens **Confirm remediation**. Review the choice and select **Confirm** to proceed, or **Cancel** to go back.
-
-Expand **Advanced settings** on this step if you need to adjust the schedule:
-
-| Setting | What it does |
+| Area | Use it to |
 | --- | --- |
-| **Run every** | Scheduled recurrence in whole hours; minimum 1, default 24. |
-| **Start date** and **Start time** | Required starting date and time, initially based on your browser’s current date and time. |
-| **Current Timezone** | Read-only timezone/UTC-offset information used for the schedule. |
-| **Automation completion deadline** | The number of hours that offline endpoints can keep retrying. It initially follows **Run every** and resets when that interval changes. |
+| ****Dashboard**** | Review coverage, compliance, and items that need attention |
+| ****Policies**** | Create and manage configuration Policies |
+| ****History**** | Review Policy management and setup operations |
+| ****Settings**** | Configure reconciliation, reporting, and debug logging |
 
-Configuration Manager uses hourly recurrence and converts the start time to UTC for Action1. The wizard does not offer endpoint-local-time scheduling.
+**---**
 
-Select **Next** when ready.
+## Create a Policy
+Go to ****Policies → Create Policy****.
 
-### Step 3 — Controls
+The wizard has four steps:
 
-Browse by **Category** and **Control Family**, or use **Search controls** to find a setting. Select the Controls you want, then configure any parameters displayed for them. You must select at least one Control.
+1. ****Details & Target**** — Name the Policy and choose where it applies.
 
-Within a family, **Select all** selects its Controls and **Clear** clears that family. **Selected only** shows just your selections; **Clear all** removes all selected Controls.
+2. ****Mode**** — Choose whether to assess only or assess and remediate, and configure the schedule.
 
-#### Start from a baseline
+3. ****Controls**** — Select individual Controls or start from a baseline.
 
-Under **Start from a baseline**, choose a baseline and select **Apply**. Selecting its name alone does not apply it.
+4. ****Review**** — Check the final configuration and select ****Save and apply****.
 
-Applying a baseline adds its Controls and sets their recommended parameter values. If you had already selected one of those Controls and changed its values, **Apply** replaces those values with the baseline’s recommended values. Controls outside the baseline remain selected and unchanged. The editor also turns on **Selected only** to help you review the resulting selection.
+The wizard can return to an earlier step at any time. Nothing is created until ****Save and apply**** is confirmed.
 
-The **In baseline only** option filters the catalog view; it does not select or remove Controls. Likewise, choosing **None — select controls manually** does not undo a baseline you already applied. Use **Clear all** or edit individual selections if you want to start over.
+### 1. Details & Target
+Enter a ****Policy name**** and, if useful, a ****Description****.
 
-Review your selected Controls and parameter values, then select **Next**.
+Then choose the ****Organization**** and where the Policy should apply:
 
-### Step 4 — Review
+- ****All endpoints****
 
-Check the **Summary** and grouped Control list. The summary shows **Policy**, **Organization**, **Target**, **Mode**, **Run schedule**, **Baseline**, **Controls**, **Control Families**, and **Action1 automations**. It is a summary, not a display of every advanced scheduling field.
+- ****Endpoint group****
 
-Use the inline **Edit** links to return to a section if you need to change something. When ready, select **Save and apply** and confirm in the **Save and apply Policy** dialog.
+A Policy can target one organization and either all endpoints in that organization or one endpoint group.
 
-Configuration Manager saves the Policy and provisions its scheduled Action1 automations. Once provisioning succeeds, the Policy is enabled. The wizard returns you to the Policies list. Endpoints produce assessment and remediation results when their automations execute; policy creation alone is not proof of endpoint execution.
+A target can be used by only one Policy at a time:
 
-## 4. Manage existing Policies
+- An ****All endpoints**** Policy reserves the whole organization.
 
-The **Policies** list displays each Policy’s **Status**, **Target**, **Mode**, and **Schedule**, with an **Actions** menu. Status is **Enabled** or **Disabled**.
+- A group Policy reserves that endpoint group.
 
-Select the Policy name, or choose **Open details**, to open **Policy Details**. The details view includes **Overview**, **Run schedule**, and **Controls and Action1 automations**. Use **Open automation in Action1** to open the corresponding automation search in the Action1 Console.
+- Reserved groups remain visible but are marked ****Used by another Policy****.
+
+- Disabled Policies keep their reservations.
+
+> ****Choose the target carefully:**** the Organization and Target cannot be changed after the Policy is created. A new Policy is required to apply the configuration to a different target.
+
+### 2. Mode
+
+Choose how the Policy should behave.
+
+| Mode | Behavior |
+| --- | --- |
+| **Assess only** | Checks the selected settings and reports their current state without changing the endpoint |
+| **Assess and remediate** | Checks the selected settings and attempts to apply the desired configuration when remediation is supported |
+
+### Schedule
+Expand ****Advanced settings**** on the Mode step to change the default schedule.
+
+| Setting | What it controls |
+| --- | --- |
+| ****Run every**** | How often the Policy runs, in whole hours |
+| ****Start date / Start time**** | When the schedule begins |
+| ****Current Timezone**** | The timezone used when the schedule is created |
+| ****Automation completion deadline**** | How long offline endpoints can keep retrying |
+
+The default recurrence is every 24 hours. The minimum recurrence is 1 hour.
+
+### 3. Controls
+Controls are organized by ****Category → Control Family → Control****.
+
+Browse the catalog or use ****Search controls****, then select the Controls to include. Some Controls also include parameters that can be configured before saving.
+
+At least one Control is required.
+
+The Controls step also provides the following options:
+
+- ****Select all**** — select every Control in the current family
+
+- ****Clear**** — clear the current family
+
+- ****Selected only**** — show only the current selections
+
+- ****Clear all**** — remove all selected Controls
+
+### Start from a baseline
+A baseline provides a predefined set of Controls and recommended values.
+
+Choose a baseline under ****Start from a baseline****, then select ****Apply****.
+
+Applying a baseline:
+
+- adds the baseline Controls to the Policy;
+
+- applies the baseline's recommended values;
+
+- keeps Controls selected outside the baseline;
+
+- replaces custom values for Controls that are part of the baseline.
+
+The ****In baseline only**** option filters the catalog without changing the current selections.
+
+### 4. Review
+The Review step summarizes the Policy before it is created.
+
+Check the:
+
+- Policy name
+
+- Organization
+
+- Target
+
+- Mode
+
+- Schedule
+
+- Baseline
+
+- Selected Controls
+
+- Control Families
+
+- Number of Action1 automations
+
+Use the inline ****Edit**** links to make changes before the Policy is created.
+
+When everything looks correct, select ****Save and apply****, then confirm.
+
+Configuration Manager creates the Policy and provisions the required scheduled Action1 automations. The Policy becomes enabled after provisioning succeeds.
+
+```text
+Create Policy
+     │
+     ▼
+Save and apply
+     │
+     ▼
+Provision scheduled automations
+     │
+     ▼
+Policy enabled
+     │
+     ▼
+Scheduled assessment / remediation
+     │
+     ▼
+Reporting → Dashboard
+```
+
+**---**
+
+## Understand Policies, Controls, and automations
+
+A **Policy** defines the Windows configuration that Configuration Manager should assess or enforce for a specific set of endpoints.
+
+```text
+Policy
+├── Target       → Where the Policy applies
+├── Mode         → Assess only or Assess and remediate
+├── Schedule     → When and how often the Policy runs
+└── Controls     → Which Windows settings are managed
+```
+
+| Policy element | What it defines |
+| --- | --- |
+| **Target** | The Action1 organization or endpoint group where the Policy applies |
+| **Mode** | Whether Configuration Manager only assesses settings or also attempts to remediate supported settings |
+| **Schedule** | How often the Policy runs and when scheduled execution begins |
+| **Controls** | The Windows settings that the Policy assesses and, when supported, remediates |
+
+### Controls and automations
+
+A **Control** represents an individual Windows setting that Configuration Manager can assess and, when supported, remediate.
+
+Controls are grouped into **Control Families**. Configuration Manager creates one scheduled Action1 automation for each selected Control Family that contains selected Controls.
+
+```text
+Policy
+│
+├── Control Family A → Scheduled Action1 automation
+│   ├── Control
+│   └── Control
+│
+└── Control Family B → Scheduled Action1 automation
+    ├── Control
+    └── Control
+```
+
+For example, a Policy containing Controls from four Control Families creates four scheduled automations.
+
+These automations normally do not require direct management. They can be opened in the Action1 Console from Policy Details.
+
+---
+
+## Manage Policies
+Open ****Policies**** to view existing Policies.
+
+The list shows each Policy's:
+
+- Status
+
+- Target
+
+- Mode
+
+- Schedule
+
+A Policy is either ****Enabled**** or ****Disabled****.
+
+Select the Policy name, or choose ****Open details****, to open ****Policy Details****.
 
 ### Edit a Policy
+Choose ****Edit**** from the Policies list or Policy Details.
 
-Choose **Edit** from the Policies list or Policy Details. The existing wizard opens with the saved values and **Selected only** enabled. You can change the name, description, mode, schedule, Controls, and their parameters. **Organization and Target cannot be changed.** Review the changes, select **Save and apply**, and confirm. On success, the editor returns to Policy Details.
+The following settings can be changed:
 
-Editing an enabled Policy updates, creates, or removes its scheduled automations as needed. Editing a disabled Policy does not provision its regular scheduled automations. Removing a Control from either type of Policy submits cleanup for that Control’s saved Configuration Manager state files.
+- Policy name and description;
 
-### Policy lifecycle at a glance
+- Mode;
 
-```text
-Create + provision
-       |
-       v
-    Enabled <------------------- Enable
-       |                           ^
-       | Disable                   |
-       v                           |
-    Disabled ----------------------+
-       |
-       | Delete (also available while Enabled)
-       v
-    Deleted
-```
+- Schedule;
 
-**Disabled** keeps the Policy, target reservation, and existing endpoint-state files; **Delete** releases the reservation after the required cleanup request is accepted. Neither operation reverses configuration changes already applied to Windows. The diagram summarizes the normal successful paths, not recovery from partial failures.
+- Controls;
 
-### Disable or enable a Policy
+- Control parameters.
 
-Choose **Disable**, review **Disable Policy?**, and confirm **Disable Policy**. Disabling removes the Policy’s owned scheduled automations but keeps the Policy, its endpoint-state files, and its target reservation.
+The ****Organization**** and ****Target**** cannot be changed after the Policy is created.
 
-To resume it, choose **Enable**, review **Enable Policy?**, and confirm **Enable Policy**. Configuration Manager provisions scheduled automations from the saved Policy definition and then enables it.
+For an enabled Policy, saving changes updates its scheduled automations as needed.
+
+For a disabled Policy, saving changes updates the Policy definition without recreating its normal scheduled automations.
+
+### Disable a Policy
+Choose ****Disable****, review the confirmation, then select ****Disable Policy****.
+
+Disabling a Policy:
+
+- removes its scheduled automations;
+
+- keeps the Policy;
+
+- keeps its target reservation;
+
+- keeps its saved Configuration Manager endpoint state.
+
+Select ****Enable**** to resume the Policy. Configuration Manager recreates the required scheduled automations from the saved Policy definition.
 
 ### Delete a Policy
+Choose ****Delete****, review the confirmation, then select ****Delete Policy****.
 
-Choose **Delete** from the Actions menu, review **Delete Policy?**, and confirm **Delete Policy**. Configuration Manager removes owned scheduled automations, submits a cleanup job for the Policy’s endpoint-state directory, and, once cleanup submission is accepted, deletes local Policy records and releases its target reservation.
+Configuration Manager removes the Policy's scheduled automations, starts cleanup of its saved endpoint state, removes the Policy, and releases the target after cleanup is accepted.
 
-**Deletion does not undo Windows settings previously applied on endpoints.** A successful delete means the cleanup job was accepted, not that it has already finished on every device. Offline endpoints may complete cleanup later within the configured seven-day retry window.
+> ****Deleting a Policy does not undo Windows settings that were already applied to endpoints.****
 
-If deletion reports an error, review **History** and the relevant Action1 operations before trying again. A partially completed operation may already have removed some scheduled automations while retaining the Policy and its reservation.
+A successful delete does not mean cleanup has already finished on every endpoint. Offline endpoints may complete cleanup later during the configured retry window.
 
-## 5. Understand the Dashboard
+If Delete reports an error, review ****History**** and the related Action1 operations before trying again. A partially completed delete may already have removed some scheduled automations.
 
-Open **Dashboard** for an overview of enabled Policies. It reports results for Windows endpoints currently assigned to their targets. Offline endpoints still count as assigned if they remain in Action1’s inventory.
+**---**
 
+## Understand the Dashboard
+Open ****Dashboard**** to see the current state of enabled Policies and their assigned Windows endpoints.
 
 The four headline metrics are:
 
-```text
-Assigned Policy/endpoint pairs
-              |
-      Observed results?
-       /           \
-     None          Some
-      |             |
-   No Data    Enough results for every selected Control?
-                     /                      \
-                    No                      Yes
-                    |                        |
-                 Partial             Any non-compliant result?
-                                           /         \
-                                          No         Yes
-                                          |           |
-                                      Compliant   Need Attention
-```
-
-This is a simplified view of the count-based classification. Contradictory or excess counts can be classified internally as inconsistent data rather than appearing in the visible categories.
-
-| Metric | Meaning |
+| Metric | What it means |
 | --- | --- |
-| **Active Policies** | Number of enabled Policies; supporting text shows their assigned Windows endpoints. |
-| **Need Attention** | Fully evaluated Policy/endpoint assignments with one or more reported non-compliant Controls. |
-| **Overall Compliance** | Compliant assignments divided by fully evaluated assignments. |
-| **Evaluation Coverage** | Fully evaluated assignments divided by all assigned assignments. |
+| ****Active Policies**** | Number of enabled Policies |
+| ****Need Attention**** | Fully evaluated Policy/endpoint assignments with at least one non-compliant Control |
+| ****Overall Compliance**** | Compliant assignments as a percentage of fully evaluated assignments |
+| ****Evaluation Coverage**** | Fully evaluated assignments as a percentage of all assigned assignments |
 
-**Compliance and Coverage answer different questions.** Compliance describes results among assignments considered fully evaluated. Coverage indicates how much of the assigned population has a complete reported result. For example, 100% Compliance can coexist with lower Coverage if some endpoints have not produced enough reported results.
+> ****Important:**** Compliance and Coverage answer different questions. A Policy can show ****100% Compliance**** while Coverage is below 100% if some endpoints have not produced a complete result yet.
 
-The **Policies** table includes **Assigned**, **Evaluated**, **Compliant**, **Need attention**, **Partial / No data**, **Coverage**, and **Compliance**. A dash (**—**) is displayed when a percentage has no valid denominator.
-
-The main result categories are:
-
-| Category | Meaning |
+### Result states
+| Result state | What it means |
 | --- | --- |
-| **No Data** | No matching reported result, or an observed Control count of zero. |
-| **Partial** | Some results are available, but fewer than the number of selected Controls. |
-| **Compliant** | The observed count matches the selected-Control count and no reported Control is non-compliant. |
-| **Need Attention** | The observed count matches the selected-Control count and at least one reported Control is non-compliant. |
+| ****No Data**** | No matching Control results are currently available |
+| ****Partial**** | Some results are available, but not enough to cover all selected Controls |
+| ****Compliant**** | All expected results are present and none are non-compliant |
+| ****Need Attention**** | All expected results are present and at least one Control is non-compliant |
 
-Dashboard completeness is based on reported result counts. It does not independently verify every Control ID, parameter value, result age, or version. An inconsistent count may also be excluded from the visible result categories, so totals will not always reconcile perfectly. Results correlate by organization, Policy ID, and endpoint name; endpoint renames or duplicate names can affect matching until reporting and inventory agree.
+Offline endpoints remain part of the assigned endpoint population while they are present in Action1 inventory.
 
-**Top controls needing attention** highlights up to five Policy/Control combinations affecting the most endpoints according to a separate non-compliance report. These counts can differ from the Dashboard’s fully evaluated **Need Attention** metric. Select a report link to investigate in the Action1 Console; links open organization-scoped reports and are not automatically filtered to the clicked Control or Policy.
+The Dashboard also shows ****Top controls needing attention****, which highlights Control/Policy combinations affecting the most endpoints according to the non-compliance report.
 
 ### Refresh Dashboard data
+Select ****Refresh**** to request updated Dashboard report data.
 
-Opening Dashboard reads available report snapshots. Select **Refresh** to request requery of the three Dashboard reports and briefly poll for updated results. Refreshing reports **does not execute Policy assessments or remediation**, and it does not guarantee every endpoint has produced a fresh result. If Refresh fails, the previous Dashboard may remain visible with an error.
+Refresh does ****not**** execute a Policy or trigger remediation. It requeries reporting data and briefly waits for updated results.
 
-## 6. Set up and use Action1 reports
+If an endpoint is offline, its previous report data may remain visible until newer data becomes available.
 
-Go to **Settings → Reporting** and select **Set up reporting** if setup is available. Setup creates the **Configuration Management - Control Status** data source and eight Action1 reports, each with the **Configuration Management -** prefix:
+**---**
 
-```text
-Settings > Reporting > Set up reporting
-                    |
-                    v
-       Data source + eight reports
-                    |
-                    v
-           Wait for Configured
-                    |
-                    v
-       View results in Action1 Console
-                    |
-                    v
-       Dashboard Refresh (report requery)
-```
+## Set up and use Action1 reports
+Reporting is configured once from ****Settings → Reporting**** by selecting ****Set up reporting****.
 
-Dashboard **Refresh** requests updated reporting data; it does not trigger a Policy run or remediation.
+Configuration Manager creates the ****Configuration Management - Control Status**** data source and a set of Action1 Custom Reports. Some reports provide data for the Configuration Manager Dashboard, while others support detailed investigation and analysis.
 
-| Report | Typical use |
+Wait until both ****Data source**** and ****Reports**** show ****Configured****. Reporting setup takes effect immediately and does not require ****Save settings****.
+
+The reports are available directly under ****Custom Reports**** in the ****Action1 Console****:
+
+| Report | Use it to |
 | --- | --- |
-| **Details** | Inspect individual endpoint/Control results. |
-| **by Endpoint** | Review results by device. |
-| **by Control** | See results grouped by Control. |
-| **by Policy** | Review results grouped by Policy. |
-| **by Status** | Find results by reported status. |
-| **Dashboard Endpoints** | Supply the Dashboard’s assignment/result counts. |
-| **Dashboard Non-Compliant Endpoints** | Supply endpoint-level non-compliance counts. |
-| **Dashboard Non-Compliant Controls** | Supply Control-level non-compliance counts and top Controls. |
+| ****Configuration Management - Details**** | Inspect individual endpoint and Control results |
+| ****Configuration Management - by Endpoint**** | Review results by device |
+| ****Configuration Management - by Control**** | Review results by Control |
+| ****Configuration Management - by Policy**** | Review results by Policy |
+| ****Configuration Management - by Status**** | Find results by reported status |
+| ****Configuration Management - Dashboard Endpoints**** | Provide endpoint coverage data for the Dashboard |
+| ****Configuration Management - Dashboard Non-Compliant Endpoints**** | Provide endpoint-level non-compliance data |
+| ****Configuration Management - Dashboard Non-Compliant Controls**** | Provide Control-level non-compliance data |
 
-Wait until **Data source** and **Reports** both show **Configured**. Setup takes effect immediately; it does not require **Save settings**. If existing saved resources are available, setup reuses them rather than recreating everything. It is not a general-purpose repair or upgrade of existing report definitions.
+These Custom Reports can be opened and used independently of the Configuration Manager Dashboard.
 
-Open reports using Dashboard links or the Action1 Console. Report data includes configuration status, **Last Checked At**, **Remediation Attempted**, **Last Remediated At**, and **Message**. Report timestamps are formatted in UTC.
+Detailed report data can include:
 
-The Dashboard shows available reporting snapshots and requests a bounded requery only when you select **Refresh**. A report can retain older results for an offline endpoint; Configuration Manager does not apply an automatic age cutoff to Dashboard results.
+- configuration status;
 
-## 7. Use History
+- ****Last Checked At****;
 
-Open **History** to review Configuration Manager management operations, such as **Policy created**, **Policy updated**, **Policy enabled**, **Policy disabled**, **Policy deleted**, **Reconciliation**, and **Reporting setup**.
+- ****Remediation Attempted****;
 
-Use **Refresh** to reload the list, and **Rows** to choose 50, 100, or 200 entries. Select **Details** on a row to inspect its **History details**, **Counts**, **Control Family changes**, and **Issues**, where present. Operation results are **Success**, **Failed**, or **Running**. Times display in your browser’s local time.
+- ****Last Remediated At****;
 
-**History is not endpoint execution history.** To investigate when scheduled automations ran or what individual endpoints reported, use the relevant Action1 automation and reports. Refreshing History does not refresh Dashboard reports.
+- ****Message****.
 
-## 8. Configure Settings
+Report timestamps are shown in UTC.
 
+**---**
+
+## Use History
+Open ****History**** to review Configuration Manager management operations.
+
+History records Policy lifecycle operations, including creation, updates, enabling, disabling, and deletion. It also records reconciliation and reporting setup operations.
+
+Operation results are shown as ****Success****, ****Failed****, or ****Running****.
+
+Select ****Details**** on a row for more information about the operation.
+
+> ****History is not endpoint execution history.**** To see when scheduled automations ran or what an individual endpoint reported, use the corresponding Action1 automation and reports.
+
+Use ****Refresh**** to reload History. This does not refresh Dashboard reporting data.
+
+**---**
+
+## Configure Settings
 ### Policy reconciliation
+Under ****Settings → Policy reconciliation****, choose how often Configuration Manager should check enabled Policies for missing scheduled automations.
 
-Under **Settings → Policy reconciliation**, choose a **Reconciliation interval**: **Every 3 hours**, **Every 6 hours**, **Every 12 hours**, or **Every 24 hours** (default: every six hours). Select **Save settings** to save your choice.
+Available intervals are:
 
-Reconciliation checks enabled Policies and recreates missing expected scheduled automations. It leaves existing scheduled automations unchanged. It does **not** evaluate endpoint compliance, trigger endpoint assessments, repair arbitrary edits to existing automations, or clean up disabled Policies.
+- Every 3 hours
 
-```text
-Enabled Policies --> Check expected scheduled automations
-                               |
-                        Missing automation?
-                          /          \
-                        Yes           No
-                         |             |
-                      Recreate      Leave as is
-```
+- Every 6 hours
 
-Reconciliation maintains missing scheduled automations; it is not a compliance assessment or an endpoint execution.
+- Every 12 hours
 
-Select **Reconcile now** to run reconciliation immediately. It does not save pending changes to Settings.
+- Every 24 hours
+
+The default is every 6 hours.
+
+Select ****Save settings**** after changing the interval.
+
+Reconciliation recreates scheduled automations that are missing for enabled Policies. It does not run endpoint assessments, check compliance, or repair arbitrary edits to existing automations.
+
+Select ****Reconcile now**** to run reconciliation immediately.
 
 ### Reporting
+Use ****Set up reporting**** when the Configuration Manager reporting resources have not yet been configured.
 
-Select **Set up reporting** when the reporting resources have not yet been configured. This action starts immediately; it does not depend on **Save settings**.
+This action starts immediately and does not depend on ****Save settings****.
 
 ### Advanced settings
+Expand ****Advanced settings**** to find ****Enable debug logging****.
 
-Expand **Advanced settings** to find **Enable debug logging**. Debug logging is disabled by default. When enabled and saved, it includes detailed diagnostics in Configuration Manager runtime logs; normal operation logs remain available when it is disabled.
+Debug logging is disabled by default. Enable it when additional diagnostic information is required in Configuration Manager runtime logs, then select ****Save settings****.
 
-Select **Save settings** after changing the checkbox. The integration does not provide a built-in log viewer or download action. If troubleshooting requires logs, follow your deployment’s support procedure to retrieve the Configuration Manager runtime log.
+Configuration Manager does not provide a built-in log viewer. Follow the organization's support process when runtime logs need to be collected.
 
-## 9. Troubleshooting
+**---**
 
-### A Policy was created, but no results appear
+## Troubleshooting
 
-Confirm that the Policy is **Enabled**, its organization and target are correct, and its scheduled Action1 automations exist. Allow time for those automations to run and for report data to become available. Check **Settings → Reporting** for configured resources, then use Dashboard **Refresh** to request updated reporting data. Refreshing Dashboard does not itself run a Policy.
+The following checks cover the most common Configuration Manager issues.
 
-### An endpoint appears as No Data or Partial
+### Policy created, but no results are available
 
-**No Data** means no matching results are currently available for that Policy/endpoint assignment. **Partial** means only some of the expected Control results have been observed. Check the relevant Action1 report and automation status. Offline devices can remain assigned without producing new results. If an endpoint was renamed, inventory and report data may temporarily show different names and therefore fail to correlate.
+Check the following:
 
-### Compliance looks high, but Coverage is low
+1. The Policy status is **Enabled**.
+2. The Organization and Target are correct.
+3. The scheduled Action1 automations exist.
+4. Reporting shows **Configured**.
 
-Compliance excludes assignments without a full observed result count. Review **Evaluation Coverage** and the **Partial / No data** column before interpreting the compliance percentage.
+Allow time for the scheduled automations to run and for report data to become available. Then select **Refresh** on the Dashboard to request updated reporting data.
 
-### I cannot select an organization or endpoint group
+### Endpoint shows No Data or Partial
 
-Another Policy may already reserve the **All endpoints** target or the group you want. Unavailable groups remain visible with **Used by another Policy**. Disabled Policies keep their reservations; successful deletion releases them. Organization and target cannot be changed on an existing Policy.
+| Status | Meaning |
+| --- | --- |
+| **No Data** | No matching results are currently available for the Policy and endpoint assignment |
+| **Partial** | Some expected Control results are available, but the evaluation is not complete |
 
-### A remediation result remains non-compliant
+Check the relevant Action1 report and automation status. Offline endpoints can remain assigned without producing new results.
 
-**Assess and remediate** attempts remediation only where the selected Control supports it. Remediation can fail or be blocked. Use the detailed report’s status and **Message** and investigate the corresponding Action1 automation before adjusting the Policy.
+If an endpoint was recently renamed, inventory and report data may temporarily use different names until both sides catch up.
 
-### A Policy action failed partway through
+### Compliance is high, but Coverage is low
 
-Open **History** and inspect the failed operation. Some lifecycle steps may already have succeeded; for example, a failed delete can retain the Policy and target reservation even if scheduled automations were removed. Avoid blindly repeating an ambiguous destructive operation. Escalate using your organization’s support procedure if its state is unclear.
+This can occur because **Overall Compliance** includes only fully evaluated assignments.
 
-### I replaced the Control Pack and an existing Policy cannot be saved or enabled
+Use **Evaluation Coverage** and the **Partial / No data** column to determine how much of the assigned endpoint population has a complete result.
 
-The installed Control Pack determines the currently available Controls and their parameter contracts. Existing Policies keep their saved selections and versions; replacing the installed release does not automatically migrate them. A Control or Control Family that is missing or incompatible in the new release can block later Policy changes or automation provisioning. Review the new release’s Control Pack reference and your organization’s approved upgrade procedure before modifying the affected Policy.
+### Organization or endpoint group cannot be selected
 
-## 10. Control Pack documentation
+Another Policy may already reserve the target.
 
-This guide explains how to use Controls and baselines in Configuration Manager. Individual Control behavior, technical prerequisites, baseline contents, and Control Pack release changes belong in the separate [Control Pack Reference](control-pack/README.md). That reference is reserved for a later documentation update and should not be treated as a complete Control catalog yet.
+Reserved groups remain visible as **Used by another Policy**. Disabled Policies keep their reservations, while successful deletion releases them.
+
+### Remediation did not make an endpoint compliant
+
+**Assess and remediate** attempts remediation only when the selected Control supports it.
+
+A remediation can fail, be blocked, require a restart, or still result in a non-compliant state. Review the detailed Action1 report, especially the status and **Message**, and inspect the corresponding automation if needed.
+
+### Policy action failed
+
+Open **History** and inspect the failed operation.
+
+Some steps may already have completed before the failure. For example, a failed Delete may already have removed some scheduled automations while keeping the Policy and its target reservation.
+
+Review the current state before repeating a destructive action.
+
+### Existing Policy cannot be saved after a Control Pack update
+
+The installed Control Pack defines the currently available Controls and parameter contracts.
+
+Existing Policies keep their saved Control selections and versions. Replacing the Control Pack does not automatically migrate them.
+
+If a saved Control or Control Family is no longer compatible with the installed release, the Policy may need to be reviewed before it can be saved or enabled again.
+
+---
+
+## Control Pack
+The Control Pack contains the Controls and baselines available in Configuration Manager.
+
+The Controls step shows the version of the currently loaded Control Pack.
+
+Detailed documentation for individual Controls, baseline contents, prerequisites, and Control Pack changes is published separately from this User Guide.
+
+**---**

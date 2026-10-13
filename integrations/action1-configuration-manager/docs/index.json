@@ -1,0 +1,16 @@
+{
+  "documents": [
+    {
+      "id": "user-guide",
+      "title": "User Guide",
+      "description": "Learn how to create and manage configuration policies, monitor compliance, and use reporting.",
+      "file": "user-guide.pdf"
+    },
+    {
+      "id": "control-pack",
+      "title": "Control Pack",
+      "description": "What is the Control Pack?",
+      "file": "control-pack.pdf"
+    }
+  ]
+}
