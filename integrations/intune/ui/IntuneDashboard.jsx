@@ -9,7 +9,7 @@ import {
   RefreshCw,
   Search
 } from 'lucide-react';
-import { mergePoliciesIntoDashboard } from './dashboardPolicyState';
+import { mergePoliciesIntoDashboard } from './dashboardPolicyState.mjs';
 
 const endpointColumns = [
   { key: 'deviceName', label: 'Endpoint', minWidth: 220, maxWidth: 360 },

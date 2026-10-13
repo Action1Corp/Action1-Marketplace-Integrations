@@ -7,7 +7,8 @@
     "package:integration": "node scripts/package-integration.js",
     "package:all": "node scripts/package-all-integrations.js",
     "catalog": "node scripts/generate-catalog.js",
-    "test": "node scripts/validate-manifests.js && node tests/validate-contract.js",
+    "test": "node scripts/validate-manifests.js && node tests/validate-contract.js && npm run test:dashboard",
+    "test:dashboard": "node --test integrations/intune/ui/dashboardPolicyState.test.mjs",
     "test:manifests": "node scripts/validate-manifests.js",
     "test:contract": "node tests/validate-contract.js"
   },

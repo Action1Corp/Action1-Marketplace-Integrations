@@ -1,4 +1,4 @@
-function mergePoliciesIntoDashboard(statusData, policies) {
+export function mergePoliciesIntoDashboard(statusData, policies) {
   const currentPolicies = Array.isArray(policies) ? policies : [];
   const snapshotPolicyId = String(statusData?.selectedPolicyId || '');
   const currentIds = new Set(currentPolicies.map(policy => policy.policyId));
@@ -17,5 +17,3 @@ function mergePoliciesIntoDashboard(statusData, policies) {
     selectedPolicyId: selectedPolicy?.policyId || ''
   };
 }
-
-module.exports = { mergePoliciesIntoDashboard };

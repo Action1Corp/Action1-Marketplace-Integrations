@@ -1,6 +1,6 @@
-const assert = require('node:assert/strict');
-const test = require('node:test');
-const { mergePoliciesIntoDashboard } = require('./dashboardPolicyState');
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { mergePoliciesIntoDashboard } from './dashboardPolicyState.mjs';
 
 test('removes a deleted profile and its cached dashboard result', () => {
   const status = {
