@@ -1,6 +1,5 @@
 const assert = require('assert');
 
-const { ACTION1_BASE_URL } = require('../action1Api');
 const {
   DEFAULT_ACTION1_CONNECTION,
   RUNTIME_SETTING_KEYS,
@@ -95,7 +94,7 @@ function runBuildRuntimeConfigTest() {
   });
 
   assert.deepStrictEqual(DEFAULT_ACTION1_CONNECTION, {
-    baseUrl: ACTION1_BASE_URL,
+    baseUrl: '',
     clientId: '',
     clientSecretRef: ''
   });
@@ -143,14 +142,20 @@ function runSeverityDerivedEnabledFlagsTest() {
     settings: buildSettings({
       JiraCloudVulnerabilityEnabled: 'true',
       JiraCloudVulnerabilitySeverities: '',
+      JiraCloudVulnerabilityRemediationStatuses: '',
       JiraCloudUpdateEnabled: 'true',
-      JiraCloudUpdateSeverities: ''
+      JiraCloudUpdateSeverities: '',
+      JiraCloudUpdateRemediationStatuses: ''
     }),
     mappings: []
   });
 
   assert.strictEqual(runtimeConfig.signalFilters.vulnerability.enabled, false, 'vulnerability enabled should derive from selected severities');
+  assert.deepStrictEqual(runtimeConfig.signalFilters.vulnerability.severities, [], 'empty vulnerability severity should remain empty');
+  assert.deepStrictEqual(runtimeConfig.signalFilters.vulnerability.remediationStatuses, [], 'empty vulnerability remediation should remain empty');
   assert.strictEqual(runtimeConfig.signalFilters.update.enabled, false, 'update enabled should derive from selected severities');
+  assert.deepStrictEqual(runtimeConfig.signalFilters.update.severities, [], 'empty update severity should remain empty');
+  assert.deepStrictEqual(runtimeConfig.signalFilters.update.remediationStatuses, [], 'empty update remediation should remain empty');
 }
 
 function runMissingBooleanDefaultsTest() {

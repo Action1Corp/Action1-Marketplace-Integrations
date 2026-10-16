@@ -79,6 +79,20 @@ function run() {
   assert.strictEqual(byKey.get('JiraCloudVulnerabilityEnabled').visible, false, 'vulnerability enabled should remain hidden');
   assert.strictEqual(byKey.get('JiraCloudUpdateEnabled').visible, false, 'update enabled should remain hidden');
 
+  const explicitMarkerRelationships = [
+    ['JiraCloudVulnerabilitySeverities', 'JiraCloudVulnerabilitySeveritiesExplicit'],
+    ['JiraCloudVulnerabilityRemediationStatuses', 'JiraCloudVulnerabilityRemediationStatusesExplicit'],
+    ['JiraCloudUpdateSeverities', 'JiraCloudUpdateSeveritiesExplicit'],
+    ['JiraCloudUpdateRemediationStatuses', 'JiraCloudUpdateRemediationStatusesExplicit']
+  ];
+  for (const [settingKey, markerKey] of explicitMarkerRelationships) {
+    assert(byKey.has(markerKey), `${markerKey} should exist as an explicit-selection marker`);
+    assert.strictEqual(byKey.get(settingKey).emptySelectionMarkerKey, markerKey, `${settingKey} should reference ${markerKey}`);
+    assert.strictEqual(byKey.get(markerKey).type, 'checkbox', `${markerKey} should be a checkbox marker`);
+    assert.strictEqual(byKey.get(markerKey).defaultValue, 'false', `${markerKey} should default to false`);
+    assert.strictEqual(byKey.get(markerKey).visible, false, `${markerKey} should remain hidden`);
+  }
+
   assert(settingsSchema.every((row) => String(row.key || '').startsWith('JiraCloud')), 'every Jira durable settings key should start with JiraCloud');
   assert.strictEqual(settingsSchema.some((row) => /^Action1/i.test(String(row.key || ''))), false, 'Jira settings schema should not declare Action1 credential keys');
 

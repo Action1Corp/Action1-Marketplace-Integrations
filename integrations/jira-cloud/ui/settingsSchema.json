@@ -107,14 +107,16 @@
     "label": "Vulnerability Severity",
     "type": "text",
     "group": "Action1 Signals",
-    "defaultValue": "CRITICAL,HIGH"
+    "defaultValue": "CRITICAL,HIGH",
+    "emptySelectionMarkerKey": "JiraCloudVulnerabilitySeveritiesExplicit"
   },
   {
     "key": "JiraCloudVulnerabilityRemediationStatuses",
     "label": "Vulnerability Remediation Status",
     "type": "text",
     "group": "Action1 Signals",
-    "defaultValue": "OVERDUE,DUE_SOON"
+    "defaultValue": "OVERDUE,DUE_SOON",
+    "emptySelectionMarkerKey": "JiraCloudVulnerabilityRemediationStatusesExplicit"
   },
   {
     "key": "JiraCloudUpdateEnabled",
@@ -129,14 +131,48 @@
     "label": "Missing Updates Severity",
     "type": "text",
     "group": "Action1 Signals",
-    "defaultValue": "CRITICAL,IMPORTANT"
+    "defaultValue": "CRITICAL,IMPORTANT",
+    "emptySelectionMarkerKey": "JiraCloudUpdateSeveritiesExplicit"
   },
   {
     "key": "JiraCloudUpdateRemediationStatuses",
     "label": "Missing Updates Remediation Status",
     "type": "text",
     "group": "Action1 Signals",
-    "defaultValue": "OVERDUE,DUE_SOON"
+    "defaultValue": "OVERDUE,DUE_SOON",
+    "emptySelectionMarkerKey": "JiraCloudUpdateRemediationStatusesExplicit"
+  },
+  {
+    "key": "JiraCloudVulnerabilitySeveritiesExplicit",
+    "label": "Vulnerability Severity Explicit Selection",
+    "type": "checkbox",
+    "group": "Action1 Signals",
+    "defaultValue": "false",
+    "visible": false
+  },
+  {
+    "key": "JiraCloudVulnerabilityRemediationStatusesExplicit",
+    "label": "Vulnerability Remediation Status Explicit Selection",
+    "type": "checkbox",
+    "group": "Action1 Signals",
+    "defaultValue": "false",
+    "visible": false
+  },
+  {
+    "key": "JiraCloudUpdateSeveritiesExplicit",
+    "label": "Missing Updates Severity Explicit Selection",
+    "type": "checkbox",
+    "group": "Action1 Signals",
+    "defaultValue": "false",
+    "visible": false
+  },
+  {
+    "key": "JiraCloudUpdateRemediationStatusesExplicit",
+    "label": "Missing Updates Remediation Status Explicit Selection",
+    "type": "checkbox",
+    "group": "Action1 Signals",
+    "defaultValue": "false",
+    "visible": false
   },
   {
     "key": "JiraCloudVulnerabilityTicketModel",

@@ -28,7 +28,16 @@ export function resolveSettingDefinition(setting, options = {}) {
 
 export function isUnsetHostValueForDefaultedSetting(value, setting, options = {}) {
   const resolvedSetting = resolveSettingDefinition(setting, options);
-  return resolvedSetting.defaultValue !== undefined && value === '';
+  if (resolvedSetting.defaultValue === undefined || value !== '') {
+    return false;
+  }
+
+  const markerKey = String(resolvedSetting.emptySelectionMarkerKey || '').trim();
+  if (!markerKey) {
+    return true;
+  }
+
+  return String(options.currentSettings?.[markerKey] || '').trim().toLowerCase() !== 'true';
 }
 
 export function getEffectiveSettingValue(setting, currentSettings, options = {}) {
@@ -51,7 +60,10 @@ export function getEffectiveSettingValue(setting, currentSettings, options = {})
     hasCurrentValue &&
     currentValue !== undefined &&
     currentValue !== null &&
-    !isUnsetHostValueForDefaultedSetting(currentValue, resolvedSetting, options)
+    !isUnsetHostValueForDefaultedSetting(currentValue, resolvedSetting, {
+      ...options,
+      currentSettings
+    })
   ) {
     return currentValue;
   }

@@ -21,6 +21,12 @@ const SIGNAL_FILTER_SETTING_KEYS = [
   'JiraCloudUpdateSeverities',
   'JiraCloudUpdateRemediationStatuses'
 ];
+const MULTI_SELECT_EMPTY_MARKER_KEYS = {
+  JiraCloudVulnerabilitySeverities: 'JiraCloudVulnerabilitySeveritiesExplicit',
+  JiraCloudVulnerabilityRemediationStatuses: 'JiraCloudVulnerabilityRemediationStatusesExplicit',
+  JiraCloudUpdateSeverities: 'JiraCloudUpdateSeveritiesExplicit',
+  JiraCloudUpdateRemediationStatuses: 'JiraCloudUpdateRemediationStatusesExplicit'
+};
 const TICKET_MODEL_SETTING_KEYS = [
   'JiraCloudVulnerabilityTicketModel',
   'JiraCloudUpdateTicketModel',
@@ -327,6 +333,10 @@ function Settings({ integration }) {
         ...current,
         [settingKey]: Array.from(nextValues).join(',')
       };
+      const emptySelectionMarkerKey = MULTI_SELECT_EMPTY_MARKER_KEYS[settingKey];
+      if (emptySelectionMarkerKey) {
+        nextSettings[emptySelectionMarkerKey] = 'true';
+      }
 
       if (settingKey === 'JiraCloudVulnerabilitySeverities') {
         nextSettings.JiraCloudVulnerabilityEnabled = hasSelectedCsvValues(nextSettings.JiraCloudVulnerabilitySeverities) ? 'true' : 'false';

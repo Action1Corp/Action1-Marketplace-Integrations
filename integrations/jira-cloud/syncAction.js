@@ -132,7 +132,8 @@ async function runJiraCloudSync(context, request = {}) {
         jiraIssueTypeId: row.jiraIssueTypeId
       }))
     });
-    await logCredentialAvailability(context, runLogger);
+    const action1Credentials = await logCredentialAvailability(context, runLogger);
+    runtimeConfig.connections.action1.baseUrl = String(action1Credentials?.baseUrl || '').trim();
 
     const action1Client = createAction1Client({ runLogger });
     const watermarkStore = createDbSignalWatermarkStore(context);
@@ -560,6 +561,7 @@ async function logCredentialAvailability(context, runLogger) {
   await runLogger.info('Marketplace Action1 credentials checked for Jira sync.', {
     credentialsAvailable: apiKeyPresent && apiSecretPresent
   });
+  return credentials || {};
 }
 
 function summarizeEnabledSignals(runtimeConfig) {

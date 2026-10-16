@@ -9,7 +9,26 @@ async function run() {
   await runTokenReuseWhileFreshTest();
   await runTokenRefreshInsideSafetyMarginTest();
   await runLongRunningCollectionUsesRefreshedTokenAcrossPhasesTest();
+  await runMarketplaceBaseUrlValidationTest();
   runPrivateParityShapeTest();
+}
+
+async function runMarketplaceBaseUrlValidationTest() {
+  const client = createAction1Client({ httpClient: { async requestJson() { throw new Error('request should not be reached'); } } });
+  for (const baseUrl of ['', 'not-a-url']) {
+    const context = {
+      action1: {
+        async getCredentials() {
+          return { apiKey: 'action1-client-id', apiSecret: 'action1-client-secret', baseUrl };
+        }
+      }
+    };
+    await assert.rejects(
+      () => client.listEndpoints('org-1', { context }),
+      (error) => error?.diagnostic?.response?.errorCode === 'invalid_action1_base_url',
+      `invalid Marketplace baseUrl should fail safely: ${baseUrl || 'missing'}`
+    );
+  }
 }
 
 async function runRateLimitRetryParityTest() {
@@ -257,7 +276,8 @@ async function runTokenReuseWhileFreshTest() {
         credentialCalls += 1;
         return {
           apiKey: 'action1-client-id',
-          apiSecret: 'action1-client-secret'
+          apiSecret: 'action1-client-secret',
+          baseUrl: 'https://app.na-2.action1.com/api/3.0/'
         };
       }
     }
@@ -282,6 +302,8 @@ async function runTokenReuseWhileFreshTest() {
   assert.strictEqual(tokenCalls.length, 1, 'fresh Action1 tokens should be reused until they enter the 60-second safety margin');
   assert.strictEqual(getCalls.length, 2, 'the same Jira Action1 client instance should serve multiple collection calls');
   assert.strictEqual(getCalls.every((entry) => entry.headers.Authorization === 'Bearer token-a'), true, 'fresh Action1 collection requests should reuse the cached bearer token');
+  assert.strictEqual(tokenCalls[0].url, 'https://app.na-2.action1.com/api/3.0/oauth2/token', 'token acquisition should use the Marketplace regional Action1 base URL');
+  assert.strictEqual(getCalls.every((entry) => entry.url.startsWith('https://app.na-2.action1.com/api/3.0/')), true, 'main sync Action1 requests should use the Marketplace regional Action1 base URL');
 }
 
 async function runTokenRefreshInsideSafetyMarginTest() {
@@ -328,7 +350,8 @@ async function runTokenRefreshInsideSafetyMarginTest() {
       async getCredentials() {
         return {
           apiKey: 'action1-client-id',
-          apiSecret: 'action1-client-secret'
+          apiSecret: 'action1-client-secret',
+          baseUrl: 'https://app.na-2.action1.com/api/3.0'
         };
       }
     }
@@ -453,7 +476,8 @@ async function runLongRunningCollectionUsesRefreshedTokenAcrossPhasesTest() {
       async getCredentials() {
         return {
           apiKey: 'action1-client-id',
-          apiSecret: 'action1-client-secret'
+          apiSecret: 'action1-client-secret',
+          baseUrl: 'https://app.na-2.action1.com/api/3.0'
         };
       }
     }

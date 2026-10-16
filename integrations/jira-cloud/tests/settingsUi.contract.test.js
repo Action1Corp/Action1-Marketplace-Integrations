@@ -39,6 +39,11 @@ function run() {
   assert(source.includes('JiraCloudRebootRequiredEnabled'), 'Settings.jsx should render reboot-required signal controls');
   assert(source.includes('JiraCloudVulnerabilitySeverities'), 'Settings.jsx should render vulnerability filter controls');
   assert(source.includes('JiraCloudUpdateSeverities'), 'Settings.jsx should render update filter controls');
+  assert(source.includes('JiraCloudVulnerabilitySeveritiesExplicit'), 'Settings.jsx should record explicit vulnerability severity selection');
+  assert(source.includes('JiraCloudVulnerabilityRemediationStatusesExplicit'), 'Settings.jsx should record explicit vulnerability remediation selection');
+  assert(source.includes('JiraCloudUpdateSeveritiesExplicit'), 'Settings.jsx should record explicit update severity selection');
+  assert(source.includes('JiraCloudUpdateRemediationStatusesExplicit'), 'Settings.jsx should record explicit update remediation selection');
+  assert(source.includes("nextSettings[emptySelectionMarkerKey] = 'true';"), 'Settings.jsx should preserve explicit empty multi-select intent');
   assert(source.includes('JiraCloudVulnerabilityTicketModel'), 'Settings.jsx should render vulnerability ticket model controls');
   assert(source.includes('JiraCloudUpdateTicketModel'), 'Settings.jsx should render update ticket model controls');
   assert(source.includes('JiraCloudAutomationFailedTicketModel'), 'Settings.jsx should render automation failed ticket model controls');

@@ -334,7 +334,7 @@ function testEndpointPayloadParityBySignal() {
     const candidate = endpointCandidate(signalType);
     const result = buildJiraIssuePayload({
       candidate,
-      action1BaseUrl: 'https://app.action1.com/api/3.0'
+      action1BaseUrl: 'https://app.na-2.action1.com/api/3.0/'
     });
 
     assert.strictEqual(result.payload.fields.project.id, '1001', `${signalType} payload should use routing Jira project`);
@@ -350,6 +350,7 @@ function testEndpointPayloadParityBySignal() {
     assert.strictEqual(visibleText.includes('Why this ticket was created'), true, `${signalType} endpoint description should preserve Halo why-section semantics`);
     assert.strictEqual(visibleText.includes('https://app.action1.com/'), false, `${signalType} endpoint visible text should not expose raw URLs`);
     assert.strictEqual(links.some((item) => item.text === 'Open in Action1'), true, `${signalType} endpoint description should render the Action1 link as an ADF link mark`);
+    assert(links.every((item) => item.href.startsWith('https://app.na-2.action1.com/console/')), `${signalType} endpoint links should use the regional Action1 Console origin`);
 
     if (signalType === 'OFFLINE') {
       assertCompactFieldGroup(result.payload.fields.description, ['Endpoint: BoxOne', 'Last seen: 2026-06-18 10:15'], 'OFFLINE endpoint context');
@@ -409,7 +410,7 @@ function testGroupedPayloadParityBySignal() {
   for (const signalType of ['VULNERABILITY', 'UPDATE', 'AUTOMATION_FAILED']) {
     const result = buildJiraIssuePayload({
       candidate: groupedCandidate(signalType),
-      action1BaseUrl: 'https://app.action1.com/api/3.0',
+      action1BaseUrl: 'https://app.na-2.action1.com/api/3.0/',
       maxImpactedEndpointsInGroupedTicket: 2
     });
 
@@ -428,6 +429,7 @@ function testGroupedPayloadParityBySignal() {
     assert.strictEqual(links.some((item) => item.text === 'Open in Action1'), true, `${signalType} grouped description should render the Action1 link as an ADF link mark`);
     assert.strictEqual(links.some((item) => item.text === 'Alpha'), true, `${signalType} grouped description should render endpoint names as ADF link marks`);
     assert.strictEqual(links.some((item) => item.text === 'Bravo'), true, `${signalType} grouped description should render endpoint names as ADF link marks`);
+    assert(links.every((item) => item.href.startsWith('https://app.na-2.action1.com/console/')), `${signalType} grouped links should use the regional Action1 Console origin`);
     assertCompactFieldGroup(result.payload.fields.description, ['Showing 2 of 3 impacted endpoints.'], `${signalType} grouped affected-endpoint summary`);
     assertBulletListCompact(result.payload.fields.description, `${signalType} grouped endpoint list`);
 

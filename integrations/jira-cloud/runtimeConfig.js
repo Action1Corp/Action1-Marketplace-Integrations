@@ -1,10 +1,9 @@
 const settingsSchema = require('./ui/settingsSchema.json');
-const { ACTION1_BASE_URL } = require('./action1Api');
 const { listMappings } = require('./mappingStore');
 const { EXISTING_OPEN_ISSUE_BEHAVIOR } = require('./lifecycle');
 
 const DEFAULT_ACTION1_CONNECTION = Object.freeze({
-  baseUrl: ACTION1_BASE_URL,
+  baseUrl: '',
   clientId: '',
   clientSecretRef: ''
 });

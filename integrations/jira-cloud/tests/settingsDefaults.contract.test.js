@@ -238,6 +238,58 @@ function runExplicitSavedValuesWinOverDefaultsTest() {
   );
 }
 
+function runExplicitEmptyMultiSelectValuesRemainEmptyTest() {
+  const settings = {
+    ...buildCleanHostSettings(),
+    JiraCloudVulnerabilitySeverities: '',
+    JiraCloudVulnerabilitySeveritiesExplicit: 'true',
+    JiraCloudVulnerabilityRemediationStatuses: '',
+    JiraCloudVulnerabilityRemediationStatusesExplicit: 'true',
+    JiraCloudUpdateSeverities: '',
+    JiraCloudUpdateSeveritiesExplicit: 'true',
+    JiraCloudUpdateRemediationStatuses: '',
+    JiraCloudUpdateRemediationStatusesExplicit: 'true'
+  };
+
+  const multiSelectKeys = [
+    'JiraCloudVulnerabilitySeverities',
+    'JiraCloudVulnerabilityRemediationStatuses',
+    'JiraCloudUpdateSeverities',
+    'JiraCloudUpdateRemediationStatuses'
+  ];
+
+  for (const key of multiSelectKeys) {
+    assert.strictEqual(
+      getEffectiveSettingValue({ key }, settings, {
+        settingsSchema,
+        secretMask: SECRET_MASK
+      }),
+      '',
+      `${key} should preserve an explicitly selected empty value`
+    );
+    assert.strictEqual(
+      serializeSettingValue(getSetting(key), settings, {
+        settingsSchema,
+        secretMask: SECRET_MASK
+      }),
+      '',
+      `${key} should serialize an explicitly selected empty value`
+    );
+  }
+
+  const reloadedSettings = serializeAll(settings);
+  for (const key of multiSelectKeys) {
+    assert.strictEqual(
+      getEffectiveSettingValue({ key }, reloadedSettings, {
+        settingsSchema,
+        secretMask: SECRET_MASK
+      }),
+      '',
+      `${key} should remain empty after save serialization and reload normalization`
+    );
+  }
+}
+
 function runSecretPlaceholderPreservationTest() {
   const currentSettings = {
     ...buildCleanHostSettings(),
@@ -267,6 +319,7 @@ function run() {
   runRequiredBlankFieldsRemainBlankTest();
   runUntouchedCleanSaveSerializesDefaultsTest();
   runExplicitSavedValuesWinOverDefaultsTest();
+  runExplicitEmptyMultiSelectValuesRemainEmptyTest();
   runSecretPlaceholderPreservationTest();
 }
 

@@ -32,7 +32,8 @@ function createSyncContext(overrides = {}) {
       async getCredentials() {
         return {
           apiKey: 'action1-client-id',
-          apiSecret: 'action1-client-secret'
+          apiSecret: 'action1-client-secret',
+          baseUrl: 'https://app.na-2.action1.com/api/3.0/'
         };
       }
     },
@@ -391,6 +392,14 @@ async function runLifecycleSyncHappyPathTest() {
     assert.strictEqual(result.summary.failed, 0);
     assert.strictEqual(assetsProcessed, 2);
     assert.strictEqual(result.assetsProcessed, 2);
+    const action1Urls = fetchCalls.map((entry) => entry.url).filter((url) => url.includes('action1.com'));
+    assert(action1Urls.length > 0, 'happy-path sync should make Action1 requests');
+    assert(action1Urls.every((url) => url.startsWith('https://app.na-2.action1.com/api/3.0/')), 'all happy-path sync Action1 requests should use the Marketplace regional API base URL');
+    assert(action1Urls.some((url) => url.endsWith('/oauth2/token')), 'happy-path sync should use the regional Action1 token endpoint');
+    assert(action1Urls.some((url) => url.includes('/endpoints/managed/org-1')), 'happy-path sync should use the regional Action1 endpoint collection');
+    assert(action1Urls.some((url) => url.includes('/vulnerabilities/org-1')), 'happy-path sync should use the regional Action1 vulnerability collection');
+    assert(action1Urls.some((url) => url.includes('/updates/org-1')), 'happy-path sync should use the regional Action1 update collection');
+    assert(action1Urls.some((url) => url.includes('/automations/instances/org-1')), 'happy-path sync should use the regional Action1 automation collection');
     assert.strictEqual(fetchCalls.some((entry) => entry.url.includes('/rest/api/3/issue') && entry.method === 'POST'), true);
     assert.strictEqual(fetchCalls.some((entry) => /\/rest\/api\/3\/issue\/.+\/transitions/i.test(entry.url)), false);
     assert.strictEqual(fetchCalls.some((entry) => /\/rest\/api\/3\/issue\/.+\/resolution/i.test(entry.url)), false);
@@ -464,6 +473,9 @@ async function runOfflineOnlyCollectionGatingTest() {
     });
 
     const urls = fetchCalls.map((entry) => entry.url);
+    const action1Urls = urls.filter((url) => url.includes('action1.com'));
+    assert(action1Urls.length > 0, 'sync should make Action1 requests in the happy-path fixture');
+    assert(action1Urls.every((url) => url.startsWith('https://app.na-2.action1.com/api/3.0/')), 'all sync Action1 requests should use the Marketplace regional API base URL');
     assert.strictEqual(result.ok, true, 'offline-only run should complete successfully');
     assert.strictEqual(urls.some((url) => url.includes('/endpoints/managed/org-1')), true, 'offline-only run should still fetch endpoints');
     assert.strictEqual(urls.some((url) => url.includes('/vulnerabilities/org-1')), false, 'offline-only run should not collect vulnerabilities');
