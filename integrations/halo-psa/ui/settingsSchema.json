@@ -166,14 +166,16 @@
     "label": "Vulnerability Severity",
     "type": "text",
     "group": "Signal Filters",
-    "defaultValue": "CRITICAL,HIGH"
+    "defaultValue": "CRITICAL,HIGH",
+    "emptySelectionMarkerKey": "HaloPsaVulnerabilitySeveritiesExplicit"
   },
   {
     "key": "HaloPsaVulnerabilityRemediationStatuses",
     "label": "Vulnerability Remediation Status",
     "type": "text",
     "group": "Signal Filters",
-    "defaultValue": "OVERDUE,DUE_SOON"
+    "defaultValue": "OVERDUE,DUE_SOON",
+    "emptySelectionMarkerKey": "HaloPsaVulnerabilityRemediationStatusesExplicit"
   },
   {
     "key": "HaloPsaUpdateEnabled",
@@ -188,14 +190,48 @@
     "label": "Missing Updates Severity",
     "type": "text",
     "group": "Signal Filters",
-    "defaultValue": "CRITICAL,IMPORTANT"
+    "defaultValue": "CRITICAL,IMPORTANT",
+    "emptySelectionMarkerKey": "HaloPsaUpdateSeveritiesExplicit"
   },
   {
     "key": "HaloPsaUpdateRemediationStatuses",
     "label": "Missing Updates Remediation Status",
     "type": "text",
     "group": "Signal Filters",
-    "defaultValue": "OVERDUE,DUE_SOON"
+    "defaultValue": "OVERDUE,DUE_SOON",
+    "emptySelectionMarkerKey": "HaloPsaUpdateRemediationStatusesExplicit"
+  },
+  {
+    "key": "HaloPsaVulnerabilitySeveritiesExplicit",
+    "label": "Vulnerability Severity Explicit Selection",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "false",
+    "visible": false
+  },
+  {
+    "key": "HaloPsaVulnerabilityRemediationStatusesExplicit",
+    "label": "Vulnerability Remediation Status Explicit Selection",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "false",
+    "visible": false
+  },
+  {
+    "key": "HaloPsaUpdateSeveritiesExplicit",
+    "label": "Missing Updates Severity Explicit Selection",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "false",
+    "visible": false
+  },
+  {
+    "key": "HaloPsaUpdateRemediationStatusesExplicit",
+    "label": "Missing Updates Remediation Status Explicit Selection",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "false",
+    "visible": false
   },
   {
     "key": "HaloPsaVulnerabilityTicketModel",

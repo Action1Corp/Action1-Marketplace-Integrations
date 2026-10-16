@@ -1,5 +1,4 @@
 const settingsSchema = require('./ui/settingsSchema.json');
-const { ACTION1_BASE_URL } = require('./action1Api');
 const { listMappings } = require('./mappingStore');
 
 const EXISTING_OPEN_TICKET_BEHAVIOR = Object.freeze({
@@ -11,7 +10,7 @@ const DEFAULT_MAX_IMPACTED_ENDPOINTS_IN_GROUPED_TICKET = 25;
 const DEFAULT_MAX_OPEN_TICKETS_PER_ORGANIZATION = 30;
 const DEFAULT_AUTOMATION_FAILED_LOOKBACK_HOURS = 24;
 const DEFAULT_ACTION1_CONNECTION = Object.freeze({
-  baseUrl: ACTION1_BASE_URL,
+  baseUrl: '',
   clientId: '',
   clientSecretRef: ''
 });

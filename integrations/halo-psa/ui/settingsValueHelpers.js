@@ -28,7 +28,16 @@ export function resolveSettingDefinition(setting, options = {}) {
 
 export function isUnsetHostValueForDefaultedSetting(value, setting, options = {}) {
   const resolvedSetting = resolveSettingDefinition(setting, options);
-  return resolvedSetting.defaultValue !== undefined && value === '';
+  if (resolvedSetting.defaultValue === undefined || value !== '') {
+    return false;
+  }
+
+  const markerKey = String(resolvedSetting.emptySelectionMarkerKey || '').trim();
+  if (!markerKey) {
+    return true;
+  }
+
+  return String(options.currentSettings?.[markerKey] || '').trim().toLowerCase() !== 'true';
 }
 
 export function getEffectiveSettingValue(setting, currentSettings, options = {}) {
@@ -51,7 +60,10 @@ export function getEffectiveSettingValue(setting, currentSettings, options = {})
     hasCurrentValue &&
     currentValue !== undefined &&
     currentValue !== null &&
-    !isUnsetHostValueForDefaultedSetting(currentValue, resolvedSetting, options)
+    !isUnsetHostValueForDefaultedSetting(currentValue, resolvedSetting, {
+      ...options,
+      currentSettings
+    })
   ) {
     return currentValue;
   }
@@ -76,4 +88,16 @@ export function serializeSettingValue(setting, currentSettings, options = {}) {
     return value === '' ? '' : String(value);
   }
   return value ?? '';
+}
+
+export function updateCsvSelection(value, optionValue, checked) {
+  const nextValues = new Set(
+    String(value || '')
+      .split(',')
+      .map((row) => row.trim())
+      .filter(Boolean)
+  );
+  if (checked) nextValues.add(optionValue);
+  else nextValues.delete(optionValue);
+  return Array.from(nextValues).join(',');
 }

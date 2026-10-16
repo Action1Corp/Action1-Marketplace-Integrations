@@ -27,7 +27,9 @@ function createSyncContext(overrides = {}) {
       async getCredentials() {
         return {
           apiKey: 'action1-client-id',
-          apiSecret: 'action1-client-secret'
+          apiSecret: 'action1-client-secret',
+          organizationId: 'org-tenant',
+          baseUrl: 'https://app.na-2.action1.com/api/3.0/'
         };
       }
     },
@@ -1564,6 +1566,7 @@ async function runOfflineOnlyCollectionGatingTest() {
     });
 
     const urls = fetchCalls.map((call) => call.url);
+    assert(urls.filter((url) => url.includes('action1.com')).every((url) => url.startsWith('https://app.na-2.action1.com/api/3.0/')), 'sync Action1 API requests should use the Marketplace regional API base URL');
     assert.strictEqual(result.ok, true, 'offline-only run should complete successfully');
     assert.strictEqual(result.summary.created, 1, 'offline-only run should only create the offline candidate');
     assert.strictEqual(result.summary.updated, 0, 'offline-only run should not update tickets in this fixture');

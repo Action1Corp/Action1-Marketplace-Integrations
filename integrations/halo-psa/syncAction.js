@@ -114,7 +114,8 @@ async function runHaloPsaSync(context, request = {}) {
         haloClientId: row.haloClientId
       }))
     });
-    await logCredentialAvailability(context, runLogger);
+    const action1Credentials = await logCredentialAvailability(context, runLogger);
+    runtimeConfig.connections.action1.baseUrl = String(action1Credentials?.baseUrl || '').trim();
 
     const correlationStore = createDbCorrelationStore(context);
     const watermarkStore = createDbSignalWatermarkStore(context);
@@ -518,6 +519,7 @@ async function logCredentialAvailability(context, runLogger) {
   await runLogger.info('Marketplace Action1 credentials checked.', {
     credentialsAvailable: apiKeyPresent && apiSecretPresent
   });
+  return credentials || {};
 }
 
 function summarizeEnabledSignals(runtimeConfig) {

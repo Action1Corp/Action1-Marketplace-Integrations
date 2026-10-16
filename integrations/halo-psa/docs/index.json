@@ -1,0 +1,10 @@
+{
+  "documents": [
+    {
+      "id": "user-guide",
+      "title": "User Guide",
+      "description": "Learn how to create and manage HALOPSA configuration.",
+      "file": "user-guide.pdf"
+    }
+  ]
+}

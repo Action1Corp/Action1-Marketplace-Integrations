@@ -11,7 +11,7 @@ function run() {
   const helperSource = readSource('settingsValueHelpers.js');
 
   assert(
-    settingsSource.includes("import {\n  getEffectiveSettingValue as resolveEffectiveSettingValue,\n  serializeSettingValue as resolveSerializedSettingValue\n} from './settingsValueHelpers';"),
+    settingsSource.includes("import {\n  getEffectiveSettingValue as resolveEffectiveSettingValue,\n  serializeSettingValue as resolveSerializedSettingValue,\n  updateCsvSelection\n} from './settingsValueHelpers';"),
     'Settings.jsx should use explicit named ESM imports for settingsValueHelpers'
   );
   assert(
@@ -24,7 +24,8 @@ function run() {
     'resolveSettingDefinition',
     'isUnsetHostValueForDefaultedSetting',
     'getEffectiveSettingValue',
-    'serializeSettingValue'
+    'serializeSettingValue',
+    'updateCsvSelection'
   ]) {
     assert(
       helperSource.includes(`export function ${exportName}`),

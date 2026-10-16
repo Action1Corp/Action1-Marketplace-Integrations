@@ -111,7 +111,7 @@ async function discoverAction1MappingOptions(context) {
     const credentials = await loadAction1Credentials(context);
     const accessToken = await requestAction1Token(credentials);
     tokenAcquired = true;
-    const action1Organizations = await discoverAction1Organizations(accessToken);
+    const action1Organizations = await discoverAction1Organizations(accessToken, credentials.baseUrl);
     return {
       ok: true,
       message: 'Loaded Action1 organization options.',

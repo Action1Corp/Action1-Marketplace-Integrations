@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import settingsSchema from './settingsSchema.json';
 import {
   getEffectiveSettingValue as resolveEffectiveSettingValue,
-  serializeSettingValue as resolveSerializedSettingValue
+  serializeSettingValue as resolveSerializedSettingValue,
+  updateCsvSelection
 } from './settingsValueHelpers';
 
 const SECRET_MASK = '***';
@@ -74,6 +75,12 @@ const VULNERABILITY_SEVERITY_OPTIONS = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
 const VULNERABILITY_REMEDIATION_OPTIONS = ['OVERDUE', 'DUE_SOON'];
 const UPDATE_SEVERITY_OPTIONS = ['CRITICAL', 'IMPORTANT', 'MODERATE', 'LOW', 'UNSPECIFIED'];
 const UPDATE_REMEDIATION_OPTIONS = ['OVERDUE', 'DUE_SOON'];
+const MULTI_SELECT_EMPTY_MARKER_KEYS = {
+  HaloPsaVulnerabilitySeverities: 'HaloPsaVulnerabilitySeveritiesExplicit',
+  HaloPsaVulnerabilityRemediationStatuses: 'HaloPsaVulnerabilityRemediationStatusesExplicit',
+  HaloPsaUpdateSeverities: 'HaloPsaUpdateSeveritiesExplicit',
+  HaloPsaUpdateRemediationStatuses: 'HaloPsaUpdateRemediationStatusesExplicit'
+};
 const REBOOT_REQUIRED_AGE_THRESHOLD_HELP_TEXT = 'Use this to avoid creating or maintaining reboot-required tickets for endpoints rebooted more recently than the threshold.';
 const LIGHT_RADIO_CARD_STYLE = {
   display: 'flex',
@@ -490,13 +497,14 @@ function Settings({ integration }) {
 
   const updateCsvSetting = (settingKey, optionValue, checked) => {
     setSettings((current) => {
-      const nextValues = new Set(parseCsvValues(current[settingKey]));
-      if (checked) nextValues.add(optionValue);
-      else nextValues.delete(optionValue);
       const nextSettings = {
         ...current,
-        [settingKey]: Array.from(nextValues).join(',')
+        [settingKey]: updateCsvSelection(current[settingKey], optionValue, checked)
       };
+      const emptySelectionMarkerKey = MULTI_SELECT_EMPTY_MARKER_KEYS[settingKey];
+      if (emptySelectionMarkerKey) {
+        nextSettings[emptySelectionMarkerKey] = 'true';
+      }
 
       if (settingKey === 'HaloPsaVulnerabilitySeverities') {
         nextSettings.HaloPsaVulnerabilityEnabled = hasSelectedCsvValues(nextSettings.HaloPsaVulnerabilitySeverities) ? 'true' : 'false';

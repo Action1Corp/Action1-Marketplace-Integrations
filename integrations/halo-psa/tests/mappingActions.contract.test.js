@@ -327,7 +327,9 @@ async function testAction1OrganizationDiscoveryUsesMarketplaceCredentials() {
           credentialsCalls += 1;
           return {
             apiKey: 'a1-client-id',
-            apiSecret: 'a1-client-secret'
+            apiSecret: 'a1-client-secret',
+            organizationId: 'org-tenant',
+            baseUrl: 'https://app.na-2.action1.com/api/3.0/'
           };
         }
       },
@@ -342,6 +344,7 @@ async function testAction1OrganizationDiscoveryUsesMarketplaceCredentials() {
     ], 'Action1 organization discovery should normalize organization rows');
     assert(fetchCalls.some((call) => call.url.endsWith('/oauth2/token')), 'Action1 organization discovery should request a token');
     assert(fetchCalls.some((call) => call.url.endsWith('/organizations')), 'Action1 organization discovery should fetch organizations');
+    assert(fetchCalls.every((call) => call.url.startsWith('https://app.na-2.action1.com/api/3.0/')), 'Action1 mapping discovery should use the Marketplace regional API base URL');
   });
 }
 
@@ -390,7 +393,8 @@ async function testAction1OrganizationDiscoveryFailsSafely() {
           async getCredentials() {
             return {
               apiKey: 'a1-client-id',
-              apiSecret: 'stored-secret-value'
+              apiSecret: 'stored-secret-value',
+              baseUrl: 'https://app.na-2.action1.com/api/3.0'
             };
           }
         },
@@ -436,7 +440,8 @@ async function testAction1OrganizationDiscoveryFailsSafely() {
           async getCredentials() {
             return {
               apiKey: 'a1-client-id',
-              apiSecret: 'a1-client-secret'
+              apiSecret: 'a1-client-secret',
+              baseUrl: 'https://app.na-2.action1.com/api/3.0'
             };
           }
         },

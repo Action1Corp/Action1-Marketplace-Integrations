@@ -243,6 +243,61 @@ function runExplicitSavedValuesWinOverDefaultsTest() {
   );
 }
 
+function runExplicitEmptyMultiSelectValuesRemainEmptyTest() {
+  const settings = {
+    ...buildCleanHostSettings(),
+    HaloPsaVulnerabilitySeverities: '',
+    HaloPsaVulnerabilitySeveritiesExplicit: 'true',
+    HaloPsaVulnerabilityRemediationStatuses: '',
+    HaloPsaVulnerabilityRemediationStatusesExplicit: 'true',
+    HaloPsaUpdateSeverities: '',
+    HaloPsaUpdateSeveritiesExplicit: 'true',
+    HaloPsaUpdateRemediationStatuses: '',
+    HaloPsaUpdateRemediationStatusesExplicit: 'true'
+  };
+
+  for (const key of [
+    'HaloPsaVulnerabilitySeverities',
+    'HaloPsaVulnerabilityRemediationStatuses',
+    'HaloPsaUpdateSeverities',
+    'HaloPsaUpdateRemediationStatuses'
+  ]) {
+    assert.strictEqual(
+      getEffectiveSettingValue({ key }, settings, {
+        settingsSchema,
+        secretMask: SECRET_MASK
+      }),
+      '',
+      `${key} should preserve an explicitly selected empty value`
+    );
+    assert.strictEqual(
+      serializeSettingValue(getSetting(key), settings, {
+        settingsSchema,
+        secretMask: SECRET_MASK
+      }),
+      '',
+      `${key} should serialize an explicitly selected empty value`
+    );
+  }
+
+  const reloadedSettings = serializeAll(settings);
+  for (const key of [
+    'HaloPsaVulnerabilitySeverities',
+    'HaloPsaVulnerabilityRemediationStatuses',
+    'HaloPsaUpdateSeverities',
+    'HaloPsaUpdateRemediationStatuses'
+  ]) {
+    assert.strictEqual(
+      getEffectiveSettingValue({ key }, reloadedSettings, {
+        settingsSchema,
+        secretMask: SECRET_MASK
+      }),
+      '',
+      `${key} should remain empty after save serialization and reload normalization`
+    );
+  }
+}
+
 function runSecretPlaceholderPreservationTest() {
   const currentSettings = {
     ...buildCleanHostSettings(),
@@ -272,6 +327,7 @@ function run() {
   runRequiredBlankFieldsRemainBlankTest();
   runUntouchedCleanSaveSerializesDefaultsTest();
   runExplicitSavedValuesWinOverDefaultsTest();
+  runExplicitEmptyMultiSelectValuesRemainEmptyTest();
   runSecretPlaceholderPreservationTest();
 }
 

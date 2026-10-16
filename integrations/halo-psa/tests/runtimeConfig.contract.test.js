@@ -1,6 +1,5 @@
 const assert = require('assert');
 
-const { ACTION1_BASE_URL } = require('../action1Api');
 const {
   DEFAULT_ACTION1_CONNECTION,
   RUNTIME_SETTING_KEYS,
@@ -93,7 +92,7 @@ async function runBuildRuntimeConfigTest() {
   });
 
   assert.deepStrictEqual(DEFAULT_ACTION1_CONNECTION, {
-    baseUrl: ACTION1_BASE_URL,
+    baseUrl: '',
     clientId: '',
     clientSecretRef: ''
   });

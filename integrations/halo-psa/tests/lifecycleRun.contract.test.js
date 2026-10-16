@@ -3,8 +3,10 @@ const assert = require('assert');
 const { createLifecycleRunService } = require('../lifecycleRunService');
 const {
   EXISTING_OPEN_TICKET_BEHAVIOR,
+  buildAction1EndpointUrl,
   buildHaloCreateTicketPayload,
   buildGroupedTicketContentFromCandidate,
+  buildGroupedProblemUrl,
   buildTicketContentFromCandidate,
   hashPayload
 } = require('../lifecycle');
@@ -619,13 +621,16 @@ async function runEndpointUpdatePayloadFormatsFriendlySlaAndUsesUpdatesConsoleLi
   const candidate = endpointUpdateCandidate();
   const rendered = buildTicketContentFromCandidate({
     candidate,
-    action1BaseUrl: 'https://app.action1.com/api/3.0'
+    action1BaseUrl: 'https://app.na-2.action1.com/api/3.0/'
   });
 
   assert.ok(rendered.details.includes('SLA Due Soon'), 'endpoint UPDATE details should render a user-friendly Due Soon label');
   assert.ok(!rendered.details.includes('DUE_SOON'), 'endpoint UPDATE details should not leak the normalized DUE_SOON enum');
   assert.ok(rendered.details.includes('Action1 update:'), 'endpoint UPDATE details should point to the update console');
   assert.ok(rendered.details.includes('/console/updates?'), 'endpoint UPDATE details should use the main Action1 updates console URL');
+  assert.ok(rendered.details.includes('https://app.na-2.action1.com/console/updates?'), 'endpoint UPDATE details should use the regional Action1 Console origin');
+  assert.ok(!rendered.details.includes('https://app.action1.com/console/'), 'endpoint UPDATE details should not use the historical Action1 Console origin');
+  assert.ok(!rendered.details.includes('/api/3.0/console/'), 'Console links should not include the Action1 API path');
   assert.ok(!rendered.details.includes('/console/updates/package-1~1.0.0/endpoints'), 'endpoint UPDATE details should not use the old package-version endpoints URL');
   assert.ok(rendered.details.includes('limit=200'), 'endpoint UPDATE details should preserve the updates console page size');
   assert.ok(rendered.details.includes('from=0'), 'endpoint UPDATE details should preserve the updates console offset');
@@ -645,14 +650,46 @@ async function runGroupedUpdatePayloadFormatsFriendlySlaAndUsesUpdatesConsoleLin
 
   const rendered = buildGroupedTicketContentFromCandidate({
     candidate,
-    action1BaseUrl: 'https://app.action1.com/api/3.0'
+    action1BaseUrl: 'https://app.na-2.action1.com/api/3.0/'
   });
 
   assert.ok(rendered.details.includes('SLA status: Due Soon'), 'grouped UPDATE details should render a user-friendly Due Soon label');
   assert.ok(!rendered.details.includes('SLA status: DUE_SOON'), 'grouped UPDATE details should not leak the normalized DUE_SOON enum');
   assert.ok(rendered.details.includes('/console/updates?'), 'grouped UPDATE details should use the main Action1 updates console URL');
   assert.ok(rendered.problemUrl.includes('/console/updates?'), 'grouped UPDATE problem URL should use the main Action1 updates console URL');
+  assert.ok(rendered.problemUrl.startsWith('https://app.na-2.action1.com/console/updates?'), 'grouped UPDATE problem URL should use the regional Action1 Console origin');
   assert.ok(rendered.problemUrl.includes('filter=2023-10%2520Update%2520for%2520Windows%252011%2520for%2520x64-based%2520Systems%2520%28KB4023057%29'), 'grouped UPDATE problem URL should double-encode the update name filter');
+}
+
+function runAllAction1ConsoleLinksUseRegionalOriginTest() {
+  const baseUrl = 'https://app.na-2.action1.com/api/3.0/';
+  const cases = [
+    ['endpoint', buildAction1EndpointUrl(baseUrl, 'org-1', 'endpoint-1', 'Endpoint One')],
+    ['vulnerability', buildGroupedProblemUrl({
+      signalType: 'VULNERABILITY',
+      action1BaseUrl: baseUrl,
+      action1OrgId: 'org-1',
+      issueMetadata: { cveId: 'CVE-2026-0001' }
+    })],
+    ['update', buildGroupedProblemUrl({
+      signalType: 'UPDATE',
+      action1BaseUrl: baseUrl,
+      action1OrgId: 'org-1',
+      issueMetadata: { packageName: 'Update One' }
+    })],
+    ['automation', buildGroupedProblemUrl({
+      signalType: 'AUTOMATION_FAILED',
+      action1BaseUrl: baseUrl,
+      action1OrgId: 'org-1',
+      issueMetadata: { automationInstanceId: 'instance-1' }
+    })]
+  ];
+
+  for (const [label, url] of cases) {
+    assert(url.startsWith('https://app.na-2.action1.com/console/'), `${label} Console link should use the regional Action1 origin`);
+    assert(!url.includes('/api/3.0/console/'), `${label} Console link should not include the Action1 API path`);
+    assert(!url.startsWith('https://app.action1.com/console/'), `${label} Console link should not use the historical Action1 origin`);
+  }
 }
 
 async function runGroupedUpdatePayloadFormatsOverdueFriendlyLabelTest() {
@@ -843,6 +880,7 @@ async function run() {
   await runGroupedUpdatePayloadPreservesHtmlFieldTest();
   await runEndpointUpdatePayloadFormatsFriendlySlaAndUsesUpdatesConsoleLinkTest();
   await runGroupedUpdatePayloadFormatsFriendlySlaAndUsesUpdatesConsoleLinkTest();
+  runAllAction1ConsoleLinksUseRegionalOriginTest();
   await runGroupedUpdatePayloadFormatsOverdueFriendlyLabelTest();
   await runGroupedVulnerabilityPayloadFormatsFriendlyRemediationStatusTest();
   await runMissingLinkedTicketRecreatesInsteadOfSkippingTest();

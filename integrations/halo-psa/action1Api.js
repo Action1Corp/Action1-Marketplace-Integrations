@@ -1,4 +1,3 @@
-const ACTION1_BASE_URL = 'https://app.action1.com/api/3.0';
 const { LOG_EVENT_TYPES, emitLog } = require('./runtimeLogging');
 const { createSafeHttpClient, sleepMs } = require('./safeHttpClient');
 const { normalizeSignalRulesConfig } = require('./signalRulesConfig');
@@ -136,12 +135,13 @@ function buildSafeResponseSummary(payload) {
 }
 
 async function requestAction1Token(credentials) {
+  const baseUrl = ensureUrl(credentials?.baseUrl, 'Action1 baseUrl');
   const params = new URLSearchParams();
   params.append('client_id', credentials.apiKey);
   params.append('client_secret', credentials.apiSecret);
   params.append('grant_type', 'client_credentials');
 
-  const response = await fetch(`${ACTION1_BASE_URL}/oauth2/token`, {
+  const response = await fetch(joinUrl(baseUrl, '/oauth2/token'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded'
@@ -221,8 +221,9 @@ function dedupeRows(rows) {
   return out;
 }
 
-async function discoverAction1Organizations(accessToken) {
-  const response = await fetch(`${ACTION1_BASE_URL}/organizations`, {
+async function discoverAction1Organizations(accessToken, baseUrl) {
+  const resolvedBaseUrl = ensureUrl(baseUrl, 'Action1 baseUrl');
+  const response = await fetch(joinUrl(resolvedBaseUrl, '/organizations'), {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -255,8 +256,15 @@ async function loadAction1Credentials(context) {
   const credentials = await context?.action1?.getCredentials?.();
   const apiKey = trimValue(credentials?.apiKey);
   const apiSecret = trimValue(credentials?.apiSecret);
+  let baseUrl = '';
 
-  if (!apiKey || !apiSecret) {
+  try {
+    baseUrl = ensureUrl(credentials?.baseUrl, 'Action1 baseUrl');
+  } catch {
+    baseUrl = '';
+  }
+
+  if (!apiKey || !apiSecret || !baseUrl) {
     throw new DiscoveryRequestError('Action1 organization discovery failed.', {
       operation: 'discover-action1-organizations',
       request: {
@@ -266,13 +274,15 @@ async function loadAction1Credentials(context) {
       },
       response: {
         status: null,
-        errorCode: 'missing_action1_credentials',
-        errorMessage: 'Marketplace Action1 credentials are incomplete.'
+        errorCode: !apiKey || !apiSecret ? 'missing_action1_credentials' : 'invalid_action1_base_url',
+        errorMessage: !apiKey || !apiSecret
+          ? 'Marketplace Action1 credentials are incomplete.'
+          : 'Marketplace Action1 baseUrl is invalid.'
       }
     });
   }
 
-  return { apiKey, apiSecret };
+  return { apiKey, apiSecret, baseUrl };
 }
 
 const TOKEN_REUSE_SAFETY_MARGIN_MS = 60 * 1000;
@@ -867,9 +877,9 @@ function createAction1Client(opts = {}) {
   }
 
   async function resolveConnection(context, connectionInput) {
-    const raw = connectionInput || (context ? await buildConnectionFromContext(context) : null);
+    const raw = connectionInput || opts.connection || (context ? await buildConnectionFromContext(context) : null);
     if (!raw || typeof raw !== 'object') throw new Error('Action1 connection is not configured');
-    const baseUrl = ensureUrl(raw.baseUrl || ACTION1_BASE_URL, 'Action1 baseUrl');
+    const baseUrl = ensureUrl(raw.baseUrl, 'Action1 baseUrl');
     const clientId = String(raw.clientId || '').trim();
     const clientSecret = String(raw.clientSecret || '').trim();
     if (!clientId) throw new Error('Action1 clientId is required');
@@ -880,7 +890,7 @@ function createAction1Client(opts = {}) {
   async function buildConnectionFromContext(context) {
     const credentials = await loadAction1Credentials(context);
     return {
-      baseUrl: ACTION1_BASE_URL,
+      baseUrl: credentials.baseUrl,
       clientId: credentials.apiKey,
       clientSecret: credentials.apiSecret
     };
@@ -1393,7 +1403,6 @@ function hasAnyFilterValues(filter) {
 }
 
 module.exports = {
-  ACTION1_BASE_URL,
   DiscoveryRequestError,
   __private: {
     buildCrossFilterDuplicateDiagnostics,
