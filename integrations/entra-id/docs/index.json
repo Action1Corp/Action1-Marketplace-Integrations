@@ -1,0 +1,10 @@
+{
+  "documents": [
+    {
+      "id": "user-guide",
+      "title": "User Guide",
+      "description": "Learn how to create and manage Entra - Action1 sync configuration.",
+      "file": "user-guide.pdf"
+    }
+  ]
+}

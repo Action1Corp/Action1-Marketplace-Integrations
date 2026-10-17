@@ -16,6 +16,106 @@ async function run() {
   await runTokenRefreshAfterExpiryTest(action1Client);
   await runRateLimitRetryTest(action1Client);
   await run401RefreshRetryTest(action1Client);
+  await runRegionalReadWriteAndTrailingSlashTest(action1Client);
+  await runRegionalPaginationCharacterizationTest(action1Client);
+  await runInvalidBaseUrlTest(action1Client);
+}
+
+async function runRegionalReadWriteAndTrailingSlashTest(action1Client) {
+  const originalFetch = global.fetch;
+  const requests = [];
+
+  global.fetch = async (url, options = {}) => {
+    requests.push({ url: String(url), method: options.method || 'GET' });
+    if (String(url).endsWith('/oauth2/token')) {
+      return jsonResponse(200, { access_token: 'regional-token', expires_in: 3600 });
+    }
+    if (String(url).includes('/endpoints/managed/org-regional?')) {
+      return jsonResponse(200, { items: [{ id: 'endpoint-regional', name: 'Regional Endpoint' }] });
+    }
+    if (String(url).endsWith('/endpoints/managed/org-regional/endpoint-regional')) {
+      return jsonResponse(200, { id: 'endpoint-regional' });
+    }
+    throw new Error(`Unexpected URL ${url}`);
+  };
+
+  try {
+    const config = {
+      apiBaseUrl: 'https://app.na-2.action1.com/api/3.0/',
+      clientId: 'regional-client',
+      clientSecret: 'regional-secret'
+    };
+    const token = await action1Client.getAccessToken(config, silentLogger());
+    await action1Client.listManagedEndpoints(config, token, 'org-regional', { limit: 50 }, silentLogger());
+    await action1Client.patchManagedEndpoint(config, token, 'org-regional', 'endpoint-regional', { 'custom:Entra Groups': 'Group A' }, silentLogger());
+
+    assert.deepStrictEqual(requests.map((entry) => entry.url), [
+      'https://app.na-2.action1.com/api/3.0/oauth2/token',
+      'https://app.na-2.action1.com/api/3.0/endpoints/managed/org-regional?limit=50&fields=*',
+      'https://app.na-2.action1.com/api/3.0/endpoints/managed/org-regional/endpoint-regional'
+    ], 'regional Action1 token, read, and write requests should preserve the API base path without double slashes');
+    assert.strictEqual(requests.some((entry) => entry.url.includes('app.action1.com/api/3.0')), false, 'main Action1 requests must not use the historical region');
+  } finally {
+    global.fetch = originalFetch;
+  }
+}
+
+async function runInvalidBaseUrlTest(action1Client) {
+  const originalFetch = global.fetch;
+  let fetchCalls = 0;
+  global.fetch = async () => {
+    fetchCalls += 1;
+    return jsonResponse(200, { access_token: 'should-not-be-requested' });
+  };
+
+  try {
+    await assert.rejects(
+      () => action1Client.getAccessToken({ apiBaseUrl: 'not-a-url', clientId: 'client', clientSecret: 'secret' }, silentLogger()),
+      /valid|config/i,
+      'invalid Action1 base URLs should fail before HTTP execution'
+    );
+    assert.strictEqual(fetchCalls, 0, 'invalid Action1 base URLs must not send HTTP requests');
+  } finally {
+    global.fetch = originalFetch;
+  }
+}
+
+async function runRegionalPaginationCharacterizationTest(action1Client) {
+  const originalFetch = global.fetch;
+  const requests = [];
+  global.fetch = async (url) => {
+    requests.push(String(url));
+    if (String(url).endsWith('/oauth2/token')) {
+      return jsonResponse(200, { access_token: 'regional-page-token', expires_in: 3600 });
+    }
+    if (String(url).includes('from=1')) {
+      return jsonResponse(200, { items: [{ id: 'endpoint-2' }] });
+    }
+    return jsonResponse(200, {
+      items: [{ id: 'endpoint-1' }],
+      next_page: 'https://app.na-2.action1.com/api/3.0/endpoints/managed/org-page?limit=50&fields=*&from=1'
+    });
+  };
+
+  try {
+    const config = {
+      apiBaseUrl: 'https://app.na-2.action1.com/api/3.0',
+      clientId: 'regional-page-client',
+      clientSecret: 'regional-page-secret'
+    };
+    const token = await action1Client.getAccessToken(config, silentLogger());
+    const rows = await action1Client.listManagedEndpoints(
+      config,
+      token,
+      'org-page',
+      { limit: 50 },
+      silentLogger()
+    );
+    assert.deepStrictEqual(rows, [{ id: 'endpoint-1' }, { id: 'endpoint-2' }], 'existing Action1 pagination should collect regional pages');
+    assert.strictEqual(requests[2], 'https://app.na-2.action1.com/api/3.0/endpoints/managed/org-page?limit=50&fields=*&from=1', 'existing pagination should retain the regional API base');
+  } finally {
+    global.fetch = originalFetch;
+  }
 }
 
 async function runTokenReuseBeforeExpiryTest(action1Client) {

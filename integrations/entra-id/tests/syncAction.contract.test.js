@@ -33,6 +33,7 @@ async function run() {
   const result = await actions.sync({
     _entraSyncRunner: async (runtimeConfig, logger) => {
       assert.strictEqual(runtimeConfig.tenants.length, 1, 'sync handler should pass the assembled runtime config to the execution seam');
+      assert.strictEqual(runtimeConfig.action1.apiBaseUrl, 'https://app.na-2.action1.com/api/3.0', 'sync handler should pass the Marketplace regional Action1 base URL to the execution seam');
       logger.info('Detailed hidden trace.', { secret: 'hidden-value' });
       return {
         dryRun: false,
@@ -72,7 +73,8 @@ async function run() {
       async getCredentials() {
         return {
           apiKey: 'action1-client-id',
-          apiSecret: 'action1-client-secret'
+          apiSecret: 'action1-client-secret',
+          baseUrl: 'https://app.na-2.action1.com/api/3.0'
         };
       }
     },
@@ -149,7 +151,8 @@ async function run() {
       async getCredentials() {
         return {
           apiKey: 'action1-client-id',
-          apiSecret: 'action1-client-secret'
+          apiSecret: 'action1-client-secret',
+          baseUrl: 'https://app.na-2.action1.com/api/3.0'
         };
       }
     },
@@ -186,7 +189,8 @@ async function run() {
       async getCredentials() {
         return {
           apiKey: 'action1-client-id',
-          apiSecret: 'action1-client-secret'
+          apiSecret: 'action1-client-secret',
+          baseUrl: 'https://app.na-2.action1.com/api/3.0'
         };
       }
     },
@@ -224,7 +228,8 @@ async function run() {
       async getCredentials() {
         return {
           apiKey: 'action1-client-id',
-          apiSecret: 'action1-client-secret'
+          apiSecret: 'action1-client-secret',
+          baseUrl: 'https://app.na-2.action1.com/api/3.0'
         };
       }
     },
@@ -281,7 +286,8 @@ async function run() {
       async getCredentials() {
         return {
           apiKey: 'action1-client-id',
-          apiSecret: 'action1-client-secret'
+          apiSecret: 'action1-client-secret',
+          baseUrl: 'https://app.na-2.action1.com/api/3.0'
         };
       }
     },
@@ -337,7 +343,8 @@ async function run() {
       async getCredentials() {
         return {
           apiKey: 'action1-client-id',
-          apiSecret: 'action1-client-secret'
+          apiSecret: 'action1-client-secret',
+          baseUrl: 'https://app.na-2.action1.com/api/3.0'
         };
       }
     },
@@ -436,7 +443,8 @@ async function run() {
       async getCredentials() {
         return {
           apiKey: 'action1-client-id',
-          apiSecret: 'action1-client-secret'
+          apiSecret: 'action1-client-secret',
+          baseUrl: 'https://app.na-2.action1.com/api/3.0'
         };
       }
     },
@@ -510,7 +518,8 @@ async function run() {
       async getCredentials() {
         return {
           apiKey: 'action1-client-id',
-          apiSecret: 'action1-client-secret'
+          apiSecret: 'action1-client-secret',
+          baseUrl: 'https://app.na-2.action1.com/api/3.0'
         };
       }
     },
@@ -554,7 +563,8 @@ async function run() {
       async getCredentials() {
         return {
           apiKey: 'action1-client-id',
-          apiSecret: 'action1-client-secret'
+          apiSecret: 'action1-client-secret',
+          baseUrl: 'https://app.na-2.action1.com/api/3.0'
         };
       }
     },

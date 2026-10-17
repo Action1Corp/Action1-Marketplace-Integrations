@@ -96,6 +96,18 @@ function getSetting(settings, key) {
   return String(settings?.[key] || '').trim();
 }
 
+function normalizeAction1BaseUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  try {
+    const url = new URL(raw);
+    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname || url.username || url.password) return '';
+    return url.toString().replace(/\/+$/, '');
+  } catch {
+    return '';
+  }
+}
+
 async function readRuntimeSettings(context, options = {}) {
   const out = {};
   const canGet = context?.settings && typeof context.settings.get === 'function';
@@ -157,6 +169,7 @@ async function loadSyncRuntimeConfig(context, options = {}) {
   const clientSecret = getSetting(loadedSettings, 'EntraClientSecret');
   const action1ApiKey = String(action1Credentials?.apiKey || '').trim();
   const action1ApiSecret = String(action1Credentials?.apiSecret || '').trim();
+  const action1BaseUrl = normalizeAction1BaseUrl(action1Credentials?.baseUrl);
   const targetMappings = resolvedAttributeMappings.map((row) => ({
     entraProperty: row.entraProperty,
     action1CustomAttribute: row.action1CustomAttribute
@@ -178,7 +191,7 @@ async function loadSyncRuntimeConfig(context, options = {}) {
     mappings: orgMappings,
     tenants: [],
     action1: {
-      apiBaseUrl: 'https://app.action1.com/api/3.0',
+      apiBaseUrl: action1BaseUrl,
       clientId: action1ApiKey,
       clientSecret: action1ApiSecret
     }
@@ -212,6 +225,7 @@ function getSyncReadiness(runtimeConfig, options = {}) {
   const clientSecret = String(tenant?.clientSecret || getSetting(runtimeConfig?.settings, 'EntraClientSecret')).trim();
   const action1ClientId = String(runtimeConfig?.action1?.clientId || '').trim();
   const action1ClientSecret = String(runtimeConfig?.action1?.clientSecret || '').trim();
+  const action1BaseUrl = normalizeAction1BaseUrl(runtimeConfig?.action1?.apiBaseUrl);
   const mappedOrganizations = Array.isArray(tenant?.targets?.[0]?.organizationIds)
     ? tenant.targets[0].organizationIds.filter(Boolean)
     : [];
@@ -221,6 +235,7 @@ function getSyncReadiness(runtimeConfig, options = {}) {
     clientId: Boolean(clientId),
     clientSecret: Boolean(clientSecret),
     action1Credentials: Boolean(action1ClientId && action1ClientSecret),
+    action1BaseUrl: Boolean(action1BaseUrl),
     mappings: mappingCount
   };
 
@@ -268,6 +283,19 @@ function getSyncReadiness(runtimeConfig, options = {}) {
     };
   }
 
+  if (!presence.action1BaseUrl) {
+    return {
+      status: 'not_configured',
+      code: runtimeConfig?.action1?.apiBaseUrl ? 'invalid_action1_base_url' : 'missing_action1_base_url',
+      message: runtimeConfig?.action1?.apiBaseUrl
+        ? 'The shared Action1 regional API base URL is invalid.'
+        : 'The shared Action1 regional API base URL is missing.',
+      retryable: false,
+      presence,
+      mappingCount
+    };
+  }
+
   if (mappingCount === 0) {
     return {
       status: 'no_mappings',
@@ -304,6 +332,7 @@ module.exports = {
   DEFAULT_INTERVAL_HOURS,
   getSyncReadiness,
   loadSyncRuntimeConfig,
+  normalizeAction1BaseUrl,
   parseSavedSchedule,
   readRuntimeSettings,
   RUNTIME_SETTING_KEYS,

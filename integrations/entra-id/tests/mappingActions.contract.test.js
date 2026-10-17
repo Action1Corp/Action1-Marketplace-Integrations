@@ -224,7 +224,8 @@ async function testAction1OrganizationDiscoveryUsesMarketplaceCredentials() {
           credentialsCalls += 1;
           return {
             apiKey: 'a1-client-id',
-            apiSecret: 'a1-client-secret'
+            apiSecret: 'a1-client-secret',
+            baseUrl: 'https://app.na-2.action1.com/api/3.0'
           };
         }
       },
@@ -239,6 +240,9 @@ async function testAction1OrganizationDiscoveryUsesMarketplaceCredentials() {
     ], 'Action1 organization discovery should normalize organization rows');
     assert(fetchCalls.some((call) => call.url.endsWith('/oauth2/token')), 'Action1 organization discovery should request a token');
     assert(fetchCalls.some((call) => call.url.endsWith('/organizations')), 'Action1 organization discovery should fetch organizations');
+    assert.strictEqual(fetchCalls.find((call) => call.url.endsWith('/oauth2/token')).url, 'https://app.na-2.action1.com/api/3.0/oauth2/token', 'mapping token discovery should use the Marketplace regional base URL');
+    assert.strictEqual(fetchCalls.find((call) => call.url.endsWith('/organizations')).url, 'https://app.na-2.action1.com/api/3.0/organizations', 'mapping organization discovery should use the Marketplace regional base URL');
+    assert.strictEqual(fetchCalls.some((call) => call.url.includes('app.action1.com/api/3.0')), false, 'mapping discovery must not use the historical Action1 region');
   });
 }
 
@@ -288,7 +292,8 @@ async function testAction1OrganizationDiscoveryFailsSafely() {
           async getCredentials() {
             return {
               apiKey: 'a1-client-id',
-              apiSecret: 'stored-secret-value'
+              apiSecret: 'stored-secret-value',
+              baseUrl: 'https://app.na-2.action1.com/api/3.0'
             };
           }
         },
@@ -306,6 +311,50 @@ async function testAction1OrganizationDiscoveryFailsSafely() {
   }
 }
 
+async function testAction1OrganizationDiscoveryRejectsInvalidBaseUrlAndNormalizesTrailingSlash() {
+  for (const baseUrl of ['', 'not-a-url']) {
+    const actions = await loadFreshActionsModule();
+    const result = await actions['discover-action1-mapping-options']({
+      action1: {
+        async getCredentials() {
+          return { apiKey: 'a1-client-id', apiSecret: 'a1-client-secret', baseUrl };
+        }
+      },
+      logger: { warn() {} }
+    }, {});
+    assert.strictEqual(result.ok, false, `mapping discovery should reject ${baseUrl || 'missing'} Action1 baseUrl`);
+    assert.strictEqual(result.action1Organizations.length, 0, 'invalid Action1 baseUrl should return no organizations');
+  }
+
+  const fetchCalls = [];
+  await withMockedFetch(async (url) => {
+    fetchCalls.push(String(url));
+    if (String(url).endsWith('/oauth2/token')) {
+      return { ok: true, json: async () => ({ access_token: 'action1-token' }) };
+    }
+    return { ok: true, json: async () => ({ organizations: [] }) };
+  }, async () => {
+    const actions = await loadFreshActionsModule();
+    const result = await actions['discover-action1-mapping-options']({
+      action1: {
+        async getCredentials() {
+          return {
+            apiKey: 'a1-client-id',
+            apiSecret: 'a1-client-secret',
+            baseUrl: 'https://app.na-2.action1.com/api/3.0/'
+          };
+        }
+      },
+      logger: { warn() {} }
+    }, {});
+    assert.strictEqual(result.ok, true, 'mapping discovery should accept a trailing slash on Action1 baseUrl');
+    assert.deepStrictEqual(fetchCalls, [
+      'https://app.na-2.action1.com/api/3.0/oauth2/token',
+      'https://app.na-2.action1.com/api/3.0/organizations'
+    ], 'mapping discovery should normalize trailing slashes without changing the regional API path');
+  });
+}
+
 async function run() {
   await testPortableOrderingSqlStaysOutOfSQLiteOnlyCollation();
   await testListReturnsRowsSafely();
@@ -314,6 +363,7 @@ async function run() {
   await testDeleteOnlyBehavesDeterministically();
   await testAction1OrganizationDiscoveryUsesMarketplaceCredentials();
   await testAction1OrganizationDiscoveryFailsSafely();
+  await testAction1OrganizationDiscoveryRejectsInvalidBaseUrlAndNormalizesTrailingSlash();
 }
 
 run().catch((error) => {

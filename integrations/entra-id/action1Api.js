@@ -1,4 +1,16 @@
-const ACTION1_BASE_URL = 'https://app.action1.com/api/3.0';
+function normalizeBaseUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) throw new Error('Action1 baseUrl must be a valid absolute HTTP(S) URL.');
+  try {
+    const url = new URL(raw);
+    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname || url.username || url.password) {
+      throw new Error('invalid URL');
+    }
+    return url.toString().replace(/\/+$/, '');
+  } catch {
+    throw new Error('Action1 baseUrl must be a valid absolute HTTP(S) URL.');
+  }
+}
 
 function trimValue(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -110,12 +122,13 @@ function buildSafeResponseSummary(payload) {
 }
 
 async function requestAction1Token(credentials) {
+  const baseUrl = normalizeBaseUrl(credentials?.baseUrl);
   const params = new URLSearchParams();
   params.append('client_id', credentials.apiKey);
   params.append('client_secret', credentials.apiSecret);
   params.append('grant_type', 'client_credentials');
 
-  const response = await fetch(`${ACTION1_BASE_URL}/oauth2/token`, {
+  const response = await fetch(`${baseUrl}/oauth2/token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded'
@@ -195,8 +208,8 @@ function dedupeRows(rows) {
   return out;
 }
 
-async function discoverAction1Organizations(accessToken) {
-  const response = await fetch(`${ACTION1_BASE_URL}/organizations`, {
+async function discoverAction1Organizations(accessToken, baseUrl) {
+  const response = await fetch(`${normalizeBaseUrl(baseUrl)}/organizations`, {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -229,8 +242,14 @@ async function loadAction1Credentials(context) {
   const credentials = await context?.action1?.getCredentials?.();
   const apiKey = trimValue(credentials?.apiKey);
   const apiSecret = trimValue(credentials?.apiSecret);
+  let baseUrl = '';
+  try {
+    baseUrl = normalizeBaseUrl(credentials?.baseUrl);
+  } catch {
+    baseUrl = '';
+  }
 
-  if (!apiKey || !apiSecret) {
+  if (!apiKey || !apiSecret || !baseUrl) {
     throw new DiscoveryRequestError('Action1 organization discovery failed.', {
       operation: 'discover-action1-organizations',
       request: {
@@ -240,17 +259,18 @@ async function loadAction1Credentials(context) {
       },
       response: {
         status: null,
-        errorCode: 'missing_action1_credentials',
-        errorMessage: 'Marketplace Action1 credentials are incomplete.'
+        errorCode: !apiKey || !apiSecret ? 'missing_action1_credentials' : 'invalid_action1_base_url',
+        errorMessage: !apiKey || !apiSecret
+          ? 'Marketplace Action1 credentials are incomplete.'
+          : 'Marketplace Action1 baseUrl is invalid.'
       }
     });
   }
 
-  return { apiKey, apiSecret };
+  return { apiKey, apiSecret, baseUrl };
 }
 
 module.exports = {
-  ACTION1_BASE_URL,
   DiscoveryRequestError,
   discoverAction1Organizations,
   loadAction1Credentials,

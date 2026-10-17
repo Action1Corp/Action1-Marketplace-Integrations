@@ -68,9 +68,21 @@ function backoffMsForConsecutive429(consecutive429Count) {
 
 function requireAction1Config(action1) {
   if (!action1) throw new Error('Action1 config is missing');
-  if (!action1.apiBaseUrl) throw new Error('Action1 config missing: action1.apiBaseUrl');
+  if (!normalizeAction1BaseUrl(action1.apiBaseUrl)) throw new Error('Action1 config missing or invalid: action1.apiBaseUrl');
   if (!action1.clientId) throw new Error('Action1 config missing: action1.clientId');
   if (!action1.clientSecret) throw new Error('Action1 config missing: action1.clientSecret');
+}
+
+function normalizeAction1BaseUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  try {
+    const url = new URL(raw);
+    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname || url.username || url.password) return '';
+    return url.toString().replace(/\/+$/, '');
+  } catch {
+    return '';
+  }
 }
 
 /* ------------------------- small debug helpers ------------------------- */

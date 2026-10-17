@@ -38,7 +38,8 @@ async function run() {
       async getCredentials() {
         return {
           apiKey: 'action1-client-id',
-          apiSecret: 'action1-client-secret'
+          apiSecret: 'action1-client-secret',
+          baseUrl: 'https://app.na-2.action1.com/api/3.0/'
         };
       }
     },
@@ -62,6 +63,7 @@ async function run() {
   assert.deepStrictEqual(runtimeConfig.tenants[0].targets[0].organizationIds, ['org-1'], 'runtimeConfig should scope sync jobs to persisted Action1 organization mappings');
   assert.strictEqual(runtimeConfig.action1.clientId, 'action1-client-id', 'runtimeConfig should use Marketplace-owned shared Action1 credentials');
   assert.strictEqual(runtimeConfig.action1.clientSecret, 'action1-client-secret', 'runtimeConfig should preserve the Action1 secret for backend runtime use only');
+  assert.strictEqual(runtimeConfig.action1.apiBaseUrl, 'https://app.na-2.action1.com/api/3.0', 'runtimeConfig should propagate and normalize the Marketplace Action1 regional base URL');
   assert.deepStrictEqual(
     runtimeConfig.tenants[0].targets[0].mappings.map((row) => row.action1CustomAttribute),
     ['Test Attribute 1', 'Test Attribute 2'],
@@ -87,6 +89,20 @@ async function run() {
   const readyState = getSyncReadiness(runtimeConfig);
   assert.strictEqual(readyState.status, 'ready', 'runtimeConfig with full settings and mappings should be ready');
   assert.strictEqual(readyState.code, 'ready', 'runtimeConfig ready state should preserve a stable readiness code');
+
+  const missingBaseUrlState = getSyncReadiness({
+    ...runtimeConfig,
+    action1: { ...runtimeConfig.action1, apiBaseUrl: '' }
+  });
+  assert.strictEqual(missingBaseUrlState.status, 'not_configured', 'missing Action1 base URL should block sync safely');
+  assert.strictEqual(missingBaseUrlState.code, 'missing_action1_base_url', 'missing Action1 base URL should expose a stable readiness code');
+
+  const malformedBaseUrlState = getSyncReadiness({
+    ...runtimeConfig,
+    action1: { ...runtimeConfig.action1, apiBaseUrl: 'not-a-url' }
+  });
+  assert.strictEqual(malformedBaseUrlState.status, 'not_configured', 'malformed Action1 base URL should block sync safely');
+  assert.strictEqual(malformedBaseUrlState.code, 'invalid_action1_base_url', 'malformed Action1 base URL should expose a stable readiness code');
 
   const missingMappingState = getSyncReadiness({
     ...runtimeConfig,
@@ -178,7 +194,8 @@ async function run() {
       async getCredentials() {
         return {
           apiKey: 'action1-client-id',
-          apiSecret: 'action1-client-secret'
+          apiSecret: 'action1-client-secret',
+          baseUrl: 'https://app.na-2.action1.com/api/3.0'
         };
       }
     },
@@ -213,7 +230,8 @@ async function run() {
       async getCredentials() {
         return {
           apiKey: 'action1-client-id',
-          apiSecret: 'action1-client-secret'
+          apiSecret: 'action1-client-secret',
+          baseUrl: 'https://app.na-2.action1.com/api/3.0'
         };
       }
     },
