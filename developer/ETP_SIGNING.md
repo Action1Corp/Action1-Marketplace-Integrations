@@ -11,8 +11,8 @@ Every authenticated integration action has `context.action1.provisioner` version
 const result = await context.action1.provisioner.prepareSchedules({
   idempotencyKey: request.payload.intentId, // retain across retries of this intent
   schedules: definitions.map((definition, index) => ({
-    id: `family-${index}`,
-    organizationId: policy.organizationId,
+    id: `schedule-${index}`,
+    organizationId: request.payload.organizationId,
     payload: definition.payload // includes name, actions, settings and endpoints
   }))
 });
@@ -37,20 +37,6 @@ Scheduled handlers do not have an interactive actor. They must report that fresh
 
 When a known protected action is actually migrated, declare `etpSupport: "schedule-provisioner-v1"` and `retry: false` on that action in `manifest.json`. This does not confer signing access or remove user approval. Do not mark an unsupported handler as migrated merely to bypass the Marketplace compatibility gate. Third-party integrations remain trusted server code, not sandboxed plugins.
 
-## Configuration Management migration
-
-`integrations/action1-configuration-manager/etpProvisioning.js` contains `preparePolicySigning(context, policy, definitions, idempotencyKey)`, a reusable adapter for complete generated family definitions. Its 24-family test proves one framework call is made and payloads/targets are preserved. It is not yet wired into the existing lifecycle. The existing CM lifecycle writes and reporting setup are blocked in ETP mode by the Marketplace guard.
-
-Complete the following as a coordinated lifecycle change after the repaired API's contracts are verified:
-
-1. Persist a pending intent, owner, complete plan and batch ID separately from applied policy/correlations. Reserve the policy/scope against concurrent submissions by different users.
-2. Replace the per-family creation loop with one preparation call. Resume after the user's submission; record returned resource/configuration/action IDs and desired definition fingerprints without marking a pending policy applied.
-3. Reconcile partial success before retry. Preserve unchanged signatures. For edits, use the actual remote configuration IDs and compare remote versions; validate supported PATCH behavior rather than using guessed POST upserts.
-4. Implement protected cleanup execution instances and reporting data-source adapters. Separate schedule deletion and ordinary metadata changes according to confirmed API requirements.
-5. Make scheduled reconciliation raise a user-review task when new signatures are needed, never impersonate the policy creator.
-
-Do not call the adapter once per family or drop it into the old synchronous create loop: that would defeat one-prompt batching and break correlation persistence. Do not turn the adapter into an untracked alternate policy creation endpoint.
-
 ## Current support and test boundaries
 
 | Path | Feature-branch behavior |
@@ -59,8 +45,6 @@ Do not call the adapter once per family or drop it into the old synchronous crea
 | New shared schedule batch API | ETP and non-ETP modes, offline tests |
 | Intune disabled automation creation | Prepares a signing review in ETP mode |
 | Intune enable/delete protected paths | Blocked in ETP mode pending migration/validation |
-| Configuration Management family batching | Adapter and 24-family contract test; lifecycle wiring pending |
-| Configuration Management lifecycle/reporting writes | Blocked in ETP mode pending migration |
 | Attribute updates/readers | No new signing prompt; live regression testing still required |
 | Cloud-only key provider, instances, data sources | Not implemented in this preview |
 
@@ -68,9 +52,8 @@ Tests:
 
 ```sh
 npm test
-node --test integrations/intune/action1Automation.test.js integrations/action1-configuration-manager/tests/etpProvisioning.test.js
+node --test integrations/intune/action1Automation.test.js
 node scripts/package-integration.js integrations/intune
-node scripts/package-integration.js integrations/action1-configuration-manager
 ```
 
 The adapter tests and Marketplace signer tests use mocks. After API 3.1 recovers on `integration-product-03`, test two users/two keys, 24 disabled schedules, bad/revoked keys, readback, update invalidation, cancellation, restart/response loss, rate limits and actual harmless endpoint execution. Do not merge based on local tests alone. Generated preview packages keep current versions for local build verification; assign proper prerelease versions before any distribution, and do not publish them over existing releases.
