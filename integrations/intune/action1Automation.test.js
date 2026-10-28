@@ -242,3 +242,23 @@ test('returns the Action1 validation message when schedule creation fails', asyn
     /Select a software package\./
   );
 });
+
+
+test('ETP creates a pending batch without direct HTTP writes or a false automation ID', async () => {
+  const plans = [];
+  const context = {
+    action1: {
+      getCredentials: async () => ({ apiKey: 'test', apiSecret: 'test', etpMode: 'etp' }),
+      provisioner: { prepareSchedules: async plan => { plans.push(plan); return { ok: true, outcome: 'awaiting_signature', batchId: 'test', reviewUrl: '/signing?batch=test' }; } }
+    },
+    http: { post: () => { throw new Error('ETP must not use direct HTTP'); } }
+  };
+  const result = await integration.actions['create-action1-automation'](context, { payload: {
+    organizationId: 'org', name: 'Provision', automationType: 'run-script', endpointGroupIds: ['group'], idempotencyKey: 'intent-1'
+  } });
+  assert.equal(result.outcome, 'awaiting_signature');
+  assert.equal(result.automationId, undefined);
+  assert.equal(plans.length, 1);
+  assert.equal(plans[0].idempotencyKey, 'intent-1');
+  assert.match(plans[0].schedules[0].payload.settings, /^DISABLED/);
+});

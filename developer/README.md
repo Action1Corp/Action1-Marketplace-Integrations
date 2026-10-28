@@ -16,3 +16,7 @@ This directory contains integration developer materials that should not be loade
 - `docs/INTEGRATION_REPO_STRATEGY.md`: repository and packaging strategy
 
 Only real, loadable integrations belong in the repository root `integrations/` directory.
+
+## ETP preview development
+
+See [ETP_SIGNING.md](ETP_SIGNING.md) for the shared signing API, per-user approval flow, bulk provisioning adapter and remaining migration work.

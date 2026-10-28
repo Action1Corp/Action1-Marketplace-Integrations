@@ -481,6 +481,15 @@ async function createAction1AutomationAction(context, request = {}) {
   const credentials = await context.action1.getCredentials();
   if (!credentials.apiKey || !credentials.apiSecret) throw new Error('Action1 API credentials are required.');
 
+  if (credentials.etpMode === 'etp') {
+    if (!context.action1.provisioner?.prepareSchedules) throw new Error('This Marketplace does not provide the ETP signing framework.');
+    if (!request.payload?.idempotencyKey) throw new Error('A stable provisioning request ID is required.');
+    return context.action1.provisioner.prepareSchedules({
+      idempotencyKey: request.payload.idempotencyKey,
+      schedules: [{ id: 'provisioning-automation', organizationId, payload }]
+    });
+  }
+
   const token = await getAction1Token(context, credentials);
   let response;
   try {

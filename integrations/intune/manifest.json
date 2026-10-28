@@ -129,6 +129,8 @@
     },
     {
       "id": "create-action1-automation",
+      "etpSupport": "schedule-provisioner-v1",
+      "retry": false,
       "kind": "action",
       "label": "Create Action1 Automation",
       "buttonLabel": "Create Automation",

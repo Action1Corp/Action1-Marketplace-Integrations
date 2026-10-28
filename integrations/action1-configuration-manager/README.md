@@ -448,3 +448,6 @@ The current version has several intentional limitations:
 - Configuration Manager does not provide its own Action1 credential configuration.
 
 These limitations may be expanded in future versions.
+## ETP feature-branch status
+
+The [ETP developer guide](../../developer/ETP_SIGNING.md) describes the bulk family adapter in `etpProvisioning.js`. It prepares all definitions in one shared-framework call. The existing policy lifecycle and reporting writes are **not yet migrated** and are blocked in ETP mode by the matching Marketplace preview. Non-ETP behavior is unchanged. Do not enable these actions until staged persistence, cleanup/reporting adapters and live API 3.1 tests are complete.

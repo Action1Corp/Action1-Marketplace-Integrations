@@ -2,6 +2,8 @@
 
 This document defines the rules an integration must follow to run inside the Action1 Integration Marketplace. For the full API reference, see `MARKETPLACE_INTEGRATION_API.md`.
 
+For the ETP feature branch, use the [shared signing framework](../ETP_SIGNING.md) for supported protected operations. Integration code must not collect or persist user passphrases, impersonate another signing user, treat a pending batch as applied, or fall back to unsigned writes after signing/API errors.
+
 ## Package Shape
 
 Each runtime integration lives in its own folder under `integrations/`.

@@ -79,3 +79,6 @@ The Marketplace infers supported operations from this integration's files, manif
 - history
 - settings
 
+## ETP feature-branch status
+
+On the matching Marketplace preview, creating a disabled automation in ETP mode opens a per-user signing review. No automation exists until the batch is submitted. Enter your passphrase once in Marketplace, then refresh the automation list. Changes subsequently made in the Action1 editor may invalidate the signature and require re-signing there. Enable/delete paths remain blocked in ETP mode pending migration. Existing non-ETP behavior is unchanged. See the [ETP developer guide](../../developer/ETP_SIGNING.md) for setup, constraints and live acceptance tests.

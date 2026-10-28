@@ -2,6 +2,8 @@
 
 Current API version: `1.0`
 
+Feature-branch preview: `context.action1.provisioner` exposes the version 1 bulk schedule signing service. See [ETP signing](../ETP_SIGNING.md) for `prepareSchedules`, `prepare`, `get`, per-user approval and ETP/legacy behavior. This optional preview is not part of a released Marketplace API contract yet.
+
 The Action1 Integration Marketplace loads integrations as folder-based packages. Each package declares its catalog metadata, integration-owned actions, settings schema, visible screens, database schema, and runtime handlers.
 
 ## Package Layout
