@@ -249,7 +249,7 @@ test('ETP creates a pending batch without direct HTTP writes or a false automati
   const context = {
     action1: {
       getCredentials: async () => ({ apiKey: 'test', apiSecret: 'test', etpMode: 'etp' }),
-      provisioner: { prepareSchedules: async plan => { plans.push(plan); return { ok: true, outcome: 'awaiting_signature', batchId: 'test', reviewUrl: '/signing?batch=test' }; } }
+      provisioner: { prepareSchedules: async plan => { plans.push(plan); return { ok: true, outcome: 'awaiting_signature', batchId: 'test', digest: 'test-digest' }; } }
     },
     http: { post: () => { throw new Error('ETP must not use direct HTTP'); } }
   };

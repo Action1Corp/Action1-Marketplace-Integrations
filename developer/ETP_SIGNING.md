@@ -19,7 +19,7 @@ const result = await context.action1.provisioner.prepareSchedules({
 return result;
 ```
 
-Gather all definitions before calling `prepareSchedules` once. A batch contains 1–100 schedules. The framework allocates stable configuration and action IDs for creates, presents the complete batch, prompts the acting user once, and signs/verifies every configuration before submitting. For an update pass `resourceId` and the existing configuration/action IDs inside `payload`; never substitute the schedule resource ID for the configuration ID.
+Gather all definitions before calling `prepareSchedules` once. A batch contains 1–100 schedules. The framework allocates stable configuration and action IDs for creates, binds the batch to the integration’s review, prompts the acting user once, and signs/verifies every configuration before submitting. For an update pass `resourceId` and the existing configuration/action IDs inside `payload`; never substitute the schedule resource ID for the configuration ID.
 
 The low-level `prepare` operation schema and failure states are documented in [the framework contract](https://github.com/Action1Corp/Action1-Marketplace/blob/feature/etp-signing-framework/docs/ETP_FRAMEWORK.md). Only schedule create/update are implemented. Instance execution, custom data sources, scripts and other protected resource types need their own adapters. Custom attribute updates and read-only operations do not acquire a passphrase just because ETP is enabled.
 
@@ -27,7 +27,7 @@ The low-level `prepare` operation schema and failure states are documented in [t
 
 ## Pending is not success
 
-Preparation returns `{ ok: true, outcome, batchId, reviewUrl }`, with outcome `awaiting_signature` for ETP or `awaiting_approval` for non-ETP. It has not created a remote object. The UI should expose the same-origin `/signing?batch=...` link, retain pending state and avoid inventing an automation ID. See the Intune `create-action1-automation` backend handler and the corresponding `Policies.jsx` dialog for an implementation.
+Preparation returns `{ ok: true, outcome, batchId, digest }`, with outcome `awaiting_signature` for ETP or `awaiting_approval` for non-ETP. It has not created a remote object. The integration owns the review screen. After the user confirms Create/Apply, call `await window.Action1Marketplace.provisioner.submit({ integrationId: integration, batchId: result.batchId, digest: result.digest })`. The host opens only a passphrase popup in ETP mode, with no additional review or redirect; in legacy mode it submits without a popup. Keep the integration form and intent on cancellation/error. The Promise returns the submitted batch, never the passphrase. If selections change, prepare a new intent before submitting. See the Intune `create-action1-automation` backend handler and the corresponding `Policies.jsx` dialog for an implementation.
 
 After review/submission, read `await context.action1.provisioner.get(batchId)`. This is restricted to the authenticated batch owner and the calling integration. Persist returned resource IDs into your own correlation model only after the operations are `submitted`. Submission/readback still does not establish successful endpoint execution; use execution history separately.
 
@@ -43,7 +43,7 @@ When a known protected action is actually migrated, declare `etpSupport: "schedu
 | --- | --- |
 | Existing non-ETP integrations | Existing execution path retained |
 | New shared schedule batch API | ETP and non-ETP modes, offline tests |
-| Intune disabled automation creation | Prepares a signing review in ETP mode |
+| Intune disabled automation creation | Uses the shared passphrase popup after integration confirmation |
 | Intune enable/delete protected paths | Blocked in ETP mode pending migration/validation |
 | Attribute updates/readers | No new signing prompt; live regression testing still required |
 | Cloud-only key provider, instances, data sources | Not implemented in this preview |

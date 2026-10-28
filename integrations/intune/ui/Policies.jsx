@@ -636,7 +636,6 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
   const [automationPlatform, setAutomationPlatform] = useState('windows');
   const [creatingAutomation, setCreatingAutomation] = useState(false);
   const [automationError, setAutomationError] = useState('');
-  const [signingReviewUrl, setSigningReviewUrl] = useState('');
   const provisioningRequest = useRef(null);
   const [automations, setAutomations] = useState([]);
   const [automationsLoading, setAutomationsLoading] = useState(false);
@@ -978,7 +977,6 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
   }
 
   function openAutomationDialog(type) {
-    setSigningReviewUrl('');
     provisioningRequest.current = null;
     setMessage('');
     setAutomationError('');
@@ -1005,7 +1003,7 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
     try {
       const fingerprint = JSON.stringify([draft.organizationId, draft.monitoredAction1GroupIds, automationDialog.id, automationPlatform, name]);
       if (provisioningRequest.current?.fingerprint !== fingerprint) provisioningRequest.current = { fingerprint, key: `intent-${crypto.getRandomValues(new Uint32Array(4)).join('-')}` };
-      const result = await apiAction(integration, 'create-action1-automation', {
+      let result = await apiAction(integration, 'create-action1-automation', {
         idempotencyKey: provisioningRequest.current.key,
         organizationId: draft.organizationId,
         endpointGroupIds: draft.monitoredAction1GroupIds,
@@ -1013,11 +1011,13 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
         platform: automationPlatform,
         name
       });
-      if (result.reviewUrl && /^\/signing\?batch=[0-9a-f-]{36}$/.test(result.reviewUrl)) {
-        setSigningReviewUrl(result.reviewUrl);
-        setAutomationError('Awaiting your signing approval. After submission, close this dialog and refresh the automation list. This has not created an automation yet.');
-        if (editWindow) editWindow.location.replace(result.reviewUrl);
-        return;
+      if (result.batchId) {
+        editWindow?.close();
+        if (!window.Action1Marketplace?.provisioner?.submit) throw new Error('The Marketplace signing popup is not available.');
+        const batch = await window.Action1Marketplace.provisioner.submit({ integrationId: integration, batchId: result.batchId, digest: result.digest });
+        const automationId = batch.operations[0]?.result?.resourceId;
+        if (!automationId) throw new Error('Check batch status: no automation ID was returned.');
+        result = { automationId, editUrl: action1AutomationUrl(action1ConsoleBase, draft.organizationId, automationId) };
       }
       setAutomationDialog(null);
       setAutomationName('');
@@ -1033,7 +1033,7 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
       }].sort((a, b) => a.name.localeCompare(b.name)));
       setAutomationsLoading(false);
       setAutomationsError('');
-      if (editWindow) {
+      if (editWindow && !editWindow.closed) {
         try {
           editWindow.location.replace(result.editUrl);
         } catch {
@@ -1326,10 +1326,9 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
               </select>
             </div>}
             {automationError && <div className="validation-notice" role="alert">{automationError}</div>}
-            {signingReviewUrl && <a href={signingReviewUrl} target="_blank" rel="noopener noreferrer">Review and sign in Marketplace</a>}
             <div className="modal-actions">
               <button type="button" className="btn btn-secondary" onClick={closeAutomationDialog} disabled={creatingAutomation}>Cancel</button>
-              <button type="submit" className="btn btn-primary" disabled={creatingAutomation || !automationName.trim() || Boolean(signingReviewUrl)}>{creatingAutomation ? 'Creating...' : 'OK'}</button>
+              <button type="submit" className="btn btn-primary" disabled={creatingAutomation || !automationName.trim()}>{creatingAutomation ? 'Creating...' : 'OK'}</button>
             </div>
           </form>
         </div>
