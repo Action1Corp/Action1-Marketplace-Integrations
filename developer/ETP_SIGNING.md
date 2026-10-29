@@ -23,7 +23,7 @@ Gather all definitions before calling `prepareSchedules` once. A batch contains 
 
 The low-level `prepare` operation schema and failure states are documented in [the framework contract](https://github.com/Action1Corp/Action1-Marketplace/blob/feature/etp-signing-framework/docs/ETP_FRAMEWORK.md). Only schedule create/update are implemented. Instance execution, custom data sources, scripts and other protected resource types need their own adapters. Custom attribute updates and read-only operations do not acquire a passphrase just because ETP is enabled.
 
-`context.action1.getCredentials()` adds `etpMode: 'etp' | 'legacy'`. Ordinary existing credentials/base URLs remain available for compatible non-signing operations. The provisioner selects API 3.1 for ETP and 3.0 for legacy. Never catch an ETP error and retry an unsigned request to 3.0.
+`context.action1.getCredentials()` adds `etpMode: 'etp' | 'legacy'`. Ordinary existing credentials/base URLs remain available for compatible non-signing operations. The provisioner selects API 4.0 for ETP and 3.0 for legacy. Never catch an ETP error and retry an unsigned request to 3.0.
 
 ## Pending is not success
 
@@ -56,4 +56,4 @@ node --test integrations/intune/action1Automation.test.js
 node scripts/package-integration.js integrations/intune
 ```
 
-The adapter tests and Marketplace signer tests use mocks. After API 3.1 recovers on `integration-product-03`, test two users/two keys, 24 disabled schedules, bad/revoked keys, readback, update invalidation, cancellation, restart/response loss, rate limits and actual harmless endpoint execution. Do not merge based on local tests alone. Generated preview packages keep current versions for local build verification; assign proper prerelease versions before any distribution, and do not publish them over existing releases.
+The adapter tests and Marketplace signer tests use mocks. With API 4.0 authentication restored on `integration-product-03`, test two users/two keys, 24 disabled schedules, bad/revoked keys, readback, update invalidation, cancellation, restart/response loss, rate limits and actual harmless endpoint execution. Do not merge based on local tests alone. Generated preview packages keep current versions for local build verification; assign proper prerelease versions before any distribution, and do not publish them over existing releases.
