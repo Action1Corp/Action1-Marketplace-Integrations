@@ -262,3 +262,24 @@ test('ETP creates a pending batch without direct HTTP writes or a false automati
   assert.equal(plans[0].idempotencyKey, 'intent-1');
   assert.match(plans[0].schedules[0].payload.settings, /^DISABLED/);
 });
+
+test('API 4 schedule normalization preserves resource identity and disabled configuration', () => {
+ const schedule = normalizeAction1AutomationSchedule({
+  id:'resource', endpoints:[{id:'group',type:'EndpointGroup'}],
+  configuration:{id:'configuration',name:'API4 example',settings:'DISABLED',actions:[{id:'action',template_id:'run_script',params:{run_script_text:'Write-Output 1'}}]}
+ });
+ assert.equal(schedule.id,'resource');
+ assert.equal(schedule.name,'API4 example');
+ assert.equal(schedule.enabled,false);
+ assert.deepEqual(schedule.templateIds,['run_script']);
+ assert.deepEqual(schedule.endpointGroupIds,['group']);
+ assert.ok(!buildAutomationEditUrl('https://app.test.action1.com/api/4.0','org','resource','run-script').includes('/api/4.0'));
+});
+
+test('API 4 without ETP creation also uses the shared provisioner', async () => {
+ let prepared;
+ const context = {action1:{getCredentials:async()=>({apiKey:'test',apiSecret:'test',baseUrl:'https://app.test.action1.com/api/4.0',etpEnabled:false}),provisioner:{prepareSchedules:async plan=>{prepared=plan;return {outcome:'awaiting_approval',batchId:'batch'};}}},http:{post:()=>{throw Error('no direct write');}}};
+ const result=await integration.actions['create-action1-automation'](context,{payload:{organizationId:'org',name:'Test',automationType:'run-script',endpointGroupIds:['group'],idempotencyKey:'intent'}});
+ assert.equal(result.outcome,'awaiting_approval');
+ assert.equal(prepared.schedules.length,1);
+});

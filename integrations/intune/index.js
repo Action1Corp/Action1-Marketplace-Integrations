@@ -177,7 +177,7 @@ function isProtectedAction1EndpointGroup(group) {
 }
 
 function action1EndpointGroupEditUrl(credentials, organizationId, groupId) {
-  return `${action1BaseUrl(credentials).replace(/\/api\/3\.0$/i, '')}/console/endpoints/groups/${encodeURIComponent(groupId)}/settings?org=${encodeURIComponent(organizationId)}`;
+  return `${action1BaseUrl(credentials).replace(/\/api\/(?:3\.0|4\.0)$/i, '')}/console/endpoints/groups/${encodeURIComponent(groupId)}/settings?org=${encodeURIComponent(organizationId)}`;
 }
 
 async function createAction1EndpointGroupAction(context, request = {}) {
@@ -481,7 +481,7 @@ async function createAction1AutomationAction(context, request = {}) {
   const credentials = await context.action1.getCredentials();
   if (!credentials.apiKey || !credentials.apiSecret) throw new Error('Action1 API credentials are required.');
 
-  if (credentials.etpMode === 'etp') {
+  if (credentials.etpEnabled || credentials.etpMode === 'etp' || /\/api\/4\.0\/?$/.test(credentials.baseUrl || '')) {
     if (!context.action1.provisioner?.prepareSchedules) throw new Error('This Marketplace does not provide the ETP signing framework.');
     if (!request.payload?.idempotencyKey) throw new Error('A stable provisioning request ID is required.');
     return context.action1.provisioner.prepareSchedules({
@@ -589,6 +589,8 @@ async function patchHourlySchedule(context, url, headers, rawSchedule, enabledAt
 }
 
 async function enableHourlyProvisioningAutomationAction(context, request = {}) {
+  const credentials = await context.action1.getCredentials();
+  if (/\/api\/4\.0\/?$/.test(credentials.baseUrl || '')) throw new Error('Enabling API 4.0 automations is not available in this preview while schedule updates are being validated.');
   const enabledAt = new Date();
   const { url, headers, schedule, rawSchedule } = await getProvisioningAutomationForMutation(context, request);
   if (schedule.enabled) return { ok: true, automationId: schedule.id, enabled: true };

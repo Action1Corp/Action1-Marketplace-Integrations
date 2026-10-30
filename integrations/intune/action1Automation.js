@@ -104,6 +104,7 @@ function hourlyScheduleSettings(enabled, now = new Date()) {
 }
 
 function hasConfiguredAction(schedule) {
+  schedule = schedule?.configuration || schedule;
   return (Array.isArray(schedule?.actions) ? schedule.actions : []).some(action => {
     const params = action?.params || {};
     if (action.template_id === 'deploy_package' || action.template_id === 'uninstall_program') {
@@ -130,6 +131,7 @@ function hasConfiguredAction(schedule) {
 }
 
 function hasSavedActionConfiguration(schedule) {
+  schedule = schedule?.configuration || schedule;
   if (!hasConfiguredAction(schedule)) return false;
   const settings = String(schedule?.settings || '');
   if (!/^DISABLED EVERY:60 AT:00-00-00 DATE:\d{4}-\d{2}-\d{2}$/.test(settings)) return true;
@@ -177,7 +179,7 @@ function buildAutomationPayload({ name, typeId, endpointGroupIds, platform = 'wi
 function action1ConsoleBase(baseUrl) {
   return String(baseUrl || 'https://app.action1.com/api/3.0')
     .replace(/\/+$/, '')
-    .replace(/\/api\/3\.0$/i, '');
+    .replace(/\/api\/(?:3\.0|4\.0)$/i, '');
 }
 
 function buildAutomationEditUrl(baseUrl, organizationId, automationId, typeId) {

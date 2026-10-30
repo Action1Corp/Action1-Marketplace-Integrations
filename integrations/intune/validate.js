@@ -336,6 +336,7 @@ function normalizeAction1GroupIds(items = []) {
 }
 
 function normalizeAction1AutomationSchedule(schedule) {
+  schedule = schedule.configuration ? { ...schedule, ...schedule.configuration, id: schedule.id, endpoints: schedule.endpoints } : schedule;
   return {
     id: String(schedule.id || schedule.schedule_id || schedule.scheduleId || schedule.name || '').trim(),
     name: String(schedule.name || schedule.displayName || schedule.display_name || schedule.id || '').trim(),

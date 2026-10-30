@@ -23,7 +23,7 @@ Gather all definitions before calling `prepareSchedules` once. A batch contains 
 
 The low-level `prepare` operation schema and failure states are documented in [the framework contract](https://github.com/Action1Corp/Action1-Marketplace/blob/feature/etp-signing-framework/docs/ETP_FRAMEWORK.md). Only schedule create/update are implemented. Instance execution, custom data sources, scripts and other protected resource types need their own adapters. Custom attribute updates and read-only operations do not acquire a passphrase just because ETP is enabled.
 
-`context.action1.getCredentials()` adds `etpMode: 'etp' | 'legacy'`. Ordinary existing credentials/base URLs remain available for compatible non-signing operations. The provisioner selects API 4.0 for ETP and 3.0 for legacy. Never catch an ETP error and retry an unsigned request to 3.0.
+`context.action1.getCredentials()` adds `etpMode: 'etp' | 'api4' | 'legacy'`, `etpEnabled: boolean`, and `etpCapabilitySource: 'marketplace-setting'`. All ETP connection calls now use API 4.0. The api4 mode uses the same API without signing; legacy uses API 3.0. The capability is administrator-configured, not automatically discovered from Action1. Infer API generation from baseUrl and use etpEnabled to determine signing requirements. Never catch an ETP error and retry an unsigned request to 3.0.
 
 ## Pending is not success
 
