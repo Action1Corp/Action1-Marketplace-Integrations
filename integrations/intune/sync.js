@@ -905,6 +905,7 @@ function action1InstanceTime(instance) {
 }
 
 function action1ScheduleFrequencyMinutes(schedule, instance) {
+    schedule = schedule?.configuration ? { ...schedule, ...schedule.configuration } : schedule;
     const settings = firstString(schedule?.settings);
     const everyMatch = settings.match(/\bEVERY:(\d+)\b/i);
     if (everyMatch) return Number(everyMatch[1]);

@@ -283,3 +283,8 @@ test('API 4 without ETP creation also uses the shared provisioner', async () => 
  assert.equal(result.outcome,'awaiting_approval');
  assert.equal(prepared.schedules.length,1);
 });
+
+test('API 4 enable is blocked before any write while update validation is pending', async () => {
+ const context={action1:{getCredentials:async()=>({baseUrl:'https://app.test.action1.com/api/4.0'})},http:{patch:()=>{throw Error('must not write');}}};
+ await assert.rejects(()=>integration.actions['enable-hourly-provisioning-automation'](context,{}), /schedule updates are being validated/);
+});
