@@ -1011,14 +1011,7 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
         platform: automationPlatform,
         name
       });
-      if (result.batchId) {
-        editWindow?.close();
-        if (!window.Action1Marketplace?.provisioner?.submit) throw new Error('The Marketplace signing popup is not available.');
-        const batch = await window.Action1Marketplace.provisioner.submit({ integrationId: integration, batchId: result.batchId, digest: result.digest });
-        const automationId = batch.operations[0]?.result?.resourceId;
-        if (!automationId) throw new Error('Check batch status: no automation ID was returned.');
-        result = { automationId, editUrl: action1AutomationUrl(action1ConsoleBase, draft.organizationId, automationId) };
-      }
+      if (!result.automationId) throw new Error('Action1 did not return an automation shell ID.');
       setAutomationDialog(null);
       setAutomationName('');
       automationRequestId.current++;

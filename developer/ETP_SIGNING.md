@@ -43,7 +43,7 @@ When a known protected action is actually migrated, declare `etpSupport: "schedu
 | --- | --- |
 | Existing non-ETP integrations | Existing execution path retained |
 | New shared schedule batch API | ETP and non-ETP modes, offline tests |
-| Intune disabled automation creation | Uses the shared passphrase popup after integration confirmation |
+| Intune disabled automation shell creation | Creates unsigned API 4.0 placeholders without a signing prompt; complete and sign in Action1 |
 | Intune enable/delete protected paths | Blocked in ETP mode pending migration/validation |
 | Attribute updates/readers | No new signing prompt; live regression testing still required |
 | Cloud-only key provider, instances, data sources | Not implemented in this preview |
@@ -57,3 +57,5 @@ node scripts/package-integration.js integrations/intune
 ```
 
 The adapter tests and Marketplace signer tests use mocks. With API 4.0 authentication restored on `integration-product-03`, test two users/two keys, 24 disabled schedules, bad/revoked keys, readback, update invalidation, cancellation, restart/response loss, rate limits and actual harmless endpoint execution. Do not merge based on local tests alone. Generated preview packages keep current versions for local build verification; assign proper prerelease versions before any distribution, and do not publish them over existing releases.
+
+Intune shell creation uses `unsigned-disabled-shell-v1` instead of the signing provisioner. This exception is limited to disabled placeholders; it does not authorize unsigned executable provisioning. The user fills in the automation and signs/enables it in Action1. The shared batch SDK above remains the interface for integrations submitting complete executable configurations.

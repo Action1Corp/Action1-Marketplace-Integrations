@@ -129,7 +129,7 @@
     },
     {
       "id": "create-action1-automation",
-      "etpSupport": "schedule-provisioner-v1",
+      "etpSupport": "unsigned-disabled-shell-v1",
       "retry": false,
       "kind": "action",
       "label": "Create Action1 Automation",

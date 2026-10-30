@@ -1,3 +1,4 @@
+const { randomUUID } = require('crypto');
 const { listAction1AutomationSchedules, listAction1EndpointGroups, listAction1Organizations, listDeviceGroups, normalizeAction1AutomationSchedule, validate, validateAssignments } = require('./validate');
 const { sync } = require('./sync');
 const { createIntunePolicyStore } = require('./policyStore');
@@ -481,21 +482,23 @@ async function createAction1AutomationAction(context, request = {}) {
   const credentials = await context.action1.getCredentials();
   if (!credentials.apiKey || !credentials.apiSecret) throw new Error('Action1 API credentials are required.');
 
-  if (credentials.etpEnabled || credentials.etpMode === 'etp' || /\/api\/4\.0\/?$/.test(credentials.baseUrl || '')) {
-    if (!context.action1.provisioner?.prepareSchedules) throw new Error('This Marketplace does not provide the ETP signing framework.');
-    if (!request.payload?.idempotencyKey) throw new Error('A stable provisioning request ID is required.');
-    return context.action1.provisioner.prepareSchedules({
-      idempotencyKey: request.payload.idempotencyKey,
-      schedules: [{ id: 'provisioning-automation', organizationId, payload }]
-    });
-  }
+  // Shells are disabled placeholders. The user completes and signs them in Action1.
+  const api4 = /\/api\/4\.0\/?$/.test(action1BaseUrl(credentials));
+  if ((credentials.etpEnabled || credentials.etpMode === 'etp') && !api4) throw new Error('ETP shell creation requires an API 4.0 connection.');
+  if (!/^DISABLED\b/.test(payload.settings)) throw new Error('Automation shells must be disabled.');
+  const { endpoints, ...configuration } = payload;
+  const body = api4 ? {
+    configuration: { ...configuration, id: randomUUID(), type: 'AutomationScheduleConfiguration', organization_id: organizationId,
+      actions: configuration.actions.map(action => ({ ...action, id: randomUUID() })) },
+    endpoints
+  } : payload;
 
   const token = await getAction1Token(context, credentials);
   let response;
   try {
     response = await context.http.post(
       `${action1BaseUrl(credentials)}/automations/schedules/${encodeURIComponent(organizationId)}`,
-      payload,
+      body,
       { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
     );
   } catch (error) {

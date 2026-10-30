@@ -244,25 +244,6 @@ test('returns the Action1 validation message when schedule creation fails', asyn
 });
 
 
-test('ETP creates a pending batch without direct HTTP writes or a false automation ID', async () => {
-  const plans = [];
-  const context = {
-    action1: {
-      getCredentials: async () => ({ apiKey: 'test', apiSecret: 'test', etpMode: 'etp' }),
-      provisioner: { prepareSchedules: async plan => { plans.push(plan); return { ok: true, outcome: 'awaiting_signature', batchId: 'test', digest: 'test-digest' }; } }
-    },
-    http: { post: () => { throw new Error('ETP must not use direct HTTP'); } }
-  };
-  const result = await integration.actions['create-action1-automation'](context, { payload: {
-    organizationId: 'org', name: 'Provision', automationType: 'run-script', endpointGroupIds: ['group'], idempotencyKey: 'intent-1'
-  } });
-  assert.equal(result.outcome, 'awaiting_signature');
-  assert.equal(result.automationId, undefined);
-  assert.equal(plans.length, 1);
-  assert.equal(plans[0].idempotencyKey, 'intent-1');
-  assert.match(plans[0].schedules[0].payload.settings, /^DISABLED/);
-});
-
 test('API 4 schedule normalization preserves resource identity and disabled configuration', () => {
  const schedule = normalizeAction1AutomationSchedule({
   id:'resource', endpoints:[{id:'group',type:'EndpointGroup'}],
@@ -276,15 +257,21 @@ test('API 4 schedule normalization preserves resource identity and disabled conf
  assert.ok(!buildAutomationEditUrl('https://app.test.action1.com/api/4.0','org','resource','run-script').includes('/api/4.0'));
 });
 
-test('API 4 without ETP creation also uses the shared provisioner', async () => {
- let prepared;
- const context = {action1:{getCredentials:async()=>({apiKey:'test',apiSecret:'test',baseUrl:'https://app.test.action1.com/api/4.0',etpEnabled:false}),provisioner:{prepareSchedules:async plan=>{prepared=plan;return {outcome:'awaiting_approval',batchId:'batch'};}}},http:{post:()=>{throw Error('no direct write');}}};
- const result=await integration.actions['create-action1-automation'](context,{payload:{organizationId:'org',name:'Test',automationType:'run-script',endpointGroupIds:['group'],idempotencyKey:'intent'}});
- assert.equal(result.outcome,'awaiting_approval');
- assert.equal(prepared.schedules.length,1);
-});
-
 test('API 4 enable is blocked before any write while update validation is pending', async () => {
  const context={action1:{getCredentials:async()=>({baseUrl:'https://app.test.action1.com/api/4.0'})},http:{patch:()=>{throw Error('must not write');}}};
  await assert.rejects(()=>integration.actions['enable-hourly-provisioning-automation'](context,{}), /schedule updates are being validated/);
+});
+
+for (const etpEnabled of [true, false]) test(`API 4 shell is disabled and unsigned (ETP=${etpEnabled})`, async () => {
+ const writes=[];
+ const context={action1:{getCredentials:async()=>({apiKey:'test',apiSecret:'test',baseUrl:'https://app.test.action1.com/api/4.0',etpEnabled}),provisioner:{prepareSchedules:()=>{throw Error('Shell must not invoke signing');}}},http:{post:async(url,body)=>{if(url.endsWith('/oauth2/token'))return {data:{access_token:'token'}};writes.push(body);return {data:{id:'shell'}};}}};
+ const result=await integration.actions['create-action1-automation'](context,{payload:{organizationId:'org',name:'Draft',automationType:'run-script',endpointGroupIds:['group']}});
+ assert.equal(result.automationId,'shell');assert.equal(result.batchId,undefined);
+ assert.equal(writes.length,1);
+ const body=writes[0];assert.match(body.configuration.settings,/^DISABLED/);
+ assert.equal(body.configuration.type,'AutomationScheduleConfiguration');
+ assert.equal(body.configuration.organization_id,'org');
+ assert.ok(body.configuration.id);assert.ok(body.configuration.actions.every(a=>a.id));
+ assert.equal(body.signatures,undefined);assert.equal(body.configuration.signatures,undefined);
+ assert.deepEqual(body.endpoints,[{id:'group',type:'EndpointGroup'}]);
 });
