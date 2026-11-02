@@ -1,0 +1,11 @@
+{
+  "navigation": [
+    {
+      "id": "dashboard",
+      "label": "Signing Test",
+      "path": "dashboard",
+      "icon": "ShieldCheck",
+      "requiresWrite": true
+    }
+  ]
+}
