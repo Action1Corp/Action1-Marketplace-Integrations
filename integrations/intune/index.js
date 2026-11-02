@@ -443,11 +443,22 @@ async function ensureProvisioningGroupFilters(context, policy) {
       }, { headers: jsonHeaders });
     }
   } else {
+    // API 4 may omit console-managed attribute definitions from settings/all.
+    // A positive match on an endpoint proves the attribute already exists.
+    let attributeExists = false;
+    if (api4) {
+      const response = await context.http.get(`${base}/endpoints/managed/${encodeURIComponent(policy.organizationId)}?limit=1&fields=*`, { headers });
+      const endpoints = Array.isArray(response.data) ? response.data : response.data?.items || [];
+      attributeExists = endpoints.some(endpoint => Array.isArray(endpoint.custom) && endpoint.custom.some(item =>
+        String(item?.name || '').trim().toLowerCase() === attribute.toLowerCase()));
+    }
+    if (!attributeExists) {
     await context.http.post(`${base}/settings/all`, {
       template_id: 'endpoint_custom_attributes',
       value: attributeValue([{ name: attribute }]),
       scope: [{ type: 'Enterprise', object: 'All' }]
     }, { headers: jsonHeaders });
+    }
   }
 
   } catch (error) {
