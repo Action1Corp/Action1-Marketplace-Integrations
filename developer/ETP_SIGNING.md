@@ -59,3 +59,63 @@ node scripts/package-integration.js integrations/intune
 The adapter tests and Marketplace signer tests use mocks. With API 4.0 authentication restored on `integration-product-03`, test two users/two keys, 24 disabled schedules, bad/revoked keys, readback, update invalidation, cancellation, restart/response loss, rate limits and actual harmless endpoint execution. Do not merge based on local tests alone. Generated preview packages keep current versions for local build verification; assign proper prerelease versions before any distribution, and do not publish them over existing releases.
 
 Intune shell creation uses `unsigned-disabled-shell-v1` instead of the signing provisioner. This exception is limited to disabled placeholders; it does not authorize unsigned executable provisioning. The user fills in the automation and signs/enables it in Action1. The shared batch SDK above remains the interface for integrations submitting complete executable configurations.
+
+## Signing only: integration-owned API submission
+
+The preview also exposes `context.action1.provisioner.prepareSigning()` and `getSigning()`, plus `window.Action1Marketplace.provisioner.sign()`. These never POST/PATCH/DELETE Action1 objects. Marketplace authenticates and reads organization access/current keychain, signs the exact supplied configurations, and verifies signatures. Integration code owns API submission, response handling, partial failure reconciliation, and lifecycle operations.
+
+Backend prepare action (authenticated user context):
+
+```js
+return context.action1.provisioner.prepareSigning({
+  idempotencyKey: request.payload.intentId,
+  objects: [{ id: 'schedule-1', configuration: finalizedConfiguration }]
+});
+```
+
+Configurations must already include their final IDs, type, organization_id and any action IDs. No fields or IDs are added by signing. Supported configuration types are AutomationScheduleConfiguration, ScriptConfiguration, DataSourceConfiguration and PackageVersionConfiguration. Each organization_id must be an actual organization accessible to the API account; enterprise-wide/all scope and other types are not supported by this preview. Non-schedule type acceptance by Action1 still requires live testing.
+
+After the integration's review/confirmation, its frontend invokes the host popup:
+
+```js
+const signatures = await window.Action1Marketplace.provisioner.sign({
+  integrationId: 'your-integration-id',
+  signingId: prepared.signingId,
+  digest: prepared.digest
+});
+// [{ id: 'schedule-1', configurationDigest: '...',
+//    signature: { alg, iat, kid, value } }]
+// Now call your integration's existing submission action with signingId.
+```
+
+The result preserves the CLI fields and types, including numeric iat. A single object returns one result; up to 100 objects use one passphrase prompt. Private keys and passphrases are not returned. No extra Marketplace review is shown. This is a two-stage interactive API because the backend cannot obtain a passphrase from an unattended integration handler.
+
+The integration's backend submission action should retrieve the immutable prepared configuration and result, rather than trusting new configuration/signature fields from the browser:
+
+```js
+const signed = await context.action1.provisioner.getSigning(request.payload.signingId);
+if (signed.state !== 'signed' || Date.now() > signed.expiresAt) {
+  throw new Error('Prepare and sign the finalized configuration first.');
+}
+const configuration = signed.objects[0].configuration;
+const signature = signed.results.find(r => r.id === signed.objects[0].id).signature;
+const body = {
+  configuration,
+  endpoints: validatedTargets, // validated/owned by the integration
+  signatures: [{
+    object_reference: {
+      id: configuration.id,
+      type: configuration.type,
+      organization_id: configuration.organization_id
+    },
+    object_signature: signature
+  }]
+};
+// Submit body through the integration's existing Action1 client.
+```
+
+That envelope is the schedule example. Integrations must use the appropriate reference and envelope for other resources (including platform on data-source references). Changing a signed configuration requires a new signing intent. Targets and other unsigned envelope fields remain the integration's authorization/validation responsibility.
+
+Requests are bound to user, Marketplace organization, integration, exact configuration digest, connection origin and key revision, with a 30-minute lifetime. Idempotent repeated signing returns the stored result without another signing operation, after checking expiry/connection/key. It does not authorize repeated API writes: integrations must prevent duplicate POSTs and reconcile uncertain results themselves. Stored signatures cannot be retroactively recalled; Action1 remains responsible for current key validity at execution.
+
+Non-ETP integrations should skip signing. The signing-only API rejects non-ETP mode rather than inventing an empty signature. This does not change the full submit provisioner or Intune's unsigned disabled-shell behavior. Configuration Manager source was not modified by this capability addition. Live signing-only acceptance is still required with an enrolled key; automated tests use a mock signer.
