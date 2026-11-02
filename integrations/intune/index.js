@@ -417,6 +417,9 @@ async function ensureProvisioningGroupFilters(context, policy) {
   const headers = { Authorization: `Bearer ${token}` };
   const jsonHeaders = { ...headers, 'Content-Type': 'application/json' };
   const attribute = ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE;
+  const api4 = /\/api\/4\.0\/?$/.test(base);
+  const attributeValue = attributes => api4 ? attributes : JSON.stringify(attributes);
+  try {
   let attributeSetting = null;
   for (let offset = 0; offset < 500; offset += 100) {
     const response = await context.http.get(`${base}/settings/all?limit=100&from=${offset}`, { headers });
@@ -428,23 +431,27 @@ async function ensureProvisioningGroupFilters(context, policy) {
   if (attributeSetting) {
     let attributes;
     try {
-      attributes = JSON.parse(attributeSetting.value || '[]');
+      attributes = Array.isArray(attributeSetting.value) ? attributeSetting.value : JSON.parse(attributeSetting.value || '[]');
     } catch {
       throw new Error('Action1 endpoint custom attribute settings are invalid.');
     }
     if (!Array.isArray(attributes)) throw new Error('Action1 endpoint custom attribute settings are invalid.');
     if (!attributes.some(item => String(item?.name || '').trim().toLowerCase() === attribute.toLowerCase())) {
       await context.http.patch(`${base}/settings/all/${encodeURIComponent(attributeSetting.id)}`, {
-        value: JSON.stringify([...attributes, { name: attribute }]),
+        value: attributeValue([...attributes, { name: attribute }]),
         scope: attributeSetting.scope || [{ type: 'Enterprise', object: 'All' }]
       }, { headers: jsonHeaders });
     }
   } else {
     await context.http.post(`${base}/settings/all`, {
       template_id: 'endpoint_custom_attributes',
-      value: JSON.stringify([{ name: attribute }]),
+      value: attributeValue([{ name: attribute }]),
       scope: [{ type: 'Enterprise', object: 'All' }]
     }, { headers: jsonHeaders });
+  }
+
+  } catch (error) {
+    throw new Error(`Could not prepare the provisioning custom attribute: ${error.response?.data?.user_message || error.response?.data?.developer_message || error.message}`);
   }
 
   const field = `custom:${attribute}`;
