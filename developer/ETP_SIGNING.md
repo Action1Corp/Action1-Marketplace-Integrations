@@ -19,7 +19,7 @@ const result = await context.action1.provisioner.prepareSchedules({
 return result;
 ```
 
-Gather all definitions before calling `prepareSchedules` once. A batch contains 1–100 schedules. The framework allocates stable configuration and action IDs for creates, binds the batch to the integration’s review, prompts the acting user once, and signs/verifies every configuration before submitting. For an update pass `resourceId` and the existing configuration/action IDs inside `payload`; never substitute the schedule resource ID for the configuration ID.
+Gather all definitions before calling `prepareSchedules` once. A batch contains 1–100 schedules. The framework allocates stable configuration and action IDs for creates, binds the batch to the integration’s review, prompts the acting user once, and signs and validates the output for every configuration before submitting. For an update pass `resourceId` and the existing configuration/action IDs inside `payload`; never substitute the schedule resource ID for the configuration ID.
 
 The low-level `prepare` operation schema and failure states are documented in [the framework contract](https://github.com/Action1Corp/Action1-Marketplace/blob/feature/etp-signing-framework/docs/ETP_FRAMEWORK.md). Only schedule create/update are implemented. Instance execution, custom data sources, scripts and other protected resource types need their own adapters. Custom attribute updates and read-only operations do not acquire a passphrase just because ETP is enabled.
 
@@ -62,7 +62,7 @@ Intune shell creation uses `unsigned-disabled-shell-v1` instead of the signing p
 
 ## Signing only: integration-owned API submission
 
-The preview also exposes `context.action1.provisioner.prepareSigning()` and `getSigning()`, plus `window.Action1Marketplace.provisioner.sign()`. These never POST/PATCH/DELETE Action1 objects. Marketplace authenticates and reads organization access/current keychain, signs the exact supplied configurations, and verifies signatures. Integration code owns API submission, response handling, partial failure reconciliation, and lifecycle operations.
+The preview also exposes `context.action1.provisioner.prepareSigning()` and `getSigning()`, plus `window.Action1Marketplace.provisioner.sign()`. These never POST/PATCH/DELETE Action1 objects. Marketplace authenticates and reads organization access/current keychain, signs the exact supplied configurations, and validates signature output fields and the expected key ID. Action1 performs authoritative signature and keychain trust validation. Integration code owns API submission, response handling, partial failure reconciliation, and lifecycle operations.
 
 Backend prepare action (authenticated user context):
 
