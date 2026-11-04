@@ -139,6 +139,7 @@ async function performSavePolicy(context, request = {}, operation) {
           controlFamilyNameSnapshot: definition.familyName,
           action1OrganizationId: intent.organizationId,
           action1AutomationId: created.id,
+           action1AutomationConfigurationId: created.configurationId || null,
           action1AutomationActionId: created.actionId,
           action1AutomationName: created.name,
           action1AutomationSelf: created.self,

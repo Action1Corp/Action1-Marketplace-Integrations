@@ -6,6 +6,7 @@ const store = require('./reportingStore');
 const DATA_SOURCE = Object.freeze({ name: 'Configuration Management - Control Status', description: 'Provides per-endpoint policy and control configuration status data for Configuration Management reports.', language: 'PowerShell' });
 const SCRIPT_PATH = require('path').join(__dirname, 'configuration-management-control-status.ps1');
 const fs = require('fs');
+const crypto = require('node:crypto');
 const EXISTENCE = Object.freeze({ EXISTS: 'EXISTS', MISSING: 'MISSING', UNRESOLVED: 'UNRESOLVED' });
 
 function requiredId(payload, label) {
@@ -31,6 +32,29 @@ async function runLog(request, message) {
   if (typeof request?.run?.appendLog === 'function') await request.run.appendLog(message);
 }
 function scriptText() { return fs.readFileSync(SCRIPT_PATH, 'utf8'); }
+async function resolveApiGeneration(client) {
+  if (typeof client?.resolveConnection !== 'function') return 3;
+  const connection = await client.resolveConnection();
+  return Number(connection?.apiGeneration) === 4 ? 4 : 3;
+}
+function isApi4DataSource(payload, id) {
+  const resourceId = String(payload?.id || '').trim();
+  const configs = payload?.configs;
+  const config = Array.isArray(configs) && configs.length === 1 ? configs[0] : null;
+  return resourceId === String(id) && payload?.type === 'DataSource'
+    && config?.id === String(id) && config?.type === 'DataSourceConfiguration'
+    && typeof config.name === 'string' && typeof config.language === 'string'
+    && typeof config.platform === 'string' && typeof config.script_text === 'string'
+    && Array.isArray(payload.columns);
+}
+function api4DataSourcePayload(script, uuidGenerator) {
+  const id = String(uuidGenerator() || '').trim();
+  if (!id) throw new Error('Action1 API 4.0 Data Source configuration id is required.');
+  return {
+    configs: [{ id, type: 'DataSourceConfiguration', name: DATA_SOURCE.name, description: DATA_SOURCE.description, language: DATA_SOURCE.language, platform: 'Windows', script_text: script }],
+    columns: REPORTING_DATA_SOURCE_COLUMNS
+  };
+}
 
 async function observe(client, kind, id) {
   try {
@@ -50,23 +74,28 @@ function validatePublishedDataSourcePayload(payload) {
   return payload;
 }
 
-async function ensureDataSource(context, request, state, client) {
+async function ensureDataSource(context, request, state, client, options = {}) {
   const script = scriptText();
+  const api4 = Number(options.apiGeneration) === 4;
+  const uuidGenerator = typeof options.uuidGenerator === 'function' ? options.uuidGenerator : () => crypto.randomUUID();
   let id = state.dataSourceId;
   let replaced = false;
   if (id) {
     const observed = await observe(client, 'data-source', id);
     if (observed.state === EXISTENCE.UNRESOLVED) throw observed.error instanceof Error ? observed.error : new Error(safeMessage(observed.error));
     if (observed.state === EXISTENCE.MISSING) { id = null; replaced = true; }
-    else if (isPublished(observed.payload)) { await log(context, 'info', 'reporting-data-source-verified', { dataSourceId: id }); await runLog(request, 'Existing Reporting Data Source verified.'); return { id, replaced }; }
+    else if (api4 ? isApi4DataSource(observed.payload, id) : isPublished(observed.payload)) { await log(context, 'info', 'reporting-data-source-verified', { dataSourceId: id }); await runLog(request, 'Existing Reporting Data Source verified.'); return { id, replaced }; }
+    else if (api4) throw new Error('Action1 API 4.0 Data Source response failed structural validation.');
   }
   if (!id) {
-    await log(context, 'info', 'reporting-data-source-create-started'); await runLog(request, 'Creating Reporting Data Source draft.');
-    const created = await client.requestAction1Mutation({ operation: 'create-reporting-data-source', method: 'POST', path: '/data-sources/all', body: draftPayload(script) });
+    await log(context, 'info', 'reporting-data-source-create-started'); await runLog(request, api4 ? 'Creating Reporting Data Source.' : 'Creating Reporting Data Source draft.');
+    const created = await client.requestAction1Mutation({ operation: 'create-reporting-data-source', method: 'POST', path: '/data-sources/all', body: api4 ? api4DataSourcePayload(script, uuidGenerator) : draftPayload(script) });
     id = requiredId(created, 'Action1 Data Source id');
+    if (api4 && !isApi4DataSource(created, id)) throw new Error('Action1 API 4.0 Data Source response failed structural validation.');
     await store.save(context, { dataSourceId: id });
-    await log(context, 'info', 'reporting-data-source-draft-created', { dataSourceId: id });
+    await log(context, 'info', api4 ? 'reporting-data-source-created' : 'reporting-data-source-draft-created', { dataSourceId: id });
   }
+  if (api4) return { id, replaced };
   await runLog(request, 'Publishing Reporting Data Source.');
   const publishedBody = validatePublishedDataSourcePayload(publishedPayload(script));
   const published = await client.requestAction1Mutation({ operation: 'publish-reporting-data-source', method: 'PATCH', path: `/data-sources/all/${encodeURIComponent(id)}`, body: publishedBody });
@@ -78,7 +107,7 @@ async function ensureDataSource(context, request, state, client) {
   return { id, replaced };
 }
 
-async function ensureReport(context, request, client, definition, state, dataSourceReplaced) {
+async function ensureReport(context, request, client, definition, state, dataSourceReplaced, options = {}) {
   const stateKey = definition.key;
   let id = state[stateKey];
   if (id) {
@@ -91,7 +120,7 @@ async function ensureReport(context, request, client, definition, state, dataSou
     }
   }
   await runLog(request, `Creating report: ${definition.name}`);
-  const payload = validateReportPayload(definition.payload);
+  const payload = validateReportPayload(definition.payload, options);
   const created = await client.requestAction1Mutation({ operation: `create-reporting-report-${stateKey}`, method: 'POST', path: '/reports/all/custom', body: payload });
   id = requiredId(created, 'Action1 Report id');
   await store.save(context, { [stateKey]: id });
@@ -103,14 +132,15 @@ async function ensureReport(context, request, client, definition, state, dataSou
 
 async function setupReporting(context, request = {}, options = {}) {
   const client = options.client || createAction1DiscoveryClient(context);
+  const apiGeneration = options.apiGeneration || await resolveApiGeneration(client);
   let state = await store.load(context);
   await runLog(request, 'Reporting setup started.');
   await log(context, 'info', 'reporting-setup-started');
-  const source = await ensureDataSource(context, request, state, client);
+  const source = await ensureDataSource(context, request, state, client, { ...options, apiGeneration });
   state = await store.load(context);
-  const definitions = buildReportDefinitions(source.id);
+  const definitions = buildReportDefinitions(source.id, { apiGeneration });
   for (const definition of definitions) {
-    const id = await ensureReport(context, request, client, definition, state, source.replaced);
+    const id = await ensureReport(context, request, client, definition, state, source.replaced, { apiGeneration });
     state = await store.save(context, { [definition.key]: id });
   }
   await runLog(request, 'Reporting setup completed.');
@@ -123,7 +153,8 @@ async function getReportingStatus(context, options = {}) {
   const state = await store.load(context);
   if (!state.dataSourceId) return { dataSource: 'Not configured', reports: 'Not configured' };
   const source = await observe(client, 'data-source', state.dataSourceId);
-  if (source.state !== EXISTENCE.EXISTS || !isPublished(source.payload)) return { dataSource: source.state === EXISTENCE.UNRESOLVED ? 'Not configured' : 'Not configured', reports: 'Not configured' };
+  const apiGeneration = options.apiGeneration || await resolveApiGeneration(client);
+  if (source.state !== EXISTENCE.EXISTS || (apiGeneration === 4 ? !isApi4DataSource(source.payload, state.dataSourceId) : !isPublished(source.payload))) return { dataSource: 'Not configured', reports: 'Not configured' };
   const reportChecks = await Promise.all(REPORTS.map(async report => {
     if (!state[report.key]) return false;
     const observed = await observe(client, 'report', state[report.key]);

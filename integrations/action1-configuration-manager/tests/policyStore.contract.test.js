@@ -149,8 +149,8 @@ function createFakeDb(options = {}) {
         state.correlations.push({
           policy_id: params[0], automation_group_id: params[1], automation_group_version: params[2],
           control_family_name_snapshot: params[3], action1_organization_id: params[4],
-          action1_automation_id: params[5], action1_automation_action_id: params[6], action1_automation_name: params[7], action1_automation_self: params[8],
-          desired_definition_fingerprint: params[9], last_applied_at: params[10], last_error: params[11],
+          action1_automation_id: params[5], action1_automation_configuration_id: params[6], action1_automation_action_id: params[7], action1_automation_name: params[8], action1_automation_self: params[9],
+          desired_definition_fingerprint: params[10], last_applied_at: params[11], last_error: params[12],
           created_at: '2026-08-12T01:00:00.000Z', updated_at: '2026-08-12T01:00:00.000Z'
         });
         return { changes: 1 };

@@ -63,6 +63,7 @@ async function createAndReplaceAutomation(context, policy, definition, client, c
     controlFamilyNameSnapshot: definition.familyName,
     action1OrganizationId: policy.organizationId,
     action1AutomationId: created.id,
+    action1AutomationConfigurationId: created.configurationId || null,
     action1AutomationActionId: created.actionId,
     action1AutomationName: created.name,
     action1AutomationSelf: created.self,
@@ -70,6 +71,22 @@ async function createAndReplaceAutomation(context, policy, definition, client, c
     lastAppliedAt: new Date().toISOString()
   });
   return created;
+}
+
+async function recoverConfigurationId(client, correlation, organizationId, correlations) {
+  if (correlation.action1AutomationConfigurationId) return correlation.action1AutomationConfigurationId;
+  if (typeof client.resolveConnection !== 'function') return null;
+  const connection = await client.resolveConnection();
+  if (connection?.apiGeneration !== 4) return null;
+  const observed = await client.observeAutomation(organizationId, correlation.action1AutomationId);
+  if (observed?.state !== 'EXISTS' || observed.automation?.configurationId == null) {
+    throw new Error('Action1 automation configuration id could not be recovered from the existing API 4.0 schedule.');
+  }
+  const configurationId = String(observed.automation.configurationId).trim();
+  if (!configurationId) throw new Error('Action1 automation configuration id could not be recovered from the existing API 4.0 schedule.');
+  await correlations.updateConfigurationId(correlation.policyId, correlation.automationGroupId, configurationId);
+  correlation.action1AutomationConfigurationId = configurationId;
+  return configurationId;
 }
 
 async function applyEdit(context, previousPolicy, desiredPolicy, options = {}) {
@@ -110,7 +127,8 @@ async function applyEdit(context, previousPolicy, desiredPolicy, options = {}) {
         await log(context, 'info', `Automation patch started: policyId=${desiredPolicy.policyId} family=${family} automationId=${operation.correlation.action1AutomationId} automationName=${operation.definition.name}`);
         let updated;
         try {
-          updated = await client.updateAutomation(desiredPolicy.organizationId, operation.correlation.action1AutomationId, operation.definition, operation.correlation.action1AutomationActionId);
+          const configurationId = await recoverConfigurationId(client, operation.correlation, desiredPolicy.organizationId, correlations);
+          updated = await client.updateAutomation(desiredPolicy.organizationId, operation.correlation.action1AutomationId, operation.definition, operation.correlation.action1AutomationActionId, configurationId);
         } catch (error) {
           if (!classifyMissingAutomationGet(error, operation.correlation.action1AutomationId)) throw error;
           await log(context, 'info', `Missing owned automation detected: ${family}`);
@@ -219,6 +237,7 @@ async function enablePolicy(context, policy) {
         controlFamilyNameSnapshot: definition.familyName,
         action1OrganizationId: policy.organizationId,
         action1AutomationId: created.id,
+        action1AutomationConfigurationId: created.configurationId || null,
         action1AutomationActionId: created.actionId,
         action1AutomationName: created.name,
         action1AutomationSelf: created.self,

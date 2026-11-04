@@ -7,15 +7,15 @@ function createDb() {
     rows,
     async run(sql, params = []) {
       if (sql.includes('INSERT INTO action1_configuration_manager_automation_correlations')) {
-        assert.strictEqual((sql.match(/\?/g) || []).length + 1, 13, 'correlation INSERT must bind exactly the 13 schema columns');
+        assert.strictEqual((sql.match(/\?/g) || []).length + 1, 14, 'correlation INSERT must bind exactly the 14 schema columns');
         const existing = rows.find((row) => row.policy_id === params[0] && row.automation_group_id === params[1]);
         if (existing) throw new Error('duplicate correlation');
         rows.push({
           policy_id: params[0], automation_group_id: params[1], automation_group_version: params[2],
           control_family_name_snapshot: params[3], action1_organization_id: params[4],
-          action1_automation_id: params[5], action1_automation_action_id: params[6], action1_automation_name: params[7],
-          action1_automation_self: params[8], desired_definition_fingerprint: params[9],
-          last_applied_at: params[10], last_error: params[11]
+          action1_automation_id: params[5], action1_automation_configuration_id: params[6], action1_automation_action_id: params[7], action1_automation_name: params[8],
+          action1_automation_self: params[9], desired_definition_fingerprint: params[10],
+          last_applied_at: params[11], last_error: params[12]
         });
         return { changes: 1 };
       }
@@ -42,11 +42,12 @@ async function run() {
   const saved = await store.insertCorrelation({
     policyId: 'POL-000001', automationGroupId: 'identity.password-policy', automationGroupVersion: '0.1.0',
     controlFamilyNameSnapshot: 'Password Policy', action1OrganizationId: 'org-1',
-    action1AutomationId: 'auto-1', action1AutomationActionId: 'Run_PowerShell_test-id', action1AutomationName: 'A1CM — Policy — Password Policy',
+    action1AutomationId: 'auto-1', action1AutomationConfigurationId: 'configuration-1', action1AutomationActionId: 'Run_PowerShell_test-id', action1AutomationName: 'A1CM — Policy — Password Policy',
     action1AutomationSelf: 'https://app.action1.com/api/3.0/automations/schedules/org-1/auto-1',
     desiredDefinitionFingerprint: 'sha256:abc', lastAppliedAt: '2026-08-13T12:00:00.000Z', lastError: null
   });
   assert.strictEqual(saved.action1AutomationId, 'auto-1');
+  assert.strictEqual(saved.action1AutomationConfigurationId, 'configuration-1');
   assert.strictEqual(saved.action1AutomationActionId, 'Run_PowerShell_test-id');
   assert.strictEqual((await store.listCorrelations('POL-000001')).length, 1);
   assert.strictEqual((await store.listCorrelations('POL-000002')).length, 0, 'correlations must not cross-read Policies');

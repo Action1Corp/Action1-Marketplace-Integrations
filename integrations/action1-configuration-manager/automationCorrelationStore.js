@@ -18,6 +18,7 @@ function normalizeCorrelation(input = {}) {
     controlFamilyNameSnapshot: required(input.controlFamilyNameSnapshot, 'Control family name'),
     action1OrganizationId: required(input.action1OrganizationId, 'Action1 organization id'),
     action1AutomationId: required(input.action1AutomationId, 'Action1 automation id'),
+    action1AutomationConfigurationId: input.action1AutomationConfigurationId == null ? null : required(input.action1AutomationConfigurationId, 'Action1 automation configuration id'),
     action1AutomationActionId: required(input.action1AutomationActionId, 'Action1 automation action id'),
     action1AutomationName: required(input.action1AutomationName, 'Action1 automation name'),
     action1AutomationSelf: required(input.action1AutomationSelf, 'Action1 automation self URL'),
@@ -34,6 +35,7 @@ function hydrate(row) {
     controlFamilyNameSnapshot: String(row.control_family_name_snapshot),
     action1OrganizationId: String(row.action1_organization_id),
     action1AutomationId: String(row.action1_automation_id),
+    action1AutomationConfigurationId: row.action1_automation_configuration_id == null ? null : String(row.action1_automation_configuration_id).trim(),
       action1AutomationActionId:
         row.action1_automation_action_id == null
           ? null
@@ -55,12 +57,12 @@ function createAutomationCorrelationStore(context) {
         `INSERT INTO ${AUTOMATION_CORRELATIONS_TABLE} (
           policy_id, automation_group_id, automation_group_version,
           control_family_name_snapshot, action1_organization_id,
-          action1_automation_id, action1_automation_action_id, action1_automation_name, action1_automation_self,
+          action1_automation_id, action1_automation_configuration_id, action1_automation_action_id, action1_automation_name, action1_automation_self,
           desired_definition_fingerprint, active, last_applied_at, last_error
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
         [correlation.policyId, correlation.automationGroupId, correlation.automationGroupVersion,
           correlation.controlFamilyNameSnapshot, correlation.action1OrganizationId,
-          correlation.action1AutomationId, correlation.action1AutomationActionId, correlation.action1AutomationName,
+          correlation.action1AutomationId, correlation.action1AutomationConfigurationId, correlation.action1AutomationActionId, correlation.action1AutomationName,
           correlation.action1AutomationSelf, correlation.desiredDefinitionFingerprint,
           correlation.lastAppliedAt, correlation.lastError]
       );
@@ -71,7 +73,7 @@ function createAutomationCorrelationStore(context) {
       const rows = await context.db.all(
         `SELECT policy_id, automation_group_id, automation_group_version,
                 control_family_name_snapshot, action1_organization_id,
-                action1_automation_id, action1_automation_action_id, action1_automation_name, action1_automation_self,
+                action1_automation_id, action1_automation_configuration_id, action1_automation_action_id, action1_automation_name, action1_automation_self,
                 desired_definition_fingerprint, active, last_applied_at, last_error,
                 created_at, updated_at
            FROM ${AUTOMATION_CORRELATIONS_TABLE}
@@ -93,17 +95,25 @@ function createAutomationCorrelationStore(context) {
           input.lastError || null, required(policyId, 'Policy id'), required(automationGroupId, 'Automation group id')]
       );
     },
+    async updateConfigurationId(policyId, automationGroupId, configurationId) {
+      await context.db.run(
+        `UPDATE ${AUTOMATION_CORRELATIONS_TABLE}
+            SET action1_automation_configuration_id = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE policy_id = ? AND automation_group_id = ?`,
+        [required(configurationId, 'Action1 automation configuration id'), required(policyId, 'Policy id'), required(automationGroupId, 'Automation group id')]
+      );
+    },
     async activateCorrelation(input) {
       const correlation = normalizeCorrelation(input);
       const result = await context.db.run(
         `UPDATE ${AUTOMATION_CORRELATIONS_TABLE}
             SET automation_group_version = ?, control_family_name_snapshot = ?,
-                action1_organization_id = ?, action1_automation_id = ?, action1_automation_action_id = ?, action1_automation_name = ?,
+                action1_organization_id = ?, action1_automation_id = ?, action1_automation_configuration_id = ?, action1_automation_action_id = ?, action1_automation_name = ?,
                 action1_automation_self = ?, desired_definition_fingerprint = ?, active = 1,
                 last_applied_at = ?, last_error = NULL, updated_at = CURRENT_TIMESTAMP
           WHERE policy_id = ? AND automation_group_id = ?`,
         [correlation.automationGroupVersion, correlation.controlFamilyNameSnapshot,
-          correlation.action1OrganizationId, correlation.action1AutomationId, correlation.action1AutomationActionId, correlation.action1AutomationName,
+          correlation.action1OrganizationId, correlation.action1AutomationId, correlation.action1AutomationConfigurationId, correlation.action1AutomationActionId, correlation.action1AutomationName,
           correlation.action1AutomationSelf, correlation.desiredDefinitionFingerprint, correlation.lastAppliedAt,
           correlation.policyId, correlation.automationGroupId]
       );

@@ -169,8 +169,8 @@ function createFakeDb() {
         state.correlations.push({
           policy_id: params[0], automation_group_id: params[1], automation_group_version: params[2],
           control_family_name_snapshot: params[3], action1_organization_id: params[4],
-          action1_automation_id: params[5], action1_automation_action_id: params[6], action1_automation_name: params[7], action1_automation_self: params[8],
-          desired_definition_fingerprint: params[9], active: 1, last_applied_at: params[10], last_error: params[11],
+          action1_automation_id: params[5], action1_automation_configuration_id: params[6], action1_automation_action_id: params[7], action1_automation_name: params[8], action1_automation_self: params[9],
+          desired_definition_fingerprint: params[10], active: 1, last_applied_at: params[11], last_error: params[12],
           created_at: '2026-08-12T01:00:00.000Z', updated_at: '2026-08-12T01:00:00.000Z'
         });
         return { changes: 1 };
@@ -179,6 +179,12 @@ function createFakeDb() {
       if (sql.includes('UPDATE action1_configuration_manager_automation_correlations') && sql.includes('SET active = 0')) {
         const row = state.correlations.find((entry) => entry.policy_id === params[1] && entry.automation_group_id === params[2]);
         if (row) { row.active = 0; row.last_error = params[0]; }
+        return { changes: row ? 1 : 0 };
+      }
+
+      if (sql.includes('UPDATE action1_configuration_manager_automation_correlations') && sql.includes('SET action1_automation_configuration_id')) {
+        const row = state.correlations.find((entry) => entry.policy_id === params[1] && entry.automation_group_id === params[2]);
+        if (row) row.action1_automation_configuration_id = params[0];
         return { changes: row ? 1 : 0 };
       }
 
@@ -256,7 +262,7 @@ function createFakeContext(contextOptions = {}) {
   const requests = [];
   return {
     db: createFakeDb(),
-    action1: { async getCredentials() { return { baseUrl: 'https://action1.test/api/3.0', apiKey: 'test-key', apiSecret: 'test-secret' }; } },
+    action1: { async getCredentials() { return { baseUrl: contextOptions.api4 ? 'https://action1.test/api/4.0' : 'https://action1.test/api/3.0', apiKey: 'test-key', apiSecret: 'test-secret' }; } },
     async http(options) {
       requests.push(options);
       if (options.method === 'POST' && options.url.includes('/automations/schedules/') && contextOptions.failAutomationAt && ++creationAttempts === contextOptions.failAutomationAt) {
@@ -269,7 +275,20 @@ function createFakeContext(contextOptions = {}) {
       }
       if (options.method === 'GET' && /\/automations\/schedules\/[^/]+\/[^/]+$/.test(options.url)) {
         const automationId = decodeURIComponent(options.url.split('/').pop());
+        if (contextOptions.api4) {
+          if (contextOptions.invalidRecovery) return { status: 200, data: { id: automationId, type: 'AutomationSchedule', configuration: { type: 'AutomationScheduleConfiguration', organization_id: 'org-acme', name: 'A1CM - Existing automation', actions: [] } }, headers: {} };
+          return { status: 200, data: { id: automationId, type: 'AutomationSchedule', configuration: { id: contextOptions.configurationId || 'recovered-configuration-id', type: 'AutomationScheduleConfiguration', organization_id: 'org-acme', name: 'A1CM - Existing automation', actions: [{ id: 'recovered-action-id', template_id: 'run_script' }] }, endpoints: [{ id: 'group-finance', type: 'EndpointGroup' }] }, headers: {} };
+        }
         return { status: 200, data: { id: automationId, self: `https://action1.test/api/3.0/automations/schedules/org-acme/${automationId}`, name: 'A1CM - Existing automation' }, headers: {} };
+      }
+      if (contextOptions.api4 && options.method === 'POST' && options.url.includes('/automations/schedules/')) {
+        automationNumber += 1;
+        const configuration = options.data.configuration;
+        return { status: 201, data: { id: `auto-${automationNumber}`, type: 'AutomationSchedule', configuration: { ...configuration, organization_id: 'org-acme' }, endpoints: configuration ? options.data.endpoints : [] }, headers: { 'content-type': 'application/json' } };
+      }
+      if (contextOptions.api4 && options.method === 'PATCH' && options.url.includes('/automations/schedules/')) {
+        const resourceId = decodeURIComponent(options.url.split('/').pop());
+        return { status: 200, data: { id: resourceId, type: 'AutomationSchedule', configuration: options.data.configuration, endpoints: options.data.endpoints }, headers: { 'content-type': 'application/json' } };
       }
       automationNumber += 1;
       return { status: 201, data: { id: `auto-${automationNumber}`, self: `https://action1.test/api/3.0/automations/schedules/org-acme/auto-${automationNumber}`, name: `A1CM - Workstation Security - Finance Workstations - ${automationNumber}`, actions: [{ name: 'Run PowerShell', template_id: 'run_script', id: `Run_PowerShell_${automationNumber}` }] }, headers: {} };
@@ -367,6 +386,43 @@ async function run() {
   assert.strictEqual((await authoritativeContext.db.all('SELECT * FROM action1_configuration_manager_scope_reservations WHERE organization_id = ?', ['org-acme'])).length, 0);
   assert.strictEqual((await actions['list-policies'](authoritativeContext)).policies.length, 0);
   const context = createFakeContext();
+
+  const api4Context = createFakeContext({ api4: true });
+  const api4Created = await actions['create-policy'](api4Context, { payload: { draft: createValidDraft() } });
+  assert.strictEqual(api4Created.ok, true, api4Created.message);
+  assert(api4Context.db.state.correlations[0].action1_automation_id);
+  assert(api4Context.db.state.correlations[0].action1_automation_configuration_id, 'API 4 initial creation must persist configuration ID');
+  assert(api4Context.db.state.correlations[0].action1_automation_action_id);
+  const api4MultiContext = createFakeContext({ api4: true });
+  const api4MultiDraft = createValidDraft();
+  api4MultiDraft.selectedControls = [...api4MultiDraft.selectedControls, differentFamilyControl(api4MultiDraft)];
+  const api4MultiCreated = await actions['create-policy'](api4MultiContext, { payload: { draft: api4MultiDraft } });
+  const api4ConfigurationIds = api4MultiContext.db.state.correlations.map((row) => row.action1_automation_configuration_id);
+  assert.strictEqual(api4MultiCreated.ok, true, api4MultiCreated.message);
+  assert.strictEqual(new Set(api4ConfigurationIds).size, 2, 'Each API 4 automation must retain its own configuration ID');
+  const api4EditDraft = { ...api4Created.policy, mode: 'edit', enabled: true, selectedControls: api4Created.policy.selectedControls.map((control) => ({ ...control, parameters: changedParameters(control) })) };
+  const api4Edit = await actions['save-policy'](api4Context, { payload: { draft: api4EditDraft } });
+  assert.strictEqual(api4Edit.ok, true, api4Edit.message);
+  const api4Patch = api4Context.requests.find((request) => request.method === 'PATCH' && request.url.includes('/automations/schedules/'));
+  assert(api4Patch);
+  assert.strictEqual(api4Patch.data.configuration.id, api4Context.db.state.correlations[0].action1_automation_configuration_id);
+  api4Context.db.state.correlations[0].action1_automation_configuration_id = null;
+  const recoveryRequestStart = api4Context.requests.length;
+  const recoveredEdit = await actions['save-policy'](api4Context, { payload: { draft: { ...api4Edit.policy, mode: 'edit', enabled: true, baseName: `${api4Edit.policy.baseName} Recovery` } } });
+  assert.strictEqual(recoveredEdit.ok, true, `${recoveredEdit.message} ${JSON.stringify(recoveredEdit.details)}`);
+  const recoveryRequests = api4Context.requests.slice(recoveryRequestStart);
+  assert(recoveryRequests.some((request) => request.method === 'GET' && request.url.includes('/automations/schedules/')));
+  const recoveredPatch = recoveryRequests.find((request) => request.method === 'PATCH' && request.url.includes('/automations/schedules/'));
+  assert(recoveredPatch);
+  assert.strictEqual(recoveredPatch.data.configuration.id, 'recovered-configuration-id');
+  assert.strictEqual(api4Context.db.state.correlations[0].action1_automation_configuration_id, 'recovered-configuration-id');
+
+  const invalidRecoveryContext = createFakeContext({ api4: true, invalidRecovery: true });
+  const invalidCreated = await actions['create-policy'](invalidRecoveryContext, { payload: { draft: createValidDraft() } });
+  invalidRecoveryContext.db.state.correlations[0].action1_automation_configuration_id = null;
+  const invalidEdit = await actions['save-policy'](invalidRecoveryContext, { payload: { draft: { ...invalidCreated.policy, mode: 'edit', enabled: true, baseName: `${invalidCreated.policy.baseName} Invalid Recovery` } } });
+  assert.strictEqual(invalidEdit.ok, false);
+  assert.strictEqual(invalidRecoveryContext.requests.some((request) => request.method === 'PATCH' && request.url.includes('/automations/schedules/')), false);
 
   const saveResult = await actions['save-policy'](context, { payload: { draft: createValidDraft() } });
   assert.strictEqual(saveResult.ok, true);

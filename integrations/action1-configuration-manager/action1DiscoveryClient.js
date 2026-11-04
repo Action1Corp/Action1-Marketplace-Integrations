@@ -25,6 +25,15 @@ function normalizeBaseUrl(value) {
   return normalized.endsWith('/') ? normalized.slice(0, -1) : normalized;
 }
 
+function resolveApiGeneration(normalizedBaseUrl) {
+  const version = new URL(normalizedBaseUrl).pathname.match(/\/api\/(\d+)\.\d+\/?$/);
+  const generation = Number(version?.[1]);
+  if (generation !== 3 && generation !== 4) {
+    throw new Error('Unsupported Action1 API generation. Only API 3.x and 4.x are supported.');
+  }
+  return generation;
+}
+
 function sanitizeMessage(message) {
   return String(message || '')
     .replace(/bearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [redacted]')
@@ -272,7 +281,8 @@ async function resolveCanonicalConnection(context, explicitConnection) {
   return {
     baseUrl: normalizedBaseUrl,
     clientId,
-    clientSecret
+    clientSecret,
+    apiGeneration: resolveApiGeneration(normalizedBaseUrl)
   };
 }
 
@@ -877,6 +887,7 @@ function createAction1DiscoveryClient(context, options = {}) {
     listEndpointGroupContents,
     listReportData,
     requestAction1Mutation,
+    resolveConnection,
     resolveAction1ConsoleOrigin: () => resolveAction1ConsoleOrigin(context)
   };
 }
@@ -885,6 +896,8 @@ module.exports = {
   DiscoveryRequestError,
   computeAction1RateLimitDelayMs,
   createAction1DiscoveryClient,
+  resolveApiGeneration,
+  resolveCanonicalConnection,
   resolveAction1ConsoleOrigin,
   resolveRetryAfterMs,
   sanitizeMessage
