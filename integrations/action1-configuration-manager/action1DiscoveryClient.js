@@ -278,12 +278,34 @@ async function resolveCanonicalConnection(context, explicitConnection) {
     });
   }
 
+  const apiGeneration = resolveApiGeneration(normalizedBaseUrl);
+  const metadata = {};
+  for (const key of ['etpMode', 'etpEnabled', 'etpCapabilitySource']) {
+    if (credentials[key] !== undefined) metadata[key] = credentials[key];
+  }
+  if ((metadata.etpMode !== undefined && !['legacy', 'api4', 'etp'].includes(metadata.etpMode))
+    || (metadata.etpEnabled !== undefined && typeof metadata.etpEnabled !== 'boolean')
+    || (metadata.etpMode !== undefined && metadata.etpEnabled !== undefined && (metadata.etpMode === 'etp') !== metadata.etpEnabled)
+    || (metadata.etpMode === 'legacy' && apiGeneration !== 3)
+    || (['api4', 'etp'].includes(metadata.etpMode) && apiGeneration !== 4)
+    || (metadata.etpEnabled === true && apiGeneration !== 4)) {
+    throw new Error('Marketplace Action1 connection mode metadata is inconsistent. Reload the connection settings.');
+  }
   return {
     baseUrl: normalizedBaseUrl,
     clientId,
     clientSecret,
-    apiGeneration: resolveApiGeneration(normalizedBaseUrl)
+    apiGeneration,
+    ...metadata
   };
+}
+
+function requiresETPSigning(connection) {
+  if (connection.apiGeneration === 3) return false;
+  if (typeof connection.etpEnabled === 'boolean') return connection.etpEnabled;
+  if (connection.etpMode === 'api4') return false;
+  if (connection.etpMode === 'etp') return true;
+  throw new Error('Marketplace ETP connection metadata is unavailable. Confirm the Action1 connection mode before changing automations.');
 }
 
 function getTokenCacheKey(connection) {
@@ -893,6 +915,7 @@ function createAction1DiscoveryClient(context, options = {}) {
 }
 
 module.exports = {
+  requiresETPSigning,
   DiscoveryRequestError,
   computeAction1RateLimitDelayMs,
   createAction1DiscoveryClient,

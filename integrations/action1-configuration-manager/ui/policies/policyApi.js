@@ -1,3 +1,5 @@
+import { invokeSigningOperation } from './signingFlow.js';
+
 export function createPolicyApi(integration) {
   async function invoke(actionId, payload) {
     const response = await fetch(`/api/integrations/${integration}/actions/${actionId}`, {
@@ -20,10 +22,16 @@ export function createPolicyApi(integration) {
     getControlPack: async () => invoke('get-control-pack'),
     listPolicies: async () => (await invoke('list-policies')).policies || [],
     getPolicy: async (policyId) => (await invoke('get-policy', { policyId })).policy,
-    savePolicy: async (draft, progressOperationId) => (await invoke(draft?.mode === 'create' ? 'create-policy' : 'update-policy', {
-      draft, ...(progressOperationId ? { progressOperationId } : {})
-    })).policy,
-    setPolicyEnabled: async (policyId, enabled) => (await invoke(enabled ? 'enable-policy' : 'disable-policy', { policyId, enabled })).policy,
+    savePolicy: async (draft, progressOperationId) => {
+      const payload = { draft, ...(progressOperationId ? { progressOperationId } : {}) };
+      const result = draft?.mode === 'create'
+        ? await invokeSigningOperation(invoke, integration, 'create-policy', payload)
+        : await invoke('update-policy', payload);
+      return result.policy;
+    },
+    setPolicyEnabled: async (policyId, enabled) => (await (enabled
+      ? invokeSigningOperation(invoke, integration, 'enable-policy', { policyId, enabled })
+      : invoke('disable-policy', { policyId, enabled }))).policy,
     deletePolicy: async (policyId, progressOperationId) => invoke('delete-policy', {
       policyId, ...(progressOperationId ? { progressOperationId } : {})
     })

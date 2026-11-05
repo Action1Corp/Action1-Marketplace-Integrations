@@ -189,6 +189,14 @@ function createFakeDb() {
       }
 
       if (sql.includes('UPDATE action1_configuration_manager_automation_correlations') && sql.includes('SET automation_group_version')) {
+        if (sql.includes('action1_organization_id = ?')) {
+          const row = state.correlations.find(entry => entry.policy_id === params[10] && entry.automation_group_id === params[11]);
+          if (row) Object.assign(row, { automation_group_version: params[0], control_family_name_snapshot: params[1],
+            action1_organization_id: params[2], action1_automation_id: params[3], action1_automation_configuration_id: params[4],
+            action1_automation_action_id: params[5], action1_automation_name: params[6], action1_automation_self: params[7],
+            desired_definition_fingerprint: params[8], last_applied_at: params[9], active: 1, last_error: null });
+          return { changes: row ? 1 : 0 };
+        }
         const row = state.correlations.find((entry) => entry.policy_id === params[8] && entry.automation_group_id === params[9]);
         if (row) {
           row.automation_group_version = params[0];
@@ -262,7 +270,7 @@ function createFakeContext(contextOptions = {}) {
   const requests = [];
   return {
     db: createFakeDb(),
-    action1: { async getCredentials() { return { baseUrl: contextOptions.api4 ? 'https://action1.test/api/4.0' : 'https://action1.test/api/3.0', apiKey: 'test-key', apiSecret: 'test-secret' }; } },
+    action1: { async getCredentials() { return { baseUrl: contextOptions.api4 ? 'https://action1.test/api/4.0' : 'https://action1.test/api/3.0', apiKey: 'test-key', apiSecret: 'test-secret', etpEnabled: false }; } },
     async http(options) {
       requests.push(options);
       if (options.method === 'POST' && options.url.includes('/automations/schedules/') && contextOptions.failAutomationAt && ++creationAttempts === contextOptions.failAutomationAt) {
@@ -342,6 +350,113 @@ async function run() {
   assert(source.includes('request.run'), 'Create/Delete should append progress checkpoints to the tracked Marketplace action run');
 
   const actions = require(path.join(__dirname, '..', 'actions.js')).actions;
+  const etpContext = createFakeContext({ api4: true });
+  etpContext.integrationId = 'action1-configuration-manager';
+  const originalCredentials = etpContext.action1.getCredentials;
+  etpContext.action1.getCredentials = async () => ({ ...await originalCredentials(), etpEnabled: true, etpMode: 'etp', etpCapabilitySource: 'marketplace-setting' });
+  let signingJob;
+  const compareDigest = (value) => {
+    const stable = v => Array.isArray(v) ? v.map(stable) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k => [k, stable(v[k])])) : v;
+    return require('node:crypto').createHash('sha256').update(JSON.stringify(stable(value))).digest('hex');
+  };
+  etpContext.action1.provisioner = {
+    async prepareSigning(input) {
+      if (!signingJob) signingJob = { id: require('node:crypto').randomUUID(), integrationId: etpContext.integrationId,
+        state: 'awaiting_signature', purpose: 'sign-only', digest: 'synthetic-digest', expiresAt: Date.now() + 60000,
+        origin: new URL((await originalCredentials()).baseUrl).origin, objects: JSON.parse(JSON.stringify(input.objects)) };
+      assert.deepStrictEqual(input.objects, signingJob.objects);
+      return { ok: true, outcome: signingJob.state, signingId: signingJob.id, digest: signingJob.digest };
+    },
+    async getSigning() { return signingJob; }
+  };
+  const unsignedAlias = await actions['save-policy'](etpContext, { payload: { draft: createValidDraft() } });
+  assert.strictEqual(unsignedAlias.ok, false, 'ETP aliases must not create unsigned schedules');
+  assert.strictEqual(etpContext.requests.length, 0);
+  const signingPayload = { operation: 'create', intentId: '22222222-2222-4222-8222-222222222222', draft: createValidDraft() };
+  const etpPrepared = await actions['prepare-policy-signing'](etpContext, { payload: signingPayload });
+  assert.strictEqual(etpPrepared.ok, true, etpPrepared.message);
+  assert.strictEqual(etpPrepared.signingRequired, true);
+  assert.strictEqual(etpContext.db.state.policies[0].enabled, 0, 'Only a disabled local intent exists before the popup');
+  assert.strictEqual(etpContext.requests.length, 0, 'Preparation must perform no Action1 mutations');
+  signingJob.state = 'signed';
+  signingJob.results = signingJob.objects.map(o => ({ id: o.id, configurationDigest: compareDigest(o.configuration),
+    signature: { alg: 'synthetic-alg', iat: 1, kid: 'synthetic-key', value: 'synthetic-signature' } }));
+  const etpCompletion = { ...signingPayload, policyId: etpPrepared.policyId, signingId: etpPrepared.signingId, digest: etpPrepared.digest };
+  const originalHttp = etpContext.http;
+  let releasePost, enteredPost;
+  const waitForPost = new Promise(resolve => { enteredPost = resolve; });
+  const postGate = new Promise(resolve => { releasePost = resolve; });
+  etpContext.http = async input => {
+    if (input.method === 'POST' && input.url.includes('/automations/schedules/')) { enteredPost(); await postGate; }
+    return originalHttp(input);
+  };
+  const firstCompletion = actions['create-policy'](etpContext, { payload: etpCompletion });
+  await waitForPost;
+  const concurrentCompletion = actions['save-policy'](etpContext, { payload: { ...etpCompletion, policyId: ` ${etpCompletion.policyId} ` } });
+  await new Promise(resolve => setImmediate(resolve));
+  releasePost();
+  const [etpCreated, duplicateCompletion] = await Promise.all([firstCompletion, concurrentCompletion]);
+  etpContext.http = originalHttp;
+  assert.strictEqual(duplicateCompletion.ok, false, 'Concurrent completion through an alias must not replay signed POSTs');
+  assert.strictEqual(etpCreated.ok, true, etpCreated.message);
+  assert.strictEqual(etpCreated.policy.enabled, true);
+  const etpPost = etpContext.requests.find(r => r.url.includes('/automations/schedules/') && r.method === 'POST');
+  assert.deepStrictEqual(etpPost.data.configuration, signingJob.objects[0].configuration);
+  assert.deepStrictEqual(etpPost.data.signatures[0].object_signature, signingJob.results[0].signature);
+  const replayedCreate = await actions['create-policy'](etpContext, { payload: etpCompletion });
+  assert.strictEqual(replayedCreate.ok, false);
+  assert.strictEqual(etpContext.requests.filter(r => r.url.includes('/automations/schedules/') && r.method === 'POST').length, 1);
+  const etpEdited = await actions['update-policy'](etpContext, { payload: { draft: { ...etpCreated.policy, mode: 'edit', baseName: 'Changed' } } });
+  assert.strictEqual(etpEdited.ok, false);
+  assert.strictEqual(etpContext.db.state.policies[0].base_name, etpCreated.policy.baseName, 'Unsupported ETP editing must not persist changes');
+  const etpDeleted = await actions['delete-policy'](etpContext, { payload: { policyId: etpCreated.policy.policyId } });
+  assert.strictEqual(etpDeleted.ok, false);
+  assert.strictEqual(etpContext.requests.some(r => r.method === 'DELETE'), false, 'Do not delete schedules before unsupported cleanup signing');
+  const beforeEnableConfiguration = etpContext.db.state.correlations[0].action1_automation_configuration_id;
+  const etpDisabled = await actions['disable-policy'](etpContext, { payload: { policyId: etpCreated.policy.policyId, enabled: false } });
+  assert.strictEqual(etpDisabled.ok, true, etpDisabled.message);
+  assert.strictEqual(etpDisabled.policy.enabled, false);
+  assert.strictEqual(etpContext.requests.some(r => r.url.includes('/automations/instances/')), false);
+  const etpEnableAlias = await actions['set-policy-enabled'](etpContext, { payload: { policyId: etpCreated.policy.policyId, enabled: true } });
+  assert.strictEqual(etpEnableAlias.ok, false);
+  signingJob = null;
+  const enablePayload = { operation: 'enable', policyId: etpCreated.policy.policyId, enabled: true, intentId: require('node:crypto').randomUUID() };
+  const preparedEnable = await actions['prepare-policy-signing'](etpContext, { payload: enablePayload });
+  assert.strictEqual(preparedEnable.ok, true, preparedEnable.message);
+  signingJob.state = 'signed';
+  signingJob.results = signingJob.objects.map(o => ({ id: o.id, configurationDigest: compareDigest(o.configuration),
+    signature: { alg: 'synthetic-alg', iat: 1, kid: 'synthetic-key', value: 'synthetic-enable-signature' } }));
+  const etpEnabled = await actions['enable-policy'](etpContext, { payload: { ...enablePayload, signingId: preparedEnable.signingId, digest: preparedEnable.digest } });
+  assert.strictEqual(etpEnabled.ok, true, etpEnabled.message);
+  assert.strictEqual(etpEnabled.policy.enabled, true);
+  assert.strictEqual(etpContext.db.state.correlations.length, 1, 'Enable replaces the existing correlation');
+  assert.strictEqual(etpContext.db.state.correlations[0].active, 1);
+  assert.notStrictEqual(etpContext.db.state.correlations[0].action1_automation_configuration_id, beforeEnableConfiguration);
+  assert.deepStrictEqual(etpContext.requests.filter(r => r.method === 'POST' && r.url.includes('/automations/schedules/')).at(-1).data.configuration, signingJob.objects[0].configuration);
+  const partialETP = createFakeContext({ api4: true, failAutomationAt: 2 });
+  partialETP.integrationId = etpContext.integrationId;
+  const partialCredentials = partialETP.action1.getCredentials;
+  partialETP.action1.getCredentials = async () => ({ ...await partialCredentials(), etpEnabled: true, etpMode: 'etp' });
+  partialETP.action1.provisioner = etpContext.action1.provisioner;
+  signingJob = null;
+  const partialDraft = createValidDraft();
+  partialDraft.selectedControls.push(differentFamilyControl(partialDraft));
+  const partialPayload = { operation: 'create', intentId: require('node:crypto').randomUUID(), draft: partialDraft };
+  const partialPrepared = await actions['prepare-policy-signing'](partialETP, { payload: partialPayload });
+  assert.strictEqual(partialPrepared.ok, true, partialPrepared.message);
+  signingJob.state = 'signed';
+  signingJob.results = signingJob.objects.map(o => ({ id: o.id, configurationDigest: compareDigest(o.configuration),
+    signature: { alg: 'synthetic-alg', iat: 1, kid: 'synthetic-key', value: 'synthetic-signature' } }));
+  const partialResult = await actions['create-policy'](partialETP, { payload: { ...partialPayload, policyId: partialPrepared.policyId,
+    signingId: partialPrepared.signingId, digest: partialPrepared.digest } });
+  assert.strictEqual(partialResult.ok, false);
+  assert.strictEqual(partialETP.db.state.policies[0].enabled, 0);
+  assert.strictEqual(partialETP.db.state.correlations.length, 1, 'A later failed POST preserves the accepted schedule correlation');
+  assert.strictEqual(partialETP.db.state.correlations[0].action1_automation_configuration_id, signingJob.objects[0].configuration.id);
+  const partialReplan = await actions['prepare-policy-signing'](partialETP, { payload: { operation: 'enable', policyId: partialPrepared.policyId, intentId: require('node:crypto').randomUUID() } });
+  assert.strictEqual(partialReplan.ok, false, 'Do not blindly prepare a full replacement set over a partial apply');
+  assert.strictEqual(partialETP.requests.filter(r => r.method === 'POST' && r.url.includes('/automations/schedules/')).length, 2);
+
   assert.strictEqual(manifest.actions.find((action) => action.id === 'delete-policy').history, true);
   for (const policyId of [undefined, null, '', '   ', 64, {}, [], true]) {
     const invalidContext = createFakeContext();

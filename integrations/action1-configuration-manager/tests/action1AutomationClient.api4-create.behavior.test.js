@@ -7,7 +7,7 @@ const { buildAutomationDefinitions } = require('../automationDefinition');
 function makeContext(response, calls) {
   return {
     action1: { async getCredentials() {
-      return { baseUrl: 'https://eu.action1.test/api/4.0', apiKey: 'key', apiSecret: 'secret', organizationId: 'credential-org' };
+      return { baseUrl: 'https://eu.action1.test/api/4.0', apiKey: 'key', apiSecret: 'secret', organizationId: 'credential-org', etpEnabled: false };
     } },
     async http(options) {
       calls.push(options);

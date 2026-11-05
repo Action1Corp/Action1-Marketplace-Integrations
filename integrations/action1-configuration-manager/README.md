@@ -1,5 +1,15 @@
 # Action1 Configuration Manager
 
+## ETP signing preview: Policy creation and Enable
+
+Marketplace's selected Action1 connection mode controls signing. Legacy API 3.0 and unsigned API 4.0 retain their existing behavior. In API 4.0 + ETP mode, Create/Save and Enable prepare the complete Automation Schedule configurations, open Marketplace's existing passphrase dialog once, then submit the signed schedules through Configuration Manager. Configure your signing key in Marketplace Settings first. Configuration Manager does not receive or store your passphrase or private key.
+
+This first implementation slice supports schedule creation and enabling a disabled Policy. ETP Policy editing and deletion are temporarily blocked until schedule PATCH and cleanup-instance signing are delivered. Disable still deletes schedules without signing and keeps the Policy. Scheduled reconciliation can check existing schedules but reports that interactive signing is required instead of creating an unsigned replacement; interactive Reconcile Now repair is a later slice. Reporting/Data Source behavior is unchanged and ETP Data Source signing is not supported by this slice.
+
+Use Policies containing 1–3 Automations for initial validation. Marketplace enforces its existing signing-batch limit and returns any batch rejection; Configuration Manager adds no Control/Automation limit and does not split operations into additional passphrase prompts.
+
+Preparation allocates a disabled local Policy and its scope reservation so the final Policy ID is present in the signed scripts. Cancelling signing or a preparation/signing failure performs no protected Action1 writes, but can leave that disabled Policy/reservation. Return to Policies and Enable the saved Policy to resume when no schedules were accepted. After a partial or uncertain API failure, review existing correlations/results before retrying: an ambiguous create must not be blindly replayed. Known accepted schedules retain their correlations. Signing success alone does not establish endpoint execution.
+
 ## Cross-integration Policy links and Delete
 
 Other Marketplace integrations can link to the existing Policy views:

@@ -34,7 +34,7 @@ function nestedSchedule(overrides = {}) {
 function contextFor(responses, calls) {
   let index = 0;
   return {
-    action1: { async getCredentials() { return { baseUrl: 'https://eu.action1.test/api/4.0', apiKey: 'key', apiSecret: 'secret', organizationId: 'credential-org' }; } },
+    action1: { async getCredentials() { return { baseUrl: 'https://eu.action1.test/api/4.0', apiKey: 'key', apiSecret: 'secret', organizationId: 'credential-org', etpEnabled: false }; } },
     async http(options) {
       calls.push(options);
       if (options.url.endsWith('/oauth2/token')) return { status: 200, data: { access_token: 'token', expires_in: 3600 }, headers: {} };

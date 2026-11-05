@@ -217,11 +217,18 @@ async function disablePolicy(context, policy, options = {}) {
   }
 }
 
-async function enablePolicy(context, policy) {
+async function enablePolicy(context, policy, options = {}) {
   const startedAt = Date.now();
   const client = createAction1AutomationClient(context);
   const correlations = createAutomationCorrelationStore(context);
   const definitions = buildAutomationDefinitions(policy);
+  const signedSchedules = options.signedSchedules;
+  const existing = signedSchedules ? await correlations.listCorrelations(policy.policyId) : [];
+  for (const correlation of existing) {
+    if (signedSchedules.get(correlation.automationGroupId)?.configuration.id !== correlation.action1AutomationConfigurationId) {
+      throw new Error('Policy correlations changed. Review existing automations before retrying.');
+    }
+  }
   const history = { counts: { created: 0, failed: 0 }, familyOutcomes: [] };
   let currentFamilyName = '';
   await log(context, 'debug', `Enable started: ${policy.policyId}`);
@@ -229,7 +236,12 @@ async function enablePolicy(context, policy) {
     for (const definition of definitions) {
       currentFamilyName = definition.familyName;
       await log(context, 'debug', `Automation create started: policyId=${policy.policyId} family=${definition.familyName} automationName=${definition.name} scope=${policy.scopeType}`);
-      const created = await client.createAutomation(policy.organizationId, definition);
+      if (existing.some(c => c.automationGroupId === definition.automationGroupId)) {
+        history.counts.created += 1;
+        history.familyOutcomes.push({ familyName: definition.familyName, outcome: 'Unchanged' });
+        continue;
+      }
+      const created = await client.createAutomation(policy.organizationId, definition, signedSchedules?.get(definition.automationGroupId));
       await correlations.activateCorrelation({
         policyId: policy.policyId,
         automationGroupId: definition.automationGroupId,

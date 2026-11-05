@@ -29,22 +29,24 @@ async function run() {
   };
 
   await api.savePolicy(validDraft, '11111111-2222-4333-8444-555555555555');
-  assert.deepStrictEqual(JSON.parse(fetchCalls[1].options.body), {
+  assert(fetchCalls[1].url.endsWith('/prepare-policy-signing'));
+  assert.strictEqual(JSON.parse(fetchCalls[1].options.body).payload.operation, 'create');
+  assert.deepStrictEqual(JSON.parse(fetchCalls[2].options.body), {
     payload: { draft: validDraft, progressOperationId: '11111111-2222-4333-8444-555555555555' }
   });
 
   await api.getPolicy('POL-000001');
-  assert.deepStrictEqual(JSON.parse(fetchCalls[2].options.body), {
+  assert.deepStrictEqual(JSON.parse(fetchCalls[3].options.body), {
     payload: { policyId: 'POL-000001' }
   });
 
   await api.setPolicyEnabled('POL-000001', false);
-  assert.deepStrictEqual(JSON.parse(fetchCalls[3].options.body), {
+  assert.deepStrictEqual(JSON.parse(fetchCalls[4].options.body), {
     payload: { policyId: 'POL-000001', enabled: false }
   });
 
   await api.deletePolicy('POL-000001', '11111111-2222-4333-8444-555555555555');
-  assert.deepStrictEqual(JSON.parse(fetchCalls[4].options.body), {
+  assert.deepStrictEqual(JSON.parse(fetchCalls[5].options.body), {
     payload: { policyId: 'POL-000001', progressOperationId: '11111111-2222-4333-8444-555555555555' }
   });
 

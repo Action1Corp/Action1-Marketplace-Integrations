@@ -11,6 +11,14 @@
   "entry": "index.js",
   "actions": [
     {
+      "id": "prepare-policy-signing",
+      "kind": "action",
+      "label": "Prepare Policy signing",
+      "description": "Prepares finalized schedules for interactive Marketplace signing.",
+      "history": false,
+      "retry": false
+    },
+    {
       "id": "get-control-pack",
       "kind": "action",
       "label": "Get Control Pack",
@@ -44,6 +52,7 @@
     },
     {
       "id": "save-policy",
+      "retry": false,
       "kind": "action",
       "label": "Save Policy",
       "buttonLabel": "Save Policy",
@@ -54,6 +63,7 @@
     },
     {
       "id": "create-policy",
+      "retry": false,
       "kind": "action",
       "label": "Policy created",
       "buttonLabel": "Create Policy",
@@ -93,6 +103,7 @@
     },
     {
       "id": "enable-policy",
+      "retry": false,
       "kind": "action",
       "label": "Policy enabled",
       "buttonLabel": "Enable Policy",

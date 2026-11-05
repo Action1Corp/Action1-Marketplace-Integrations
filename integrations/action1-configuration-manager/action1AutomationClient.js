@@ -1,5 +1,6 @@
-const { createAction1DiscoveryClient } = require('./action1DiscoveryClient');
+const { createAction1DiscoveryClient, requiresETPSigning } = require('./action1DiscoveryClient');
 const crypto = require('node:crypto');
+const { isDeepStrictEqual } = require('node:util');
 
 const EXISTENCE_STATES = Object.freeze({ EXISTS: 'EXISTS', MISSING: 'MISSING', UNRESOLVED: 'UNRESOLVED' });
 
@@ -207,10 +208,27 @@ function createAction1AutomationClient(context, options = {}) {
     async resolveConnection() {
       return discoveryClient.resolveConnection();
     },
-    async createAutomation(organizationId, definition) {
+    async createAutomation(organizationId, definition, signed) {
       const orgId = required(organizationId, 'Action1 organization id');
       const connection = await discoveryClient.resolveConnection();
-      const api4 = connection.apiGeneration === 4 ? buildApi4CreatePayload(definition, orgId, uuidGenerator) : null;
+      const etp = requiresETPSigning(connection);
+      let api4;
+      if (etp) {
+        if (!signed?.configuration || !signed?.signature) throw new Error('Interactive signing is required before creating Action1 automations.');
+        if (signed.origin !== new URL(connection.baseUrl).origin || !Number.isFinite(signed.expiresAt) || Date.now() > signed.expiresAt) {
+          throw new Error('Signed operation changed or expired. Prepare the Policy operation again.');
+        }
+        const configuration = signed.configuration;
+        const expected = buildApi4UpdatePayload(definition, orgId, configuration.id, configuration.actions?.[0]?.id).configuration;
+        if (!isDeepStrictEqual(configuration, expected)) throw new Error('Signed configuration does not match the automation definition.');
+        api4 = { payload: { configuration, endpoints: definition.payload.endpoints, signatures: [{
+          object_reference: { type: configuration.type, id: configuration.id, organization_id: orgId },
+          object_signature: signed.signature
+        }] }, submitted: { configurationId: configuration.id, actionId: configuration.actions[0].id, name: configuration.name, organizationId: orgId } };
+      } else {
+        if (signed) throw new Error('Marketplace connection changed. Prepare the operation again.');
+        api4 = connection.apiGeneration === 4 ? buildApi4CreatePayload(definition, orgId, uuidGenerator) : null;
+      }
       const payload = await discoveryClient.requestAction1Mutation({
         operation: 'create-automation', method: 'POST', organizationId: orgId,
         path: `/automations/schedules/${encodeURIComponent(orgId)}`, body: api4 ? api4.payload : definition.payload
@@ -222,6 +240,7 @@ function createAction1AutomationClient(context, options = {}) {
     async createAutomationInstance(organizationId, instance) {
       const orgId = required(organizationId, 'Action1 organization id');
       const connection = await discoveryClient.resolveConnection();
+      if (requiresETPSigning(connection)) throw new Error('Interactive cleanup signing is required. ETP cleanup support is not available in this slice.');
       const api4 = connection.apiGeneration === 4 ? buildApi4InstancePayload(instance, orgId, uuidGenerator, now) : null;
       const payload = await discoveryClient.requestAction1Mutation({
         operation: 'create-automation-instance',
@@ -266,6 +285,7 @@ function createAction1AutomationClient(context, options = {}) {
       const orgId = required(organizationId, 'Action1 organization id');
       const id = required(automationId, 'Action1 automation id');
       const connection = await discoveryClient.resolveConnection();
+      if (requiresETPSigning(connection)) throw new Error('Interactive signing is required. ETP Policy editing is not available in this slice.');
       if (connection.apiGeneration === 4) {
         const body = buildApi4UpdatePayload(definition, orgId, configurationId, actionId);
         const payload = await discoveryClient.requestAction1Mutation({

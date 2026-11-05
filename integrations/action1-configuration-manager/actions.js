@@ -8,7 +8,8 @@ const {
   savePolicyAction,
   setPolicyEnabledAction,
   createPolicyAction,
-  updatePolicyAction
+  updatePolicyAction,
+  preparePolicySigningAction
 } = require('./policyActions');
 const {
   discoverPolicyEndpointGroupsAction,
@@ -46,6 +47,7 @@ module.exports = {
       }
     },
     'save-policy': savePolicyAction,
+    'prepare-policy-signing': preparePolicySigningAction,
     'create-policy': createPolicyAction,
     'update-policy': updatePolicyAction,
     'set-policy-enabled': setPolicyEnabledAction,
