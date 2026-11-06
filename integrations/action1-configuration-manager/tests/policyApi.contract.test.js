@@ -46,7 +46,8 @@ async function run() {
   });
 
   await api.deletePolicy('POL-000001', '11111111-2222-4333-8444-555555555555');
-  assert.deepStrictEqual(JSON.parse(fetchCalls[5].options.body), {
+  assert.strictEqual(JSON.parse(fetchCalls[5].options.body).payload.operation, 'delete');
+  assert.deepStrictEqual(JSON.parse(fetchCalls[6].options.body), {
     payload: { policyId: 'POL-000001', progressOperationId: '11111111-2222-4333-8444-555555555555' }
   });
 
@@ -65,6 +66,37 @@ async function run() {
     }
   });
   await assert.rejects(() => api.listPolicies(), /Unable to complete the policy request/);
+
+  const editCalls = [];
+  let prompts = 0;
+  global.window = { Action1Marketplace: { provisioner: { sign: async () => { prompts += 1; } } } };
+  global.fetch = async (url, options) => {
+    editCalls.push({ url, payload: JSON.parse(options.body).payload });
+    return { ok: true, json: async () => url.endsWith('/prepare-policy-signing')
+      ? { ok: true, signingRequired: true, policyId: 'POL-000001', signingId: 'signed-edit', digest: 'edit-digest' }
+      : { ok: true, policy: { policyId: 'POL-000001', baseName: 'Edited Policy' } } };
+  };
+  const edited = await api.savePolicy({ mode: 'edit', policyId: 'POL-000001', baseName: 'Edited Policy' });
+  assert.strictEqual(edited.baseName, 'Edited Policy');
+  assert.strictEqual(prompts, 1);
+  assert.strictEqual(editCalls[0].payload.operation, 'edit');
+  assert(editCalls[1].url.endsWith('/update-policy'));
+  assert.strictEqual(editCalls[1].payload.signingId, 'signed-edit');
+  editCalls.length = 0;
+  global.window.Action1Marketplace.provisioner.sign = async () => { throw Error('Signing cancelled.'); };
+  await assert.rejects(() => api.savePolicy({ mode: 'edit', policyId: 'POL-000001' }), /cancelled/);
+  assert.strictEqual(editCalls.length, 1, 'Cancelling the real Policy API flow must not call update-policy');
+  editCalls.length = 0;
+  await assert.rejects(() => api.deletePolicy('POL-000001'), /cancelled/);
+  assert.strictEqual(editCalls.length, 1, 'Cancellation must not invoke delete-policy');
+  assert.strictEqual(editCalls[0].payload.operation, 'delete');
+  editCalls.length = 0;
+  global.window.Action1Marketplace.provisioner.sign = async () => { prompts += 1; };
+  await api.deletePolicy('POL-000001');
+  assert.strictEqual(prompts, 2, 'Delete shares the existing single-popup flow');
+  assert.strictEqual(editCalls.length, 2);
+  assert(editCalls[1].url.endsWith('/delete-policy'));
+  assert.strictEqual(editCalls[1].payload.signingId, 'signed-edit');
 }
 
 try {

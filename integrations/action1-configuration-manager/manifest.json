@@ -74,6 +74,7 @@
     },
     {
       "id": "update-policy",
+      "retry": false,
       "kind": "action",
       "label": "Policy updated",
       "buttonLabel": "Save and apply",
@@ -114,6 +115,7 @@
     },
     {
       "id": "delete-policy",
+      "retry": false,
       "kind": "action",
       "label": "Delete Policy",
       "buttonLabel": "Delete Policy",

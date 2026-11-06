@@ -89,7 +89,7 @@ function createFakeDb() {
       }
 
       if (sql.includes('UPDATE action1_configuration_manager_policies') && sql.includes('SET base_name = ?')) {
-        const existing = state.policies.find((entry) => entry.policy_id === params[10]);
+        const existing = state.policies.find((entry) => entry.policy_id === params[12]);
         if (!existing) {
           return { changes: 0 };
         }
@@ -103,7 +103,9 @@ function createFakeDb() {
         existing.start_time = params[6];
         existing.timezone = params[7];
         existing.completion_deadline_minutes = params[8];
-        existing.enabled = params[9];
+        existing.control_pack_id = params[9];
+        existing.control_pack_version = params[10];
+        existing.enabled = params[11];
         existing.updated_at = '2026-08-12T01:00:00.000Z';
         return { changes: 1 };
       }
@@ -197,17 +199,16 @@ function createFakeDb() {
             desired_definition_fingerprint: params[8], last_applied_at: params[9], active: 1, last_error: null });
           return { changes: row ? 1 : 0 };
         }
-        const row = state.correlations.find((entry) => entry.policy_id === params[8] && entry.automation_group_id === params[9]);
+        const row = state.correlations.find((entry) => entry.policy_id === params[7] && entry.automation_group_id === params[8]);
         if (row) {
           row.automation_group_version = params[0];
           row.control_family_name_snapshot = params[1];
-          row.action1_automation_action_id = params[4];
-          row.action1_automation_name = params[5];
-          row.action1_automation_self = params[6] || row.action1_automation_self;
-          row.desired_definition_fingerprint = params[7];
+          row.action1_automation_name = params[2];
+          row.action1_automation_self = params[3] || row.action1_automation_self;
+          row.desired_definition_fingerprint = params[4];
           row.active = 1;
-          row.last_applied_at = params[8];
-          row.last_error = params[9];
+          row.last_applied_at = params[5];
+          row.last_error = params[6];
         }
         return { changes: row ? 1 : 0 };
       }
@@ -280,6 +281,7 @@ function createFakeContext(contextOptions = {}) {
       if (options.url.includes('/automations/instances/')) {
         if (contextOptions.instanceError) throw contextOptions.instanceError;
         if (contextOptions.instanceResponse) return contextOptions.instanceResponse;
+        if (contextOptions.api4) return { status: 201, data: { id: 'cleanup-instance', type: 'AutomationInstance', actions: options.data.configuration.actions }, headers: {} };
       }
       if (options.method === 'GET' && /\/automations\/schedules\/[^/]+\/[^/]+$/.test(options.url)) {
         const automationId = decodeURIComponent(options.url.split('/').pop());
@@ -409,6 +411,46 @@ async function run() {
   const etpEdited = await actions['update-policy'](etpContext, { payload: { draft: { ...etpCreated.policy, mode: 'edit', baseName: 'Changed' } } });
   assert.strictEqual(etpEdited.ok, false);
   assert.strictEqual(etpContext.db.state.policies[0].base_name, etpCreated.policy.baseName, 'Unsupported ETP editing must not persist changes');
+  const remoteSchedules = new Map([[etpContext.db.state.correlations[0].action1_automation_id,
+    { id: etpContext.db.state.correlations[0].action1_automation_id, type: 'AutomationSchedule', ...structuredClone(etpPost.data) }]]);
+  const beforeEditHttp = etpContext.http;
+  etpContext.http = async input => {
+    if (input.method === 'GET' && input.url.includes('/automations/schedules/')) {
+      etpContext.requests.push(input);
+      return { status: 200, data: structuredClone(remoteSchedules.get(input.url.split('/').pop())) };
+    }
+    const response = await beforeEditHttp(input);
+    if (['POST', 'PATCH'].includes(input.method) && input.url.includes('/automations/schedules/')) remoteSchedules.set(response.data.id, structuredClone(response.data));
+    return response;
+  };
+  signingJob = null;
+  const editPayload = { operation: 'edit', intentId: require('node:crypto').randomUUID(),
+    draft: { ...etpCreated.policy, mode: 'edit', baseName: 'Signed Policy edit' } };
+  const editStart = etpContext.requests.length;
+  const preparedEdit = await actions['prepare-policy-signing'](etpContext, { payload: editPayload });
+  assert.strictEqual(preparedEdit.ok, true, preparedEdit.message);
+  assert.strictEqual(etpContext.db.state.policies[0].base_name, etpCreated.policy.baseName, 'Preparation leaves desired Policy state untouched');
+  const editCompletionPayload = { ...editPayload, policyId: preparedEdit.policyId, signingId: preparedEdit.signingId, digest: preparedEdit.digest };
+  const notSigned = await actions['update-policy'](etpContext, { payload: editCompletionPayload });
+  assert.strictEqual(notSigned.ok, false);
+  assert(etpContext.requests.slice(editStart).every(r => r.method === 'GET' || r.url.endsWith('/oauth2/token')));
+  assert(!etpContext.requests.slice(editStart).some(r => ['PATCH', 'DELETE'].includes(r.method)));
+  signingJob.state = 'signed';
+  signingJob.results = signingJob.objects.map(o => ({ id: o.id, configurationDigest: compareDigest(o.configuration),
+    signature: { alg: 'synthetic-alg', iat: 1, kid: 'synthetic-key', value: 'synthetic-edit-signature' } }));
+  const appliedEdit = await actions['update-policy'](etpContext, { payload: editCompletionPayload });
+  assert.strictEqual(appliedEdit.ok, true, appliedEdit.message);
+  assert.strictEqual(etpContext.db.state.policies[0].base_name, 'Signed Policy edit');
+  assert.deepStrictEqual(etpContext.requests.find(r => r.method === 'PATCH').data.configuration, signingJob.objects[0].configuration);
+  assert.strictEqual(etpContext.db.state.correlations[0].action1_automation_configuration_id, etpPost.data.configuration.id);
+  assert.strictEqual(etpContext.db.state.correlations[0].action1_automation_action_id, etpPost.data.configuration.actions[0].id);
+  const beforeNoop = etpContext.requests.length;
+  const noopPrepared = await actions['prepare-policy-signing'](etpContext, { payload: { ...editPayload, intentId: require('node:crypto').randomUUID() } });
+  assert.strictEqual(noopPrepared.ok, true, noopPrepared.message);
+  assert.strictEqual(noopPrepared.signingRequired, false);
+  const noopEdit = await actions['update-policy'](etpContext, { payload: { draft: editPayload.draft } });
+  assert.strictEqual(noopEdit.ok, true, noopEdit.message);
+  assert(etpContext.requests.slice(beforeNoop).every(r => r.method === 'GET' || r.url.endsWith('/oauth2/token')), 'No-op edits need no signature or resource mutation');
   const etpDeleted = await actions['delete-policy'](etpContext, { payload: { policyId: etpCreated.policy.policyId } });
   assert.strictEqual(etpDeleted.ok, false);
   assert.strictEqual(etpContext.requests.some(r => r.method === 'DELETE'), false, 'Do not delete schedules before unsupported cleanup signing');
@@ -456,6 +498,91 @@ async function run() {
   const partialReplan = await actions['prepare-policy-signing'](partialETP, { payload: { operation: 'enable', policyId: partialPrepared.policyId, intentId: require('node:crypto').randomUUID() } });
   assert.strictEqual(partialReplan.ok, false, 'Do not blindly prepare a full replacement set over a partial apply');
   assert.strictEqual(partialETP.requests.filter(r => r.method === 'POST' && r.url.includes('/automations/schedules/')).length, 2);
+
+  // Delete preparation and completion use the real handlers and DB cleanup.
+  // A failed instance POST keeps the Policy/reservation and successful schedule deletions.
+  signingJob = null;
+  const deletePayload = { operation: 'delete', policyId: etpCreated.policy.policyId, intentId: require('node:crypto').randomUUID() };
+  const beforeDelete = etpContext.requests.length;
+  const preparedDelete = await actions['prepare-policy-signing'](etpContext, { payload: deletePayload });
+  assert.strictEqual(preparedDelete.ok, true, preparedDelete.message);
+  const deleteCompletion = { ...deletePayload, signingId: preparedDelete.signingId, digest: preparedDelete.digest };
+  const cancelledDelete = await actions['delete-policy'](etpContext, { payload: deleteCompletion });
+  assert.strictEqual(cancelledDelete.ok, false);
+  assert(etpContext.requests.slice(beforeDelete).every(r => r.method === 'GET' || r.url.endsWith('/oauth2/token')));
+  assert.strictEqual(etpContext.db.state.policies.length, 1);
+  const approve = () => {
+    signingJob.state = 'signed';
+    signingJob.results = signingJob.objects.map(o => ({ id: o.id, configurationDigest: compareDigest(o.configuration),
+      signature: { alg: 'synthetic-alg', iat: 1, kid: 'synthetic-key', value: 'synthetic-cleanup-signature' } }));
+  };
+  approve();
+  const getApprovedSigning = etpContext.action1.provisioner.getSigning;
+  const originalDescription = etpContext.db.state.policies[0].description;
+  etpContext.action1.provisioner.getSigning = async () => {
+    etpContext.db.state.policies[0].description = 'Changed during approval retrieval';
+    return signingJob;
+  };
+  const changedDuringRetrieval = await actions['delete-policy'](etpContext, { payload: deleteCompletion });
+  assert.strictEqual(changedDuringRetrieval.ok, false, 'Policy must be revalidated after retrieving approval');
+  assert(etpContext.requests.slice(beforeDelete).every(r => r.method === 'GET' || r.url.endsWith('/oauth2/token')));
+  etpContext.db.state.policies[0].description = originalDescription;
+  etpContext.action1.provisioner.getSigning = getApprovedSigning;
+  const deleteHttp = etpContext.http;
+  etpContext.http = async input => {
+    if (input.method === 'POST' && input.url.includes('/automations/instances/')) throw new Error('Cleanup unavailable');
+    return deleteHttp(input);
+  };
+  const failedDelete = await actions['delete-policy'](etpContext, { payload: deleteCompletion });
+  assert.strictEqual(failedDelete.ok, false);
+  assert.strictEqual(etpContext.db.state.policies.length, 1, 'Cleanup failure retains Policy');
+  assert.strictEqual(etpContext.db.state.correlations[0].active, 0, 'Accepted schedule DELETE remains inactive');
+  etpContext.http = deleteHttp;
+  const staleDelete = await actions['delete-policy'](etpContext, { payload: deleteCompletion });
+  assert.strictEqual(staleDelete.ok, false, 'Changed correlations require a new reviewed signing intent');
+  const disableAfterFailure = await actions['disable-policy'](etpContext, { payload: { policyId: deletePayload.policyId, enabled: false } });
+  assert.strictEqual(disableAfterFailure.ok, true, disableAfterFailure.message);
+  assert.strictEqual(disableAfterFailure.policy.enabled, false);
+  signingJob = null;
+  const retryPayload = { ...deletePayload, intentId: require('node:crypto').randomUUID() };
+  const retryDelete = await actions['prepare-policy-signing'](etpContext, { payload: retryPayload });
+  assert.strictEqual(retryDelete.ok, true, retryDelete.message);
+  approve();
+  const acceptedDelete = await actions['delete-policy'](etpContext, { payload: { ...retryPayload, signingId: retryDelete.signingId, digest: retryDelete.digest } });
+  assert.strictEqual(acceptedDelete.ok, true, acceptedDelete.message);
+  assert.strictEqual(etpContext.db.state.policies.length, 0);
+  assert.strictEqual(etpContext.db.state.correlations.length, 0);
+  const instancePost = etpContext.requests.find(r => r.method === 'POST' && r.url.includes('/automations/instances/'));
+  assert.deepStrictEqual(instancePost.data.configuration, signingJob.objects[0].configuration);
+  assert.deepStrictEqual(instancePost.data.signatures[0].object_reference, { type: 'AutomationScheduleConfiguration',
+    id: signingJob.objects[0].configuration.id, organization_id: 'org-acme' });
+
+  const disabledPolicy = (await actions['get-policy'](partialETP, { payload: { policyId: partialPrepared.policyId } })).policy;
+  const etpDisabledEdit = { operation: 'edit', intentId: require('node:crypto').randomUUID(),
+    draft: { ...disabledPolicy, mode: 'edit', selectedControls: disabledPolicy.selectedControls.slice(0, 1) } };
+  signingJob = null;
+  const beforeDisabledEdit = partialETP.requests.length;
+  const disabledPrepared = await actions['prepare-policy-signing'](partialETP, { payload: etpDisabledEdit });
+  assert.strictEqual(disabledPrepared.ok, true, disabledPrepared.message);
+  assert.strictEqual(signingJob.objects.length, 1, 'Disabled removal signs only cleanup');
+  const disabledCompletion = { ...etpDisabledEdit, policyId: disabledPolicy.policyId,
+    signingId: disabledPrepared.signingId, digest: disabledPrepared.digest };
+  const cancelledRemoval = await actions['update-policy'](partialETP, { payload: disabledCompletion });
+  assert.strictEqual(cancelledRemoval.ok, false);
+  assert.strictEqual(partialETP.requests.length, beforeDisabledEdit, 'Cancelled disabled edit has no API requests');
+  assert.strictEqual((await actions['get-policy'](partialETP, { payload: { policyId: disabledPolicy.policyId } })).policy.selectedControls.length, 2);
+  approve();
+  const disabledRemoval = await actions['update-policy'](partialETP, { payload: disabledCompletion });
+  assert.strictEqual(disabledRemoval.ok, true, disabledRemoval.message);
+  assert.strictEqual(disabledRemoval.policy.enabled, false);
+  assert.strictEqual(disabledRemoval.policy.selectedControls.length, 1);
+  assert.deepStrictEqual(partialETP.requests.slice(beforeDisabledEdit).filter(r => !r.url.endsWith('/oauth2/token')).map(r => r.method), ['POST']);
+  assert.strictEqual(partialETP.db.state.correlations.length, 1, 'Disabled edits retain existing schedule correlations');
+  const beforeDisabledNoop = partialETP.requests.length;
+  const disabledNoop = await actions['prepare-policy-signing'](partialETP, { payload: { ...etpDisabledEdit,
+    intentId: require('node:crypto').randomUUID(), draft: { ...disabledRemoval.policy, mode: 'edit', baseName: 'Disabled local edit' } } });
+  assert.strictEqual(disabledNoop.signingRequired, false);
+  assert.strictEqual(partialETP.requests.length, beforeDisabledNoop);
 
   assert.strictEqual(manifest.actions.find((action) => action.id === 'delete-policy').history, true);
   for (const policyId of [undefined, null, '', '   ', 64, {}, [], true]) {

@@ -3,9 +3,9 @@ const { test } = require('node:test');
 const { pathToFileURL } = require('node:url');
 const path = require('node:path');
 
-test('Save/Enable orchestration uses one host popup and completes only after signing', async () => {
+test('Save/Edit/Enable orchestration uses one host popup and completes only after signing', async () => {
   const { invokeSigningOperation } = await import(pathToFileURL(path.join(__dirname, '../ui/policies/signingFlow.js')).href);
-  for (const action of ['create-policy', 'enable-policy']) {
+  for (const action of ['create-policy', 'enable-policy', 'update-policy', 'delete-policy']) {
     const calls = [];
     global.window = { Action1Marketplace: { provisioner: { sign: async args => { calls.push(['sign', args]); } } } };
     const invoke = async (id, payload) => {
@@ -15,6 +15,7 @@ test('Save/Enable orchestration uses one host popup and completes only after sig
     const result = await invokeSigningOperation(invoke, 'action1-configuration-manager', action, { draft: { mode: 'create' }, policyId: 'POL-000001', enabled: true });
     assert.equal(result.policy.enabled, true);
     assert.deepEqual(calls.map(c => c[0]), ['prepare-policy-signing', 'sign', action]);
+    assert.equal(calls[0][1].operation, action === 'update-policy' ? 'edit' : action === 'delete-policy' ? 'delete' : action === 'create-policy' ? 'create' : 'enable');
     assert.equal(calls[2][1].signingId, 'job');
     assert.equal(calls[2][1].digest, 'digest');
     assert(!JSON.stringify(calls).includes('passphrase'));
@@ -23,11 +24,11 @@ test('Save/Enable orchestration uses one host popup and completes only after sig
 
 test('popup cancellation or missing SDK never invokes the completion action', async () => {
   const { invokeSigningOperation } = await import(pathToFileURL(path.join(__dirname, '../ui/policies/signingFlow.js')).href);
-  for (const cancelled of [true, false]) {
+  for (const actionId of ['create-policy', 'update-policy', 'delete-policy']) for (const cancelled of [true, false]) {
     const calls = [];
     global.window = cancelled ? { Action1Marketplace: { provisioner: { sign: async () => { throw Error('Signing cancelled.'); } } } } : {};
     const invoke = async (id, payload) => { calls.push(id); return { signingRequired: true, signingId: 'job', digest: 'digest', intentId: payload.intentId }; };
-    await assert.rejects(() => invokeSigningOperation(invoke, 'integration', 'create-policy', { draft: {} }), /cancelled|signing.*unavailable/i);
+    await assert.rejects(() => invokeSigningOperation(invoke, 'integration', actionId, { draft: {} }), /cancelled|signing.*unavailable/i);
     assert.deepEqual(calls, ['prepare-policy-signing']);
   }
 });

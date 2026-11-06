@@ -26,13 +26,13 @@ export function createPolicyApi(integration) {
       const payload = { draft, ...(progressOperationId ? { progressOperationId } : {}) };
       const result = draft?.mode === 'create'
         ? await invokeSigningOperation(invoke, integration, 'create-policy', payload)
-        : await invoke('update-policy', payload);
+        : await invokeSigningOperation(invoke, integration, 'update-policy', payload);
       return result.policy;
     },
     setPolicyEnabled: async (policyId, enabled) => (await (enabled
       ? invokeSigningOperation(invoke, integration, 'enable-policy', { policyId, enabled })
       : invoke('disable-policy', { policyId, enabled }))).policy,
-    deletePolicy: async (policyId, progressOperationId) => invoke('delete-policy', {
+    deletePolicy: async (policyId, progressOperationId) => invokeSigningOperation(invoke, integration, 'delete-policy', {
       policyId, ...(progressOperationId ? { progressOperationId } : {})
     })
   };

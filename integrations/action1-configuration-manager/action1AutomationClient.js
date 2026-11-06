@@ -136,6 +136,32 @@ function formatApi4InstanceTime(now) {
   return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}_${pad(date.getUTCHours())}-${pad(date.getUTCMinutes())}-${pad(date.getUTCSeconds())}`;
 }
 
+function expectedInstanceConfiguration(instance, organizationId, configuration) {
+  if (typeof configuration?.start_time !== 'string' || !/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/.test(configuration.start_time)) {
+    throw new Error('The signed cleanup instance must have its finalized UTC start time.');
+  }
+  const identities = [configuration.id, ...(Array.isArray(configuration.actions) ? configuration.actions.map(a => a?.id) : [])];
+  // Comparison only: reuse the stored identities and timestamp. Never allocate
+  // a new ID or consult the clock for a configuration already signed.
+  return buildApi4InstancePayload({ payload: { ...instance.payload, start_time: configuration.start_time } }, organizationId,
+    () => identities.shift(), () => { throw new Error('The cleanup start time was not finalized.'); }).payload.configuration;
+}
+
+function signedInstancePayload(instance, organizationId, signed, connection) {
+  if (!signed?.configuration || !signed?.signature || signed.kind !== 'instance' || signed.resourceId) {
+    throw new Error('Interactive cleanup signing is required before creating an Action1 instance.');
+  }
+  if (signed.origin !== new URL(connection.baseUrl).origin || !Number.isFinite(signed.expiresAt) || Date.now() > signed.expiresAt
+    || !isDeepStrictEqual(signed.configuration, expectedInstanceConfiguration(instance, organizationId, signed.configuration))) {
+    throw new Error('Signed cleanup configuration changed or expired. Prepare the operation again.');
+  }
+  const configuration = signed.configuration;
+  return { configuration, endpoints: instance.payload.endpoints, signatures: [{
+    object_reference: { type: configuration.type, id: configuration.id, organization_id: configuration.organization_id },
+    object_signature: signed.signature
+  }] };
+}
+
 function normalizeApi4InstanceResponse(payload, submitted) {
   const id = required(payload?.id, 'Action1 automation instance id');
   const actions = Array.isArray(payload?.actions) ? payload.actions.filter((action) => action?.template_id === 'run_script') : [];
@@ -215,6 +241,7 @@ function createAction1AutomationClient(context, options = {}) {
       let api4;
       if (etp) {
         if (!signed?.configuration || !signed?.signature) throw new Error('Interactive signing is required before creating Action1 automations.');
+        if (signed.resourceId) throw new Error('A signed schedule update cannot be submitted as a create.');
         if (signed.origin !== new URL(connection.baseUrl).origin || !Number.isFinite(signed.expiresAt) || Date.now() > signed.expiresAt) {
           throw new Error('Signed operation changed or expired. Prepare the Policy operation again.');
         }
@@ -237,11 +264,14 @@ function createAction1AutomationClient(context, options = {}) {
       const self = `${connection.baseUrl}/automations/schedules/${encodeURIComponent(orgId)}/${encodeURIComponent(payload?.id || '')}`;
       return normalizeApi4AutomationResponse(payload, api4.submitted, self);
     },
-    async createAutomationInstance(organizationId, instance) {
+    async createAutomationInstance(organizationId, instance, signed) {
       const orgId = required(organizationId, 'Action1 organization id');
       const connection = await discoveryClient.resolveConnection();
-      if (requiresETPSigning(connection)) throw new Error('Interactive cleanup signing is required. ETP cleanup support is not available in this slice.');
-      const api4 = connection.apiGeneration === 4 ? buildApi4InstancePayload(instance, orgId, uuidGenerator, now) : null;
+      const etp = requiresETPSigning(connection);
+      if (!etp && signed) throw new Error('Marketplace connection changed. Prepare the cleanup operation again.');
+      const api4 = etp ? { payload: signedInstancePayload(instance, orgId, signed, connection),
+        submitted: { configurationId: signed.configuration.id, actionId: signed.configuration.actions[0].id, organizationId: orgId } }
+        : connection.apiGeneration === 4 ? buildApi4InstancePayload(instance, orgId, uuidGenerator, now) : null;
       const payload = await discoveryClient.requestAction1Mutation({
         operation: 'create-automation-instance',
         method: 'POST',
@@ -281,13 +311,25 @@ function createAction1AutomationClient(context, options = {}) {
         return { state: EXISTENCE_STATES.UNRESOLVED, error };
       }
     },
-    async updateAutomation(organizationId, automationId, definition, actionId, configurationId) {
+    async updateAutomation(organizationId, automationId, definition, actionId, configurationId, signed) {
       const orgId = required(organizationId, 'Action1 organization id');
       const id = required(automationId, 'Action1 automation id');
       const connection = await discoveryClient.resolveConnection();
-      if (requiresETPSigning(connection)) throw new Error('Interactive signing is required. ETP Policy editing is not available in this slice.');
+      const etp = requiresETPSigning(connection);
+      if (etp && (!signed?.configuration || !signed?.signature)) throw new Error('Interactive signing is required before updating Action1 automations.');
+      if (!etp && signed) throw new Error('Marketplace connection changed. Prepare the operation again.');
       if (connection.apiGeneration === 4) {
-        const body = buildApi4UpdatePayload(definition, orgId, configurationId, actionId);
+        let body = buildApi4UpdatePayload(definition, orgId, configurationId, actionId);
+        if (etp) {
+          if (signed.resourceId !== id || signed.origin !== new URL(connection.baseUrl).origin
+            || !Number.isFinite(signed.expiresAt) || Date.now() > signed.expiresAt
+            || !isDeepStrictEqual(signed.configuration, body.configuration)) throw new Error('Signed schedule update changed or expired. Prepare the edit again.');
+          const configuration = signed.configuration;
+          body = { configuration, endpoints: body.endpoints, signatures: [{
+            object_reference: { type: configuration.type, id: configuration.id, organization_id: configuration.organization_id },
+            object_signature: signed.signature
+          }] };
+        }
         const payload = await discoveryClient.requestAction1Mutation({
           operation: 'update-automation', method: 'PATCH', organizationId: orgId,
           path: `/automations/schedules/${encodeURIComponent(orgId)}/${encodeURIComponent(id)}`, body
@@ -324,6 +366,8 @@ function createAction1AutomationClient(context, options = {}) {
 }
 
 module.exports = {
+  expectedInstanceConfiguration,
+  signedInstancePayload,
   EXISTENCE_STATES,
   classifyAlreadyAbsentDelete,
   classifyMissingAutomationGet,

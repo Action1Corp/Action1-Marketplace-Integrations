@@ -1,9 +1,11 @@
 const { buildAutomationDefinitions } = require('./automationDefinition');
 const { createAction1AutomationClient } = require('./action1AutomationClient');
+const { signedInstancePayload } = require('./action1AutomationClient');
+const { requiresETPSigning } = require('./action1DiscoveryClient');
 const { createAutomationCorrelationStore } = require('./automationCorrelationStore');
 const { planLifecycleDiff, summarizeLifecycleDiff } = require('./lifecyclePlanner');
 const { formatRuntimeElapsed, writeAction1RuntimeLog, writeOperationalLog } = require('./runtimeLogging');
-const { classifyMissingAutomationGet } = require('./action1AutomationClient');
+const { classifyMissingAutomationGet, normalizeApi4AutomationLookup } = require('./action1AutomationClient');
 const { appendProgressCheckpoint, progressCheckpoint } = require('./lifecycleProgress');
 const {
   buildPolicyEndpointCleanupInstance,
@@ -38,8 +40,8 @@ async function cleanupDeselectedControls(context, policy, removedControlIds, opt
   const client = options.client || createAction1AutomationClient(context);
   await log(context, 'info', `Control state cleanup started: policy=${policy.policyId} removedControls=${ids.length}`);
   try {
-    const instance = buildDeselectedControlCleanupInstance(policy, ids);
-    const accepted = await client.createAutomationInstance(policy.organizationId, instance);
+    const instance = options.instance || buildDeselectedControlCleanupInstance(policy, ids);
+    const accepted = await client.createAutomationInstance(policy.organizationId, instance, options.signedCleanup);
     if (!accepted?.id) throw new Error('Action1 deselected-Control cleanup instance was not accepted.');
     await log(context, 'info', `Control state cleanup accepted: policy=${policy.policyId} removedControls=${ids.length}`);
     return { scheduled: true, instanceId: accepted.id, removedControlCount: ids.length };
@@ -54,8 +56,8 @@ async function cleanupDeselectedControls(context, policy, removedControlIds, opt
   }
 }
 
-async function createAndReplaceAutomation(context, policy, definition, client, correlations) {
-  const created = await client.createAutomation(policy.organizationId, definition);
+async function createAndReplaceAutomation(context, policy, definition, client, correlations, signed) {
+  const created = await client.createAutomation(policy.organizationId, definition, signed);
   await correlations.activateCorrelation({
     policyId: policy.policyId,
     automationGroupId: definition.automationGroupId,
@@ -89,13 +91,93 @@ async function recoverConfigurationId(client, correlation, organizationId, corre
   return configurationId;
 }
 
+async function planSignedEdit(context, previousPolicy, desiredPolicy, options = {}) {
+  if (previousPolicy.policyId !== desiredPolicy.policyId) throw new Error('An existing Policy is required for signed editing.');
+  if (previousPolicy.organizationId !== desiredPolicy.organizationId || previousPolicy.scopeType !== desiredPolicy.scopeType
+    || (previousPolicy.endpointGroupId || '') !== (desiredPolicy.endpointGroupId || '')) throw new Error('Organization and scope are immutable after a Policy is created.');
+  const client = options.client || createAction1AutomationClient(context);
+  const correlations = options.correlations || createAutomationCorrelationStore(context);
+  const current = await correlations.listCorrelations(previousPolicy.policyId);
+  const operations = previousPolicy.enabled ? planLifecycleDiff(buildAutomationDefinitions(desiredPolicy), current) : [];
+  const removed = getRemovedControlIds(previousPolicy, desiredPolicy);
+  const cleanupInstance = removed.length ? buildDeselectedControlCleanupInstance(desiredPolicy, removed) : null;
+  const remote = await inspectSignedOperations(client, previousPolicy, operations);
+  return { operations, snapshot: signedPlanSnapshot(previousPolicy, desiredPolicy, current, operations, remote), cleanupInstance };
+}
+
+async function inspectSignedOperations(client, previousPolicy, operations) {
+  const remote = {};
+  for (const operation of operations) {
+    const correlation = operation.correlation;
+    if (!correlation) continue;
+    if (correlation.action1OrganizationId !== previousPolicy.organizationId) throw new Error('Automation correlation organization does not match the Policy.');
+    let payload;
+    try { payload = await client.getAutomation(previousPolicy.organizationId, correlation.action1AutomationId); }
+    catch (error) {
+      if (!classifyMissingAutomationGet(error, correlation.action1AutomationId)) throw error;
+      remote[operation.automationGroupId] = null;
+      if (operation.type !== 'DELETE') operation.type = 'CREATE';
+      continue;
+    }
+    const observed = normalizeApi4AutomationLookup(payload, correlation.action1AutomationId, previousPolicy.organizationId);
+    if (!observed) throw new Error('The existing API 4.0 schedule or its identities could not be verified.');
+    if ((correlation.action1AutomationConfigurationId && correlation.action1AutomationConfigurationId !== observed.configurationId)
+      || (correlation.action1AutomationActionId && correlation.action1AutomationActionId !== observed.actionId)) {
+      throw new Error('Remote schedule configuration or action identity changed. Review the Policy before signing.');
+    }
+    operation.correlation = { ...correlation, action1AutomationConfigurationId: observed.configurationId, action1AutomationActionId: observed.actionId };
+    remote[operation.automationGroupId] = { configuration: payload.configuration,
+      endpoints: (payload.endpoints || []).map(e => ({ id: e.id, type: e.type })) };
+  }
+  return remote;
+}
+
+function signedPlanSnapshot(previousPolicy, desiredPolicy, current, operations, remote) {
+  const snapshotPolicy = policy => Object.fromEntries(['policyId', 'enabled', 'baseName', 'description', 'organizationId', 'organizationNameSnapshot',
+    'scopeType', 'endpointGroupId', 'endpointGroupNameSnapshot', 'policyMode', 'runSchedule', 'completionDeadlineMinutes',
+    'controlPackId', 'controlPackVersion', 'selectedControls'].map(key => [key, policy[key]]));
+  // Bound into signing object IDs, not persisted or sent as a new host envelope.
+  const snapshot = JSON.parse(JSON.stringify({ previous: snapshotPolicy(previousPolicy), desired: snapshotPolicy(desiredPolicy),
+    current: current.map(c => ({ group: c.automationGroupId, resource: c.action1AutomationId,
+      configuration: c.action1AutomationConfigurationId, action: c.action1AutomationActionId, active: c.active, fingerprint: c.desiredDefinitionFingerprint })),
+    operations: operations.map(o => ({ type: o.type, group: o.automationGroupId })), remote }));
+  return snapshot;
+}
+
+async function planSignedDelete(context, policy, options = {}) {
+  const client = options.client || createAction1AutomationClient(context);
+  const correlations = options.correlations || createAutomationCorrelationStore(context);
+  const current = await correlations.listCorrelations(policy.policyId, { includeInactive: true });
+  const operations = current.filter(c => c.active !== false).map(c => ({ type: 'DELETE', automationGroupId: c.automationGroupId, correlation: c }));
+  const remote = await inspectSignedOperations(client, policy, operations);
+  return { operations, snapshot: signedPlanSnapshot(policy, policy, current, operations, remote),
+    cleanupInstance: buildPolicyEndpointCleanupInstance(policy) };
+}
+
+async function validateCleanupSigning(client, policy, instance, signed) {
+  if (typeof client.resolveConnection !== 'function') return;
+  const connection = await client.resolveConnection();
+  if (requiresETPSigning(connection)) signedInstancePayload(instance, policy.organizationId, signed, connection);
+  else if (signed) throw new Error('Marketplace connection changed. Prepare the Policy operation again.');
+}
+
 async function applyEdit(context, previousPolicy, desiredPolicy, options = {}) {
   const client = options.client || createAction1AutomationClient(context);
   const correlations = options.correlations || createAutomationCorrelationStore(context);
   const current = await correlations.listCorrelations(previousPolicy.policyId);
   const definitions = buildAutomationDefinitions(desiredPolicy);
-  const operations = planLifecycleDiff(definitions, current);
+  const operations = options.operations || planLifecycleDiff(definitions, current);
+  if (options.signedSchedules) {
+    for (const operation of operations.filter(o => ['CREATE', 'PATCH'].includes(o.type))) {
+      const signed = options.signedSchedules.get(operation.automationGroupId);
+      if (!signed || !Number.isFinite(signed.expiresAt) || Date.now() > signed.expiresAt) {
+        throw new Error('Policy edit signing is incomplete or expired. Prepare the edit again before applying any changes.');
+      }
+    }
+  }
   const removedControlIds = getRemovedControlIds(previousPolicy, desiredPolicy);
+  if (removedControlIds.length) await validateCleanupSigning(client, desiredPolicy,
+    options.cleanupInstance || buildDeselectedControlCleanupInstance(desiredPolicy, removedControlIds), options.signedSchedules?.get('cleanup'));
   const summary = summarizeLifecycleDiff(operations);
   const applied = { updated: 0, created: 0, deleted: 0, unchanged: summary.unchanged, failed: 0 };
   const familyOutcomes = [];
@@ -110,6 +192,7 @@ async function applyEdit(context, previousPolicy, desiredPolicy, options = {}) {
         const observed = await client.observeAutomation(desiredPolicy.organizationId, operation.correlation.action1AutomationId);
         if (observed.state === 'UNRESOLVED') throw observed.error || new Error(`Unable to verify Action1 automation for ${family}.`);
         if (observed.state === 'MISSING') {
+          if (options.signedSchedules) throw new Error('Schedule disappeared after signing. Prepare a new reviewed edit; no replacement was submitted.');
           await log(context, 'info', `Missing owned automation detected: ${family}`);
           await log(context, 'info', `Recreating Control Family: ${family}`);
           const created = await createAndReplaceAutomation(context, desiredPolicy, operation.definition, client, correlations);
@@ -127,9 +210,12 @@ async function applyEdit(context, previousPolicy, desiredPolicy, options = {}) {
         await log(context, 'info', `Automation patch started: policyId=${desiredPolicy.policyId} family=${family} automationId=${operation.correlation.action1AutomationId} automationName=${operation.definition.name}`);
         let updated;
         try {
-          const configurationId = await recoverConfigurationId(client, operation.correlation, desiredPolicy.organizationId, correlations);
-          updated = await client.updateAutomation(desiredPolicy.organizationId, operation.correlation.action1AutomationId, operation.definition, operation.correlation.action1AutomationActionId, configurationId);
+          const configurationId = options.signedSchedules ? operation.correlation.action1AutomationConfigurationId
+            : await recoverConfigurationId(client, operation.correlation, desiredPolicy.organizationId, correlations);
+          updated = await client.updateAutomation(desiredPolicy.organizationId, operation.correlation.action1AutomationId, operation.definition,
+            operation.correlation.action1AutomationActionId, configurationId, options.signedSchedules?.get(operation.automationGroupId));
         } catch (error) {
+          if (options.signedSchedules) throw error;
           if (!classifyMissingAutomationGet(error, operation.correlation.action1AutomationId)) throw error;
           await log(context, 'info', `Missing owned automation detected: ${family}`);
           await log(context, 'info', `Recreating Control Family: ${family}`);
@@ -140,21 +226,26 @@ async function applyEdit(context, previousPolicy, desiredPolicy, options = {}) {
           familyOutcomes.push({ familyName: family, outcome: 'Created' });
           continue;
         }
-        await correlations.updateCorrelation(desiredPolicy.policyId, operation.automationGroupId, {
+        const appliedCorrelation = {
           automationGroupVersion: operation.definition.automationGroupVersion,
           controlFamilyNameSnapshot: operation.definition.familyName,
           action1AutomationName: updated.name,
           action1AutomationSelf: updated.self,
           desiredDefinitionFingerprint: operation.definition.fingerprint,
           lastAppliedAt: new Date().toISOString()
-        });
+        };
+        if (options.signedSchedules) {
+          await correlations.activateCorrelation({ ...operation.correlation, ...appliedCorrelation,
+            policyId: desiredPolicy.policyId, automationGroupId: operation.automationGroupId,
+            action1OrganizationId: desiredPolicy.organizationId });
+        } else await correlations.updateCorrelation(desiredPolicy.policyId, operation.automationGroupId, appliedCorrelation);
         await log(context, 'info', `Automation patched: policyId=${desiredPolicy.policyId} family=${family} automationId=${operation.correlation.action1AutomationId}`);
         await log(context, 'debug', `PATCH family completed: ${family}`);
         applied.updated += 1;
         familyOutcomes.push({ familyName: family, outcome: 'Updated' });
       } else if (operation.type === 'CREATE') {
         await log(context, 'info', `Automation create started: policyId=${desiredPolicy.policyId} family=${family} automationName=${operation.definition.name} scope=${desiredPolicy.scopeType}`);
-        const created = await createAndReplaceAutomation(context, desiredPolicy, operation.definition, client, correlations);
+        const created = await createAndReplaceAutomation(context, desiredPolicy, operation.definition, client, correlations, options.signedSchedules?.get(operation.automationGroupId));
         await log(context, 'info', `Automation created: policyId=${desiredPolicy.policyId} family=${family} automationId=${created.id}`);
         await log(context, 'debug', `Correlation activated: ${operation.automationGroupId}`);
         await log(context, 'debug', `CREATE family completed: ${family}`);
@@ -172,7 +263,8 @@ async function applyEdit(context, previousPolicy, desiredPolicy, options = {}) {
         familyOutcomes.push({ familyName: family, outcome: 'Removed' });
       }
     }
-    const cleanup = await cleanupDeselectedControls(context, desiredPolicy, removedControlIds, { client });
+    const cleanup = await cleanupDeselectedControls(context, desiredPolicy, removedControlIds, { client,
+      instance: options.cleanupInstance, signedCleanup: options.signedSchedules?.get('cleanup') });
     applied.removedControls = removedControlIds.length;
     await log(context, 'info', `Policy Edit completed: ${desiredPolicy.policyId}`);
     return { policy: desiredPolicy, history: { counts: applied, familyOutcomes, cleanup } };
@@ -277,6 +369,8 @@ async function cleanupPolicy(context, policy, options = {}) {
   const correlations = options.correlations || createAutomationCorrelationStore(context);
   const owned = await correlations.listCorrelations(policy.policyId, { includeInactive: true });
   const active = owned.filter((entry) => entry.active !== false);
+  const cleanupInstance = options.cleanupInstance || buildPolicyEndpointCleanupInstance(policy);
+  await validateCleanupSigning(client, policy, cleanupInstance, options.signedCleanup);
   const history = { counts: { deleted: 0, failed: 0 }, familyOutcomes: [] };
   let currentFamilyName = '';
   await log(context, 'info', `Policy Delete started: ${policy.policyId}`);
@@ -302,10 +396,9 @@ async function cleanupPolicy(context, policy, options = {}) {
     error.history = { counts: { ...history.counts, failed: Math.max(1, owned.filter((entry) => entry.active !== false).length - history.familyOutcomes.filter((outcome) => outcome.outcome !== 'Failed').length) }, familyOutcomes: history.familyOutcomes };
     throw error;
   }
-  const cleanupInstance = buildPolicyEndpointCleanupInstance(policy);
   let accepted;
   try {
-    accepted = await client.createAutomationInstance(policy.organizationId, cleanupInstance);
+    accepted = await client.createAutomationInstance(policy.organizationId, cleanupInstance, options.signedCleanup);
     if (!accepted?.id) throw new Error('Action1 endpoint cleanup instance was not accepted.');
   } catch (error) {
     error.history = {
@@ -322,4 +415,4 @@ async function cleanupPolicy(context, policy, options = {}) {
   return history;
 }
 
-module.exports = { applyEdit, cleanupDeselectedControls, cleanupPolicy, disablePolicy, enablePolicy, createAndReplaceAutomation, getRemovedControlIds };
+module.exports = { planSignedEdit, planSignedDelete, applyEdit, cleanupDeselectedControls, cleanupPolicy, disablePolicy, enablePolicy, createAndReplaceAutomation, getRemovedControlIds };
