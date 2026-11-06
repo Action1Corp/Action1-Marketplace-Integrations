@@ -22,7 +22,7 @@ assert(source.includes('CronTimezone_action1-configuration-manager'), 'scheduler
 assert(source.includes('0 */${hours} * * *'), 'scheduler must persist Marketplace cron values');
 assert(source.includes('useState(6)'), 'default interval must be six hours');
 assert(source.includes('const INTERVALS = [3, 6, 12, 24]'), 'interval choices must be compact and supported');
-assert(source.includes('/actions/reconcile-policies'), 'Reconcile now must invoke the tracked reconciliation action');
+assert(source.includes('createPolicyApi(integration).reconcilePolicies()'), 'Reconcile now must use the shared signing flow and tracked action');
 assert(source.includes('Reconciliation in progress…'), 'Reconcile now must use the blocking operation UX');
 assert(source.includes('Not configured'), 'Reporting must expose future resource status');
 assert(source.includes('Set up reporting'), 'Reporting must expose the single future setup action');
@@ -30,6 +30,7 @@ assert(source.includes('Manage reconciliation scheduling and reporting for Actio
 assert(source.includes('Automatically checks enabled policies and restores Action1 automations that were deleted outside Marketplace.'), 'reconciliation description must match the approved page design');
 assert(source.includes('How reconciliation works'), 'Settings must include the reconciliation information panel');
 assert(source.includes('Only Enabled policies are checked.'), 'reconciliation information must state the enabled-only boundary');
+assert(source.includes('In ETP mode, missing automations require signing through Reconcile now.'), 'Settings must explain interactive ETP repair');
 assert(source.includes('Set up Action1 Data Source and Reports to view Configuration Manager results in the Action1 Console.'), 'reporting description must match the approved page design');
 assert(source.includes('Enable reporting in Action1'), 'Reporting must include the not-configured onboarding callout');
 assert(source.includes('Required to collect and store Configuration Manager data in Action1.'), 'Data source supporting text must be present');

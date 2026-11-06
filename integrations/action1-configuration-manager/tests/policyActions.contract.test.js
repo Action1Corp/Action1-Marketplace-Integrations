@@ -451,6 +451,10 @@ async function run() {
   const noopEdit = await actions['update-policy'](etpContext, { payload: { draft: editPayload.draft } });
   assert.strictEqual(noopEdit.ok, true, noopEdit.message);
   assert(etpContext.requests.slice(beforeNoop).every(r => r.method === 'GET' || r.url.endsWith('/oauth2/token')), 'No-op edits need no signature or resource mutation');
+  const healthyReconcile = await actions['prepare-policy-signing'](etpContext, { payload: {
+    operation: 'reconcile', intentId: require('node:crypto').randomUUID() } });
+  assert.strictEqual(healthyReconcile.ok, true, healthyReconcile.message);
+  assert.strictEqual(healthyReconcile.signingRequired, false, 'The registered prepare action must dispatch reconciliation discovery');
   const etpDeleted = await actions['delete-policy'](etpContext, { payload: { policyId: etpCreated.policy.policyId } });
   assert.strictEqual(etpDeleted.ok, false);
   assert.strictEqual(etpContext.requests.some(r => r.method === 'DELETE'), false, 'Do not delete schedules before unsupported cleanup signing');

@@ -1,7 +1,7 @@
 export async function invokeSigningOperation(invoke, integration, actionId, payload) {
   const intentId = globalThis.crypto.randomUUID();
   const prepared = await invoke('prepare-policy-signing', {
-    ...payload, operation: actionId === 'create-policy' ? 'create' : actionId === 'update-policy' ? 'edit' : actionId === 'delete-policy' ? 'delete' : 'enable', intentId
+    ...payload, operation: actionId === 'reconcile-policies' ? 'reconcile' : actionId === 'create-policy' ? 'create' : actionId === 'update-policy' ? 'edit' : actionId === 'delete-policy' ? 'delete' : 'enable', intentId
   });
   if (!prepared.signingRequired) return invoke(actionId, payload);
   const sign = window.Action1Marketplace?.provisioner?.sign;

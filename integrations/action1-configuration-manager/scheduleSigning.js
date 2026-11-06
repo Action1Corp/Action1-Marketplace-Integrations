@@ -4,6 +4,16 @@ const { createAction1DiscoveryClient, requiresETPSigning, sanitizeMessage } = re
 const { buildAutomationDefinitions } = require('./automationDefinition');
 const { buildApi4CreatePayload, buildApi4UpdatePayload, buildApi4InstancePayload, expectedInstanceConfiguration } = require('./action1AutomationClient');
 
+// Shared by signed Policy completions and aggregate manual reconciliation.
+// The host also prevents overlapping tracked actions in this backend runtime.
+const completingPolicies = new Set();
+async function completeSignedPolicies(policyIds, work) {
+  const keys = [...new Set(policyIds.map(id => String(id).trim()))];
+  if (keys.some(id => completingPolicies.has(id))) return { ok: false, message: 'A signed operation for this Policy is already running.' };
+  keys.forEach(id => completingPolicies.add(id));
+  try { return await work(); } finally { keys.forEach(id => completingPolicies.delete(id)); }
+}
+
 async function isETPContext(context) {
   // Some local-only callers do not resolve an Action1 connection. Resource
   // clients still require credentials and enforce signing before any request.
@@ -12,7 +22,7 @@ async function isETPContext(context) {
 }
 
 function signingKey(policy, operation, intentId) {
-  if (!['create', 'enable', 'edit', 'delete'].includes(operation) || !/^[A-Za-z0-9_-]+$/.test(policy?.policyId || '')
+  if (!['create', 'enable', 'edit', 'delete', 'reconcile'].includes(operation) || !/^[A-Za-z0-9_-]+$/.test(policy?.policyId || '')
     || !/^[0-9a-f-]{36}$/i.test(intentId || '')) throw new Error('A valid Policy signing intent is required.');
   return `a1cm:${operation}:${policy.policyId}:${intentId}`;
 }
@@ -40,11 +50,13 @@ function configurationDigest(value) {
 }
 
 function signingEntries(policy, operation, editPlan) {
-  if (operation === 'edit' || operation === 'delete') {
+  if (operation === 'edit' || operation === 'delete' || operation === 'reconcile') {
     if (!editPlan?.snapshot || !Array.isArray(editPlan.operations)) throw new Error('A verified Policy edit plan is required.');
     const fingerprint = configurationDigest(editPlan.snapshot);
     const entries = editPlan.operations.filter(o => ['CREATE', 'PATCH'].includes(o.type)).map((o, index) => ({
-      id: `${operation}-${fingerprint}-${index}`, key: o.definition.automationGroupId, definition: o.definition, correlation: o.type === 'PATCH' ? o.correlation : null
+      id: `${operation}-${fingerprint}-${index}`, key: o.signingKey || o.definition.automationGroupId,
+      organizationId: o.policy?.organizationId || policy.organizationId,
+      definition: o.definition, correlation: o.type === 'PATCH' ? o.correlation : null
     }));
     if (editPlan.cleanupInstance) entries.push({ id: `${operation}-${fingerprint}-cleanup`, key: 'cleanup', instance: editPlan.cleanupInstance });
     return entries;
@@ -57,11 +69,11 @@ async function prepareScheduleSigning(context, { policy, operation, intentId, ed
   const connection = await createAction1DiscoveryClient(context).resolveConnection();
   if (!requiresETPSigning(connection)) throw new Error('This signing intent requires the Marketplace ETP connection mode.');
   const service = provisioner(context);
-  const objects = signingEntries(policy, operation, editPlan).map(({ id, definition, correlation, instance }) => ({
+  const objects = signingEntries(policy, operation, editPlan).map(({ id, definition, correlation, instance, organizationId = policy.organizationId }) => ({
     id,
-    configuration: instance ? buildApi4InstancePayload(instance, policy.organizationId, () => crypto.randomUUID(), () => Date.now()).payload.configuration
-      : correlation ? buildApi4UpdatePayload(definition, policy.organizationId, correlation.action1AutomationConfigurationId, correlation.action1AutomationActionId).configuration
-      : buildApi4CreatePayload(definition, policy.organizationId, () => crypto.randomUUID()).payload.configuration
+    configuration: instance ? buildApi4InstancePayload(instance, organizationId, () => crypto.randomUUID(), () => Date.now()).payload.configuration
+      : correlation ? buildApi4UpdatePayload(definition, organizationId, correlation.action1AutomationConfigurationId, correlation.action1AutomationActionId).configuration
+      : buildApi4CreatePayload(definition, organizationId, () => crypto.randomUUID()).payload.configuration
   }));
   // Marketplace owns batch capacity validation. Do not split or rewrite scripts.
   try {
@@ -91,12 +103,12 @@ async function getSignedSchedules(context, { policy, operation, intentId, signin
   const results = new Map(job.results.map(r => [r.id, r]));
   if (objects.size !== entries.length || results.size !== entries.length) throw new Error('Policy signing results contain duplicate object IDs.');
   const signed = new Map();
-  for (const { id, key, definition, correlation, instance } of entries) {
+  for (const { id, key, definition, correlation, instance, organizationId = policy.organizationId } of entries) {
     const configuration = objects.get(id)?.configuration;
     const result = results.get(id);
     const signature = result?.signature;
-    const expected = configuration && (instance ? expectedInstanceConfiguration(instance, policy.organizationId, configuration)
-      : buildApi4UpdatePayload(definition, policy.organizationId,
+    const expected = configuration && (instance ? expectedInstanceConfiguration(instance, organizationId, configuration)
+      : buildApi4UpdatePayload(definition, organizationId,
       correlation ? correlation.action1AutomationConfigurationId : configuration.id,
       correlation ? correlation.action1AutomationActionId : configuration.actions?.[0]?.id).configuration);
     if (!configuration || !isDeepStrictEqual(configuration, expected)
@@ -118,4 +130,4 @@ async function getSignedSchedules(context, { policy, operation, intentId, signin
   return signed;
 }
 
-module.exports = { isETPContext, prepareScheduleSigning, getSignedSchedules };
+module.exports = { isETPContext, prepareScheduleSigning, getSignedSchedules, completeSignedPolicies };

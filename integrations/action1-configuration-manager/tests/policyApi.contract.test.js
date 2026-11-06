@@ -97,6 +97,23 @@ async function run() {
   assert.strictEqual(editCalls.length, 2);
   assert(editCalls[1].url.endsWith('/delete-policy'));
   assert.strictEqual(editCalls[1].payload.signingId, 'signed-edit');
+  editCalls.length = 0;
+  await api.reconcilePolicies();
+  assert.strictEqual(prompts, 3);
+  assert.strictEqual(editCalls[0].payload.operation, 'reconcile');
+  assert(editCalls[1].url.endsWith('/reconcile-policies'));
+  assert.strictEqual(editCalls[1].payload.signingId, 'signed-edit');
+  editCalls.length = 0;
+  global.window.Action1Marketplace.provisioner.sign = async () => { throw Error('Signing cancelled.'); };
+  await assert.rejects(() => api.reconcilePolicies(), /cancelled/);
+  assert.strictEqual(editCalls.length, 1);
+  editCalls.length = 0;
+  global.fetch = async (url, options) => {
+    editCalls.push({ url, payload: JSON.parse(options.body).payload });
+    return { ok: true, json: async () => ({ ok: true, signingRequired: false }) };
+  };
+  await api.reconcilePolicies();
+  assert(editCalls[1].url.endsWith('/reconcile-policies'), 'Healthy/no-write checks bypass the signer');
 }
 
 try {

@@ -19,6 +19,7 @@ export function createPolicyApi(integration) {
   }
 
   return {
+    reconcilePolicies: async () => invokeSigningOperation(invoke, integration, 'reconcile-policies', {}),
     getControlPack: async () => invoke('get-control-pack'),
     listPolicies: async () => (await invoke('list-policies')).policies || [],
     getPolicy: async (policyId) => (await invoke('get-policy', { policyId })).policy,

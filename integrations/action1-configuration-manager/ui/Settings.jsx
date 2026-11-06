@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import OperationStatus from './policies/OperationStatus.jsx';
+import { createPolicyApi } from './policies/policyApi.js';
 import { normalizeDebugLoggingEnabled } from './debugLogging.js';
 import { formControlStyle, pageSurfaceStyle, policyUiTokens, primaryButtonStyle, secondaryButtonStyle } from './policies/policyUiStyles.js';
 
@@ -115,9 +116,8 @@ export default function Settings({ integration }) {
   async function reconcileNow() {
     setReconciling(true); setMessage(null);
     try {
-      const response = await fetch(`/api/integrations/${integration}/actions/reconcile-policies`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
-      const result = await response.json().catch(() => ({}));
-      setMessage(response.ok && result.ok !== false ? { ok: true, text: 'Reconciliation completed.' } : { ok: false, text: result.message || 'Reconciliation failed.' });
+      const result = await createPolicyApi(integration).reconcilePolicies();
+      setMessage({ ok: true, text: result.message || 'Reconciliation completed.' });
     } catch (error) { setMessage({ ok: false, text: error.message || 'Reconciliation failed.' }); }
     finally { setReconciling(false); }
   }
@@ -151,7 +151,7 @@ export default function Settings({ integration }) {
           <aside style={styles.infoPanel} aria-label="How reconciliation works">
             <h3 style={styles.infoTitle}>How reconciliation works</h3>
             <p style={styles.infoText}>Marketplace checks all Enabled policies on the selected schedule.</p>
-            <p style={styles.infoText}>If an Action1 automation created by a policy is missing, Marketplace recreates it automatically.</p>
+            <p style={styles.infoText}>Missing automations are restored automatically in legacy and unsigned API 4.0 modes. In ETP mode, missing automations require signing through Reconcile now.</p>
             <p style={styles.infoText}>Only Enabled policies are checked.</p>
           </aside>
         </div>

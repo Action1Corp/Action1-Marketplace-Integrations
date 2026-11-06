@@ -7,7 +7,8 @@ const { formatRuntimeElapsed, writeAction1RuntimeLog, writeOperationalLog } = re
 const { planSignedEdit, planSignedDelete, applyEdit, cleanupDeselectedControls, cleanupPolicy, disablePolicy, enablePolicy, getRemovedControlIds } = require('./lifecycleMutations');
 const { createHistoryEnvelope, resultDetails, OPERATION_LABELS } = require('./historyContract');
 const { appendProgressCheckpoint, progressCheckpoint } = require('./lifecycleProgress');
-const { isETPContext, prepareScheduleSigning, getSignedSchedules } = require('./scheduleSigning');
+const { isETPContext, prepareScheduleSigning, getSignedSchedules, completeSignedPolicies } = require('./scheduleSigning');
+const { prepareReconciliationSigning } = require('./reconciliation');
 const { isDeepStrictEqual } = require('node:util');
 
 async function revalidateSignedPlan(context, store, policyId, desired, approvedPlan) {
@@ -21,19 +22,17 @@ async function revalidateSignedPlan(context, store, policyId, desired, approvedP
 
 // Short-lived completion mutex, not an intent store. Covers untracked aliases
 // as well as the host's tracked actions in this single-backend preview.
-const completingPolicies = new Set();
 async function completeSignedPolicy(request, work) {
   const payload = getPayload(request);
   if (!payload.signingId) return work();
   const policyId = typeof payload.policyId === 'string' ? payload.policyId.trim() : '';
-  if (completingPolicies.has(policyId)) return { ok: false, message: 'A signed operation for this Policy is already running.' };
-  completingPolicies.add(policyId);
-  try { return await work(); } finally { completingPolicies.delete(policyId); }
+  return completeSignedPolicies([policyId], work);
 }
 
 async function preparePolicySigningAction(context, request = {}) {
   try {
     const payload = getPayload(request);
+    if (payload.operation === 'reconcile') return await prepareReconciliationSigning(context, request);
     if (!['create', 'enable', 'edit', 'delete'].includes(payload.operation)) throw new Error('Unsupported Policy signing operation.');
     if (!await isETPContext(context)) return { ok: true, signingRequired: false };
     if (!/^[0-9a-f-]{36}$/i.test(payload.intentId || '')) throw new Error('A valid Policy signing intent is required.');
