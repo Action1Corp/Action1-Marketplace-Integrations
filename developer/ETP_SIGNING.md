@@ -62,7 +62,7 @@ Intune shell creation uses `unsigned-disabled-shell-v1` instead of the signing p
 
 ## Signing only: integration-owned API submission
 
-The preview also exposes `context.action1.provisioner.prepareSigning()` and `getSigning()`, plus `window.Action1Marketplace.provisioner.sign()`. These never POST/PATCH/DELETE Action1 objects. Marketplace authenticates and reads organization access/current keychain, signs the exact supplied configurations, and validates signature output fields and the expected key ID. Action1 performs authoritative signature and keychain trust validation. Integration code owns API submission, response handling, partial failure reconciliation, and lifecycle operations.
+The preview also exposes `context.action1.provisioner.prepareSigning()` and `getSigning()`, plus `window.Action1Marketplace.provisioner.sign()`. These never POST/PATCH/DELETE Action1 objects. Marketplace authenticates and checks scope access/current keychain, signs the exact supplied configurations, and validates signature output fields and the expected key ID. Action1 performs authoritative signature and keychain trust validation. Integration code owns API submission, response handling, partial failure reconciliation, and lifecycle operations.
 
 Backend prepare action (authenticated user context):
 
@@ -73,7 +73,22 @@ return context.action1.provisioner.prepareSigning({
 });
 ```
 
-Configurations must already include their final IDs, type, organization_id and any action IDs. No fields or IDs are added by signing. Supported configuration types are AutomationScheduleConfiguration, ScriptConfiguration, DataSourceConfiguration and PackageVersionConfiguration. Each organization_id must be an actual organization accessible to the API account; enterprise-wide/all scope and other types are not supported by this preview. Non-schedule type acceptance by Action1 still requires live testing.
+Configurations must already include their final IDs, type and any action IDs. A signing intent accepts 1–100 objects with a combined serialized UTF-8 size of at most 16 MB (16,000,000 bytes), including object wrappers. No fields or IDs are added by signing. Supported configuration types are AutomationScheduleConfiguration, ScriptConfiguration, DataSourceConfiguration and PackageVersionConfiguration.
+
+AutomationScheduleConfiguration, ScriptConfiguration and PackageVersionConfiguration require an actual organization_id accessible to the API account; all is rejected for these types. DataSourceConfiguration is enterprise-scoped: include a non-empty platform and omit organization_id (or supply all). Marketplace preserves the exact configuration and checks authenticated read access through GET /data-sources/all before signing. This read-only preflight does not establish create/update permission; Action1 authorizes the integration's eventual POST/PATCH and validates key trust. Mixed batches perform both enterprise and organization access checks. Live Data Source create/publish/readback acceptance still requires testing.
+
+For Data Sources, the integration constructs the signature reference separately from the unchanged signed configuration:
+
+```js
+const object_reference = {
+  type: configuration.type,
+  id: configuration.id,
+  organization_id: 'all',
+  platform: configuration.platform
+};
+```
+
+The signing-only API does not construct or submit this envelope. The integration must derive it from the stored prepared configuration and use its existing submission client.
 
 After the integration's review/confirmation, its frontend invokes the host popup:
 
