@@ -23,6 +23,26 @@ async function run() {
   assert.strictEqual(resolveAction1RuntimeLogDir({ env: { DATA_DIR: path.join(tempRoot, 'data') } }), path.resolve(path.join(tempRoot, 'data', 'action1-configuration-manager-logs')));
   assert.strictEqual(resolveAction1RuntimeLogDir({ env: {}, packageDir: path.join(tempRoot, 'package') }), path.resolve(path.join(tempRoot, 'package', '.runtime-logs')));
 
+  const dataDir = path.join(tempRoot, 'configured-data');
+  const packageDir = path.join(tempRoot, 'configured-package');
+  const dataLogger = createAction1RuntimeLogger({ env: { DATA_DIR: dataDir }, packageDir });
+  await dataLogger.info('data directory only');
+  assert.strictEqual(dataLogger.logDir, path.resolve(dataDir, 'action1-configuration-manager-logs'));
+  assert.strictEqual(fs.existsSync(path.join(dataLogger.logDir, 'action1-configuration-manager-runtime.log')), true);
+  assert.strictEqual(fs.existsSync(path.join(packageDir, '.runtime-logs')), false, 'DATA_DIR logging must not initialize package-local fallback');
+
+  const overrideDir = path.join(tempRoot, 'explicit-override');
+  const overrideLogger = createAction1RuntimeLogger({ env: { DATA_DIR: dataDir, ACTION1_CONFIGURATION_MANAGER_LOG_DIR: overrideDir }, packageDir });
+  await overrideLogger.info('explicit directory wins');
+  assert.strictEqual(fs.existsSync(path.join(overrideDir, 'action1-configuration-manager-runtime.log')), true);
+  assert.strictEqual(fs.existsSync(path.join(dataDir, 'action1-configuration-manager-logs', 'action1-configuration-manager-runtime.log')), true);
+  assert.strictEqual(fs.existsSync(path.join(packageDir, '.runtime-logs')), false);
+
+  const fallbackPackage = path.join(tempRoot, 'fallback-package');
+  const fallbackLogger = createAction1RuntimeLogger({ env: {}, packageDir: fallbackPackage });
+  await fallbackLogger.info('package fallback');
+  assert.strictEqual(fs.existsSync(path.join(fallbackPackage, '.runtime-logs', 'action1-configuration-manager-runtime.log')), true);
+
   const logDir = path.join(tempRoot, 'log');
   const logger = createAction1RuntimeLogger({ logDir, debugLoggingEnabled: true });
   await logger.info('Loaded 2 Action1 organizations');
@@ -44,6 +64,46 @@ async function run() {
   assert(!filteredText.includes('suppressed diagnostic'), 'DEBUG must be filtered when debug logging is disabled');
   assert(filteredText.includes('retained lifecycle') && filteredText.includes('retained warning') && filteredText.includes('retained failure'), 'INFO/WARN/ERROR must remain when DEBUG is filtered');
 
+  const rotationDir = path.join(tempRoot, 'rotation');
+  const rotatingLogger = createAction1RuntimeLogger({ logDir: rotationDir, maxFileSizeBytes: 190, maxRotatedFiles: 5 });
+  await rotatingLogger.info('entry one');
+  await rotatingLogger.info('entry two');
+  await rotatingLogger.info('entry three');
+  const activePath = path.join(rotationDir, 'action1-configuration-manager-runtime.log');
+  assert(fs.existsSync(`${activePath}.1`), 'the next entry that exceeds the limit should rotate the active log');
+  assert((await fsp.readFile(activePath, 'utf8')).includes('entry three'), 'newest entries should remain active');
+  assert(!(await fsp.readFile(`${activePath}.1`, 'utf8')).includes('entry three'));
+
+  const oversizedDir = path.join(tempRoot, 'oversized');
+  const oversizedPath = path.join(oversizedDir, 'action1-configuration-manager-runtime.log');
+  const oversizedLogger = createAction1RuntimeLogger({ logDir: oversizedDir, maxFileSizeBytes: 20 });
+  await oversizedLogger.info('initialize logger');
+  await fsp.writeFile(oversizedPath, 'historical content that is larger than the configured active limit\n');
+  await oversizedLogger.info('next entry');
+  assert((await fsp.readFile(`${oversizedPath}.1`, 'utf8')).includes('historical content'));
+  assert((await fsp.readFile(oversizedPath, 'utf8')).includes('next entry'));
+
+  const shiftDir = path.join(tempRoot, 'archive-shift');
+  const shiftPath = path.join(shiftDir, 'action1-configuration-manager-runtime.log');
+  const shiftingLogger = createAction1RuntimeLogger({ logDir: shiftDir, maxFileSizeBytes: 20, maxRotatedFiles: 5 });
+  await shiftingLogger.info('initialize logger');
+  for (let index = 1; index <= 5; index += 1) await fsp.writeFile(`${shiftPath}.${index}`, `archive-${index}`);
+  await fsp.writeFile(shiftPath, 'active-history-that-forces-rotation');
+  await shiftingLogger.info('new active');
+  assert.strictEqual(await fsp.readFile(`${shiftPath}.1`, 'utf8'), 'active-history-that-forces-rotation');
+  for (let index = 2; index <= 5; index += 1) assert.strictEqual(await fsp.readFile(`${shiftPath}.${index}`, 'utf8'), `archive-${index - 1}`);
+  await assert.rejects(() => fsp.access(`${shiftPath}.6`));
+
+  const concurrentDir = path.join(tempRoot, 'concurrent');
+  const concurrentLogger = createAction1RuntimeLogger({ logDir: concurrentDir, maxFileSizeBytes: 700, maxRotatedFiles: 5 });
+  await Promise.all(Array.from({ length: 30 }, (_, index) => concurrentLogger.info(`concurrent-${index}`)));
+  const concurrentFiles = [
+    path.join(concurrentDir, 'action1-configuration-manager-runtime.log'),
+    ...Array.from({ length: 5 }, (_, index) => path.join(concurrentDir, `action1-configuration-manager-runtime.log.${index + 1}`))
+  ];
+  const concurrentContents = (await Promise.all(concurrentFiles.map(file => fsp.readFile(file, 'utf8').catch(() => '')))).join('');
+  for (let index = 0; index < 30; index += 1) assert.strictEqual((concurrentContents.match(new RegExp(`concurrent-${index}(?:\\r?\\n|$)`, 'g')) || []).length, 1, `concurrent entry ${index} must be complete and retained once`);
+
   const settingReads = [];
   const contextLogger = createAction1RuntimeLogger({ logDir: path.join(tempRoot, 'context-enabled') });
   const settingsContext = { settings: { get: async (key) => { settingReads.push(key); return true; } }, action1ConfigurationManagerRuntimeLogger: contextLogger };
@@ -62,7 +122,7 @@ async function run() {
   assert.strictEqual(safeText.includes('super-secret'), false);
   assert.strictEqual(safeText.includes('raw-token'), false);
   const hostLines = [];
-  const failingLogger = createAction1RuntimeLogger({ logDir: path.join(tempRoot, 'failure'), fileSystem: { async mkdir() {}, async appendFile() { throw new Error('disk unavailable'); } }, warn(message) { hostLines.push(message); } });
+  const failingLogger = createAction1RuntimeLogger({ logDir: path.join(tempRoot, 'failure'), fileSystem: { async mkdir() {}, async stat() { return { size: 0 }; }, async appendFile() { throw new Error('disk unavailable'); } }, warn(message) { hostLines.push(message); } });
   await failingLogger.info('first');
   await failingLogger.info('second');
   assert.strictEqual(hostLines.length, 1, 'file logging failure should warn once');

@@ -7,6 +7,8 @@ const LOG_PREFIX = 'action1-config-manager';
 const DEFAULT_FILE_NAME = `${INTEGRATION_ID}-runtime.log`;
 const LOG_DIR_ENV = 'ACTION1_CONFIGURATION_MANAGER_LOG_DIR';
 const DEBUG_LOGGING_KEY = `DebugLogging_${INTEGRATION_ID}`;
+const DEFAULT_MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const DEFAULT_MAX_ROTATED_FILES = 5;
 
 function resolveAction1RuntimeLogDir(options = {}) {
   const env = options.env || process.env;
@@ -73,6 +75,13 @@ function createAction1RuntimeLogger(options = {}) {
   let initialized = false;
   let failureWarned = false;
   let debugLoggingEnabled = normalizeDebugLoggingEnabled(options.debugLoggingEnabled);
+  let writeQueue = Promise.resolve();
+  const maxFileSizeBytes = Number.isFinite(Number(options.maxFileSizeBytes)) && Number(options.maxFileSizeBytes) > 0
+    ? Math.floor(Number(options.maxFileSizeBytes))
+    : DEFAULT_MAX_FILE_SIZE_BYTES;
+  const maxRotatedFiles = Number.isFinite(Number(options.maxRotatedFiles)) && Number(options.maxRotatedFiles) >= 0
+    ? Math.floor(Number(options.maxRotatedFiles))
+    : DEFAULT_MAX_ROTATED_FILES;
 
   function warnOnce(message) {
     if (failureWarned) return;
@@ -83,22 +92,54 @@ function createAction1RuntimeLogger(options = {}) {
     } catch {}
   }
 
-  async function write(level, message) {
-    if (String(level).toUpperCase() === 'DEBUG' && debugLoggingEnabled !== true) return;
+  async function appendWithRotation(line) {
+    const lineSize = Buffer.byteLength(line, 'utf8');
+    let currentSize = 0;
     try {
-      await fileSystem.mkdir(logDir, { recursive: true });
-      if (!initialized) {
-        initialized = true;
-        await fileSystem.appendFile(
-          filePath,
-          formatAction1RuntimeLogLine('INFO', `Runtime file logging initialized: ${filePath}`, now),
-          'utf8'
-        );
-      }
-      await fileSystem.appendFile(filePath, formatAction1RuntimeLogLine(level, message, now), 'utf8');
+      const activeFile = await fileSystem.stat(filePath);
+      currentSize = activeFile.size;
     } catch (error) {
-      warnOnce(`Action1 Configuration Manager runtime file logging unavailable (${filePath}): ${sanitizeRuntimeText(error?.message || 'write failed')}`);
+      if (error?.code !== 'ENOENT') throw error;
     }
+
+    if (currentSize + lineSize > maxFileSizeBytes && currentSize > 0) {
+      if (maxRotatedFiles > 0) {
+        const oldestPath = `${filePath}.${maxRotatedFiles}`;
+        try {
+          await fileSystem.unlink(oldestPath);
+        } catch (error) {
+          if (error?.code !== 'ENOENT') throw error;
+        }
+        for (let index = maxRotatedFiles - 1; index >= 1; index -= 1) {
+          try {
+            await fileSystem.rename(`${filePath}.${index}`, `${filePath}.${index + 1}`);
+          } catch (error) {
+            if (error?.code !== 'ENOENT') throw error;
+          }
+        }
+        await fileSystem.rename(filePath, `${filePath}.1`);
+      } else {
+        await fileSystem.unlink(filePath);
+      }
+    }
+    await fileSystem.appendFile(filePath, line, 'utf8');
+  }
+
+  async function writeEntry(level, message) {
+    await fileSystem.mkdir(logDir, { recursive: true });
+    if (!initialized) {
+      await appendWithRotation(formatAction1RuntimeLogLine('INFO', `Runtime file logging initialized: ${filePath}`, now));
+      initialized = true;
+    }
+    await appendWithRotation(formatAction1RuntimeLogLine(level, message, now));
+  }
+
+  function write(level, message) {
+    if (String(level).toUpperCase() === 'DEBUG' && debugLoggingEnabled !== true) return Promise.resolve();
+    writeQueue = writeQueue.then(() => writeEntry(level, message)).catch((error) => {
+      warnOnce(`Action1 Configuration Manager runtime file logging unavailable (${filePath}): ${sanitizeRuntimeText(error?.message || 'write failed')}`);
+    });
+    return writeQueue;
   }
 
   return {
