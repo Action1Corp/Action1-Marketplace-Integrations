@@ -19,6 +19,14 @@
       "retry": false
     },
     {
+      "id": "rollback-prepared-policy",
+      "kind": "action",
+      "label": "Rollback prepared Policy",
+      "description": "Removes an uncompleted Policy after explicit signing cancellation.",
+      "history": false,
+      "retry": false
+    },
+    {
       "id": "prepare-reporting-signing",
       "kind": "action",
       "label": "Prepare Reporting signing",

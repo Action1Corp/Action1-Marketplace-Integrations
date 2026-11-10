@@ -354,6 +354,75 @@ async function run() {
   assert(source.includes('request.run'), 'Create/Delete should append progress checkpoints to the tracked Marketplace action run');
 
   const actions = require(path.join(__dirname, '..', 'actions.js')).actions;
+  assert(actionIds.includes('rollback-prepared-policy'), 'The internal create-cancellation rollback action must be declared');
+  assert.strictEqual(manifest.actions.find((action) => action.id === 'rollback-prepared-policy').history, false);
+
+  const { createDbPolicyStore } = require(path.join(__dirname, '..', 'policyStore.js'));
+  const { completeSignedPolicies } = require(path.join(__dirname, '..', 'scheduleSigning.js'));
+  async function prepareLocalPolicy(context) {
+    return createDbPolicyStore(context).savePolicy({ ...createValidDraft(), enabled: false });
+  }
+  const rollbackContext = createFakeContext();
+  const rollbackPolicy = await prepareLocalPolicy(rollbackContext);
+  const rollbackResult = await actions['rollback-prepared-policy'](rollbackContext, { payload: { operation: 'create', policyId: rollbackPolicy.policyId } });
+  assert.strictEqual(rollbackResult.ok, true, rollbackResult.message);
+  assert.strictEqual(rollbackResult.deleted, true);
+  assert.strictEqual(rollbackContext.db.state.policies.length, 0);
+  assert.strictEqual(rollbackContext.db.state.controls.length, 0);
+  assert.strictEqual(rollbackContext.db.state.reservations.length, 0);
+  assert.strictEqual(rollbackContext.requests.length, 0, 'Local rollback must not call Action1');
+
+  const absentRollback = await actions['rollback-prepared-policy'](rollbackContext, { payload: { operation: 'create', policyId: rollbackPolicy.policyId } });
+  assert.strictEqual(absentRollback.ok, true, 'Already absent Policy is a safe no-op');
+  assert.strictEqual(absentRollback.deleted, false);
+  for (const payload of [
+    { operation: 'edit', policyId: rollbackPolicy.policyId },
+    { operation: 'create', policyId: '' },
+    { operation: 'create' },
+    { operation: 'create', policyId: 'not-a-policy-id' }
+  ]) {
+    const invalid = await actions['rollback-prepared-policy'](rollbackContext, { payload });
+    assert.strictEqual(invalid.ok, false, `Unsafe rollback request must be rejected: ${JSON.stringify(payload)}`);
+  }
+
+  const enabledRollbackContext = createFakeContext();
+  const enabledRollbackPolicy = await prepareLocalPolicy(enabledRollbackContext);
+  await createDbPolicyStore(enabledRollbackContext).setPolicyEnabled(enabledRollbackPolicy.policyId, true);
+  assert.strictEqual((await actions['rollback-prepared-policy'](enabledRollbackContext, { payload: { operation: 'create', policyId: enabledRollbackPolicy.policyId } })).ok, false,
+    'Enabled Policies must not be rolled back');
+  assert.strictEqual(enabledRollbackContext.db.state.policies.length, 1);
+
+  for (const active of [0, 1]) {
+    const correlatedContext = createFakeContext();
+    const correlatedPolicy = await prepareLocalPolicy(correlatedContext);
+    correlatedContext.db.state.correlations.push({
+      policy_id: correlatedPolicy.policyId, automation_group_id: `group-${active}`, automation_group_version: '0.1.0',
+      control_family_name_snapshot: 'Test family', action1_organization_id: 'org-acme', action1_automation_id: `auto-${active}`,
+      action1_automation_configuration_id: `config-${active}`, action1_automation_action_id: `action-${active}`,
+      action1_automation_name: `Automation ${active}`, action1_automation_self: `https://action1.test/${active}`,
+      desired_definition_fingerprint: 'sha256:test', active
+    });
+    assert.strictEqual((await actions['rollback-prepared-policy'](correlatedContext, { payload: { operation: 'create', policyId: correlatedPolicy.policyId } })).ok, false,
+      `Policies with ${active ? 'active' : 'inactive'} correlations must not be rolled back`);
+    assert.strictEqual(correlatedContext.db.state.policies.length, 1);
+    assert.strictEqual(correlatedContext.db.state.controls.length, 1);
+    assert.strictEqual(correlatedContext.db.state.reservations.length, 1);
+  }
+
+  const lockedContext = createFakeContext();
+  const lockedPolicy = await prepareLocalPolicy(lockedContext);
+  let releaseCompletion;
+  let signalCompletionStarted;
+  const completionStarted = new Promise(resolve => { signalCompletionStarted = resolve; });
+  const completionGate = new Promise(resolve => { releaseCompletion = resolve; });
+  const completion = completeSignedPolicies([lockedPolicy.policyId], async () => { signalCompletionStarted(); await completionGate; });
+  await completionStarted;
+  const lockedRollback = await actions['rollback-prepared-policy'](lockedContext, { payload: { operation: 'create', policyId: lockedPolicy.policyId } });
+  assert.strictEqual(lockedRollback.ok, false, 'Rollback must not delete while completion owns the Policy lock');
+  assert.strictEqual(lockedContext.db.state.policies.length, 1);
+  releaseCompletion();
+  await completion;
+
   const etpContext = createFakeContext({ api4: true });
   etpContext.integrationId = 'action1-configuration-manager';
   const originalCredentials = etpContext.action1.getCredentials;

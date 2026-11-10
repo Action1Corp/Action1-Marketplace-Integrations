@@ -477,6 +477,7 @@ function PolicyPage({ integration }) {
       setProgressOperation(isCreate ? { operation: 'create', actionId: 'create-policy', operationId: progressOperationId, routeKey } : null);
       try {
         const savedPolicy = await policyApiRef.current.savePolicy(buildPolicyDraftPayload(nextDraft, catalog), progressOperationId);
+        if (savedPolicy?.cancelled) return;
         await refreshPolicies();
         if (currentRouteRef.current !== routeKey) return;
         if (nextDraft.mode === 'edit') {

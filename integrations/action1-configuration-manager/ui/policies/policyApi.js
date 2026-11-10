@@ -28,6 +28,7 @@ export function createPolicyApi(integration) {
       const result = draft?.mode === 'create'
         ? await invokeSigningOperation(invoke, integration, 'create-policy', payload)
         : await invokeSigningOperation(invoke, integration, 'update-policy', payload);
+      if (result?.cancelled) return { cancelled: true };
       return result.policy;
     },
     setPolicyEnabled: async (policyId, enabled) => (await (enabled

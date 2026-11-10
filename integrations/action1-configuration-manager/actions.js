@@ -8,6 +8,7 @@ const {
   savePolicyAction,
   setPolicyEnabledAction,
   createPolicyAction,
+  rollbackPreparedPolicyAction,
   updatePolicyAction,
   preparePolicySigningAction
 } = require('./policyActions');
@@ -49,6 +50,7 @@ module.exports = {
     'save-policy': savePolicyAction,
     'prepare-policy-signing': preparePolicySigningAction,
     'create-policy': createPolicyAction,
+    'rollback-prepared-policy': rollbackPreparedPolicyAction,
     'update-policy': updatePolicyAction,
     'set-policy-enabled': setPolicyEnabledAction,
     'disable-policy': disablePolicyAction,

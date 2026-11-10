@@ -278,6 +278,30 @@ async function createPolicyAction(context, request = {}) {
   return completeSignedPolicy(request, () => performSavePolicy(context, request, 'POLICY_CREATED'));
 }
 
+async function rollbackPreparedPolicyAction(context, request = {}) {
+  try {
+    const payload = getPayload(request);
+    if (payload.operation !== 'create') throw new Error('Only a prepared Create Policy can be rolled back.');
+    const policyId = typeof payload.policyId === 'string' ? payload.policyId.trim() : '';
+    if (!/^POL-\d{6,}$/.test(policyId)) throw new Error('A valid prepared Policy id is required.');
+
+    return await completeSignedPolicies([policyId], async () => {
+      const store = createDbPolicyStore(context);
+      const policy = await store.getPolicy(policyId);
+      if (!policy) return { ok: true, deleted: false };
+      if (policy.enabled) throw new Error('An enabled Policy cannot be rolled back.');
+
+      const correlations = await createAutomationCorrelationStore(context).listCorrelations(policyId, { includeInactive: true });
+      if (correlations.length) throw new Error('A Policy with Automation correlations cannot be rolled back.');
+
+      const result = await store.deletePolicy(policyId);
+      return { ok: true, deleted: Boolean(result.deleted) };
+    });
+  } catch (error) {
+    return { ok: false, message: sanitizePersistenceMessage(error?.message) };
+  }
+}
+
 async function updatePolicyAction(context, request = {}) {
   return completeSignedPolicy(request, () => performSavePolicy(context, request, 'POLICY_UPDATED'));
 }
@@ -382,6 +406,7 @@ async function deleteTrackedPolicyAction(context, request = {}) {
 
 module.exports = {
   preparePolicySigningAction,
+  rollbackPreparedPolicyAction,
   createPolicyAction,
   deletePolicyAction,
   deleteTrackedPolicyAction,
