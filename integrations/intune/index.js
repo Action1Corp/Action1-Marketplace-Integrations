@@ -93,7 +93,17 @@ async function validateConfiguration(context, request) {
   return summarizeValidationResult(result);
 }
 
+async function canRunScheduledSync(context) {
+  const policies = await createIntunePolicyStore(context).listPolicies();
+  return policies.some(policy => policy.enabled !== false);
+}
+
 async function syncAction(context) {
+  if (!(await canRunScheduledSync(context))) {
+    const error = new Error('Create at least one Enrollment and Provisioning profile before syncing.');
+    error.statusCode = 400;
+    throw error;
+  }
   await sync(context);
   const latestRun = await context.db.get(
     'SELECT id, status, details, assets_processed FROM sync_history WHERE integration_id = ? ORDER BY id DESC LIMIT 1',
@@ -697,6 +707,7 @@ async function markProvisioningCompleteAction(context, request) {
 }
 
 module.exports = {
+  canRunScheduledSync,
   actions: {
     'validate-configuration': validateConfiguration,
     'list-action1-organizations': listAction1OrganizationsAction,
