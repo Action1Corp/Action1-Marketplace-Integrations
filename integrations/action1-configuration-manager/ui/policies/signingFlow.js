@@ -10,3 +10,13 @@ export async function invokeSigningOperation(invoke, integration, actionId, payl
   return invoke(actionId, { ...payload, policyId: prepared.policyId, intentId,
     signingId: prepared.signingId, digest: prepared.digest });
 }
+
+export async function invokeReportingSigningOperation(invoke, integration, payload = {}) {
+  const intentId = globalThis.crypto.randomUUID();
+  const prepared = await invoke('prepare-reporting-signing', { ...payload, intentId });
+  if (!prepared.signingRequired) return invoke('setup-reporting', payload);
+  const sign = window.Action1Marketplace?.provisioner?.sign;
+  if (typeof sign !== 'function') throw new Error('Marketplace signing is unavailable. Reload Marketplace with the ETP framework enabled.');
+  await sign({ integrationId: integration, signingId: prepared.signingId, digest: prepared.digest });
+  return invoke('setup-reporting', { ...payload, intentId, configurationId: prepared.configurationId, signingId: prepared.signingId, digest: prepared.digest });
+}

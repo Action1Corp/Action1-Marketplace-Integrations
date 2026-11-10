@@ -17,7 +17,7 @@ const {
 } = require('./policyDiscoveryActions');
 const { reconcilePoliciesAction } = require('./reconciliation');
 const { getOverview } = require('./overviewService');
-const { getReportingState, getReportingStatus, setupReporting } = require('./reporting/reportingService');
+const { getReportingState, getReportingStatus, prepareReportingSigning, setupReporting } = require('./reporting/reportingService');
 const { createHistoryEnvelope, resultDetails } = require('./historyContract');
 const { loadControlPackArtifacts } = require('./controlPackResolver');
 const { formatRuntimeElapsed, writeOperationalLog } = require('./runtimeLogging');
@@ -59,6 +59,10 @@ module.exports = {
     'reconcile-policies': reconcilePoliciesAction,
     'get-reporting-state': async (context) => ({ ok: true, reporting: await getReportingState(context) }),
     'get-reporting-status': async (context) => ({ ok: true, reporting: await getReportingStatus(context) }),
+    'prepare-reporting-signing': async (context, request) => {
+      try { return await prepareReportingSigning(context, request); }
+      catch (error) { return { ok: false, message: String(error?.message || 'Reporting signing preparation failed.').replace(/\s+/g, ' ').slice(0, 240) }; }
+    },
     'setup-reporting': async (context, request) => {
       try {
         const result = await setupReporting(context, request);

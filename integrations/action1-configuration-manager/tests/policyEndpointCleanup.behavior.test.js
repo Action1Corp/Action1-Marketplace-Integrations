@@ -124,8 +124,8 @@ async function run() {
     async createAutomationInstance(orgId, instance) { calls.push(['instance', orgId, instance]); return { id: 'instance-1' }; }
   };
   const history = await cleanupPolicy({}, policy(), { client, correlations: correlations() });
-  assert.deepStrictEqual(calls.map((entry) => entry[0]), ['delete', 'instance']);
-  assert.strictEqual(calls[1][1], 'org-acme');
+  assert.deepStrictEqual(calls.map((entry) => entry[0]), ['instance', 'delete']);
+  assert.strictEqual(calls[0][1], 'org-acme');
   assert.strictEqual(history.cleanup.instanceId, 'instance-1');
 
   await assert.rejects(

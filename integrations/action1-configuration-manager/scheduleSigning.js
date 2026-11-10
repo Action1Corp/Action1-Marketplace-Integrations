@@ -27,6 +27,11 @@ function signingKey(policy, operation, intentId) {
   return `a1cm:${operation}:${policy.policyId}:${intentId}`;
 }
 
+function dataSourceSigningKey(configuration, intentId) {
+  if (!configuration?.id || !/^[0-9a-f-]{36}$/i.test(intentId || '')) throw new Error('A valid Data Source signing intent is required.');
+  return `a1cm:data-source:${configuration.id}:${intentId}`;
+}
+
 function provisioner(context) {
   const service = context.action1?.provisioner;
   if (typeof service?.prepareSigning !== 'function' || typeof service?.getSigning !== 'function') {
@@ -81,6 +86,16 @@ async function prepareScheduleSigning(context, { policy, operation, intentId, ed
   } catch (error) { throw safeSigningError(error); }
 }
 
+async function prepareDataSourceSigning(context, { configuration, intentId }) {
+  const idempotencyKey = dataSourceSigningKey(configuration, intentId);
+  const connection = await createAction1DiscoveryClient(context).resolveConnection();
+  if (!requiresETPSigning(connection)) throw new Error('This signing intent requires the Marketplace ETP connection mode.');
+  const service = provisioner(context);
+  try {
+    return await service.prepareSigning({ idempotencyKey, objects: [{ id: `data-source-${configuration.id}`, configuration }] });
+  } catch (error) { throw safeSigningError(error); }
+}
+
 async function getSignedSchedules(context, { policy, operation, intentId, signingId, digest, editPlan }) {
   const idempotencyKey = signingKey(policy, operation, intentId);
   const connection = await createAction1DiscoveryClient(context).resolveConnection();
@@ -130,4 +145,32 @@ async function getSignedSchedules(context, { policy, operation, intentId, signin
   return signed;
 }
 
-module.exports = { isETPContext, prepareScheduleSigning, getSignedSchedules, completeSignedPolicies };
+async function getSignedDataSource(context, { configuration, intentId, signingId, digest }) {
+  const idempotencyKey = dataSourceSigningKey(configuration, intentId);
+  const connection = await createAction1DiscoveryClient(context).resolveConnection();
+  if (!requiresETPSigning(connection)) throw new Error('Marketplace connection changed. Prepare and sign the operation again.');
+  const service = provisioner(context);
+  let job;
+  try { job = await service.getSigning(signingId); } catch (error) { throw safeSigningError(error); }
+  if (!job || job.id !== signingId || job.purpose !== 'sign-only' || job.state !== 'signed'
+    || job.integrationId !== context.integrationId || job.digest !== digest
+    || !Number.isFinite(job.expiresAt) || Date.now() > job.expiresAt
+    || job.origin !== new URL(connection.baseUrl).origin) throw new Error('Data Source signing is incomplete, changed or expired. Prepare and sign the operation again.');
+  if (!Array.isArray(job.objects) || !Array.isArray(job.results) || job.objects.length !== 1 || job.results.length !== 1) throw new Error('Data Source signing results are incomplete. Prepare the operation again.');
+  const object = job.objects.find(item => item.id === `data-source-${configuration.id}`);
+  const result = job.results.find(item => item.id === `data-source-${configuration.id}`);
+  const signedConfiguration = object?.configuration;
+  const signature = result?.signature;
+  if (!signedConfiguration || !isDeepStrictEqual(signedConfiguration, configuration)
+    || result?.configurationDigest !== configurationDigest(signedConfiguration)
+    || typeof signature?.alg !== 'string' || !signature.alg || !Number.isInteger(signature.iat) || signature.iat <= 0
+    || typeof signature.kid !== 'string' || !signature.kid || typeof signature.value !== 'string' || !signature.value) {
+    throw new Error('Signed Data Source configuration does not match the current reporting intent. Prepare the operation again.');
+  }
+  let fresh;
+  try { fresh = await service.prepareSigning({ idempotencyKey, objects: job.objects }); } catch (error) { throw safeSigningError(error); }
+  if (fresh.signingId !== signingId || fresh.digest !== digest || fresh.outcome !== 'signed') throw new Error('Data Source signing intent changed. Prepare the operation again.');
+  return { configuration: signedConfiguration, signature, origin: job.origin, expiresAt: job.expiresAt };
+}
+
+module.exports = { isETPContext, prepareScheduleSigning, getSignedSchedules, prepareDataSourceSigning, getSignedDataSource, completeSignedPolicies };

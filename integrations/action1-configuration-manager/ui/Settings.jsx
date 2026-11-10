@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import OperationStatus from './policies/OperationStatus.jsx';
 import { createPolicyApi } from './policies/policyApi.js';
+import { invokeReportingSigningOperation } from './policies/signingFlow.js';
 import { normalizeDebugLoggingEnabled } from './debugLogging.js';
 import { formControlStyle, pageSurfaceStyle, policyUiTokens, primaryButtonStyle, secondaryButtonStyle } from './policies/policyUiStyles.js';
 
@@ -104,9 +105,12 @@ export default function Settings({ integration }) {
   async function setupReporting() {
     setSettingUpReporting(true); setMessage(null);
     try {
-      const response = await fetch(`/api/integrations/${integration}/actions/setup-reporting`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || result.ok === false) throw new Error(result.message || 'Reporting setup failed.');
+      const result = await invokeReportingSigningOperation(async (action, payload) => {
+        const response = await fetch(`/api/integrations/${integration}/actions/${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload ? { payload } : {}) });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok || body.ok === false) throw new Error(body.message || 'Reporting setup failed.');
+        return body;
+      }, integration, {});
       setReporting(result.reporting || { dataSource: 'Configured', reports: 'Configured' });
       setMessage({ ok: true, text: 'Reporting setup completed.' });
     } catch (error) { setMessage({ ok: false, text: error.message || 'Reporting setup failed.' }); }

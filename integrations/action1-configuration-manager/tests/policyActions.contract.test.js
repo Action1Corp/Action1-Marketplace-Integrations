@@ -218,6 +218,7 @@ function createFakeDb() {
         return { changes: 1 };
       }
 
+
       if (sql.includes('DELETE FROM action1_configuration_manager_policies')) {
         state.policies = state.policies.filter((entry) => entry.policy_id !== params[0]);
         return { changes: 1 };
@@ -309,7 +310,8 @@ function createFakeContext(contextOptions = {}) {
       warn() {},
       error() {}
     },
-    requests
+    requests,
+    setInstanceResponse(value) { contextOptions.instanceResponse = value; contextOptions.instanceError = null; }
   };
 }
 
@@ -504,7 +506,7 @@ async function run() {
   assert.strictEqual(partialETP.requests.filter(r => r.method === 'POST' && r.url.includes('/automations/schedules/')).length, 2);
 
   // Delete preparation and completion use the real handlers and DB cleanup.
-  // A failed instance POST keeps the Policy/reservation and successful schedule deletions.
+  // A failed instance POST keeps the Policy/reservation and performs no schedule deletions.
   signingJob = null;
   const deletePayload = { operation: 'delete', policyId: etpCreated.policy.policyId, intentId: require('node:crypto').randomUUID() };
   const beforeDelete = etpContext.requests.length;
@@ -533,20 +535,17 @@ async function run() {
   etpContext.db.state.policies[0].description = originalDescription;
   etpContext.action1.provisioner.getSigning = getApprovedSigning;
   const deleteHttp = etpContext.http;
+  let cleanupPostAttempts = 0;
   etpContext.http = async input => {
-    if (input.method === 'POST' && input.url.includes('/automations/instances/')) throw new Error('Cleanup unavailable');
+    if (input.method === 'POST' && input.url.includes('/automations/instances/')) { cleanupPostAttempts += 1; throw Object.assign(new Error('Cleanup rejected'), { statusCode: 400 }); }
     return deleteHttp(input);
   };
   const failedDelete = await actions['delete-policy'](etpContext, { payload: deleteCompletion });
   assert.strictEqual(failedDelete.ok, false);
   assert.strictEqual(etpContext.db.state.policies.length, 1, 'Cleanup failure retains Policy');
-  assert.strictEqual(etpContext.db.state.correlations[0].active, 0, 'Accepted schedule DELETE remains inactive');
+  assert.strictEqual(etpContext.db.state.correlations[0].active, 1, 'Schedule DELETE is not attempted after rejected cleanup');
+  assert.deepStrictEqual(etpContext.requests.slice(beforeDelete).filter(r => r.method === 'DELETE'), []);
   etpContext.http = deleteHttp;
-  const staleDelete = await actions['delete-policy'](etpContext, { payload: deleteCompletion });
-  assert.strictEqual(staleDelete.ok, false, 'Changed correlations require a new reviewed signing intent');
-  const disableAfterFailure = await actions['disable-policy'](etpContext, { payload: { policyId: deletePayload.policyId, enabled: false } });
-  assert.strictEqual(disableAfterFailure.ok, true, disableAfterFailure.message);
-  assert.strictEqual(disableAfterFailure.policy.enabled, false);
   signingJob = null;
   const retryPayload = { ...deletePayload, intentId: require('node:crypto').randomUUID() };
   const retryDelete = await actions['prepare-policy-signing'](etpContext, { payload: retryPayload });
@@ -556,6 +555,9 @@ async function run() {
   assert.strictEqual(acceptedDelete.ok, true, acceptedDelete.message);
   assert.strictEqual(etpContext.db.state.policies.length, 0);
   assert.strictEqual(etpContext.db.state.correlations.length, 0);
+  const deleteMutations = etpContext.requests.slice(beforeDelete).filter(r => r.method === 'POST' && r.url.includes('/automations/instances/') || r.method === 'DELETE');
+  assert.strictEqual(cleanupPostAttempts, 1, 'The first cleanup POST is definitively rejected before retry');
+  assert.deepStrictEqual(deleteMutations.map(r => r.method), ['POST', 'DELETE'], 'The accepted cleanup POST precedes its schedule deletion');
   const instancePost = etpContext.requests.find(r => r.method === 'POST' && r.url.includes('/automations/instances/'));
   assert.deepStrictEqual(instancePost.data.configuration, signingJob.objects[0].configuration);
   assert.deepStrictEqual(instancePost.data.signatures[0].object_reference, { type: 'AutomationScheduleConfiguration',
@@ -625,10 +627,10 @@ async function run() {
   assert.strictEqual(removed.ok, true);
   assert.strictEqual(removed.deleted, true);
   const mutations = authoritativeContext.requests.slice(requestStart).filter((request) => request.method === 'DELETE' || request.url.includes('/automations/instances/'));
-  assert.deepStrictEqual(mutations.map((request) => request.method), ['DELETE', 'POST']);
+  assert.deepStrictEqual(mutations.map((request) => request.method), ['POST', 'DELETE']);
   assert(mutations.every((request) => request.url.includes('/org-acme')));
-  assert.deepStrictEqual(mutations[1].data.endpoints, [{ id: 'group-finance', type: 'EndpointGroup' }]);
-  assert.strictEqual(mutations[1].data.retry_minutes, '10080');
+  assert.deepStrictEqual(mutations[0].data.endpoints, [{ id: 'group-finance', type: 'EndpointGroup' }]);
+  assert.strictEqual(mutations[0].data.retry_minutes, '10080');
   assert.strictEqual((await authoritativeContext.db.all('SELECT * FROM action1_configuration_manager_scope_reservations WHERE organization_id = ?', ['org-acme'])).length, 0);
   assert.strictEqual((await actions['list-policies'](authoritativeContext)).policies.length, 0);
   const context = createFakeContext();
@@ -804,16 +806,18 @@ async function run() {
     enabled: true,
     selectedControls: [editResult.policy.selectedControls[0]]
   };
+  const removeControlRequestStart = multiContext.requests.length;
   const editRemoveResult = await actions['save-policy'](multiContext, { payload: { draft: removeControlDraft } });
   assert.strictEqual(editRemoveResult.ok, true, editRemoveResult.message);
   const enabledCleanupRequests = multiContext.requests.filter((request) => request.method === 'POST' && request.url.includes('/automations/instances/org-acme'));
   assert.strictEqual(enabledCleanupRequests.length, 1, 'Enabled deselection should create one cleanup instance');
   assert.strictEqual(enabledCleanupRequests[0].data.retry_minutes, '10080');
-  const lastEnabledMutationIndex = Math.max(...multiContext.requests
+  const editRequests = multiContext.requests.slice(removeControlRequestStart);
+  const firstEnabledMutationIndex = Math.min(...editRequests
     .map((request, index) => ({ request, index }))
     .filter(({ request }) => request.method === 'PATCH' || request.method === 'DELETE')
     .map(({ index }) => index));
-  assert(multiContext.requests.indexOf(enabledCleanupRequests[0]) > lastEnabledMutationIndex, 'Enabled cleanup must be submitted after lifecycle mutations');
+  assert(editRequests.indexOf(enabledCleanupRequests[0]) < firstEnabledMutationIndex, 'Enabled cleanup must be submitted before lifecycle mutations');
 
   const disabledContext = createFakeContext();
   const disabledInitial = await actions['save-policy'](disabledContext, { payload: { draft: multiDraft } });
@@ -846,13 +850,15 @@ async function run() {
     .filter((request) => request.method === 'POST' && request.url.includes('/automations/instances/')).length, 0);
 
   const failedCleanupContext = createFakeContext({
-    instanceResponse: { status: 500, data: { message: 'cleanup rejected' }, headers: {} }
+    instanceError: Object.assign(new Error('cleanup rejected'), { statusCode: 400 })
   });
   const failedInitial = await actions['save-policy'](failedCleanupContext, { payload: { draft: multiDraft } });
   const failedEdit = await actions['save-policy'](failedCleanupContext, {
     payload: { draft: { ...failedInitial.policy, mode: 'edit', selectedControls: [failedInitial.policy.selectedControls[0]] } }
   });
   assert.strictEqual(failedEdit.ok, false, 'Definitive cleanup failure must not report clean success');
+  assert.strictEqual(failedCleanupContext.requests.filter(request => request.method === 'DELETE' || request.method === 'PATCH').length, 0,
+    'Cleanup failure prevents subsequent Schedule mutations');
 
   const ambiguousError = Object.assign(new Error('socket timeout after POST'), { code: 'ETIMEDOUT' });
   const ambiguousCleanupContext = createFakeContext({ instanceError: ambiguousError });
@@ -861,7 +867,7 @@ async function run() {
     payload: { draft: { ...ambiguousInitial.policy, mode: 'edit', selectedControls: [ambiguousInitial.policy.selectedControls[0]] } }
   });
   assert.strictEqual(ambiguousEdit.ok, false, 'Ambiguous cleanup outcome must not report clean success');
-  assert.strictEqual(ambiguousCleanupContext.requests.filter((request) => request.method === 'POST' && request.url.includes('/automations/instances/')).length, 1, 'Ambiguous cleanup POST must not be blindly retried');
+  assert.strictEqual(ambiguousCleanupContext.requests.filter((request) => request.method === 'POST' && request.url.includes('/automations/instances/')).length, 1, 'An ambiguous POST is not automatically replayed within its operation');
   const enabled = await actions['set-policy-enabled'](disabledContext, { payload: { policyId: disabledInitial.policy.policyId, enabled: true } });
   assert.strictEqual(enabled.ok, true, enabled.message);
   assert.strictEqual(enabled.policy.enabled, true);

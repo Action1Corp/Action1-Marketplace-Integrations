@@ -40,3 +40,24 @@ test('unsigned modes complete existing actions without invoking the signer', asy
   await invokeSigningOperation(async (id, input) => { calls.push([id, input]); return { signingRequired: false }; }, 'integration', 'enable-policy', payload);
   assert.deepEqual(calls.at(-1), ['enable-policy', payload]);
 });
+
+test('reporting setup uses one Marketplace popup before the signed completion action', async () => {
+  const { invokeReportingSigningOperation } = await import(pathToFileURL(path.join(__dirname, '../ui/policies/signingFlow.js')).href);
+  const calls = [];
+  global.window = { Action1Marketplace: { provisioner: { sign: async args => { calls.push(['sign', args]); } } } };
+  const result = await invokeReportingSigningOperation(async (id, payload) => {
+    calls.push([id, payload]);
+    return id === 'prepare-reporting-signing' ? { signingRequired: true, signingId: 'job', digest: 'digest', configurationId: 'source-id' } : { ok: true, reporting: { dataSource: 'Configured', reports: 'Configured' } };
+  }, 'action1-configuration-manager', {});
+  assert.equal(result.ok, true);
+  assert.deepEqual(calls.map(call => call[0]), ['prepare-reporting-signing', 'sign', 'setup-reporting']);
+  assert.equal(calls[2][1].configurationId, 'source-id');
+});
+
+test('reporting popup cancellation does not invoke Data Source setup', async () => {
+  const { invokeReportingSigningOperation } = await import(pathToFileURL(path.join(__dirname, '../ui/policies/signingFlow.js')).href);
+  const calls = [];
+  global.window = { Action1Marketplace: { provisioner: { sign: async () => { throw Error('Signing cancelled.'); } } } };
+  await assert.rejects(() => invokeReportingSigningOperation(async (id) => { calls.push(id); return { signingRequired: true, signingId: 'job', digest: 'digest' }; }, 'integration', {}), /cancelled/);
+  assert.deepEqual(calls, ['prepare-reporting-signing']);
+});

@@ -7,6 +7,7 @@ const { buildAutomationDefinitions } = require('../automationDefinition');
 const { buildApi4CreatePayload, createAction1AutomationClient } = require('../action1AutomationClient');
 const { planSignedEdit, planSignedDelete, applyEdit, cleanupPolicy, cleanupDeselectedControls } = require('../lifecycleMutations');
 const { prepareScheduleSigning, getSignedSchedules } = require('../scheduleSigning');
+const { buildPolicyEndpointCleanupInstance } = require('../policyEndpointCleanup');
 
 function digest(value) {
   const stable = v => Array.isArray(v) ? v.map(stable) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k => [k, stable(v[k])])) : v;
@@ -94,8 +95,9 @@ function fixture() {
   const mutations = () => calls.filter(c => c.url?.includes('/automations/') && ['POST', 'PATCH', 'DELETE'].includes(c.method));
   return { context, previous, desired, controls, rows, remotes, calls, jobs, options, plan, prepare, sign, signed, mutations,
     planDelete: () => planSignedDelete(context, previous, options),
-    failPatch: () => { failPatch = true; }, failCreate: () => { failCreate = true; },
-    failInstance: () => { failInstance = true; }, failDelete: () => { failDelete = true; } };
+    failPatch: () => { failPatch = true; }, failCreate: () => { failCreate = true; }, setCreateFailure: value => { failCreate = value; },
+    failInstance: () => { failInstance = true; }, failDelete: () => { failDelete = true; },
+    setDeleteFailure: value => { failDelete = value; }, setInstanceFailure: value => { failInstance = value; } };
 }
 
 test('mixed edit preflights, signs one batch, preserves PATCH identities and submits exact host configurations', async () => {
@@ -251,9 +253,19 @@ test('mixed POST/PATCH/cleanup uses one batch and posts the exact signed instanc
   const f = fixture();
   f.previous.selectedControls.push(f.controls[1]);
   f.desired.selectedControls = [f.controls[0], f.controls[2]];
+  const removedDefinition = buildAutomationDefinitions({ ...f.previous, selectedControls: [f.controls[1]] })[0];
+  const removedSchedule = buildApi4CreatePayload(removedDefinition, f.previous.organizationId, crypto.randomUUID).payload;
+  f.rows.push({ policyId: f.previous.policyId, automationGroupId: removedDefinition.automationGroupId,
+    automationGroupVersion: removedDefinition.automationGroupVersion, controlFamilyNameSnapshot: removedDefinition.familyName,
+    action1OrganizationId: f.previous.organizationId, action1AutomationId: 'resource-to-delete',
+    action1AutomationConfigurationId: removedSchedule.configuration.id, action1AutomationActionId: removedSchedule.configuration.actions[0].id,
+    action1AutomationName: removedDefinition.name, action1AutomationSelf: 'https://app.action1.test/api/4.0/automations/schedules/synthetic-org/resource-to-delete',
+    desiredDefinitionFingerprint: removedDefinition.fingerprint, active: true });
+  f.remotes.set('resource-to-delete', { id: 'resource-to-delete', type: 'AutomationSchedule', ...removedSchedule });
   const plan = await f.plan(), prepared = await f.prepare(plan);
   assert.equal(f.jobs.size, 1);
-  assert.equal([...f.jobs.values()][0].objects.length, 3);
+  assert.deepEqual(plan.operations.map(operation => operation.type).sort(), ['CREATE', 'DELETE', 'PATCH']);
+  assert.equal([...f.jobs.values()][0].objects.length, 3, 'Only Cleanup, PATCH and POST configurations require signatures');
   f.sign();
   const current = await f.plan(), signedSchedules = await f.signed(prepared, current);
   const original = structuredClone(signedSchedules.get('cleanup').configuration);
@@ -265,11 +277,45 @@ test('mixed POST/PATCH/cleanup uses one batch and posts the exact signed instanc
   assert.equal(instance.data.configuration.type, 'AutomationScheduleConfiguration');
   assert.equal(instance.data.configuration.settings, undefined);
   assert.deepEqual(instance.data.signatures[0].object_reference, { type: original.type, id: original.id, organization_id: original.organization_id });
-  assert.equal(f.mutations().at(-1), instance);
+  assert.equal(f.mutations()[0], instance);
+  const expectedScheduleMethods = current.operations.filter(o => ['PATCH', 'CREATE'].includes(o.type)).map(o => ({ PATCH: 'PATCH', CREATE: 'POST' })[o.type]);
+  assert.deepEqual(f.mutations().slice(1).map(c => c.method), ['DELETE', ...expectedScheduleMethods]);
   assert.equal(f.rows.some(r => r.action1AutomationId === 'cleanup-resource'), false);
 });
 
-test('enabled and disabled deletion sign before DELETE, then submit cleanup once', async () => {
+test('explicit edit retry submits fresh cleanup after later Schedule failure', async () => {
+  const f = fixture();
+  f.previous.selectedControls.push(f.controls[1]);
+  f.desired.selectedControls = [f.controls[0], f.controls[2]];
+  const removedDefinition = buildAutomationDefinitions({ ...f.previous, selectedControls: [f.controls[1]] })[0];
+  const removedSchedule = buildApi4CreatePayload(removedDefinition, f.previous.organizationId, crypto.randomUUID).payload;
+  f.rows.push({ policyId: f.previous.policyId, automationGroupId: removedDefinition.automationGroupId,
+    automationGroupVersion: removedDefinition.automationGroupVersion, controlFamilyNameSnapshot: removedDefinition.familyName,
+    action1OrganizationId: f.previous.organizationId, action1AutomationId: 'resource-to-delete',
+    action1AutomationConfigurationId: removedSchedule.configuration.id, action1AutomationActionId: removedSchedule.configuration.actions[0].id,
+    action1AutomationName: removedDefinition.name, action1AutomationSelf: 'https://app.action1.test/api/4.0/automations/schedules/synthetic-org/resource-to-delete',
+    desiredDefinitionFingerprint: removedDefinition.fingerprint, active: true });
+  f.remotes.set('resource-to-delete', { id: 'resource-to-delete', type: 'AutomationSchedule', ...removedSchedule });
+  const plan = await f.plan(), prepared = await f.prepare(plan); f.sign();
+  const signedSchedules = await f.signed(prepared, await f.plan());
+  f.failCreate();
+  await assert.rejects(() => applyEdit(f.context, f.previous, f.desired, { ...f.options, operations: plan.operations, signedSchedules }), error => {
+    assert.equal(error.history.cleanup.instanceId, 'cleanup-resource');
+    assert(error.history.counts.failed >= 1);
+    return true;
+  });
+  assert.deepEqual(f.mutations().map(call => call.method), ['POST', 'DELETE', 'POST']);
+  f.setCreateFailure(false);
+  const retryPlan = await f.plan();
+  await applyEdit(f.context, f.previous, f.desired, { ...f.options, operations: retryPlan.operations, signedSchedules });
+  assert.equal(f.mutations().filter(call => call.url.includes('/automations/instances/')).length, 2,
+    'A new user-initiated edit may repeat endpoint cleanup');
+  const retryMethods = retryPlan.operations.filter(operation => ['DELETE', 'PATCH', 'CREATE'].includes(operation.type))
+    .map(operation => ({ DELETE: 'DELETE', PATCH: 'PATCH', CREATE: 'POST' })[operation.type]);
+  assert.deepEqual(f.mutations().slice(4).map(call => call.method), retryMethods);
+});
+
+test('enabled and disabled deletion sign before cleanup-first sequential schedule mutations', async () => {
   for (const enabled of [true, false]) {
     const f = fixture(); f.previous.enabled = enabled;
     if (!enabled) f.rows[0].active = false;
@@ -282,8 +328,53 @@ test('enabled and disabled deletion sign before DELETE, then submit cleanup once
     const history = await cleanupPolicy(f.context, f.previous, { ...f.options, operations: current.operations,
       cleanupInstance: current.cleanupInstance, signedCleanup: signed.get('cleanup') });
     assert.equal(history.cleanup.instanceId, 'cleanup-resource');
-    assert.deepEqual(f.mutations().map(c => c.method), enabled ? ['DELETE', 'POST'] : ['POST']);
+    assert.deepEqual(f.mutations().map(c => c.method), enabled ? ['POST', 'DELETE'] : ['POST']);
     assert.equal(f.rows[0].active, false);
+  }
+});
+
+test('74 sequential Schedule DELETEs cannot age the exact signed Cleanup Instance before its POST', async () => {
+  const f = fixture(), instance = buildPolicyEndpointCleanupInstance(f.previous);
+  const editPlan = { snapshot: {}, operations: [], cleanupInstance: instance };
+  const prepared = await f.prepare(editPlan, 'delete'); f.sign();
+  const signed = await f.signed(prepared, editPlan, 'delete');
+  const signedCleanup = signed.get('cleanup'), exactConfiguration = structuredClone(signedCleanup.configuration);
+  const rows = Array.from({ length: 74 }, (_, index) => ({ policyId: f.previous.policyId, active: true,
+    automationGroupId: `family-${index}`, controlFamilyNameSnapshot: `Family ${index}`, action1AutomationId: `schedule-${index}` }));
+  const correlations = {
+    async listCorrelations() { return rows; },
+    async markInactive(_policyId, group) { rows.find(row => row.automationGroupId === group).active = false; }
+  };
+  const actualNow = Date.now, originalHttp = f.context.http;
+  let clock = actualNow(), inFlightDeletes = 0, maxInFlightDeletes = 0;
+  Date.now = () => clock;
+  f.context.http = async input => {
+    if (input.method === 'DELETE') {
+      inFlightDeletes += 1; maxInFlightDeletes = Math.max(maxInFlightDeletes, inFlightDeletes);
+      try { const result = await originalHttp(input); clock += 3000; return result; }
+      finally { inFlightDeletes -= 1; }
+    }
+    if (input.method === 'POST' && input.url.includes('/automations/instances/')) {
+      const [date, time] = input.data.configuration.start_time.split('_');
+      const start = new Date(`${date}T${time.replaceAll('-', ':')}Z`).getTime();
+      assert(Math.abs(clock - start) <= 120000, 'Action1 start_time must be within two minutes at POST time');
+    }
+    return originalHttp(input);
+  };
+  try {
+    const history = await cleanupPolicy(f.context, f.previous, { ...f.options, correlations, operations: [],
+      cleanupInstance: instance, signedCleanup });
+    assert.equal(history.counts.deleted, 74);
+    assert.equal(f.mutations().length, 75);
+    assert(f.mutations()[0].url.includes('/automations/instances/'));
+    assert.deepEqual(f.mutations().slice(1).map(call => call.method), Array(74).fill('DELETE'));
+    assert.equal(maxInFlightDeletes, 1, 'Schedule DELETE requests remain sequential');
+    assert.deepEqual(f.mutations()[0].data.configuration, exactConfiguration, 'POST must preserve the exact signed configuration');
+    assert(clock - new Date(`${exactConfiguration.start_time.split('_')[0]}T${exactConfiguration.start_time.split('_')[1].replaceAll('-', ':')}Z`).getTime() > 120000,
+      'The simulated deletion phase exceeds Action1 start_time validity');
+  } finally {
+    f.context.http = originalHttp;
+    Date.now = actualNow;
   }
 });
 
@@ -317,25 +408,94 @@ test('delete rejects cancelled, expired, changed Policy/identity and failed sign
   }
 });
 
-test('delete cleanup failure retains inactive successful deletions and does not replay instance POST', async () => {
+test('cleanup POST failure prevents schedule DELETE and leaves correlations active', async () => {
   const f = fixture(), plan = await f.planDelete(), prepared = await f.prepare(plan, 'delete'); f.sign();
   const signed = await f.signed(prepared, await f.planDelete(), 'delete'); f.failInstance();
   await assert.rejects(() => cleanupPolicy(f.context, f.previous, { ...f.options, operations: plan.operations,
     cleanupInstance: plan.cleanupInstance, signedCleanup: signed.get('cleanup') }), error => {
-    assert.equal(error.history.counts.deleted, 1); return true;
+    assert.equal(error.history.counts.deleted, 0); assert.equal(error.history.counts.failed, 1); return true;
   });
-  assert.equal(f.rows[0].active, false);
-  assert.deepEqual(f.mutations().map(c => c.method), ['DELETE', 'POST']);
+  assert.equal(f.rows[0].active, true);
+  assert.deepEqual(f.mutations().map(c => c.method), ['POST']);
   assert.equal(f.jobs.size, 1);
 });
 
-test('failed Schedule DELETE prevents cleanup submission and retains its active correlation', async () => {
+test('cleanup POST precedes a failed Schedule DELETE and the next explicit operation may clean again', async () => {
   const f = fixture(), plan = await f.planDelete(), prepared = await f.prepare(plan, 'delete'); f.sign();
   const signed = await f.signed(prepared, await f.planDelete(), 'delete'); f.failDelete();
   await assert.rejects(() => cleanupPolicy(f.context, f.previous, { ...f.options, operations: plan.operations,
     cleanupInstance: plan.cleanupInstance, signedCleanup: signed.get('cleanup') }));
   assert.equal(f.rows[0].active, true);
-  assert.deepEqual(f.mutations().map(c => c.method), ['DELETE']);
+  assert.deepEqual(f.mutations().map(c => c.method), ['POST', 'DELETE']);
+  assert.deepEqual(f.mutations().map(c => c.method), ['POST', 'DELETE']);
+});
+
+test('an explicit delete retry submits fresh cleanup and targets only correlations left active after partial deletion', async () => {
+  const f = fixture();
+  f.previous.selectedControls.push(...f.controls.slice(1));
+  const definitions = buildAutomationDefinitions(f.previous).filter(definition => definition.automationGroupId !== f.rows[0].automationGroupId);
+  for (const [index, definition] of definitions.entries()) {
+    const schedule = buildApi4CreatePayload(definition, f.previous.organizationId, crypto.randomUUID).payload;
+    const id = `schedule-${index + 1}`;
+    f.rows.push({ policyId: f.previous.policyId, automationGroupId: definition.automationGroupId,
+      automationGroupVersion: definition.automationGroupVersion, controlFamilyNameSnapshot: definition.familyName,
+      action1OrganizationId: f.previous.organizationId, action1AutomationId: id,
+      action1AutomationConfigurationId: schedule.configuration.id, action1AutomationActionId: schedule.configuration.actions[0].id,
+      action1AutomationName: definition.name, action1AutomationSelf: `https://app.action1.test/api/4.0/automations/schedules/synthetic-org/${id}`,
+      desiredDefinitionFingerprint: definition.fingerprint, active: true });
+    f.remotes.set(id, { id, type: 'AutomationSchedule', ...schedule });
+  }
+  const originalHttp = f.context.http;
+  let failRemainingOnce = true;
+  f.context.http = async input => {
+    if (input.method === 'DELETE' && input.url.endsWith('/schedule-1') && failRemainingOnce) {
+      failRemainingOnce = false;
+      throw Object.assign(new Error('DELETE failed'), { statusCode: 500 });
+    }
+    return originalHttp(input);
+  };
+  const newIntent = () => crypto.randomUUID();
+  const prepareDelete = async (editPlan, intentId) => prepareScheduleSigning(f.context, { policy: f.previous,
+    operation: 'delete', intentId, editPlan });
+  const signedDelete = async (prepared, editPlan, intentId) => getSignedSchedules(f.context, { policy: f.previous,
+    operation: 'delete', intentId, ...prepared, editPlan });
+  const runDelete = async (editPlan, signing) => cleanupPolicy(f.context, f.previous, { ...f.options,
+    operations: editPlan.operations, cleanupInstance: editPlan.cleanupInstance, signedCleanup: signing.get('cleanup') });
+
+  const initialPlan = await f.planDelete(), firstIntent = newIntent();
+  const firstPrepared = await prepareDelete(initialPlan, firstIntent);
+  f.sign();
+  const firstSigned = await signedDelete(firstPrepared, initialPlan, firstIntent);
+  try {
+    await assert.rejects(() => runDelete(initialPlan, firstSigned), error => {
+      assert.equal(error.history.counts.deleted, 1);
+      return true;
+    });
+    assert.deepEqual(f.rows.map(row => row.active), [false, true, true], 'confirmed deletes remain persisted while remaining correlations stay active');
+
+    const retryPlan = await f.planDelete(), retryIntent = newIntent();
+    const retryPrepared = await prepareDelete(retryPlan, retryIntent);
+    f.sign();
+    const retrySigned = await signedDelete(retryPrepared, retryPlan, retryIntent);
+    const retry = await runDelete(retryPlan, retrySigned);
+    assert.equal(retry.counts.deleted, definitions.length);
+    assert.equal(f.mutations().filter(call => call.url.includes('/automations/instances/')).length, 2,
+      'an explicit user retry prepares/signs and submits a fresh Cleanup Instance');
+    assert.deepEqual(f.mutations().filter(call => call.method === 'DELETE').map(call => call.url.split('/').pop()),
+      ['resource-1', ...definitions.map((_, index) => `schedule-${index + 1}`)],
+      'retry targets only still-active Schedule correlations');
+    assert.deepEqual(f.rows.map(row => row.active), f.rows.map(() => false));
+  } finally {
+    f.context.http = originalHttp;
+  }
+});
+
+test('ambiguous Cleanup Instance POST is not automatically replayed within the operation', async () => {
+  const f = fixture(), plan = await f.planDelete(), prepared = await f.prepare(plan, 'delete'); f.sign();
+  const signed = await f.signed(prepared, await f.planDelete(), 'delete'); f.failInstance();
+  await assert.rejects(() => cleanupPolicy(f.context, f.previous, { ...f.options, operations: plan.operations,
+    cleanupInstance: plan.cleanupInstance, signedCleanup: signed.get('cleanup') }));
+  assert.deepEqual(f.mutations().map(c => c.method), ['POST']);
 });
 
 test('incomplete, expired or modified cleanup approval cannot start Schedule DELETE', async () => {

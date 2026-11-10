@@ -19,6 +19,14 @@
       "retry": false
     },
     {
+      "id": "prepare-reporting-signing",
+      "kind": "action",
+      "label": "Prepare Reporting signing",
+      "description": "Prepares the Reporting Data Source for interactive Marketplace signing.",
+      "history": false,
+      "retry": false
+    },
+    {
       "id": "get-control-pack",
       "kind": "action",
       "label": "Get Control Pack",

@@ -36,11 +36,12 @@ function getRemovedControlIds(previousPolicy, desiredPolicy) {
 
 async function cleanupDeselectedControls(context, policy, removedControlIds, options = {}) {
   const ids = Array.isArray(removedControlIds) ? removedControlIds : [];
-  if (ids.length === 0) return null;
+  if (ids.length === 0 && !options.instance) return null;
   const client = options.client || createAction1AutomationClient(context);
   await log(context, 'info', `Control state cleanup started: policy=${policy.policyId} removedControls=${ids.length}`);
   try {
     const instance = options.instance || buildDeselectedControlCleanupInstance(policy, ids);
+    await validateCleanupSigning(client, policy, instance, options.signedCleanup);
     const accepted = await client.createAutomationInstance(policy.organizationId, instance, options.signedCleanup);
     if (!accepted?.id) throw new Error('Action1 deselected-Control cleanup instance was not accepted.');
     await log(context, 'info', `Control state cleanup accepted: policy=${policy.policyId} removedControls=${ids.length}`);
@@ -49,7 +50,7 @@ async function cleanupDeselectedControls(context, policy, removedControlIds, opt
     await log(context, 'error', `Control state cleanup failed: policy=${policy.policyId} removedControls=${ids.length} message=${safeError(error)}`);
     error.history = {
       ...(error.history || {}),
-      errorCategory: 'Endpoint cleanup instance create failed',
+      errorCategory: error.history?.errorCategory || 'Endpoint cleanup instance create failed',
       removedControlCount: ids.length
     };
     throw error;
@@ -176,8 +177,18 @@ async function applyEdit(context, previousPolicy, desiredPolicy, options = {}) {
     }
   }
   const removedControlIds = getRemovedControlIds(previousPolicy, desiredPolicy);
-  if (removedControlIds.length) await validateCleanupSigning(client, desiredPolicy,
-    options.cleanupInstance || buildDeselectedControlCleanupInstance(desiredPolicy, removedControlIds), options.signedSchedules?.get('cleanup'));
+  let cleanup = null;
+  const cleanupInstance = options.cleanupInstance || (removedControlIds.length
+    ? buildDeselectedControlCleanupInstance(desiredPolicy, removedControlIds) : null);
+  if (cleanupInstance) {
+    await validateCleanupSigning(client, desiredPolicy, cleanupInstance, options.signedSchedules?.get('cleanup'));
+  }
+  if (removedControlIds.length || cleanupInstance) {
+    cleanup = await cleanupDeselectedControls(context, desiredPolicy, removedControlIds, { ...options, client, instance: cleanupInstance,
+      signedCleanup: options.signedSchedules?.get('cleanup') });
+  }
+  const orderedOperations = [...operations.filter(operation => operation.type === 'DELETE'),
+    ...operations.filter(operation => operation.type !== 'DELETE')];
   const summary = summarizeLifecycleDiff(operations);
   const applied = { updated: 0, created: 0, deleted: 0, unchanged: summary.unchanged, failed: 0 };
   const familyOutcomes = [];
@@ -185,7 +196,7 @@ async function applyEdit(context, previousPolicy, desiredPolicy, options = {}) {
   await log(context, 'debug', `Policy Edit diff: unchanged=${summary.unchanged} patch=${summary.patch} create=${summary.create} delete=${summary.delete}`);
 
   try {
-    for (const operation of operations) {
+    for (const operation of orderedOperations) {
       const family = operation.definition?.familyName || operation.correlation?.controlFamilyNameSnapshot || operation.automationGroupId;
       currentFamilyName = family;
       if (operation.type === 'UNCHANGED') {
@@ -263,8 +274,6 @@ async function applyEdit(context, previousPolicy, desiredPolicy, options = {}) {
         familyOutcomes.push({ familyName: family, outcome: 'Removed' });
       }
     }
-    const cleanup = await cleanupDeselectedControls(context, desiredPolicy, removedControlIds, { client,
-      instance: options.cleanupInstance, signedCleanup: options.signedSchedules?.get('cleanup') });
     applied.removedControls = removedControlIds.length;
     await log(context, 'info', `Policy Edit completed: ${desiredPolicy.policyId}`);
     return { policy: desiredPolicy, history: { counts: applied, familyOutcomes, cleanup } };
@@ -272,7 +281,7 @@ async function applyEdit(context, previousPolicy, desiredPolicy, options = {}) {
     if (currentFamilyName && !familyOutcomes.some((outcome) => outcome.familyName === currentFamilyName && outcome.outcome === 'Failed')) {
       familyOutcomes.push({ familyName: currentFamilyName, outcome: 'Failed' });
     }
-    error.history = { counts: { ...applied, removedControls: removedControlIds.length, failed: Math.max(1, operations.length - familyOutcomes.filter((outcome) => outcome.outcome !== 'Failed').length) }, familyOutcomes };
+    error.history = { counts: { ...applied, removedControls: removedControlIds.length, failed: Math.max(1, operations.length - familyOutcomes.filter((outcome) => outcome.outcome !== 'Failed').length) }, familyOutcomes, cleanup };
     await log(context, 'error', `Policy Edit failed: ${desiredPolicy.policyId}, message=${safeError(error)}`);
     throw error;
   }
@@ -370,8 +379,21 @@ async function cleanupPolicy(context, policy, options = {}) {
   const owned = await correlations.listCorrelations(policy.policyId, { includeInactive: true });
   const active = owned.filter((entry) => entry.active !== false);
   const cleanupInstance = options.cleanupInstance || buildPolicyEndpointCleanupInstance(policy);
-  await validateCleanupSigning(client, policy, cleanupInstance, options.signedCleanup);
   const history = { counts: { deleted: 0, failed: 0 }, familyOutcomes: [] };
+  let accepted;
+  try {
+    await validateCleanupSigning(client, policy, cleanupInstance, options.signedCleanup);
+    accepted = await client.createAutomationInstance(policy.organizationId, cleanupInstance, options.signedCleanup);
+    if (!accepted?.id) throw new Error('Action1 endpoint cleanup instance was not accepted.');
+  } catch (error) {
+    error.history = {
+      counts: { deleted: 0, failed: 1 }, familyOutcomes: [], ...(error.history || {}),
+      errorCategory: error.history?.errorCategory || 'Endpoint cleanup instance create failed'
+    };
+    await log(context, 'error', `Policy endpoint cleanup instance was not accepted: ${safeError(error)}`);
+    throw error;
+  }
+  history.cleanup = { scheduled: true, instanceId: accepted.id };
   let currentFamilyName = '';
   await log(context, 'info', `Policy Delete started: ${policy.policyId}`);
   await appendProgressCheckpoint(options.run, progressCheckpoint({
@@ -393,25 +415,11 @@ async function cleanupPolicy(context, policy, options = {}) {
     }
   } catch (error) {
     if (currentFamilyName) history.familyOutcomes.push({ familyName: currentFamilyName, outcome: 'Failed' });
-    error.history = { counts: { ...history.counts, failed: Math.max(1, owned.filter((entry) => entry.active !== false).length - history.familyOutcomes.filter((outcome) => outcome.outcome !== 'Failed').length) }, familyOutcomes: history.familyOutcomes };
+    error.history = { counts: { ...history.counts, failed: Math.max(1, owned.filter((entry) => entry.active !== false).length - history.familyOutcomes.filter((outcome) => outcome.outcome !== 'Failed').length) }, familyOutcomes: history.familyOutcomes, cleanup: history.cleanup };
     throw error;
   }
-  let accepted;
-  try {
-    accepted = await client.createAutomationInstance(policy.organizationId, cleanupInstance, options.signedCleanup);
-    if (!accepted?.id) throw new Error('Action1 endpoint cleanup instance was not accepted.');
-  } catch (error) {
-    error.history = {
-      counts: { ...history.counts, failed: 1 },
-      familyOutcomes: history.familyOutcomes,
-      errorCategory: 'Endpoint cleanup instance create failed'
-    };
-    await log(context, 'error', `Policy endpoint cleanup instance was not accepted: ${safeError(error)}`);
-    throw error;
-  }
-  history.cleanup = { scheduled: true, instanceId: accepted.id };
   await log(context, 'info', `Policy endpoint cleanup instance accepted: ${accepted.id}`);
-  await log(context, 'info', `Policy external cleanup completed: ${policy.policyId}`);
+  await log(context, 'info', `Policy cleanup request accepted: ${policy.policyId}`);
   return history;
 }
 

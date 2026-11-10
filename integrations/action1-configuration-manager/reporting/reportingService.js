@@ -2,6 +2,7 @@ const { createAction1DiscoveryClient } = require('../action1DiscoveryClient');
 const { writeOperationalLog } = require('../runtimeLogging');
 const { buildReportDefinitions, REPORTING_DATA_SOURCE_COLUMNS, REPORTS, validateReportPayload } = require('./reportDefinitions');
 const store = require('./reportingStore');
+const { getSignedDataSource, isETPContext, prepareDataSourceSigning } = require('../scheduleSigning');
 
 const DATA_SOURCE = Object.freeze({ name: 'Configuration Management - Control Status', description: 'Provides per-endpoint policy and control configuration status data for Configuration Management reports.', language: 'PowerShell' });
 const SCRIPT_PATH = require('path').join(__dirname, 'configuration-management-control-status.ps1');
@@ -56,6 +57,16 @@ function api4DataSourcePayload(script, uuidGenerator) {
   };
 }
 
+function signedDataSourcePayload(signed) {
+  const configuration = signed?.configuration;
+  if (!configuration || configuration.type !== 'DataSourceConfiguration' || typeof configuration.id !== 'string' || typeof configuration.platform !== 'string') throw new Error('Signed Reporting Data Source configuration is invalid.');
+  return {
+    configs: [configuration],
+    columns: REPORTING_DATA_SOURCE_COLUMNS,
+    signatures: [{ object_reference: { type: configuration.type, id: configuration.id, organization_id: 'all', platform: configuration.platform }, object_signature: signed.signature }]
+  };
+}
+
 async function observe(client, kind, id) {
   try {
     const payload = await client.requestAction1Mutation({ operation: `get-reporting-${kind}`, method: 'GET', path: `/${kind === 'data-source' ? 'data-sources/all' : 'reports/all'}/${encodeURIComponent(id)}` });
@@ -89,7 +100,9 @@ async function ensureDataSource(context, request, state, client, options = {}) {
   }
   if (!id) {
     await log(context, 'info', 'reporting-data-source-create-started'); await runLog(request, api4 ? 'Creating Reporting Data Source.' : 'Creating Reporting Data Source draft.');
-    const created = await client.requestAction1Mutation({ operation: 'create-reporting-data-source', method: 'POST', path: '/data-sources/all', body: api4 ? api4DataSourcePayload(script, uuidGenerator) : draftPayload(script) });
+    if (api4 && options.etpRequired && !options.signedDataSource) throw new Error('Interactive Marketplace signing is required to create the Reporting Data Source.');
+    const body = api4 && options.signedDataSource ? signedDataSourcePayload(options.signedDataSource) : (api4 ? api4DataSourcePayload(script, uuidGenerator) : draftPayload(script));
+    const created = await client.requestAction1Mutation({ operation: 'create-reporting-data-source', method: 'POST', path: '/data-sources/all', body });
     id = requiredId(created, 'Action1 Data Source id');
     if (api4 && !isApi4DataSource(created, id)) throw new Error('Action1 API 4.0 Data Source response failed structural validation.');
     await store.save(context, { dataSourceId: id });
@@ -105,6 +118,24 @@ async function ensureDataSource(context, request, state, client, options = {}) {
   await store.save(context, { dataSourceId: id });
   await runLog(request, 'Reporting Data Source published.');
   return { id, replaced };
+}
+
+async function prepareReportingSigning(context, request = {}) {
+  const client = createAction1DiscoveryClient(context);
+  const apiGeneration = await resolveApiGeneration(client);
+  if (apiGeneration !== 4 || !await isETPContext(context)) return { ok: true, signingRequired: false };
+  const state = await store.load(context);
+  if (state.dataSourceId) {
+    const observed = await observe(client, 'data-source', state.dataSourceId);
+    if (observed.state === EXISTENCE.UNRESOLVED) throw observed.error instanceof Error ? observed.error : new Error('Reporting Data Source could not be verified.');
+    if (observed.state === EXISTENCE.EXISTS && isApi4DataSource(observed.payload, state.dataSourceId)) return { ok: true, signingRequired: false };
+    if (observed.state === EXISTENCE.EXISTS) throw new Error('Action1 API 4.0 Data Source response failed structural validation.');
+  }
+  const payload = request?.payload || {};
+  const intentId = payload.intentId;
+  const configuration = api4DataSourcePayload(scriptText(), () => crypto.randomUUID()).configs[0];
+  const prepared = await prepareDataSourceSigning(context, { configuration, intentId });
+  return { ...prepared, signingRequired: true, configurationId: configuration.id };
 }
 
 async function ensureReport(context, request, client, definition, state, dataSourceReplaced, options = {}) {
@@ -136,7 +167,20 @@ async function setupReporting(context, request = {}, options = {}) {
   let state = await store.load(context);
   await runLog(request, 'Reporting setup started.');
   await log(context, 'info', 'reporting-setup-started');
-  const source = await ensureDataSource(context, request, state, client, { ...options, apiGeneration });
+  let signedDataSource = options.signedDataSource;
+  const etpRequired = apiGeneration === 4 && await isETPContext(context);
+  let dataSourceNeedsCreation = !state.dataSourceId;
+  if (apiGeneration === 4 && state.dataSourceId) {
+    const observed = await observe(client, 'data-source', state.dataSourceId);
+    if (observed.state === EXISTENCE.UNRESOLVED) throw observed.error instanceof Error ? observed.error : new Error('Reporting Data Source could not be verified.');
+    dataSourceNeedsCreation = observed.state === EXISTENCE.MISSING;
+  }
+  if (apiGeneration === 4 && etpRequired && dataSourceNeedsCreation) {
+    const payload = request?.payload || {};
+    if (!signedDataSource && payload.signingId) signedDataSource = await getSignedDataSource(context, { configuration: api4DataSourcePayload(scriptText(), () => payload.configurationId || '').configs[0], ...payload });
+    if (!signedDataSource) throw new Error('Interactive Marketplace signing is required to create the Reporting Data Source.');
+  }
+  const source = await ensureDataSource(context, request, state, client, { ...options, apiGeneration, etpRequired, signedDataSource });
   state = await store.load(context);
   const definitions = buildReportDefinitions(source.id, { apiGeneration });
   for (const definition of definitions) {
@@ -172,4 +216,4 @@ async function getReportingState(context) {
   };
 }
 
-module.exports = { DATA_SOURCE, EXISTENCE, getReportingState, getReportingStatus, isConclusiveMissing, setupReporting };
+module.exports = { DATA_SOURCE, EXISTENCE, getReportingState, getReportingStatus, isConclusiveMissing, prepareReportingSigning, setupReporting, api4DataSourcePayload };

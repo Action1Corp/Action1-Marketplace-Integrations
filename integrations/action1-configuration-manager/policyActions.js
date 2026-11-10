@@ -10,6 +10,7 @@ const { appendProgressCheckpoint, progressCheckpoint } = require('./lifecyclePro
 const { isETPContext, prepareScheduleSigning, getSignedSchedules, completeSignedPolicies } = require('./scheduleSigning');
 const { prepareReconciliationSigning } = require('./reconciliation');
 const { isDeepStrictEqual } = require('node:util');
+const { buildDeselectedControlCleanupInstance } = require('./policyEndpointCleanup');
 
 async function revalidateSignedPlan(context, store, policyId, desired, approvedPlan) {
   const current = await store.getPolicy(policyId);
@@ -165,6 +166,10 @@ async function performSavePolicy(context, request = {}, operation) {
         const signedSchedules = protectedWrites ? await getSignedSchedules(context, { ...payload, policy: desired, operation: 'edit', editPlan }) : new Map();
         if (protectedWrites) await revalidateSignedPlan(context, store, existing.policyId, desired, editPlan);
         editOptions = { operations: editPlan.operations, cleanupInstance: editPlan.cleanupInstance, signedSchedules };
+      } else {
+        const removedIds = getRemovedControlIds(existing, desired);
+        const initialPlan = { cleanupInstance: removedIds.length ? buildDeselectedControlCleanupInstance(desired, removedIds) : null };
+        editOptions = initialPlan;
       }
       await writeOperationalLog(context, 'info', 'Policy edit started', { policy: draft.policyId, controls: `${controlIds(existing).length} -> ${controlIds(draft).length}` });
       snapshot = existing;
@@ -175,7 +180,7 @@ async function performSavePolicy(context, request = {}, operation) {
         const definitions = buildAutomationDefinitions(saved);
         const removedControlIds = getRemovedControlIds(existing, saved);
         const cleanup = await cleanupDeselectedControls(context, saved, removedControlIds, {
-          instance: editOptions?.cleanupInstance, signedCleanup: editOptions?.signedSchedules.get('cleanup') });
+          instance: editOptions?.cleanupInstance, signedCleanup: editOptions?.signedSchedules?.get('cleanup') });
         await writeOperationalLog(context, 'info', 'Policy edit completed', { policy: saved.policyId, automationsUpdated: 0, automationsCreated: 0, automationsDeleted: 0, elapsed: formatRuntimeElapsed(Date.now() - startedAt) });
         return historyResult({ ok: true, message: 'Policy updated.', policy: saved }, operation, saved,
           definitions.length
@@ -346,8 +351,8 @@ async function performDeletePolicy(context, request = {}, tracked) {
     let signingOptions = {};
     if (!etp && payload.signingId) throw new Error('Marketplace connection changed. Prepare the Policy operation again.');
     if (etp) {
-      if (!payload.signingId) throw new Error('Prepare and sign Policy cleanup before deleting it.');
       const editPlan = await planSignedDelete(context, existing);
+      if (!payload.signingId) throw new Error('Prepare and sign Policy cleanup before deleting it.');
       const signed = await getSignedSchedules(context, { ...payload, policy: existing, operation: 'delete', editPlan });
       await revalidateSignedPlan(context, store, existing.policyId, null, editPlan);
       signingOptions = { operations: editPlan.operations, cleanupInstance: editPlan.cleanupInstance, signedCleanup: signed.get('cleanup') };
