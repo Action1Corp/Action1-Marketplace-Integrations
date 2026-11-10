@@ -22,8 +22,8 @@ const LOG_EVENT_TYPES = Object.freeze({
   PARTIAL_FAILURE: 'PARTIAL_FAILURE'
 });
 
-const DEFAULT_MAX_FILE_BYTES = 5 * 1024 * 1024;
-const DEFAULT_MAX_BACKUPS = 4;
+const DEFAULT_MAX_FILE_BYTES = 10 * 1024 * 1024;
+const DEFAULT_MAX_BACKUPS = 5;
 const DEFAULT_FILE_NAME = 'jira-cloud-runtime.log';
 const DEFAULT_PACKAGE_LOG_DIR = path.resolve(__dirname, '.runtime-logs');
 const LEVEL_PRIORITY = Object.freeze({
@@ -180,7 +180,6 @@ function resolveInitialState(options = {}) {
   return {
     integrationId: String(options.integrationId || 'jira-cloud'),
     run: options.run || null,
-    hostLogger: options.hostLogger || options.context?.logger || null,
     env,
     fileSystem,
     now,
@@ -188,17 +187,19 @@ function resolveInitialState(options = {}) {
     diagnosticLogLevel,
     logDir: resolveDiagnosticLogDir({
       env,
-      logDir: options.logDir
+      logDir: options.logDir,
+      packageDir: options.packageDir
     }),
     maxFileBytes: Number.isFinite(Number(options.maxFileBytes))
-      ? Math.max(1024, Math.floor(Number(options.maxFileBytes)))
+      ? Math.max(1, Math.floor(Number(options.maxFileBytes)))
       : DEFAULT_MAX_FILE_BYTES,
     maxBackups: Number.isFinite(Number(options.maxBackups))
       ? Math.max(1, Math.floor(Number(options.maxBackups)))
       : DEFAULT_MAX_BACKUPS,
     fileName: String(options.fileName || DEFAULT_FILE_NAME),
     fileFailureReported: false,
-    diagnosticFileEnabledReported: false
+    diagnosticFileEnabledReported: false,
+    fileWriteQueue: Promise.resolve()
   };
 }
 
@@ -238,11 +239,7 @@ function buildLogger(state, bindings) {
         level
       });
 
-      await Promise.all([
-        emitRunLine(state, line),
-        emitConsoleLine(state, line),
-        emitDiagnosticFileLine(state, line)
-      ]);
+      await Promise.all([emitRunLine(state, line), emitDiagnosticFileLine(state, line)]);
     },
     async debug(message, context) {
       await logger.emit({
@@ -346,76 +343,16 @@ function formatConsoleLine(line) {
   return `${line.timestamp} [jira-cloud][${line.level}] ${line.message}${suffix}`;
 }
 
-async function emitConsoleLine(state, line) {
+async function emitDiagnosticFileLine(state, line) {
   if (line.level === LOG_LEVELS.DEBUG && !state.diagnosticEnabled) {
     return;
   }
-
-  const message = formatConsoleLine(line);
-  const hostLogger = state.hostLogger;
-  try {
-    if (hostLogger && typeof hostLogger === 'object') {
-      const method =
-        line.level === LOG_LEVELS.ERROR
-          ? hostLogger.error
-          : line.level === LOG_LEVELS.WARN
-          ? hostLogger.warn
-          : line.level === LOG_LEVELS.DEBUG
-          ? hostLogger.debug || hostLogger.info
-          : hostLogger.info;
-      if (typeof method === 'function') {
-        await method.call(hostLogger, message);
-        return;
-      }
-    }
-
-    const writer =
-      line.level === LOG_LEVELS.ERROR
-        ? console.error
-        : line.level === LOG_LEVELS.WARN
-        ? console.warn
-        : console.log;
-    writer(message);
-  } catch {}
-}
-
-async function emitDiagnosticFileLine(state, line) {
-  if (!state.diagnosticEnabled) {
-    return;
-  }
-
-  try {
-    await reportDiagnosticFileEnabled(state, line);
-    await appendDiagnosticFileLine(state, line);
-  } catch (error) {
-    await emitDiagnosticFileFailure(state, line, error);
-  }
-}
-
-async function reportDiagnosticFileEnabled(state, line) {
-  if (state.diagnosticFileEnabledReported) {
-    return;
-  }
-
-  state.diagnosticFileEnabledReported = true;
-  const enabledLine = buildLine({
-    state,
-    bindings: {},
-    level: LOG_LEVELS.INFO,
-    event: {
-      runId: line.runId,
-      eventType: LOG_EVENT_TYPES.PHASE,
-      level: LOG_LEVELS.INFO,
-      timestamp: line.timestamp,
-      message: 'Jira Cloud diagnostic file logging enabled',
-      context: {
-        filePath: getDiagnosticFilePath(state)
-      }
-    }
+  const write = state.fileWriteQueue.then(async () => {
+    try { await appendDiagnosticFileLine(state, line); }
+    catch (error) { await emitDiagnosticFileFailure(state, line, error); }
   });
-
-  await emitConsoleLine(state, enabledLine);
-  await appendDiagnosticFileLine(state, enabledLine);
+  state.fileWriteQueue = write.catch(() => {});
+  await write;
 }
 
 async function appendDiagnosticFileLine(state, line) {
@@ -431,7 +368,7 @@ async function emitDiagnosticFileFailure(state, line, error) {
     return;
   }
   state.fileFailureReported = true;
-  await emitConsoleLine(state, buildLine({
+  const warningLine = buildLine({
     state,
     bindings: {},
     level: LOG_LEVELS.WARN,
@@ -445,7 +382,8 @@ async function emitDiagnosticFileFailure(state, line, error) {
         reason: sanitizeText(error?.message || 'file_logging_failed')
       }
     }
-  }));
+  });
+  try { console.warn(formatConsoleLine(warningLine)); } catch {}
 }
 
 function getDiagnosticFilePath(state) {
@@ -456,8 +394,9 @@ async function rotateFileIfNeeded(fileSystem, filePath, incomingBytes, maxFileBy
   let stats = null;
   try {
     stats = await fileSystem.stat(filePath);
-  } catch {
-    return;
+  } catch (error) {
+    if (error?.code === 'ENOENT') return;
+    throw error;
   }
 
   const currentSize = Number(stats?.size || 0);
@@ -468,12 +407,8 @@ async function rotateFileIfNeeded(fileSystem, filePath, incomingBytes, maxFileBy
   for (let index = maxBackups; index >= 1; index -= 1) {
     const source = index === 1 ? filePath : `${filePath}.${index - 1}`;
     const target = `${filePath}.${index}`;
-    try {
-      await fileSystem.rm(target, { force: true });
-    } catch {}
-    try {
-      await fileSystem.rename(source, target);
-    } catch {}
+    await fileSystem.rm(target, { force: true }).catch((error) => { if (error?.code !== 'ENOENT') throw error; });
+    await fileSystem.rename(source, target).catch((error) => { if (error?.code !== 'ENOENT') throw error; });
   }
 }
 

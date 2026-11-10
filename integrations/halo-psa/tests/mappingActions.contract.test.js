@@ -3,6 +3,9 @@ const fs = require('fs');
 const path = require('path');
 
 const originalFetch = global.fetch;
+const diagnosticLogDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'halo-mapping-logs-'));
+process.env.HALO_PSA_LOG_DIR = diagnosticLogDir;
+function diagnosticText() { try { return fs.readFileSync(path.join(diagnosticLogDir, 'halo-psa-runtime.log'), 'utf8'); } catch { return ''; } }
 
 function jsonResponse(status, payload, headers = {}) {
   const normalizedHeaders = {
@@ -370,7 +373,7 @@ async function testAction1OrganizationDiscoveryFailsSafely() {
     assert.strictEqual(result.action1Organizations.length, 0, 'missing credentials should return no organizations');
     assert(result.diagnostics.operation === 'action1_org_discovery', 'missing credentials should include Action1 discovery diagnostics');
     assert(result.diagnostics.tokenAcquired === false, 'missing credentials should show token acquisition failed');
-    assert(logger.warnings.some((entry) => entry.includes('"operation":"action1_org_discovery"')), 'missing credentials should log sanitized Action1 diagnostics');
+    assert(diagnosticText().includes('"operation":"action1_org_discovery"'), 'missing credentials should log sanitized Action1 diagnostics');
   }
 
   {
@@ -406,8 +409,8 @@ async function testAction1OrganizationDiscoveryFailsSafely() {
       assert(result.diagnostics.tokenAcquired === false, 'Action1 token failure should report token acquisition failure');
       assert(result.diagnostics.response.status === 401, 'Action1 token failure should report the HTTP status');
       assert(!result.message.includes('stored-secret-value'), 'Action1 token failure should not leak secrets');
-      assert(logger.warnings.some((entry) => entry.includes('"path":"/oauth2/token"')), 'Action1 token failure should log the token path');
-      assert(!logger.warnings.some((entry) => entry.includes('stored-secret-value')), 'Action1 token failure logs should not leak secrets');
+      assert(diagnosticText().includes('"path":"/oauth2/token"'), 'Action1 token failure should log the token path');
+      assert(!diagnosticText().includes('stored-secret-value'), 'Action1 token failure logs should not leak secrets');
     });
   }
 
@@ -458,9 +461,9 @@ async function testAction1OrganizationDiscoveryFailsSafely() {
       assert.strictEqual(result.diagnostics.response.bodyExcerpt.length <= 1000, true, 'Action1 organization fetch failure body excerpt should be truncated safely');
       assert(result.diagnostics.timestamp, 'Action1 organization fetch failure should include a timestamp');
       assert(!result.message.includes('action1-token'), 'Action1 organization fetch failure should not leak tokens');
-      assert(logger.warnings.some((entry) => entry.includes('HaloPSA mapping discovery diagnostic')), 'Action1 organization fetch failure should log a searchable diagnostic message');
-      assert(logger.warnings.some((entry) => entry.includes('"status":403')), 'Action1 organization fetch failure should log the HTTP status');
-      assert(!logger.warnings.some((entry) => entry.includes('action1-token')), 'Action1 organization fetch failure logs should not leak tokens');
+      assert(diagnosticText().includes('HaloPSA mapping discovery diagnostic'), 'Action1 organization fetch failure should log a searchable diagnostic message');
+      assert(diagnosticText().includes('"status":403'), 'Action1 organization fetch failure should log the HTTP status');
+      assert(!diagnosticText().includes('action1-token'), 'Action1 organization fetch failure logs should not leak tokens');
     });
   }
 }
@@ -598,11 +601,11 @@ async function testHaloClientDiscoveryIsReadOnlyAndSanitized() {
     assert(result.diagnostics.timestamp, 'failed Halo client discovery should include a timestamp');
     assert(!result.message.includes('halo-token'), 'failed Halo client discovery should not leak tokens');
     assert(!result.message.includes('stored-secret-value'), 'failed Halo client discovery should not leak secrets');
-    assert(logger.warnings.some((entry) => entry.includes('HaloPSA mapping discovery diagnostic')), 'failed Halo client discovery should log a searchable diagnostic message');
-    assert(logger.warnings.some((entry) => entry.includes('"operation":"halo_client_discovery"')), 'failed Halo client discovery should log sanitized discovery diagnostics');
-    assert(logger.warnings.some((entry) => entry.includes('"path":"/Client"')), 'failed Halo client discovery should log the /Client path');
-    assert(!logger.warnings.some((entry) => entry.includes('halo-token')), 'failed Halo client discovery logs should not leak tokens');
-    assert(!logger.warnings.some((entry) => entry.includes('stored-secret-value')), 'failed Halo client discovery logs should not leak secrets');
+    assert(diagnosticText().includes('HaloPSA mapping discovery diagnostic'), 'failed Halo client discovery should log a searchable diagnostic message');
+    assert(diagnosticText().includes('"operation":"halo_client_discovery"'), 'failed Halo client discovery should log sanitized discovery diagnostics');
+    assert(diagnosticText().includes('"path":"/Client"'), 'failed Halo client discovery should log the /Client path');
+    assert(!diagnosticText().includes('halo-token'), 'failed Halo client discovery logs should not leak tokens');
+    assert(!diagnosticText().includes('stored-secret-value'), 'failed Halo client discovery logs should not leak secrets');
     assert(!JSON.stringify(result.diagnostics).includes('Authorization'), 'failed Halo client discovery diagnostics should not include Authorization headers');
   });
 }

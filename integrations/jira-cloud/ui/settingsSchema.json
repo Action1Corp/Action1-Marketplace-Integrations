@@ -250,6 +250,6 @@
     "type": "checkbox",
     "group": "Diagnostics",
     "defaultValue": "false",
-    "helpText": "Keeps normal Marketplace run progress logging enabled and adds detailed sanitized support logs for troubleshooting Jira sync issues."
+    "helpText": "INFO, WARN, and ERROR runtime logs are always written. Enabling this adds sanitized DEBUG-level diagnostics for troubleshooting Jira Cloud sync issues."
   }
 ]

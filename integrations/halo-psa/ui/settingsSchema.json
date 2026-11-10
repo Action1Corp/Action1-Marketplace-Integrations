@@ -309,6 +309,6 @@
     "type": "checkbox",
     "group": "Diagnostics",
     "defaultValue": "false",
-    "helpText": "Keeps normal Marketplace run progress logging enabled and adds detailed sanitized support logs for troubleshooting HaloPSA sync issues."
+      "helpText": "Adds detailed support logs for HaloPSA sync runs."
   }
 ]

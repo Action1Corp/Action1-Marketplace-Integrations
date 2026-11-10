@@ -12,6 +12,7 @@ const {
   sanitizeMessage
 } = require('./haloApi');
 const { deleteMapping, listMappings, saveMapping } = require('./mappingStore');
+const { createMarketplaceRunLogger } = require('./runtimeLogging');
 
 function createShortFailureMessage(operation) {
   if (operation === 'action1_org_discovery') {
@@ -51,14 +52,10 @@ function buildFailureDiagnostics(operation, tokenAcquired, error, extras = {}) {
   };
 }
 
-function logDiscoveryFailure(context, diagnostics) {
+async function logDiscoveryFailure(context, diagnostics) {
   const message = `HaloPSA mapping discovery diagnostic ${JSON.stringify(diagnostics)}`;
-  if (typeof context?.logger?.warn === 'function') {
-    context.logger.warn(message);
-    return;
-  }
-
-  console.warn(message);
+  const logger = createMarketplaceRunLogger({ integrationId: 'halo-psa', logDir: context?.env?.HALO_PSA_LOG_DIR, env: context?.env || process.env });
+  await logger.warn(message);
 }
 
 async function listHaloOrgClientMappings(context) {
@@ -119,7 +116,7 @@ async function discoverAction1MappingOptions(context) {
     };
   } catch (error) {
     const diagnostics = buildFailureDiagnostics('action1_org_discovery', tokenAcquired, error);
-    logDiscoveryFailure(context, diagnostics);
+    await logDiscoveryFailure(context, diagnostics);
     return {
       ok: false,
       message: `Failed: ${createShortFailureMessage('action1_org_discovery')}`,
@@ -158,7 +155,7 @@ async function discoverHaloMappingOptions(context, request = {}) {
     const diagnostics = buildFailureDiagnostics('halo_client_discovery', tokenAcquired, error, {
       resolvedResourceServer
     });
-    logDiscoveryFailure(context, diagnostics);
+    await logDiscoveryFailure(context, diagnostics);
     return {
       ok: false,
       message: `Failed: ${createShortFailureMessage('halo_client_discovery')}`,

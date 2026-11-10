@@ -5,6 +5,9 @@ const os = require('os');
 const path = require('path');
 
 const originalFetch = global.fetch;
+const runtimeLogDir = fs.mkdtempSync(path.join(os.tmpdir(), 'halo-sync-runtime-logs-'));
+process.env.HALO_PSA_LOG_DIR = runtimeLogDir;
+function runtimeLogLines() { try { return fs.readFileSync(path.join(runtimeLogDir, 'halo-psa-runtime.log'), 'utf8').split(/\r?\n/); } catch { return []; } }
 const {
   __resetHaloTokenCache,
   createHaloAuthClient,
@@ -735,6 +738,8 @@ async function runTrackedSyncHappyPathTest() {
 async function runDiagnosticFileWriteFailureDoesNotFailSyncTest() {
   const fetchCalls = [];
   const warningLogs = [];
+  const originalConsoleWarn = console.warn;
+  console.warn = (message) => warningLogs.push(String(message));
   const context = createSyncContext({
     mappings: [
       {
@@ -821,6 +826,7 @@ async function runDiagnosticFileWriteFailureDoesNotFailSyncTest() {
       assert.strictEqual(/(ENOTDIR|EEXIST|EPERM|not a directory)/i.test(warningMatches[0]), true, 'sync warning should include a safe filesystem error');
     });
   } finally {
+    console.warn = originalConsoleWarn;
     if (originalLogDir === undefined) {
       delete process.env.HALO_PSA_LOG_DIR;
     } else {
@@ -973,12 +979,12 @@ async function runVulnerabilityServerFilteredCollectionOptimizationTest() {
     );
     assert.strictEqual(endpointFanoutUrls.length, 3, 'endpoint fan-out should only happen for qualified, deduped CVEs');
     assert.strictEqual(context.state.grouped.length, 3, 'downstream grouped vulnerability identity/correlation behavior should remain unchanged');
-    assert(diagnosticLogs.some((entry) => entry.includes('vulnerabilityFilterStrategy":"server-filtered')), 'detailed diagnostics should report the vulnerability filter strategy');
-    assert(diagnosticLogs.some((entry) => entry.includes('topLevelUniqueCvesAfterDedupe":"4"')), 'detailed diagnostics should add a clearer unique-CVE metric after dedupe');
-    assert(diagnosticLogs.some((entry) => entry.includes('crossFilterDuplicateCves":"1"')), 'detailed diagnostics should report cross-filter duplicate CVE counts');
-    assert(diagnosticLogs.some((entry) => entry.includes('serverFilterBreakdown":[{"score":"Medium","remediation_status":"Overdue","pagesFetched":"1","rawRowsFetched":"3","uniqueCves":"3","duplicateCvesWithinFilter":"0","rowsMissingCanonicalCve":"0","sampleCves":["CVE-MEDIUM-1","CVE-REJECT-HIGH","CVE-DUP-1"]},{"score":"Low","remediation_status":"Overdue","pagesFetched":"1","rawRowsFetched":"2","uniqueCves":"2","duplicateCvesWithinFilter":"0","rowsMissingCanonicalCve":"0","sampleCves":["CVE-LOW-1","CVE-DUP-1"]}]')), 'detailed diagnostics should report per-filter breakdown details');
-    assert(diagnosticLogs.some((entry) => entry.includes('crossFilterDuplicatePairs":[{"left":"score=Medium remediation_status=Overdue","right":"score=Low remediation_status=Overdue","duplicateCves":"1","sampleCves":["CVE-DUP-1"]}]')), 'detailed diagnostics should report overlapping filter pairs with capped CVE samples');
-    assert(diagnosticLogs.some((entry) => entry.includes('deepEndpointFetchesCompleted":"3"')), 'detailed diagnostics should report vulnerability endpoint fan-out counts');
+    assert(runtimeLogLines().some((entry) => entry.includes('vulnerabilityFilterStrategy":"server-filtered')), 'detailed diagnostics should report the vulnerability filter strategy');
+    assert(runtimeLogLines().some((entry) => entry.includes('topLevelUniqueCvesAfterDedupe":"4"')), 'detailed diagnostics should add a clearer unique-CVE metric after dedupe');
+    assert(runtimeLogLines().some((entry) => entry.includes('crossFilterDuplicateCves":"1"')), 'detailed diagnostics should report cross-filter duplicate CVE counts');
+    assert(runtimeLogLines().some((entry) => entry.includes('serverFilterBreakdown":[{"score":"Medium","remediation_status":"Overdue","pagesFetched":"1","rawRowsFetched":"3","uniqueCves":"3","duplicateCvesWithinFilter":"0","rowsMissingCanonicalCve":"0","sampleCves":["CVE-MEDIUM-1","CVE-REJECT-HIGH","CVE-DUP-1"]},{"score":"Low","remediation_status":"Overdue","pagesFetched":"1","rawRowsFetched":"2","uniqueCves":"2","duplicateCvesWithinFilter":"0","rowsMissingCanonicalCve":"0","sampleCves":["CVE-LOW-1","CVE-DUP-1"]}]')), 'detailed diagnostics should report per-filter breakdown details');
+    assert(runtimeLogLines().some((entry) => entry.includes('crossFilterDuplicatePairs":[{"left":"score=Medium remediation_status=Overdue","right":"score=Low remediation_status=Overdue","duplicateCves":"1","sampleCves":["CVE-DUP-1"]}]')), 'detailed diagnostics should report overlapping filter pairs with capped CVE samples');
+    assert(runtimeLogLines().some((entry) => entry.includes('deepEndpointFetchesCompleted":"3"')), 'detailed diagnostics should report vulnerability endpoint fan-out counts');
   });
 }
 
@@ -1327,14 +1333,14 @@ async function runUpdateServerFilteredCollectionOptimizationTest() {
     );
     assert.strictEqual(endpointFanoutUrls.length, 5, 'endpoint fan-out should only happen for qualified, deduped package/version rows');
     assert.strictEqual(context.state.grouped.length, 5, 'downstream grouped update identity/correlation behavior should remain unchanged');
-    assert(diagnosticLogs.some((entry) => entry.includes('updateFilterStrategy":"server-filtered')), 'detailed diagnostics should report the update filter strategy');
-    assert(diagnosticLogs.some((entry) => entry.includes('updateTopLevelUniquePackageVersionKeysAfterDedupe":"7"')), 'detailed diagnostics should report unique package/version keys after dedupe');
-    assert(diagnosticLogs.some((entry) => entry.includes('updateRowsSkippedBeforeDeepFetch":"2"')), 'detailed diagnostics should report rows skipped before deep fetch');
-    assert(diagnosticLogs.some((entry) => entry.includes('updateCrossFilterDuplicateKeys":"1"')), 'detailed diagnostics should report cross-filter duplicate update keys');
-    assert(diagnosticLogs.some((entry) => entry.includes('updateServerFilterBreakdown":[{"security_severity":"Critical","pagesFetched":"1","rawRowsFetched":"1","uniquePackageVersionKeys":"1","duplicatePackageVersionKeysWithinFilter":"0","rowsMissingPackageVersionKey":"0","sampleUpdateKeys":["pkg-critical:ver-1"]},{"security_severity":"Important","pagesFetched":"1","rawRowsFetched":"2","uniquePackageVersionKeys":"2","duplicatePackageVersionKeysWithinFilter":"0","rowsMissingPackageVersionKey":"0","sampleUpdateKeys":["pkg-important:ver-1","pkg-duplicate:ver-1"]},{"security_severity":"Moderate","pagesFetched":"1","rawRowsFetched":"3","uniquePackageVersionKeys":"3","duplicatePackageVersionKeysWithinFilter":"0","rowsMissingPackageVersionKey":"0","sampleUpdateKeys":["pkg-moderate:ver-1","pkg-reject-sla:ver-1","pkg-duplicate:ver-1"]},{"security_severity":"Low","pagesFetched":"1","rawRowsFetched":"1","uniquePackageVersionKeys":"1","duplicatePackageVersionKeysWithinFilter":"0","rowsMissingPackageVersionKey":"0","sampleUpdateKeys":["pkg-reject-low:ver-1"]},{"security_severity":"Unspecified","pagesFetched":"1","rawRowsFetched":"2","uniquePackageVersionKeys":"1","duplicatePackageVersionKeysWithinFilter":"0","rowsMissingPackageVersionKey":"1","sampleUpdateKeys":["pkg-unspecified:ver-1"]}]')), 'detailed diagnostics should report per-filter update breakdown details');
-    assert(diagnosticLogs.some((entry) => entry.includes('updateCrossFilterDuplicatePairs')), 'detailed diagnostics should report overlapping update filter pairs');
-    assert(diagnosticLogs.some((entry) => entry.includes('"left":"security_severity=Important"') && entry.includes('"right":"security_severity=Moderate"') && entry.includes('"duplicateKeys":"1"') && entry.includes('"sampleUpdateKeys":["pkg-duplicate:ver-1"]')), 'detailed diagnostics should report the overlapping Important/Moderate update pair with capped key samples');
-    assert(diagnosticLogs.some((entry) => entry.includes('updateDeepEndpointFetchesCompleted":"5"')), 'detailed diagnostics should report update endpoint fan-out counts');
+    assert(runtimeLogLines().some((entry) => entry.includes('updateFilterStrategy":"server-filtered')), 'detailed diagnostics should report the update filter strategy');
+    assert(runtimeLogLines().some((entry) => entry.includes('updateTopLevelUniquePackageVersionKeysAfterDedupe":"7"')), 'detailed diagnostics should report unique package/version keys after dedupe');
+    assert(runtimeLogLines().some((entry) => entry.includes('updateRowsSkippedBeforeDeepFetch":"2"')), 'detailed diagnostics should report rows skipped before deep fetch');
+    assert(runtimeLogLines().some((entry) => entry.includes('updateCrossFilterDuplicateKeys":"1"')), 'detailed diagnostics should report cross-filter duplicate update keys');
+    assert(runtimeLogLines().some((entry) => entry.includes('updateServerFilterBreakdown":[{"security_severity":"Critical","pagesFetched":"1","rawRowsFetched":"1","uniquePackageVersionKeys":"1","duplicatePackageVersionKeysWithinFilter":"0","rowsMissingPackageVersionKey":"0","sampleUpdateKeys":["pkg-critical:ver-1"]},{"security_severity":"Important","pagesFetched":"1","rawRowsFetched":"2","uniquePackageVersionKeys":"2","duplicatePackageVersionKeysWithinFilter":"0","rowsMissingPackageVersionKey":"0","sampleUpdateKeys":["pkg-important:ver-1","pkg-duplicate:ver-1"]},{"security_severity":"Moderate","pagesFetched":"1","rawRowsFetched":"3","uniquePackageVersionKeys":"3","duplicatePackageVersionKeysWithinFilter":"0","rowsMissingPackageVersionKey":"0","sampleUpdateKeys":["pkg-moderate:ver-1","pkg-reject-sla:ver-1","pkg-duplicate:ver-1"]},{"security_severity":"Low","pagesFetched":"1","rawRowsFetched":"1","uniquePackageVersionKeys":"1","duplicatePackageVersionKeysWithinFilter":"0","rowsMissingPackageVersionKey":"0","sampleUpdateKeys":["pkg-reject-low:ver-1"]},{"security_severity":"Unspecified","pagesFetched":"1","rawRowsFetched":"2","uniquePackageVersionKeys":"1","duplicatePackageVersionKeysWithinFilter":"0","rowsMissingPackageVersionKey":"1","sampleUpdateKeys":["pkg-unspecified:ver-1"]}]')), 'detailed diagnostics should report per-filter update breakdown details');
+    assert(runtimeLogLines().some((entry) => entry.includes('updateCrossFilterDuplicatePairs')), 'detailed diagnostics should report overlapping update filter pairs');
+    assert(runtimeLogLines().some((entry) => entry.includes('"left":"security_severity=Important"') && entry.includes('"right":"security_severity=Moderate"') && entry.includes('"duplicateKeys":"1"') && entry.includes('"sampleUpdateKeys":["pkg-duplicate:ver-1"]')), 'detailed diagnostics should report the overlapping Important/Moderate update pair with capped key samples');
+    assert(runtimeLogLines().some((entry) => entry.includes('updateDeepEndpointFetchesCompleted":"5"')), 'detailed diagnostics should report update endpoint fan-out counts');
   });
 }
 

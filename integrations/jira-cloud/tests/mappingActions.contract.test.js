@@ -3,6 +3,9 @@ const fs = require('fs');
 const path = require('path');
 
 const originalFetch = global.fetch;
+const diagnosticLogDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'jira-mapping-logs-'));
+process.env.JIRA_CLOUD_LOG_DIR = diagnosticLogDir;
+function diagnosticText() { try { return fs.readFileSync(path.join(diagnosticLogDir, 'jira-cloud-runtime.log'), 'utf8'); } catch { return ''; } }
 
 function createMappingDbContext(initialRows = []) {
   const state = {
@@ -506,7 +509,8 @@ async function testJiraIssueTypeDiscoveryIsProjectScopedAndSafe() {
       assert.strictEqual(result.jiraProjectId, '100', 'failed Jira issue type discovery should echo the selected project id');
       assert(!result.message.includes('top-secret'), 'failed Jira issue type discovery should not leak tokens');
       assert(!JSON.stringify(result.diagnostics).includes('Authorization'), 'failed Jira issue type discovery diagnostics should not include Authorization headers');
-      assert(logger.warnings.some((entry) => entry.includes('Jira Cloud mapping discovery diagnostic')), 'failed Jira issue type discovery should log sanitized diagnostics');
+      assert(diagnosticText().includes('Jira Cloud mapping discovery diagnostic'), 'failed Jira issue type discovery should log sanitized diagnostics to the runtime file');
+      assert(!diagnosticText().includes('top-secret'), 'mapping discovery file diagnostics should redact API tokens');
     });
   }
 }

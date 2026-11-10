@@ -41,7 +41,7 @@ function run() {
   assert(!settingsSource.includes('New Ticket Status'), 'Settings.jsx should not copy HaloPSA new-status settings into Jira settings');
   assert(!settingsSource.includes('Closed Status'), 'Settings.jsx should not copy HaloPSA closed-status selectors into Jira settings');
 
-  const mappingSource = fs.readFileSync(path.join(__dirname, '..', 'ui', 'Mapping.jsx'), 'utf8');
+  const mappingSource = fs.readFileSync(path.join(__dirname, '..', 'ui', 'Mapping.jsx'), 'utf8').replace(/\r\n/g, '\n');
   assert(mappingSource.includes("list: 'list-jira-org-project-mappings'"), 'Mapping.jsx should define the mapping list action id');
   assert(mappingSource.includes("save: 'save-jira-org-project-mapping'"), 'Mapping.jsx should define the mapping save action id');
   assert(mappingSource.includes("remove: 'delete-jira-org-project-mapping'"), 'Mapping.jsx should define the mapping delete action id');

@@ -12,6 +12,7 @@ const {
   sanitizeMessage
 } = require('./jiraApi');
 const { deleteMapping, listMappings, saveMapping } = require('./mappingStore');
+const { createMarketplaceRunLogger } = require('./runtimeLogging');
 
 function createShortFailureMessage(operation) {
   if (operation === 'action1_org_discovery') {
@@ -60,14 +61,10 @@ function buildFailureDiagnostics(operation, error, extras = {}) {
   };
 }
 
-function logDiscoveryFailure(context, diagnostics) {
+async function logDiscoveryFailure(context, diagnostics) {
   const message = `Jira Cloud mapping discovery diagnostic ${JSON.stringify(diagnostics)}`;
-  if (typeof context?.logger?.warn === 'function') {
-    context.logger.warn(message);
-    return;
-  }
-
-  console.warn(message);
+  const logger = createMarketplaceRunLogger({ integrationId: 'jira-cloud', logDir: context?.env?.JIRA_CLOUD_LOG_DIR, env: context?.env || process.env });
+  await logger.warn(message);
 }
 
 async function listJiraOrgProjectMappings(context) {
@@ -125,7 +122,7 @@ async function discoverAction1MappingOptions(context) {
     };
   } catch (error) {
     const diagnostics = buildFailureDiagnostics('action1_org_discovery', error);
-    logDiscoveryFailure(context, diagnostics);
+    await logDiscoveryFailure(context, diagnostics);
     return {
       ok: false,
       message: `Failed: ${createShortFailureMessage('action1_org_discovery')}`,
@@ -161,7 +158,7 @@ async function discoverJiraProjectMappingOptions(context, request = {}) {
     const diagnostics = buildFailureDiagnostics('jira_project_discovery', error, {
       resolvedSiteUrl
     });
-    logDiscoveryFailure(context, diagnostics);
+    await logDiscoveryFailure(context, diagnostics);
     return {
       ok: false,
       message: `Failed: ${createShortFailureMessage('jira_project_discovery')}`,
@@ -208,7 +205,7 @@ async function discoverJiraIssueTypeMappingOptions(context, request = {}) {
       jiraProjectId,
       resolvedSiteUrl
     });
-    logDiscoveryFailure(context, diagnostics);
+    await logDiscoveryFailure(context, diagnostics);
     return {
       ok: false,
       message: `Failed: ${createShortFailureMessage('jira_issue_type_discovery')}`,

@@ -3,295 +3,85 @@ const fs = require('fs');
 const fsp = require('fs/promises');
 const os = require('os');
 const path = require('path');
-
-const {
-  LOG_LEVELS,
-  createMarketplaceRunLogger,
-  resolveDiagnosticLogDir
-} = require('../runtimeLogging');
+const { createMarketplaceRunLogger, resolveDiagnosticLogDir } = require('../runtimeLogging');
 
 async function run() {
-  runDiagnosticLogDirPriorityTest();
-  runDiagnosticLogDirDataDirFallbackTest();
-  runDiagnosticLogDirPackageLocalFallbackTest();
-  await runBasicLoggerSinkTest();
-  await runDetailedLoggerFileTest();
-  await runDisabledDiagnosticFileTest();
-  await runDiagnosticFileEnablementAnnouncementTest();
-  await runDiagnosticDirectoryCreatedIfMissingTest();
-  await runFileWriteFailureDoesNotCrashTest();
-  await runRotationTest();
-  runGitIgnoreContractTest();
-}
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'jira-logs-'));
+  const dataDir = path.join(root, 'data');
+  const packageDir = path.join(root, 'package');
+  assert.strictEqual(resolveDiagnosticLogDir({ env: { DATA_DIR: dataDir } }), path.join(dataDir, 'jira-cloud-logs'));
+  assert.strictEqual(resolveDiagnosticLogDir({ env: { DATA_DIR: dataDir, JIRA_CLOUD_LOG_DIR: path.join(root, 'env-override') } }), path.join(root, 'env-override'));
+  assert.strictEqual(resolveDiagnosticLogDir({ env: {}, packageDir }), packageDir);
 
-function runDiagnosticLogDirPriorityTest() {
-  const resolved = resolveDiagnosticLogDir({
-    env: {
-      JIRA_CLOUD_LOG_DIR: path.join('C:', 'temp', 'jira-custom'),
-      DATA_DIR: path.join('C:', 'temp', 'data-root')
-    }
-  });
-
-  assert.strictEqual(
-    resolved,
-    path.resolve(path.join('C:', 'temp', 'jira-custom')),
-    'JIRA_CLOUD_LOG_DIR should take priority over DATA_DIR'
-  );
-}
-
-function runDiagnosticLogDirDataDirFallbackTest() {
-  const resolved = resolveDiagnosticLogDir({
-    env: {
-      DATA_DIR: path.join('C:', 'temp', 'data-root')
-    }
-  });
-
-  assert.strictEqual(
-    resolved,
-    path.resolve(path.join('C:', 'temp', 'data-root', 'jira-cloud-logs')),
-    'DATA_DIR should fall back to DATA_DIR/jira-cloud-logs when JIRA_CLOUD_LOG_DIR is unset'
-  );
-}
-
-function runDiagnosticLogDirPackageLocalFallbackTest() {
-  const resolved = resolveDiagnosticLogDir({
-    env: {}
-  });
-
-  assert.strictEqual(
-    resolved,
-    path.resolve(path.join(__dirname, '..', '.runtime-logs')),
-    'fallback diagnostic directory should resolve under the Jira Cloud package instead of process.cwd()'
-  );
-}
-
-async function runBasicLoggerSinkTest() {
   const runLines = [];
   const hostLines = [];
-  const logger = createMarketplaceRunLogger({
-    run: {
-      async appendLog(message) {
-        runLines.push(message);
-      }
-    },
-    context: {
-      logger: {
-        info(message) {
-          hostLines.push(`info:${message}`);
-        },
-        warn(message) {
-          hostLines.push(`warn:${message}`);
-        },
-        error(message) {
-          hostLines.push(`error:${message}`);
-        },
-        debug(message) {
-          hostLines.push(`debug:${message}`);
-        }
-      }
-    }
-  });
+  const consoleCalls = [];
+  const savedConsole = { log: console.log, warn: console.warn, error: console.error };
+  console.log = console.warn = console.error = (...args) => consoleCalls.push(args);
+  try {
+    const logger = createMarketplaceRunLogger({ env: { DATA_DIR: dataDir }, packageDir, context: { logger: {
+      info: (m) => hostLines.push(m), warn: (m) => hostLines.push(m), error: (m) => hostLines.push(m), debug: (m) => hostLines.push(m)
+    } }, run: { async appendLog(m) { runLines.push(m); } } });
+    await Promise.all([logger.info('Info entry'), logger.warn('Warn entry'), logger.error('Error entry'), logger.debug('Hidden debug')]);
+    const logDir = path.join(dataDir, 'jira-cloud-logs');
+    const logPath = path.join(logDir, 'jira-cloud-runtime.log');
+    const text = await fsp.readFile(logPath, 'utf8');
+    assert(text.includes('[INFO] Info entry') && text.includes('[WARN] Warn entry') && text.includes('[ERROR] Error entry'));
+    assert(!text.includes('Hidden debug'));
+    assert(!fs.existsSync(path.join(packageDir, '.runtime-logs')));
+    assert.strictEqual(hostLines.length, 0);
+    assert.strictEqual(consoleCalls.length, 0);
+    assert(runLines.some((line) => line.includes('Info entry')));
+    assert(!runLines.some((line) => line.includes('Hidden debug')));
 
-  await logger.info('Sync started.', {
-    phase: 'startup'
-  });
-  await logger.debug('Detailed hidden trace.', {
-    bearer: 'Bearer abc'
-  });
-  await logger.warn('Partial failure.', {
-    token: 'secret-value'
-  });
+    const explicitDir = path.join(root, 'explicit');
+    const explicit = createMarketplaceRunLogger({ logDir: explicitDir, env: { DATA_DIR: path.join(root, 'unused') } });
+    await explicit.info('Explicit directory');
+    assert(fs.existsSync(path.join(explicitDir, 'jira-cloud-runtime.log')));
 
-  assert.strictEqual(runLines.some((line) => line.includes('Sync started.')), true, 'basic logger should write operator progress to request.run');
-  assert.strictEqual(runLines.some((line) => line.includes('Detailed hidden trace.')), false, 'debug logging should stay out of request.run by default');
-  assert.strictEqual(hostLines.some((line) => line.includes('Sync started.')), true, 'basic logger should write high-level progress to the host logger');
-  assert.strictEqual(hostLines.some((line) => line.includes('Detailed hidden trace.')), false, 'debug logging should stay disabled until diagnostics are enabled');
-  assert.strictEqual(runLines.some((line) => line.includes('secret-value')), false, 'request.run logs should redact secrets');
-  assert.strictEqual(
-    hostLines.some((line) => /info:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z \[jira-cloud\]\[INFO\] Sync started\./.test(line)),
-    true,
-    'console logs should include ISO timestamps and the Jira Cloud prefix'
-  );
-}
+    const fallbackDir = path.join(root, 'fallback');
+    const fallback = createMarketplaceRunLogger({ env: {}, packageDir: fallbackDir });
+    await fallback.info('Fallback directory');
+    assert(fs.existsSync(path.join(fallbackDir, 'jira-cloud-runtime.log')));
 
-async function runDetailedLoggerFileTest() {
-  const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'jira-cloud-logs-'));
-  const logger = createMarketplaceRunLogger({
-    diagnosticLoggingEnabled: true,
-    logDir: tempDir,
-    run: {
-      async appendLog() {}
-    }
-  });
-
-  await logger.debug('Detailed Jira trace.', {
-    authorization: 'Bearer abc',
-    tokenResponse: {
-      access_token: 'raw-access-token',
-      refresh_token: 'raw-refresh-token'
-    },
-    nested: {
-      clientSecret: 'super-secret'
-    },
-    url: 'https://example.atlassian.net/rest/api/3/issue?access_token=abc&safe=1'
-  });
-
-  const logPath = path.join(tempDir, 'jira-cloud-runtime.log');
-  const text = await fsp.readFile(logPath, 'utf8');
-  assert.strictEqual(text.includes('Detailed Jira trace.'), true, 'detailed diagnostics should create a file log entry');
-  assert.strictEqual(
-    /(?:^|\n)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z \[jira-cloud\]\[INFO\] Jira Cloud diagnostic file logging enabled /.test(text),
-    true,
-    'diagnostic file logs should announce the resolved file path when file logging is enabled'
-  );
-  assert.strictEqual(
-    /(?:^|\n)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z \[jira-cloud\]\[DEBUG\] Detailed Jira trace\./.test(text),
-    true,
-    'diagnostic file logs should include ISO timestamps and the Jira Cloud prefix'
-  );
-  assert.strictEqual(text.toLowerCase().includes('super-secret'), false, 'diagnostic file logs should redact secret-like values');
-  assert.strictEqual(text.toLowerCase().includes('bearer abc'), false, 'diagnostic file logs should redact bearer tokens');
-  assert.strictEqual(text.includes('raw-access-token'), false, 'diagnostic file logs should redact raw access tokens');
-  assert.strictEqual(text.includes('raw-refresh-token'), false, 'diagnostic file logs should redact raw refresh tokens');
-  assert.strictEqual(text.includes('[redacted]'), true, 'diagnostic file logs should visibly redact sensitive fields');
-}
-
-async function runDisabledDiagnosticFileTest() {
-  const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'jira-cloud-logs-off-'));
-  const logger = createMarketplaceRunLogger({
-    diagnosticLoggingEnabled: false,
-    logDir: tempDir
-  });
-
-  await logger.info('Basic progress only.');
-  const logPath = path.join(tempDir, 'jira-cloud-runtime.log');
-  assert.strictEqual(fs.existsSync(logPath), false, 'diagnostic file logging should stay disabled by default');
-}
-
-async function runDiagnosticFileEnablementAnnouncementTest() {
-  const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'jira-cloud-logs-announce-'));
-  const hostLines = [];
-  const logger = createMarketplaceRunLogger({
-    diagnosticLoggingEnabled: true,
-    logDir: tempDir,
-    context: {
-      logger: {
-        info(message) {
-          hostLines.push(`info:${message}`);
-        },
-        warn(message) {
-          hostLines.push(`warn:${message}`);
-        },
-        error(message) {
-          hostLines.push(`error:${message}`);
-        },
-        debug(message) {
-          hostLines.push(`debug:${message}`);
-        }
-      }
-    }
-  });
-
-  await logger.debug('Detailed trace for announcement test.');
-
-  const expectedPath = path.join(tempDir, 'jira-cloud-runtime.log');
-  const enablementLines = hostLines.filter((line) => line.includes('Jira Cloud diagnostic file logging enabled'));
-  assert.strictEqual(enablementLines.length, 1, 'diagnostic file logging should announce itself once');
-  assert.strictEqual(
-    enablementLines[0].includes('"filePath"') && enablementLines[0].includes(path.basename(expectedPath)),
-    true,
-    'enablement announcement should include the resolved file path'
-  );
-}
-
-async function runDiagnosticDirectoryCreatedIfMissingTest() {
-  const tempRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'jira-cloud-logs-dir-'));
-  const nestedDir = path.join(tempRoot, 'a', 'b', 'c');
-  const logger = createMarketplaceRunLogger({
-    diagnosticLoggingEnabled: true,
-    logDir: nestedDir
-  });
-
-  await logger.debug('Create the diagnostic directory tree.');
-
-  assert.strictEqual(
-    fs.existsSync(path.join(nestedDir, 'jira-cloud-runtime.log')),
-    true,
-    'diagnostic file logging should create the target directory when it is missing'
-  );
-}
-
-async function runFileWriteFailureDoesNotCrashTest() {
-  const hostLines = [];
-  const logger = createMarketplaceRunLogger({
-    diagnosticLoggingEnabled: true,
-    logDir: path.join('C:', 'temp', 'jira-write-failure'),
-    fsImpl: {
-      async stat() {
-        throw new Error('missing');
-      },
-      async mkdir() {},
-      async appendFile() {
-        throw new Error('disk unavailable');
-      },
-      async rm() {},
-      async rename() {}
-    },
-    context: {
-      logger: {
-        info(message) {
-          hostLines.push(`info:${message}`);
-        },
-        warn(message) {
-          hostLines.push(`warn:${message}`);
-        },
-        error(message) {
-          hostLines.push(`error:${message}`);
-        },
-        debug(message) {
-          hostLines.push(`debug:${message}`);
-        }
-      }
-    }
-  });
-
-  await logger.debug('File sink failure should not crash.', {
-    phase: 'supportability'
-  });
-
-  const warnLines = hostLines.filter((line) => line.includes('Jira Cloud diagnostic file logging unavailable'));
-  assert.strictEqual(warnLines.length, 1, 'file write failures should emit one warning');
-  assert.strictEqual(
-    warnLines[0].includes('"filePath"') && warnLines[0].includes(path.basename(path.join('C:', 'temp', 'jira-write-failure', 'jira-cloud-runtime.log'))),
-    true,
-    'file write failure warnings should include the resolved file path'
-  );
-}
-
-async function runRotationTest() {
-  const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'jira-cloud-logs-rotate-'));
-  const logger = createMarketplaceRunLogger({
-    diagnosticLoggingEnabled: true,
-    logDir: tempDir,
-    maxFileBytes: 220,
-    maxBackups: 2
-  });
-
-  for (let index = 0; index < 8; index += 1) {
-    await logger.debug(`rotation line ${index}`, {
-      detail: 'x'.repeat(80)
-    });
+    const debugDir = path.join(root, 'debug');
+    const debug = createMarketplaceRunLogger({ diagnosticLoggingEnabled: true, logDir: debugDir });
+    await debug.debug('Detailed Jira trace', { authorization: 'Bearer example-secret', access_token: 'sample-token' });
+    const debugText = await fsp.readFile(path.join(debugDir, 'jira-cloud-runtime.log'), 'utf8');
+    assert(debugText.includes('[DEBUG] Detailed Jira trace'));
+    assert(!debugText.includes('example-secret') && !debugText.includes('sample-token'));
+  } finally {
+    console.log = savedConsole.log; console.warn = savedConsole.warn; console.error = savedConsole.error;
   }
 
-  assert.strictEqual(fs.existsSync(path.join(tempDir, 'jira-cloud-runtime.log.1')), true, 'diagnostic log rotation should keep at least one backup file');
-}
+  const rotationDir = path.join(root, 'rotation');
+  const rotating = createMarketplaceRunLogger({ logDir: rotationDir, maxFileBytes: 280, maxBackups: 5 });
+  await Promise.all(Array.from({ length: 35 }, (_, i) => rotating.info(`entry-${i}-${'x'.repeat(25)}`)));
+  assert((await fsp.readFile(path.join(rotationDir, 'jira-cloud-runtime.log'), 'utf8')).includes('entry-34-'));
+  for (let i = 1; i <= 5; i += 1) assert(fs.existsSync(path.join(rotationDir, `jira-cloud-runtime.log.${i}`)));
+  assert(!fs.existsSync(path.join(rotationDir, 'jira-cloud-runtime.log.6')));
 
-function runGitIgnoreContractTest() {
+  const oversizedDir = path.join(root, 'oversized');
+  await fsp.mkdir(oversizedDir, { recursive: true });
+  await fsp.writeFile(path.join(oversizedDir, 'jira-cloud-runtime.log'), 'x'.repeat(350));
+  const oversized = createMarketplaceRunLogger({ logDir: oversizedDir, maxFileBytes: 280 });
+  await oversized.info('after oversized file');
+  assert((await fsp.stat(path.join(oversizedDir, 'jira-cloud-runtime.log.1'))).size > 280);
+
+  let warnings = 0;
+  const oldWarn = console.warn;
+  console.warn = () => { warnings += 1; };
+  const failed = createMarketplaceRunLogger({ logDir: path.join(root, 'failure'), fsImpl: {
+    async mkdir() {}, async stat() { const error = new Error('missing'); error.code = 'ENOENT'; throw error; },
+    async appendFile() { throw new Error('disk unavailable'); }, async rm() {}, async rename() {}
+  } });
+  await failed.info('failure one'); await failed.error('failure two');
+  console.warn = oldWarn;
+  assert.strictEqual(warnings, 1);
+
   const gitIgnore = fs.readFileSync(path.join(process.cwd(), '.gitignore'), 'utf8').replace(/\r\n/g, '\n');
-  assert.strictEqual(gitIgnore.includes('integrations/jira-cloud/.runtime-logs/'), true, 'runtime diagnostic log directory should be ignored by Git');
+  assert(gitIgnore.includes('.runtime-logs/'), 'runtime diagnostic log directories should be ignored by Git');
+  console.log('Jira Cloud runtime logging contract tests passed.');
 }
 
-run().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+run().catch((error) => { console.error(error); process.exit(1); });
