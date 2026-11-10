@@ -1,3 +1,4 @@
+const { randomUUID } = require('crypto');
 const { listAction1AutomationSchedules, listAction1EndpointGroups, listAction1Organizations, listDeviceGroups, normalizeAction1AutomationSchedule, validate, validateAssignments } = require('./validate');
 const { sync } = require('./sync');
 const { createIntunePolicyStore } = require('./policyStore');
@@ -177,7 +178,7 @@ function isProtectedAction1EndpointGroup(group) {
 }
 
 function action1EndpointGroupEditUrl(credentials, organizationId, groupId) {
-  return `${action1BaseUrl(credentials).replace(/\/api\/3\.0$/i, '')}/console/endpoints/groups/${encodeURIComponent(groupId)}/settings?org=${encodeURIComponent(organizationId)}`;
+  return `${action1BaseUrl(credentials).replace(/\/api\/(?:3\.0|4\.0)$/i, '')}/console/endpoints/groups/${encodeURIComponent(groupId)}/settings?org=${encodeURIComponent(organizationId)}`;
 }
 
 async function createAction1EndpointGroupAction(context, request = {}) {
@@ -416,6 +417,9 @@ async function ensureProvisioningGroupFilters(context, policy) {
   const headers = { Authorization: `Bearer ${token}` };
   const jsonHeaders = { ...headers, 'Content-Type': 'application/json' };
   const attribute = ACTION1_PROVISIONING_CUSTOM_ATTRIBUTE;
+  const api4 = /\/api\/4\.0\/?$/.test(base);
+  const attributeValue = attributes => api4 ? attributes : JSON.stringify(attributes);
+  try {
   let attributeSetting = null;
   for (let offset = 0; offset < 500; offset += 100) {
     const response = await context.http.get(`${base}/settings/all?limit=100&from=${offset}`, { headers });
@@ -427,23 +431,38 @@ async function ensureProvisioningGroupFilters(context, policy) {
   if (attributeSetting) {
     let attributes;
     try {
-      attributes = JSON.parse(attributeSetting.value || '[]');
+      attributes = Array.isArray(attributeSetting.value) ? attributeSetting.value : JSON.parse(attributeSetting.value || '[]');
     } catch {
       throw new Error('Action1 endpoint custom attribute settings are invalid.');
     }
     if (!Array.isArray(attributes)) throw new Error('Action1 endpoint custom attribute settings are invalid.');
     if (!attributes.some(item => String(item?.name || '').trim().toLowerCase() === attribute.toLowerCase())) {
       await context.http.patch(`${base}/settings/all/${encodeURIComponent(attributeSetting.id)}`, {
-        value: JSON.stringify([...attributes, { name: attribute }]),
+        value: attributeValue([...attributes, { name: attribute }]),
         scope: attributeSetting.scope || [{ type: 'Enterprise', object: 'All' }]
       }, { headers: jsonHeaders });
     }
   } else {
+    // API 4 may omit console-managed attribute definitions from settings/all.
+    // A positive match on an endpoint proves the attribute already exists.
+    let attributeExists = false;
+    if (api4) {
+      const response = await context.http.get(`${base}/endpoints/managed/${encodeURIComponent(policy.organizationId)}?limit=1&fields=*`, { headers });
+      const endpoints = Array.isArray(response.data) ? response.data : response.data?.items || [];
+      attributeExists = endpoints.some(endpoint => Array.isArray(endpoint.custom) && endpoint.custom.some(item =>
+        String(item?.name || '').trim().toLowerCase() === attribute.toLowerCase()));
+    }
+    if (!attributeExists) {
     await context.http.post(`${base}/settings/all`, {
       template_id: 'endpoint_custom_attributes',
-      value: JSON.stringify([{ name: attribute }]),
+      value: attributeValue([{ name: attribute }]),
       scope: [{ type: 'Enterprise', object: 'All' }]
     }, { headers: jsonHeaders });
+    }
+  }
+
+  } catch (error) {
+    throw new Error(`Could not prepare the provisioning custom attribute: ${error.response?.data?.user_message || error.response?.data?.developer_message || error.message}`);
   }
 
   const field = `custom:${attribute}`;
@@ -481,12 +500,23 @@ async function createAction1AutomationAction(context, request = {}) {
   const credentials = await context.action1.getCredentials();
   if (!credentials.apiKey || !credentials.apiSecret) throw new Error('Action1 API credentials are required.');
 
+  // Shells are disabled placeholders. The user completes and signs them in Action1.
+  const api4 = /\/api\/4\.0\/?$/.test(action1BaseUrl(credentials));
+  if ((credentials.etpEnabled || credentials.etpMode === 'etp') && !api4) throw new Error('ETP shell creation requires an API 4.0 connection.');
+  if (!/^DISABLED\b/.test(payload.settings)) throw new Error('Automation shells must be disabled.');
+  const { endpoints, ...configuration } = payload;
+  const body = api4 ? {
+    configuration: { ...configuration, id: randomUUID(), type: 'AutomationScheduleConfiguration', organization_id: organizationId,
+      actions: configuration.actions.map(action => ({ ...action, id: randomUUID() })) },
+    endpoints
+  } : payload;
+
   const token = await getAction1Token(context, credentials);
   let response;
   try {
     response = await context.http.post(
       `${action1BaseUrl(credentials)}/automations/schedules/${encodeURIComponent(organizationId)}`,
-      payload,
+      body,
       { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
@@ -580,6 +610,8 @@ async function patchHourlySchedule(context, url, headers, rawSchedule, enabledAt
 }
 
 async function enableHourlyProvisioningAutomationAction(context, request = {}) {
+  const credentials = await context.action1.getCredentials();
+  if (/\/api\/4\.0\/?$/.test(credentials.baseUrl || '')) throw new Error('Enabling API 4.0 automations is not available in this preview while schedule updates are being validated.');
   const enabledAt = new Date();
   const { url, headers, schedule, rawSchedule } = await getProvisioningAutomationForMutation(context, request);
   if (schedule.enabled) return { ok: true, automationId: schedule.id, enabled: true };

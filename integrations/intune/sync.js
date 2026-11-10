@@ -905,6 +905,7 @@ function action1InstanceTime(instance) {
 }
 
 function action1ScheduleFrequencyMinutes(schedule, instance) {
+    schedule = schedule?.configuration ? { ...schedule, ...schedule.configuration } : schedule;
     const settings = firstString(schedule?.settings);
     const everyMatch = settings.match(/\bEVERY:(\d+)\b/i);
     if (everyMatch) return Number(everyMatch[1]);
@@ -1048,6 +1049,7 @@ async function fetchProvisioningSchedules(headers, action1OrgId, selectedAction1
 
     return schedules
         .map(schedule => {
+            schedule = schedule.configuration ? { ...schedule, ...schedule.configuration, id: schedule.id, endpoints: schedule.endpoints } : schedule;
             const scheduleGroupIds = action1GroupIds(schedule?.endpoints || schedule?.endpoint_groups || schedule?.endpointGroups || schedule?.targets);
             return {
                 schedule,

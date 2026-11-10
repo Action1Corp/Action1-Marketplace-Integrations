@@ -87,10 +87,53 @@ test('enrollment-only profiles do not change Action1 groups', async () => {
 test('profile save creates the provisioning attribute before updating groups when missing', async () => {
   const { context, calls } = setup({ 'group-1': { exclude_filter: [] } });
   const get = context.http.get;
-  context.http.get = async url => url.includes('/settings/all') ? { data: { items: [] } } : get(url);
+  context.http.get = async url => url.includes('/settings/all') ? { data: { items: [] } } : url.includes('/endpoints/managed/') ? { data: { items: [] } } : get(url);
   const result = await integration.actions['save-policy'](context, { payload: { policy: profile() } });
   assert.equal(result.ok, true);
   const settingCall = calls.find(call => call[0] === 'post' && call[1].endsWith('/settings/all'));
   assert.deepEqual(JSON.parse(settingCall[2].value), [{ name: 'Action1 Provisioning Status' }]);
   assert.ok(calls.indexOf(settingCall) < calls.findIndex(call => call[0] === 'patch'));
+});
+
+test('API 4 creates attribute definitions as arrays', async () => {
+  const { context, calls } = setup({ 'group-1': { exclude_filter: [] } });
+  context.action1.getCredentials = async () => ({ apiKey: 'key', apiSecret: 'secret', baseUrl: 'https://app.integration-product-03.action1.com/api/4.0' });
+  const get = context.http.get;
+  context.http.get = async url => url.includes('/settings/all') ? { data: { items: [] } } : url.includes('/endpoints/managed/') ? { data: { items: [] } } : get(url);
+  const result = await integration.actions['save-policy'](context, { payload: { policy: profile() } });
+  assert.equal(result.ok, true);
+  assert.deepEqual(calls.find(call => call[0] === 'post' && call[1].endsWith('/settings/all'))[2].value, [{ name: 'Action1 Provisioning Status' }]);
+});
+
+test('API 4 preserves existing array attributes when adding the provisioning attribute', async () => {
+  const { context, calls } = setup({ 'group-1': { exclude_filter: [] } });
+  context.action1.getCredentials = async () => ({ apiKey: 'key', apiSecret: 'secret', baseUrl: 'https://app.integration-product-03.action1.com/api/4.0' });
+  const get = context.http.get;
+  context.http.get = async url => url.includes('/settings/all') ? { data: { items: [{ id: 'setting-1', template_id: 'endpoint_custom_attributes', value: [{ name: 'Existing' }] }] } } : get(url);
+  const result = await integration.actions['save-policy'](context, { payload: { policy: profile() } });
+  assert.equal(result.ok, true);
+  assert.deepEqual(calls.find(call => call[0] === 'patch')[2].value, [{ name: 'Existing' }, { name: 'Action1 Provisioning Status' }]);
+});
+
+test('attribute API error is actionable and prevents profile persistence', async () => {
+  const { context, policies } = setup();
+  context.http.get = async () => { throw Object.assign(new Error('Request failed with status code 400'), { response: { data: { user_message: 'Property value must be JSON array.' } } }); };
+  const result = await integration.actions['save-policy'](context, { payload: { policy: profile() } });
+  assert.equal(result.ok, false);
+  assert.match(result.message, /provisioning custom attribute: Property value must be JSON array/);
+  assert.deepEqual(policies(), []);
+});
+
+
+test('API 4 recognizes a console-created attribute omitted by settings and skips creation', async () => {
+  const { context, calls, policies } = setup({ 'group-1': { exclude_filter: [] } });
+  context.action1.getCredentials = async () => ({ apiKey: 'key', apiSecret: 'secret', baseUrl: 'https://app.integration-product-03.action1.com/api/4.0' });
+  const get = context.http.get;
+  context.http.get = async url => url.includes('/settings/all') ? { data: { items: [] } }
+    : url.includes('/endpoints/managed/org-1?') ? { data: { items: [{ custom: [{ name: 'Action1 Provisioning Status', value: '' }] }] } } : get(url);
+  const result = await integration.actions['save-policy'](context, { payload: { policy: profile() } });
+  assert.equal(result.ok, true);
+  assert.equal(calls.some(call => call[0] === 'post' && call[1].endsWith('/settings/all')), false);
+  assert.equal(calls.filter(call => call[0] === 'patch').length, 1);
+  assert.equal(policies().length, 1);
 });

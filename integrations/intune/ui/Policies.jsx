@@ -636,6 +636,7 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
   const [automationPlatform, setAutomationPlatform] = useState('windows');
   const [creatingAutomation, setCreatingAutomation] = useState(false);
   const [automationError, setAutomationError] = useState('');
+  const provisioningRequest = useRef(null);
   const [automations, setAutomations] = useState([]);
   const [automationsLoading, setAutomationsLoading] = useState(false);
   const [automationsError, setAutomationsError] = useState('');
@@ -976,6 +977,7 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
   }
 
   function openAutomationDialog(type) {
+    provisioningRequest.current = null;
     setMessage('');
     setAutomationError('');
     setAutomationName('');
@@ -999,13 +1001,17 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
     setCreatingAutomation(true);
     setAutomationError('');
     try {
-      const result = await apiAction(integration, 'create-action1-automation', {
+      const fingerprint = JSON.stringify([draft.organizationId, draft.monitoredAction1GroupIds, automationDialog.id, automationPlatform, name]);
+      if (provisioningRequest.current?.fingerprint !== fingerprint) provisioningRequest.current = { fingerprint, key: `intent-${crypto.getRandomValues(new Uint32Array(4)).join('-')}` };
+      let result = await apiAction(integration, 'create-action1-automation', {
+        idempotencyKey: provisioningRequest.current.key,
         organizationId: draft.organizationId,
         endpointGroupIds: draft.monitoredAction1GroupIds,
         automationType: automationDialog.id,
         platform: automationPlatform,
         name
       });
+      if (!result.automationId) throw new Error('Action1 did not return an automation shell ID.');
       setAutomationDialog(null);
       setAutomationName('');
       automationRequestId.current++;
@@ -1020,7 +1026,7 @@ function PolicyWizard({ integration, initialPolicy, policies = [], onCancel, onS
       }].sort((a, b) => a.name.localeCompare(b.name)));
       setAutomationsLoading(false);
       setAutomationsError('');
-      if (editWindow) {
+      if (editWindow && !editWindow.closed) {
         try {
           editWindow.location.replace(result.editUrl);
         } catch {

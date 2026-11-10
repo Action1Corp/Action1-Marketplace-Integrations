@@ -79,3 +79,8 @@ The Marketplace infers supported operations from this integration's files, manif
 - history
 - settings
 
+## Marketplace and ETP compatibility
+
+This integration supports the standard non-ETP Marketplace using Action1 API 3.0 without the signing framework. Existing enrollment, provisioning, and hourly automation enablement continue through that API.
+
+On the matching API 4.0 Marketplace preview, automation creation sends an unsigned, disabled placeholder without a passphrase prompt. Complete its configuration and any required signing in Action1. Enabling API 4.0 automations from the integration remains blocked while schedule updates are being validated; the ETP Marketplace also blocks unsupported protected actions. See the [ETP developer guide](../../developer/ETP_SIGNING.md) for setup and constraints.

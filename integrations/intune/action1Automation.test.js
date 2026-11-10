@@ -242,3 +242,36 @@ test('returns the Action1 validation message when schedule creation fails', asyn
     /Select a software package\./
   );
 });
+
+
+test('API 4 schedule normalization preserves resource identity and disabled configuration', () => {
+ const schedule = normalizeAction1AutomationSchedule({
+  id:'resource', endpoints:[{id:'group',type:'EndpointGroup'}],
+  configuration:{id:'configuration',name:'API4 example',settings:'DISABLED',actions:[{id:'action',template_id:'run_script',params:{run_script_text:'Write-Output 1'}}]}
+ });
+ assert.equal(schedule.id,'resource');
+ assert.equal(schedule.name,'API4 example');
+ assert.equal(schedule.enabled,false);
+ assert.deepEqual(schedule.templateIds,['run_script']);
+ assert.deepEqual(schedule.endpointGroupIds,['group']);
+ assert.ok(!buildAutomationEditUrl('https://app.test.action1.com/api/4.0','org','resource','run-script').includes('/api/4.0'));
+});
+
+test('API 4 enable is blocked before any write while update validation is pending', async () => {
+ const context={action1:{getCredentials:async()=>({baseUrl:'https://app.test.action1.com/api/4.0'})},http:{patch:()=>{throw Error('must not write');}}};
+ await assert.rejects(()=>integration.actions['enable-hourly-provisioning-automation'](context,{}), /schedule updates are being validated/);
+});
+
+for (const etpEnabled of [true, false]) test(`API 4 shell is disabled and unsigned (ETP=${etpEnabled})`, async () => {
+ const writes=[];
+ const context={action1:{getCredentials:async()=>({apiKey:'test',apiSecret:'test',baseUrl:'https://app.test.action1.com/api/4.0',etpEnabled}),provisioner:{prepareSchedules:()=>{throw Error('Shell must not invoke signing');}}},http:{post:async(url,body)=>{if(url.endsWith('/oauth2/token'))return {data:{access_token:'token'}};writes.push(body);return {data:{id:'shell'}};}}};
+ const result=await integration.actions['create-action1-automation'](context,{payload:{organizationId:'org',name:'Draft',automationType:'run-script',endpointGroupIds:['group']}});
+ assert.equal(result.automationId,'shell');assert.equal(result.batchId,undefined);
+ assert.equal(writes.length,1);
+ const body=writes[0];assert.match(body.configuration.settings,/^DISABLED/);
+ assert.equal(body.configuration.type,'AutomationScheduleConfiguration');
+ assert.equal(body.configuration.organization_id,'org');
+ assert.ok(body.configuration.id);assert.ok(body.configuration.actions.every(a=>a.id));
+ assert.equal(body.signatures,undefined);assert.equal(body.configuration.signatures,undefined);
+ assert.deepEqual(body.endpoints,[{id:'group',type:'EndpointGroup'}]);
+});
