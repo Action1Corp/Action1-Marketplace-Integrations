@@ -36,6 +36,14 @@ async function run() {
     assert(source.includes(column), `Overview should render ${column}`);
   }
   assert(source.includes('get-overview'), 'Overview must consume get-overview');
+  assert(source.includes('Some policy data could not be loaded.'), 'Overview must disclose partial report failures');
+  assert(source.includes('availablePoliciesCount') && source.includes('unavailablePoliciesCount'), 'Overview must show available and unavailable policy counts');
+  assert(source.includes('Data unavailable'), 'Unavailable policies must remain visible without calculated values');
+  assert(source.includes('isPartial'), 'Overview must identify aggregate metrics as partial');
+  const unavailablePolicyBranch = source.slice(source.indexOf("policy.dataStatus === 'unavailable'"), source.indexOf('<MetricCell label="Assigned"'));
+  assert(unavailablePolicyBranch.includes('Data unavailable'), 'Unavailable policy rows must show the explicit unavailable state');
+  assert(!unavailablePolicyBranch.includes('reportUrl(policy)'), 'Unavailable policy rows must not expose report drill-down links');
+  assert(source.includes('<a href={reportUrl(policy)}'), 'Available policy rows must retain report drill-down links');
   assert(source.includes('Refresh'), 'Overview must have a manual Refresh action');
   assert(source.includes('Refreshing...'), 'Overview must show a manual Refresh busy state');
   assert(source.includes('operationType'), 'Overview must distinguish initial load from manual refresh');

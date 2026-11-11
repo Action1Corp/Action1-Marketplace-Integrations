@@ -147,6 +147,7 @@ export default function Overview({ integration = 'action1-configuration-manager'
   const overview = state.overview || {};
   const summary = overview.summary;
   const policies = Array.isArray(overview.policies) ? overview.policies : [];
+  const availability = overview.availability || {};
   const reportId = overview.reporting?.dashboardNonCompliantEndpoints;
   const controlsReportId = overview.reporting?.dashboardNonCompliantControls;
   const action1ConsoleOrigin = overview.action1ConsoleOrigin;
@@ -165,6 +166,7 @@ export default function Overview({ integration = 'action1-configuration-manager'
   `}</style>
     <header style={styles.header}><div><h1 style={styles.title}>Dashboard</h1><p style={styles.description}>{DESCRIPTION}</p>{initialLoading ? <DashboardLoading label="Loading dashboard data..." /> : null}</div><button type="button" style={styles.refresh} onClick={() => load('manual-refresh')} disabled={state.refreshing}>{state.refreshing ? 'Refreshing...' : 'Refresh'}</button></header>
     {state.error ? <div style={styles.error} role="alert">{state.error} <button type="button" style={textLinkButtonStyle} onClick={() => load('manual-refresh')}>Refresh</button></div> : null}
+    {!initialLoading && availability.isPartial ? <div style={{ ...styles.notice, marginBottom: 16 }} role="status"><strong>Some policy data could not be loaded.</strong><div>{displayCount(availability.availablePoliciesCount)} policies available; {displayCount(availability.unavailablePoliciesCount)} unavailable. Aggregate metrics reflect available policies only.</div></div> : null}
     <h2 style={{ ...styles.sectionTitle, ...styles.sectionHead }}>Overview</h2>
     <div style={styles.kpis}>
       <div style={styles.kpi}><MetricLabel label="Active Policies" tooltip={TOOLtips.active} /><div style={styles.value}>{initialLoading ? <DashboardLoading label="Loading dashboard data" compact /> : displayCount(summary.activePoliciesCount)}</div>{initialLoading ? null : <p style={styles.sub}>{displayCount(summary.assignedCount)} endpoints assigned</p>}</div>
@@ -181,12 +183,14 @@ export default function Overview({ integration = 'action1-configuration-manager'
       {[
         ['Assigned', TOOLtips.assigned], ['Evaluated', TOOLtips.evaluated], ['Compliant', TOOLtips.compliant], ['Need attention', TOOLtips.rowAttention], ['Partial / No data', TOOLtips.rowIncomplete], ['Coverage', TOOLtips.rowCoverage], ['Compliance', TOOLtips.compliance]
       ].map(([label, tooltip], index) => <div key={label} role="columnheader" style={{ ...styles.th, ...styles.headTh, gridColumn: String(index + 2), gridRow: '2' }}><TooltipLabel label={label} tooltip={tooltip} /></div>)}
-    </div><div role="rowgroup">{initialLoading ? <div role="row" aria-busy="true" style={styles.policyGrid}><div role="cell" style={{ ...styles.td, ...styles.tdFirst, gridColumn: '1 / span 8', textAlign: 'center' }}><DashboardLoading label="Loading policy data..." /></div></div> : policies.map((policy) => <div role="row" key={policy.policyId} style={styles.policyGrid}>
+    </div><div role="rowgroup">{initialLoading ? <div role="row" aria-busy="true" style={styles.policyGrid}><div role="cell" style={{ ...styles.td, ...styles.tdFirst, gridColumn: '1 / span 8', textAlign: 'center' }}><DashboardLoading label="Loading policy data..." /></div></div> : policies.map((policy) => <div role="row" key={`${policy.organizationId}|${policy.policyId}`} style={styles.policyGrid}>
       <div role="cell" style={{ ...styles.td, ...styles.tdFirst }}><button type="button" style={styles.nameLink} onClick={() => navigate(buildPolicyDetailsPath(integration, policy.policyId))}>{policyDisplayName(policy)}</button></div>
+      {policy.dataStatus === 'unavailable' ? <div role="cell" style={{ ...styles.td, gridColumn: '2 / span 7', textAlign: 'center', color: '#5A6079', fontWeight: 600 }}>Data unavailable</div> : <>
       <MetricCell label="Assigned" value={policy.assignedCount} tooltip={TOOLtips.assigned} /><MetricCell label="Evaluated" value={policy.fullyEvaluatedCount} tooltip={TOOLtips.evaluated} /><MetricCell label="Compliant" value={policy.compliantCount} tooltip={TOOLtips.compliant} />
       <div role="cell" style={styles.td}><a href={reportUrl(policy)} target="_blank" rel="noreferrer" style={styles.attentionLink} aria-label={`${policy.needsAttentionCount} Need attention; open Non-Compliant Endpoints report`}>{displayCount(policy.needsAttentionCount)}</a></div>
       <MetricCell label="Not fully evaluated" value={policy.notFullyEvaluatedCount} tooltip={TOOLtips.rowIncomplete} /><PercentCell value={policy.evaluationCoveragePercent} tooltip={TOOLtips.rowCoverage} coverage /><PercentCell value={policy.compliancePercent} tooltip={TOOLtips.compliance} />
-    </div>)}</div>{!initialLoading ? <div role="row" style={styles.policyGrid}><div role="cell" style={{ ...styles.td, ...styles.tdFirst, ...styles.total }}>All policies</div>{[
+      </>}
+    </div>)}</div>{!initialLoading ? <div role="row" style={styles.policyGrid}><div role="cell" style={{ ...styles.td, ...styles.tdFirst, ...styles.total }}>{availability.isPartial ? 'Available policy totals' : 'All policies'}</div>{[
     summary.assignedCount, summary.fullyEvaluatedCount, summary.compliantCount, summary.needsAttentionCount, summary.notFullyEvaluatedCount, formatPercent(summary.evaluationCoveragePercent), formatPercent(summary.compliancePercent)
     ].map((value, index) => <div key={index} role="cell" style={{ ...styles.td, ...styles.total }}>{value}</div>)}</div> : null}</div>
     <div style={styles.sectionHead}><h2 id="top-controls-heading" style={styles.sectionTitle}>Top controls needing attention</h2><p style={styles.sectionDescription}>Controls affecting the largest number of endpoints across active policies.</p></div>

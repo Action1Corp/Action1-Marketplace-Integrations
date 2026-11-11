@@ -22,6 +22,7 @@ async function logOverview(context, event, fields = {}, level = 'info') {
     policy: 'Dashboard policy scope loaded',
     'report-read': 'Dashboard report read',
     'report-control-summary': 'Dashboard report controls summarized',
+    'report-operation-failed': 'Dashboard organization report operation failed',
     'reports-loaded': 'Dashboard reports loaded',
     'report-endpoint-row': 'Dashboard report endpoint',
     'report-non-compliant-endpoint-row': 'Dashboard report non-compliant endpoint',
@@ -85,7 +86,7 @@ function roundPercent(numerator, denominator) {
 
 function selectTopControlsNeedingAttention(rows, policies) {
   const activePolicies = new Map((Array.isArray(policies) ? policies : [])
-    .filter((policy) => policy?.enabled === true)
+    .filter((policy) => policy?.enabled === true && policy?.dataStatus !== 'unavailable')
     .map((policy) => [`${text(policy.organizationId)}|${text(policy.policyId)}`, policy]));
   return (Array.isArray(rows) ? rows : [])
     .filter((row) => activePolicies.has(`${text(row?.organizationId)}|${text(row?.policyId)}`))
@@ -98,11 +99,12 @@ function selectTopControlsNeedingAttention(rows, policies) {
 
 function buildOverviewSummary(policyModels) {
   const policies = Array.isArray(policyModels) ? policyModels : [];
-  const assignedCount = policies.reduce((total, policy) => total + policy.assignedCount, 0);
-  const fullyEvaluatedCount = policies.reduce((total, policy) => total + policy.fullyEvaluatedCount, 0);
-  const compliantCount = policies.reduce((total, policy) => total + policy.compliantCount, 0);
-  const needsAttentionCount = policies.reduce((total, policy) => total + policy.needsAttentionCount, 0);
-  const notFullyEvaluatedCount = policies.reduce((total, policy) => total + policy.notFullyEvaluatedCount, 0);
+  const availablePolicies = policies.filter((policy) => policy?.dataStatus !== 'unavailable');
+  const assignedCount = availablePolicies.reduce((total, policy) => total + policy.assignedCount, 0);
+  const fullyEvaluatedCount = availablePolicies.reduce((total, policy) => total + policy.fullyEvaluatedCount, 0);
+  const compliantCount = availablePolicies.reduce((total, policy) => total + policy.compliantCount, 0);
+  const needsAttentionCount = availablePolicies.reduce((total, policy) => total + policy.needsAttentionCount, 0);
+  const notFullyEvaluatedCount = availablePolicies.reduce((total, policy) => total + policy.notFullyEvaluatedCount, 0);
   return {
     activePoliciesCount: policies.length,
     assignedCount,
@@ -142,12 +144,24 @@ function mergeReportRows(rows) {
   return result;
 }
 
-function buildOverviewViewModel({ policies = [], assignedEndpointsByPolicy = {}, observedRows = [], nonCompliantRows = [], dashboardControlRows = [] } = {}) {
+function buildOverviewViewModel({ policies = [], assignedEndpointsByPolicy = {}, observedRows = [], nonCompliantRows = [], dashboardControlRows = [], unavailableOrganizationIds = [] } = {}) {
   const activePolicies = (Array.isArray(policies) ? policies : []).filter((policy) => policy?.enabled === true);
+  const unavailableOrganizations = new Set(Array.isArray(unavailableOrganizationIds) ? unavailableOrganizationIds.map(text) : []);
   const observed = mergeReportRows(observedRows);
   const nonCompliant = mergeReportRows(nonCompliantRows);
   const endpointAttention = [];
   const policyModels = activePolicies.map((policy) => {
+    if (unavailableOrganizations.has(text(policy.organizationId))) {
+      return {
+        policyId: policy.policyId,
+        policyName: policy.baseName || policy.displayName || '',
+        organizationId: policy.organizationId,
+        scope: scopeOf(policy),
+        expectedControlCount: (policy.selectedControls || []).length,
+        dataStatus: 'unavailable',
+        endpoints: []
+      };
+    }
     const expectedControlCount = (policy.selectedControls || []).length;
     const endpoints = [];
     const seenEndpoints = new Set();
@@ -196,6 +210,7 @@ function buildOverviewViewModel({ policies = [], assignedEndpointsByPolicy = {},
       policyId: policy.policyId,
       policyName: policy.baseName || policy.displayName || '',
       organizationId: policy.organizationId,
+      dataStatus: 'available',
       scope: scopeOf(policy),
       expectedControlCount,
       ...counts,
@@ -205,7 +220,29 @@ function buildOverviewViewModel({ policies = [], assignedEndpointsByPolicy = {},
       endpoints
     };
   });
-  return { summary: buildOverviewSummary(policyModels), policies: policyModels, endpointAttention, topControlsNeedingAttention: selectTopControlsNeedingAttention(dashboardControlRows, activePolicies) };
+  const unavailablePoliciesCount = policyModels.filter((policy) => policy.dataStatus === 'unavailable').length;
+  const availablePoliciesCount = policyModels.length - unavailablePoliciesCount;
+  return {
+    summary: buildOverviewSummary(policyModels),
+    policies: policyModels,
+    availability: { availablePoliciesCount, unavailablePoliciesCount, isPartial: unavailablePoliciesCount > 0 && availablePoliciesCount > 0 },
+    endpointAttention,
+    topControlsNeedingAttention: selectTopControlsNeedingAttention(dashboardControlRows, activePolicies.filter((policy) => !unavailableOrganizations.has(text(policy.organizationId))))
+  };
+}
+
+function classifyOrganizationReportFailure(error) {
+  const statusCode = Number(error?.statusCode ?? error?.diagnostics?.statusCode ?? error?.response?.status);
+  if (Number.isInteger(statusCode) && statusCode >= 500 && statusCode <= 599) {
+    return { classification: 'http-server-error', statusCode };
+  }
+  if (Number.isInteger(statusCode) && statusCode >= 100) return null;
+  const code = String(error?.code || '').toUpperCase();
+  const message = String(error?.message || '').toLowerCase();
+  if (['ETIMEDOUT', 'ECONNABORTED', 'UND_ERR_CONNECT_TIMEOUT'].includes(code) || /\btimeout\b|timed out/.test(message)) {
+    return { classification: 'report-timeout', statusCode: Number.isFinite(statusCode) ? statusCode : null };
+  }
+  return null;
 }
 
 async function readReportSnapshot(client, organizationId, reportId) {
@@ -321,18 +358,36 @@ async function loadOverview(context, options = {}) {
   const observedRows = [];
   const nonCompliantRows = [];
   const dashboardControlRows = [];
+  const unavailableOrganizationIds = new Set();
+  let firstScopedReportError = null;
   for (const organizationId of organizations) {
     const reportReads = [
       { kind: 'dashboard-endpoints', reportId: reporting.dashboardEndpoints, target: observedRows },
       { kind: 'dashboard-non-compliant', reportId: reporting.dashboardNonCompliantEndpoints, target: nonCompliantRows },
       { kind: 'dashboard-non-compliant-controls', reportId: reporting.dashboardNonCompliantControls, target: dashboardControlRows }
     ];
-    const readResults = await readOverviewReports(client, organizationId, reportReads, {
-      operationType,
-      sleep: options.sleep,
-      refreshIntervalMs: options.refreshIntervalMs,
-      refreshTimeoutMs: options.refreshTimeoutMs
-    });
+    let readResults;
+    try {
+      readResults = await readOverviewReports(client, organizationId, reportReads, {
+        operationType,
+        sleep: options.sleep,
+        refreshIntervalMs: options.refreshIntervalMs,
+        refreshTimeoutMs: options.refreshTimeoutMs
+      });
+    } catch (error) {
+      const failure = classifyOrganizationReportFailure(error);
+      if (!failure) throw error;
+      unavailableOrganizationIds.add(text(organizationId));
+      firstScopedReportError ||= error;
+      await logOverview(context, 'report-operation-failed', {
+        organization: organizationId,
+        reportOperation: error?.diagnostics?.operation || error?.operation || 'dashboard-report-set',
+        stage: operationType === 'manual-refresh' ? 'report-read-requery-or-poll' : 'report-read',
+        status: failure.statusCode,
+        classification: failure.classification
+      }, 'warn');
+      continue;
+    }
     for (const result of readResults) {
       const read = result;
       const requestStartedAt = Date.now();
@@ -412,12 +467,20 @@ async function loadOverview(context, options = {}) {
       }
     }
   }
+  const unavailablePoliciesCount = policies.filter((policy) => unavailableOrganizationIds.has(text(policy.organizationId))).length;
+  if (policies.length > 0 && unavailablePoliciesCount === policies.length && firstScopedReportError) {
+    throw firstScopedReportError;
+  }
   const result = {
-    ...buildOverviewViewModel({ policies, assignedEndpointsByPolicy, observedRows, nonCompliantRows, dashboardControlRows }),
+    ...buildOverviewViewModel({ policies, assignedEndpointsByPolicy, observedRows, nonCompliantRows, dashboardControlRows, unavailableOrganizationIds: [...unavailableOrganizationIds] }),
     action1ConsoleOrigin,
     reporting: { dashboardNonCompliantEndpoints: reporting.dashboardNonCompliantEndpoints, dashboardNonCompliantControls: reporting.dashboardNonCompliantControls }
   };
   for (const policy of result.policies) {
+    if (policy.dataStatus === 'unavailable') {
+      await logOverview(context, 'policy-unavailable', { policyId: policy.policyId, organizationId: policy.organizationId });
+      continue;
+    }
     const diagnosticCap = 50;
     const diagnosticEndpoints = policy.endpoints.slice(0, diagnosticCap);
     const seenDiagnostics = new Set();
@@ -454,7 +517,7 @@ async function loadOverview(context, options = {}) {
     });
     await logOverview(context, 'reports-loaded', { policyId: policy.policyId, organizationId: policy.organizationId, endpoints: policy.assignedCount, nonCompliantEndpoints: policy.needsAttentionCount + policy.partialCount, nonCompliantControls: null, lastRequery: null });
   }
-  await logOverview(context, 'complete', { ...result.summary, partialCount: result.policies.reduce((total, policy) => total + policy.partialCount, 0), noDataCount: result.policies.reduce((total, policy) => total + policy.noDataCount, 0), operationType, elapsedMs: Date.now() - startedAt });
+  await logOverview(context, 'complete', { ...result.summary, partialCount: result.policies.reduce((total, policy) => total + (policy.partialCount || 0), 0), noDataCount: result.policies.reduce((total, policy) => total + (policy.noDataCount || 0), 0), activePoliciesCount: result.summary.activePoliciesCount, unavailablePolicies: unavailablePoliciesCount, operationType, elapsedMs: Date.now() - startedAt });
   return result;
 }
 
