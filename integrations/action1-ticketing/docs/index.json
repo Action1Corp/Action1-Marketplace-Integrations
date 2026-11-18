@@ -1,0 +1,10 @@
+{
+  "documents": [
+    {
+      "id": "halo-donor-reference",
+      "title": "Halo Donor Reference (not current setup guidance)",
+      "description": "Retained donor material for implementation provenance only; Halo is not a supported Action1 Ticketing provider.",
+      "file": "user-guide.pdf"
+    }
+  ]
+}

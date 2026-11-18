@@ -1,0 +1,254 @@
+[
+  {
+    "key": "TicketingExistingOpenTicketBehavior",
+    "label": "Existing Open Ticket Behavior",
+    "type": "select",
+    "group": "Lifecycle",
+    "defaultValue": "update_existing_open",
+    "options": [
+      {
+        "value": "update_existing_open",
+        "label": "Update existing open ticket"
+      },
+      {
+        "value": "skip_existing_open",
+        "label": "Skip existing open ticket"
+      }
+    ]
+  },
+  {
+    "key": "TicketingCloseWhenSignalClears",
+    "label": "Close When Signal Clears",
+    "type": "checkbox",
+    "group": "Lifecycle",
+    "defaultValue": "true",
+    "visible": false
+  },
+  {
+    "key": "TicketingCreateNewWhenLinkedClosed",
+    "label": "Create New When Linked Ticket Is Closed",
+    "type": "checkbox",
+    "group": "Lifecycle",
+    "defaultValue": "true",
+    "visible": false
+  },
+  {
+    "key": "TicketingOfflineEnabled",
+    "label": "Create ticket after endpoint is offline for at least (days)",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "true"
+  },
+  {
+    "key": "TicketingOfflineThresholdDays",
+    "label": "Offline Threshold Days",
+    "type": "number",
+    "group": "Signal Filters",
+    "defaultValue": "7",
+    "min": 1
+  },
+  {
+    "key": "TicketingRebootRequiredEnabled",
+    "label": "Create ticket for reboot required endpoints",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "true"
+  },
+  {
+    "key": "TicketingRebootRequiredAgeThresholdEnabled",
+    "label": "Require last boot at least",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "false",
+    "helpText": "Use this to avoid creating or maintaining reboot-required tickets for endpoints rebooted more recently than the threshold."
+  },
+  {
+    "key": "TicketingRebootRequiredAgeThresholdDays",
+    "label": "days ago",
+    "type": "number",
+    "group": "Signal Filters",
+    "defaultValue": "30",
+    "min": 1
+  },
+  {
+    "key": "TicketingAutomationFailedEnabled",
+    "label": "Create ticket for automation failures",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "true"
+  },
+  {
+    "key": "TicketingAutomationFailedLookbackHours",
+    "label": "Automation Failed Lookback Hours",
+    "type": "number",
+    "group": "Signal Filters",
+    "defaultValue": "24",
+    "min": 1,
+    "visible": false
+  },
+  {
+    "key": "TicketingVulnerabilityEnabled",
+    "label": "Vulnerability Signal Enabled",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "true",
+    "visible": false
+  },
+  {
+    "key": "TicketingVulnerabilitySeverities",
+    "label": "Vulnerability Severity",
+    "type": "text",
+    "group": "Signal Filters",
+    "defaultValue": "CRITICAL,HIGH",
+    "emptySelectionMarkerKey": "TicketingVulnerabilitySeveritiesExplicit"
+  },
+  {
+    "key": "TicketingVulnerabilityRemediationStatuses",
+    "label": "Vulnerability Remediation Status",
+    "type": "text",
+    "group": "Signal Filters",
+    "defaultValue": "OVERDUE,DUE_SOON",
+    "emptySelectionMarkerKey": "TicketingVulnerabilityRemediationStatusesExplicit"
+  },
+  {
+    "key": "TicketingUpdateEnabled",
+    "label": "Update Signal Enabled",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "true",
+    "visible": false
+  },
+  {
+    "key": "TicketingUpdateSeverities",
+    "label": "Missing Updates Severity",
+    "type": "text",
+    "group": "Signal Filters",
+    "defaultValue": "CRITICAL,IMPORTANT",
+    "emptySelectionMarkerKey": "TicketingUpdateSeveritiesExplicit"
+  },
+  {
+    "key": "TicketingUpdateRemediationStatuses",
+    "label": "Missing Updates Remediation Status",
+    "type": "text",
+    "group": "Signal Filters",
+    "defaultValue": "OVERDUE,DUE_SOON",
+    "emptySelectionMarkerKey": "TicketingUpdateRemediationStatusesExplicit"
+  },
+  {
+    "key": "TicketingVulnerabilitySeveritiesExplicit",
+    "label": "Vulnerability Severity Explicit Selection",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "false",
+    "visible": false
+  },
+  {
+    "key": "TicketingVulnerabilityRemediationStatusesExplicit",
+    "label": "Vulnerability Remediation Status Explicit Selection",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "false",
+    "visible": false
+  },
+  {
+    "key": "TicketingUpdateSeveritiesExplicit",
+    "label": "Missing Updates Severity Explicit Selection",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "false",
+    "visible": false
+  },
+  {
+    "key": "TicketingUpdateRemediationStatusesExplicit",
+    "label": "Missing Updates Remediation Status Explicit Selection",
+    "type": "checkbox",
+    "group": "Signal Filters",
+    "defaultValue": "false",
+    "visible": false
+  },
+  {
+    "key": "TicketingVulnerabilityTicketModel",
+    "label": "Vulnerability Ticket Model",
+    "type": "select",
+    "group": "Signal Filters",
+    "defaultValue": "grouped",
+    "options": [
+      {
+        "value": "grouped",
+        "label": "Grouped"
+      },
+      {
+        "value": "endpoint",
+        "label": "Endpoint"
+      }
+    ]
+  },
+  {
+    "key": "TicketingUpdateTicketModel",
+    "label": "Update Ticket Model",
+    "type": "select",
+    "group": "Signal Filters",
+    "defaultValue": "grouped",
+    "options": [
+      {
+        "value": "grouped",
+        "label": "Grouped"
+      },
+      {
+        "value": "endpoint",
+        "label": "Endpoint"
+      }
+    ]
+  },
+  {
+    "key": "TicketingAutomationFailedTicketModel",
+    "label": "Automation Failed Ticket Model",
+    "type": "select",
+    "group": "Signal Filters",
+    "defaultValue": "grouped",
+    "options": [
+      {
+        "value": "grouped",
+        "label": "Grouped"
+      },
+      {
+        "value": "endpoint",
+        "label": "Endpoint"
+      }
+    ]
+  },
+  {
+    "key": "TicketingMaxImpactedEndpointsInGroupedTicket",
+    "label": "Max endpoints shown in each grouped ticket",
+    "type": "number",
+    "group": "Signal Filters",
+    "defaultValue": "25",
+    "min": 1,
+    "max": 100,
+    "helpText": "When more endpoints are affected, the ticket shows this many endpoints and links back to Action1 for the full list."
+  },
+  {
+    "key": "TicketingMaxOpenTicketsPerOrganization",
+    "label": "Max Open Tickets Per Organization",
+    "type": "number",
+    "group": "Signal Filters",
+    "defaultValue": "30",
+    "min": 1,
+    "helpText": "Limits how many connector-managed open tickets can exist per mapped organization at the same time. Additional qualifying candidates are skipped until existing tickets are resolved or closed."
+  },
+  {
+    "key": "TicketingDiagnosticLoggingEnabled",
+    "label": "Enable detailed diagnostic runtime logs",
+    "type": "checkbox",
+    "group": "Diagnostics",
+    "defaultValue": "false",
+    "helpText": "Adds detailed support logs for Action1 Ticketing sync runs."
+  },
+  {
+    "key": "TicketingActiveProvider",
+    "label": "Active Ticketing System",
+    "type": "text",
+    "defaultValue": "connectwise-psa",
+    "visible": false
+  }
+]

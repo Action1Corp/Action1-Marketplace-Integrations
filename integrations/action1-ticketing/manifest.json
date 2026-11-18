@@ -1,0 +1,112 @@
+{
+  "id": "action1-ticketing",
+  "name": "Action1 Ticketing Connector",
+  "vendor": "Action1",
+  "version": "1.0.0",
+  "marketplaceApiVersion": "1.0",
+  "minimumMarketplaceVersion": "1.0.0",
+  "description": "Prepare Action1 security and operational signals for ticketing integrations.",
+  "category": "ITSM",
+  "icon_color": "#F26A21",
+  "entry": "index.js",
+  "actions": [
+    {
+      "id": "list-ticketing-org-destination-mappings",
+      "kind": "action",
+      "label": "List Organization Destination Mappings",
+      "buttonLabel": "Refresh Mappings",
+      "runningLabel": "Refreshing...",
+      "description": "Loads Action1 organization to destination mappings from Ticketing-owned storage.",
+      "placement": "mapping",
+      "history": false
+    },
+    {
+      "id": "save-ticketing-org-destination-mapping",
+      "kind": "action",
+      "label": "Save Organization Destination Mapping",
+      "buttonLabel": "Save Mapping",
+      "runningLabel": "Saving...",
+      "description": "Creates or updates an Action1 organization to destination mapping row.",
+      "placement": "mapping",
+      "history": false
+    },
+    {
+      "id": "delete-ticketing-org-destination-mapping",
+      "kind": "action",
+      "label": "Delete Organization Destination Mapping",
+      "buttonLabel": "Delete Mapping",
+      "runningLabel": "Deleting...",
+      "description": "Deletes an Action1 organization to destination mapping row.",
+      "placement": "mapping",
+      "history": false
+    },
+    {
+      "id": "discover-action1-mapping-options",
+      "kind": "action",
+      "label": "Discover Action1 Mapping Options",
+      "buttonLabel": "Refresh Action1 Organizations",
+      "runningLabel": "Refreshing...",
+      "description": "Loads read-only Action1 organization options for the Mapping screen.",
+      "placement": "mapping",
+      "history": false
+    },
+    {
+      "id": "discover-ticketing-mapping-options",
+      "kind": "action",
+      "label": "Discover Destination Options",
+      "buttonLabel": "Refresh Action1 Ticketing Clients",
+      "runningLabel": "Refreshing...",
+      "description": "Loads read-only destination options for the Mapping screen.",
+      "placement": "mapping",
+      "history": false
+    },
+    {
+      "id": "discover-ticketing-settings-options",
+      "kind": "action",
+      "label": "Discover Destination Routing Options",
+      "buttonLabel": "Refresh Halo Options",
+      "runningLabel": "Refreshing...",
+      "description": "Loads read-only destination routing options for configuration.",
+      "placement": "settings",
+      "history": false
+    },
+    {
+      "id": "validate-configuration",
+      "kind": "validate",
+      "label": "Validate Configuration",
+      "buttonLabel": "Validate",
+      "runningLabel": "Validating...",
+      "description": "Validates Action1 Ticketing connectivity and required configuration.",
+      "placement": "settings",
+      "history": false
+    },
+    {
+      "id": "save-provider-settings",
+      "kind": "action",
+      "label": "Save Ticketing Settings",
+      "buttonLabel": "Save Settings",
+      "runningLabel": "Saving...",
+      "description": "Validates and saves common and viewed-provider settings through the integration ownership boundary.",
+      "placement": "settings",
+      "history": false
+    },
+    {
+      "id": "activate-provider",
+      "kind": "action",
+      "label": "Make Ticketing System Active",
+      "buttonLabel": "Make active",
+      "runningLabel": "Activating...",
+      "description": "Changes the active ticketing system without starting synchronization.",
+      "placement": "settings"
+    },
+    {
+      "id": "sync",
+      "kind": "sync",
+      "label": "Sync",
+      "buttonLabel": "Run Sync",
+      "runningLabel": "Syncing...",
+      "description": "Collects Action1 signals and synchronizes Action1 Ticketing tickets.",
+      "placement": "dashboard"
+    }
+  ]
+}

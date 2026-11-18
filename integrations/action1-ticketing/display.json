@@ -1,0 +1,30 @@
+{
+  "navigation": [
+    {
+      "id": "dashboard",
+      "label": "Sync",
+      "path": "dashboard",
+      "icon": "Activity"
+    },
+    {
+      "id": "history",
+      "label": "History",
+      "path": "history",
+      "icon": "History"
+    },
+    {
+      "id": "mapping",
+      "label": "Client Mapping",
+      "path": "mapping",
+      "icon": "FileText",
+      "requiresWrite": true
+    },
+    {
+      "id": "settings",
+      "label": "Settings",
+      "path": "settings",
+      "icon": "Settings",
+      "requiresWrite": true
+    }
+  ]
+}
