@@ -101,6 +101,12 @@ async function saveMapping(context, providerId, input) {
   const next = validatePayload(input);
   const existingById = next.id === null ? null : await getMappingById(context, provider, next.id);
   if (next.id !== null && !existingById) throw new Error('Mapping row was not found.');
+  if (existingById && (
+    existingById.action1OrgId !== next.action1OrgId ||
+    existingById.destinationId !== next.destinationId
+  )) {
+    throw new Error('Mapping relationship identity cannot be changed in place. Remove and create a new mapping.');
+  }
 
   const existingByOrg = await getMappingByAction1OrgId(context, provider, next.action1OrgId);
   if (existingByOrg && existingByOrg.id !== next.id) throw new Error('Action1 organization is already mapped to a destination.');

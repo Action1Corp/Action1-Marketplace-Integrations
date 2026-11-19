@@ -29,6 +29,43 @@ async function run() {
   await watermarkA.upsertWatermark({ orgLinkId: String(rowA.id), signalType: 'AUTOMATION_FAILED', watermarkValue: 'A-checkpoint' });
   await watermarkB.upsertWatermark({ orgLinkId: String(rowB.id), signalType: 'AUTOMATION_FAILED', watermarkValue: 'B-checkpoint' });
 
+  const sourceRenamedA = await mapA.save({
+    id: rowA.id,
+    action1OrgId: 'org-1',
+    action1OrgName: 'Acme Renamed',
+    destinationId: 'dest-1',
+    destinationName: 'Acme PSA'
+  });
+  assert.strictEqual(sourceRenamedA.id, rowA.id, 'source label changes must preserve the relationship row ID');
+  const destinationRenamedA = await mapA.save({
+    id: rowA.id,
+    action1OrgId: 'org-1',
+    action1OrgName: 'Acme Renamed',
+    destinationId: 'dest-1',
+    destinationName: 'Acme PSA Renamed'
+  });
+  assert.strictEqual(destinationRenamedA.id, rowA.id, 'destination label changes must preserve the relationship row ID');
+  assert.strictEqual(destinationRenamedA.action1OrgName, 'Acme Renamed');
+  assert.strictEqual(destinationRenamedA.destinationName, 'Acme PSA Renamed');
+  assert.strictEqual((await endpointA.getEndpointCorrelation(String(rowA.id), 'ep-1', 'OFFLINE')).linkedTicketId, 'ticket-1');
+  assert.strictEqual((await endpointA.getGroupedCorrelation(String(rowA.id), 'VULNERABILITY', 'CVE-1')).linkedTicketId, 'group-1');
+  assert.strictEqual((await watermarkA.getWatermark(String(rowA.id), 'AUTOMATION_FAILED')).watermarkValue, 'A-checkpoint');
+  await assert.rejects(() => mapA.save({
+    id: rowA.id,
+    action1OrgId: 'org-1',
+    action1OrgName: 'Acme Renamed',
+    destinationId: 'dest-replaced',
+    destinationName: 'Replacement'
+  }), /relationship identity cannot be changed/i, 'existing row identity must be immutable');
+  await assert.rejects(() => mapA.save({
+    id: rowA.id,
+    action1OrgId: 'org-replaced',
+    action1OrgName: 'Replacement',
+    destinationId: 'dest-1',
+    destinationName: 'Acme PSA Renamed'
+  }), /relationship identity cannot be changed/i, 'source organization identity must be immutable too');
+  assert.strictEqual((await mapA.getById(rowA.id)).destinationId, 'dest-1', 'rejected identity mutation must not change the row');
+
   assert.strictEqual((await endpointA.listEndpointCorrelationsByOrgLink(String(rowA.id))).length, 1);
   assert.strictEqual((await endpointA.listEndpointCorrelationsByOrgLink(String(rowB.id))).length, 0);
   assert.strictEqual((await endpointA.listCorrelationsByOrgLink(String(rowA.id), { includeGrouped: true })).length, 2);
@@ -59,6 +96,12 @@ async function run() {
   assert.strictEqual((await endpointA.getGroupedCorrelation(mapId, 'VULNERABILITY', 'CVE-1')).linkedTicketId, 'group-1', 'grouped history remains after mapping deletion');
   assert.strictEqual((await watermarkA.getWatermark(mapId, 'AUTOMATION_FAILED')).watermarkValue, 'A-advanced', 'watermark remains after mapping deletion');
   await assert.rejects(() => endpointA.upsertEndpointCorrelation({ orgLinkId: mapId, endpointId: 'ep-2', signalType: 'OFFLINE', linkedTicketId: 'ticket-3' }), /mapping.*(not found|provider|owner)/i, 'orphaned mapping IDs cannot receive new tracking writes');
+
+  const recreated = await mapA.save({ action1OrgId: 'org-1', action1OrgName: 'Acme Renamed', destinationId: 'dest-1', destinationName: 'Acme PSA Renamed' });
+  assert.notStrictEqual(recreated.id, rowA.id, 'recreated relationship receives a new internal mapping ID');
+  assert.strictEqual(await endpointA.getEndpointCorrelation(String(recreated.id), 'ep-1', 'OFFLINE'), null, 'new mapping does not inherit endpoint tracking');
+  assert.strictEqual(await endpointA.getGroupedCorrelation(String(recreated.id), 'VULNERABILITY', 'CVE-1'), null, 'new mapping does not inherit grouped tracking');
+  assert.strictEqual(await watermarkA.getWatermark(String(recreated.id), 'AUTOMATION_FAILED'), null, 'new mapping does not inherit watermarks');
 
   assert.strictEqual(tables.get('action1_ticketing_endpoint_correlations').length, 2, 'mapping deletion does not remove endpoint rows');
   assert.strictEqual(tables.get('action1_ticketing_grouped_correlations').length, 4, 'mapping deletion does not remove grouped rows');

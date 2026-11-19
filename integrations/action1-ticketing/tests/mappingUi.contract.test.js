@@ -9,7 +9,7 @@ function run() {
   const navigation = Array.isArray(display.navigation) ? display.navigation : [];
   const mappingRoute = navigation.find((row) => row.path === 'mapping');
   assert(mappingRoute, 'display.json should declare the mapping route');
-  assert.strictEqual(mappingRoute.label, 'Client Mapping', 'display.json should expose the operator-facing Client Mapping label');
+  assert.strictEqual(mappingRoute.label, 'Mapping', 'display.json should expose the provider-neutral Mapping label');
   assert.strictEqual(mappingRoute.requiresWrite, true, 'mapping route should require write access');
 
   const mappingActions = [
@@ -36,31 +36,30 @@ function run() {
   assert(mappingSource.includes("save: 'save-ticketing-org-destination-mapping'"), 'Mapping.jsx should define the mapping save action id');
   assert(mappingSource.includes("remove: 'delete-ticketing-org-destination-mapping'"), 'Mapping.jsx should define the mapping delete action id');
   assert(mappingSource.includes("discoverAction1: 'discover-action1-mapping-options'"), 'Mapping.jsx should define the Action1 organization discovery action id');
-  assert(mappingSource.includes("discover: 'discover-ticketing-mapping-options'"), 'Mapping.jsx should define the Halo client discovery action id');
-  assert(mappingSource.includes('Client Mapping'), 'Mapping.jsx should use Client Mapping wording');
-  assert(mappingSource.includes('Map Action1 organizations to Action1 Ticketing clients so tickets are created under the correct customer account.'), 'Mapping.jsx should render the page-level Client Mapping description');
+  assert(mappingSource.includes("discover: 'discover-ticketing-mapping-options'"), 'Mapping.jsx should define the destination discovery action id');
+  assert(mappingSource.includes('Ticketing System'), 'Mapping.jsx should expose viewed-provider selection');
+  assert(mappingSource.includes('Active ticketing system:'), 'Mapping.jsx should distinguish active and viewed provider');
+  assert(mappingSource.includes('Map Action1 organizations to the selected ticketing system'), 'Mapping.jsx should use provider-neutral copy');
   assert(mappingSource.includes('Organization Mapping'), 'Mapping.jsx should keep the mapping table section title');
-  assert(mappingSource.includes('Choose the Action1 Ticketing client for each Action1 organization.'), 'Mapping.jsx should use the shortened non-redundant mapping table subtitle');
+  assert(mappingSource.includes('Choose a destination organization for each Action1 organization.'), 'Mapping.jsx should explain the shared source-to-destination mapping');
   assert(mappingSource.includes("display: 'grid',\n    gap: '0.5rem'"), 'Mapping.jsx should use the shared page-shell grid spacing convention');
   assert(mappingSource.includes("cardTitle: {\n    margin: 0,\n    fontSize: '1.125rem'"), 'Mapping.jsx should define the shared section-heading typography baseline');
-  assert(mappingSource.includes('<h1 className="page-title" style={styles.title}>Client Mapping</h1>'), 'Mapping.jsx should render a page-level Client Mapping title');
-  assert(!mappingSource.includes('Map Action1 organizations to Action1 Ticketing clients.</p>'), 'Mapping.jsx should not keep the shorter old page-level description');
+  assert(mappingSource.includes('<h1 className="page-title" style={styles.title}>Mapping</h1>'), 'Mapping.jsx should render a provider-neutral Mapping title');
   assert(mappingSource.includes('Refresh Discovery'), 'Mapping.jsx should expose one shared discovery refresh action');
   assert(mappingSource.includes('Add Mapping Row'), 'Mapping.jsx should expose the standalone-style add-row action');
   assert(mappingSource.includes('Save Mappings'), 'Mapping.jsx should expose the standalone-style save action');
   assert(mappingSource.includes('Action1 Organization'), 'Mapping.jsx should expose the Action1 organization dropdown');
-  assert(mappingSource.includes('Action1 Ticketing Client'), 'Mapping.jsx should expose the Action1 Ticketing client dropdown');
   assert(mappingSource.includes('Action</th>') || mappingSource.includes('>Action<'), 'Mapping.jsx should expose the Action column header');
   assert(mappingSource.includes('No mappings added yet.'), 'Mapping.jsx should render the standalone-style empty mapping table state');
   assert(mappingSource.includes('Technical details'), 'Mapping.jsx should expose a temporary technical details section');
   assert(mappingSource.includes('<details'), 'Mapping.jsx should render technical details in a collapsible section');
   assert(mappingSource.includes('JSON.stringify(diagnostics, null, 2)'), 'Mapping.jsx should render formatted diagnostics JSON');
   assert(mappingSource.includes('action1Diagnostics ? <DiagnosticDetails diagnostics={action1Diagnostics} /> : null'), 'Mapping.jsx should render Action1 diagnostics only when present');
-  assert(mappingSource.includes('haloDiagnostics ? <DiagnosticDetails diagnostics={haloDiagnostics} /> : null'), 'Mapping.jsx should render Halo diagnostics only when present');
+  assert(mappingSource.includes('destinationDiagnostics ? <DiagnosticDetails diagnostics={destinationDiagnostics} /> : null'), 'Mapping.jsx should render destination diagnostics only when present');
   assert(mappingSource.includes('Saved Mappings'), 'Mapping.jsx should keep the saved mappings summary visible');
-  assert(mappingSource.includes('const selectedInOtherRows = new Set('), 'Mapping.jsx should filter out already mapped selections from other rows');
+  assert(mappingSource.includes('mappingOptionsForRow'), 'Mapping.jsx should filter already selected options for each row');
   assert(mappingSource.includes('data-map-org'), 'Mapping.jsx should render row-based Action1 organization selectors');
-  assert(mappingSource.includes('data-map-client'), 'Mapping.jsx should render row-based Halo client selectors');
+  assert(mappingSource.includes('destinationId'), 'Mapping.jsx should store a neutral destination identifier');
   assert(mappingSource.includes('data-map-remove'), 'Mapping.jsx should render row removal actions');
   assert(mappingSource.includes("const [saveMessage, setSaveMessage] = useState('');"), 'Mapping.jsx should track save success feedback separately from global page errors');
   assert(mappingSource.includes("const [saveError, setSaveError] = useState('');"), 'Mapping.jsx should track save errors separately from global discovery errors');
@@ -68,21 +67,18 @@ function run() {
   assert(mappingSource.includes("maxWidth: 820"), 'Mapping.jsx should use the same max-width convention as Settings');
   assert(mappingSource.includes("margin: '0 auto'"), 'Mapping.jsx should center the mapping page like Settings');
   assert(mappingSource.includes("verticalAlign: 'middle'"), 'Mapping.jsx should keep table rows vertically aligned for compact scanning');
-  assert(mappingSource.includes('const rowsToDelete = savedMappings.filter'), 'Mapping.jsx should remove deleted rows during save');
-  assert(mappingSource.includes('const rowsToCreate = persistRows.filter'), 'Mapping.jsx should persist changed/new rows during save');
-  assert(mappingSource.includes('enabled: true'), 'Mapping.jsx should keep DB compatibility by saving mappings as enabled');
+  assert(mappingSource.includes('buildMappingSavePlan'), 'Mapping.jsx should use identity-aware save planning');
+  assert(mappingSource.includes('executeMappingSavePlan'), 'Mapping.jsx should keep saves sequential');
   assert(mappingSource.includes('const [action1Diagnostics, setAction1Diagnostics] = useState(null);'), 'Mapping.jsx should track Action1 discovery diagnostics separately');
-  assert(mappingSource.includes('const [haloDiagnostics, setHaloDiagnostics] = useState(null);'), 'Mapping.jsx should track Halo discovery diagnostics separately');
+  assert(mappingSource.includes('const [destinationDiagnostics, setDestinationDiagnostics] = useState(null);'), 'Mapping.jsx should track destination diagnostics separately');
   assert(mappingSource.includes('aria-label={`Action1 Organization row ${rowIndex + 1}`}'), 'Mapping.jsx should keep row selectors accessible without repeated visible labels');
-  assert(mappingSource.includes('aria-label={`Action1 Ticketing Client row ${rowIndex + 1}`}'), 'Mapping.jsx should keep row selectors accessible without repeated visible labels');
   assert(!mappingSource.includes('Action1 Organization ID'), 'Mapping.jsx should not expose manual Action1 organization ID entry');
   assert(!mappingSource.includes('Action1 Organization Name'), 'Mapping.jsx should not expose manual Action1 organization name entry');
-  assert(!mappingSource.includes('Action1 Ticketing Client ID'), 'Mapping.jsx should not expose manual Halo client ID entry');
-  assert(!mappingSource.includes('Action1 Ticketing Client Name'), 'Mapping.jsx should not expose manual Halo client name entry');
+  assert(!mappingSource.includes('Action1 Ticketing Client ID'), 'Mapping.jsx should not expose Halo-specific destination fields');
+  assert(!mappingSource.includes('Action1 Ticketing Client Name'), 'Mapping.jsx should not expose Halo-specific destination fields');
   assert(!mappingSource.includes('<label style={styles.label} htmlFor={`map-org-${rowIndex}`}>Action1 Organization</label>'), 'Mapping.jsx should not repeat the Action1 label inside every row');
-  assert(!mappingSource.includes('<label style={styles.label} htmlFor={`map-client-${rowIndex}`}>Action1 Ticketing Client</label>'), 'Mapping.jsx should not repeat the Halo label inside every row');
   assert(!mappingSource.includes('Refresh Action1 Organizations'), 'Mapping.jsx should not expose a separate Action1 refresh button');
-  assert(!mappingSource.includes('Refresh Action1 Ticketing Clients'), 'Mapping.jsx should not expose a separate Halo refresh button');
+  assert(!mappingSource.includes('Refresh Action1 Ticketing Clients'), 'Mapping.jsx should not expose Halo-specific refresh copy');
   assert(!mappingSource.includes('Enabled</p>'), 'Mapping.jsx should not show an Enabled summary card');
   assert(!mappingSource.includes('Mapping enabled'), 'Mapping.jsx should not expose an enabled checkbox');
   assert(!mappingSource.includes('Enabled</th>'), 'Mapping.jsx should not show an Enabled table column');
@@ -91,6 +87,7 @@ function run() {
   assert(!mappingSource.includes('Edit'), 'Mapping.jsx should not expose edit row actions');
   assert(!mappingSource.includes('Manual entry is expected for the Action1 side'), 'Mapping.jsx should not mention manual Action1 entry');
   assert(!mappingSource.includes('Advanced'), 'Mapping.jsx should not add an advanced manual fallback section');
+  assert(!mappingSource.includes("from '../haloApi'"), 'Mapping.jsx must not call the Halo API directly');
 }
 
 try {

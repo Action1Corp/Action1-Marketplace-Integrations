@@ -1,9 +1,13 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const { createMappingActionHandlers } = require('../mappingActions');
+const { createProviderDispatcher } = require('../providerRegistry');
+const { createInMemoryTicketingDb } = require('./fixtures/inMemoryTicketingDb');
 
 const originalFetch = global.fetch;
-const DEFAULT_PROVIDER_ID = 'connectwise-psa';
+const DEFAULT_PROVIDER_ID = 'provider-a';
+const PRODUCTION_PROVIDER_ID = 'connectwise-psa';
 const diagnosticLogDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'halo-mapping-logs-'));
 process.env.HALO_PSA_LOG_DIR = diagnosticLogDir;
 function diagnosticText() { try { return fs.readFileSync(path.join(diagnosticLogDir, 'action1-ticketing-runtime.log'), 'utf8'); } catch { return ''; } }
@@ -176,7 +180,44 @@ async function loadFreshActionsModule() {
   delete require.cache[mappingActionsPath];
   delete require.cache[mappingStorePath];
   delete require.cache[haloApiPath];
+  const actions = { ...require('../actions').actions };
+  const registry = Object.fromEntries(['provider-a', 'provider-b'].map((providerId) => [providerId, {
+    providerId,
+    label: providerId,
+    contractMajor: 1,
+    adapter: syntheticAdapter()
+  }]));
+  const definitions = Object.fromEntries(Object.keys(registry).map((providerId) => [providerId, {
+    providerId, label: providerId, available: true, fields: [], accountSelectors: []
+  }]));
+  const scoped = createMappingActionHandlers({ registry, definitions, dispatcher: createProviderDispatcher(registry) });
+  actions['list-ticketing-org-destination-mappings'] = scoped.listHaloOrgClientMappings;
+  actions['save-ticketing-org-destination-mapping'] = scoped.saveHaloOrgClientMapping;
+  actions['delete-ticketing-org-destination-mapping'] = scoped.deleteHaloOrgClientMapping;
+  actions['discover-ticketing-mapping-options'] = scoped.discoverHaloMappingOptions;
+  return actions;
+}
+
+async function loadProductionActionsModule() {
+  const actionsPath = require.resolve('../actions');
+  const action1ApiPath = require.resolve('../action1Api');
+  const mappingActionsPath = require.resolve('../mappingActions');
+  delete require.cache[actionsPath];
+  delete require.cache[action1ApiPath];
+  delete require.cache[mappingActionsPath];
   return require('../actions').actions;
+}
+
+function syntheticAdapter(onDiscover = async () => ({ options: [] }), onOperation = () => {}) {
+  return {
+    validateConfiguration: async () => ({ ok: true, errors: [] }),
+    testConnection: async () => ({ ok: true }),
+    discover: async (args) => { onOperation('discover'); return onDiscover(args); },
+    prepareTicket: async () => { onOperation('prepareTicket'); return { payload: {}, comparisonValue: '', comparisonVersion: '1' }; },
+    getTicket: async () => { onOperation('getTicket'); return { state: 'missing', confirmed: true }; },
+    createTicket: async () => { onOperation('createTicket'); return { externalTicketRef: { id: 'fixture-ticket' } }; },
+    updateTicket: async () => { onOperation('updateTicket'); return { ok: true }; }
+  };
 }
 
 async function testListReturnsRowsSafely() {
@@ -207,7 +248,7 @@ async function testListReturnsRowsSafely() {
     }
   ]);
   const actions = await loadFreshActionsModule();
-  const result = await actions['list-ticketing-org-destination-mappings']({ db }, {});
+  const result = await actions['list-ticketing-org-destination-mappings']({ db }, { providerId: DEFAULT_PROVIDER_ID });
 
   assert.strictEqual(result.ok, true, 'list mapping action should succeed');
   assert.strictEqual(result.mappings.length, 3, 'list mapping action should return rows');
@@ -232,6 +273,7 @@ async function testSavePersistsRowsThroughContextDbWithoutExternalCalls() {
   }, async () => {
     const actions = await loadFreshActionsModule();
     const result = await actions['save-ticketing-org-destination-mapping']({ db }, {
+      providerId: DEFAULT_PROVIDER_ID,
       payload: {
         action1OrgId: 'org-10',
         action1OrgName: 'Northwind',
@@ -262,6 +304,7 @@ async function testDuplicateCollisionFailsSafely() {
   const actions = await loadFreshActionsModule();
 
   const duplicateOrg = await actions['save-ticketing-org-destination-mapping']({ db }, {
+    providerId: DEFAULT_PROVIDER_ID,
     payload: {
       action1OrgId: 'org-1',
       action1OrgName: 'Alpha Org',
@@ -274,6 +317,7 @@ async function testDuplicateCollisionFailsSafely() {
   assert(duplicateOrg.message.includes('already mapped'), 'duplicate Action1 org should return actionable error');
 
   const duplicateClient = await actions['save-ticketing-org-destination-mapping']({ db }, {
+    providerId: DEFAULT_PROVIDER_ID,
     payload: {
       action1OrgId: 'org-2',
       action1OrgName: 'Beta Org',
@@ -299,12 +343,12 @@ async function testDeleteBehavesDeterministically() {
   ]);
   const actions = await loadFreshActionsModule();
 
-  const deleted = await actions['delete-ticketing-org-destination-mapping']({ db }, { payload: { id: 5 } });
+  const deleted = await actions['delete-ticketing-org-destination-mapping']({ db }, { providerId: DEFAULT_PROVIDER_ID, payload: { id: 5 } });
   assert.strictEqual(deleted.ok, true, 'delete mapping action should succeed when row exists');
   assert.strictEqual(deleted.deleted, true, 'delete mapping action should report deleted rows');
   assert.strictEqual(state.rows.length, 0, 'delete mapping action should remove the row');
 
-  const deletedAgain = await actions['delete-ticketing-org-destination-mapping']({ db }, { payload: { id: 5 } });
+  const deletedAgain = await actions['delete-ticketing-org-destination-mapping']({ db }, { providerId: DEFAULT_PROVIDER_ID, payload: { id: 5 } });
   assert.strictEqual(deletedAgain.ok, true, 'delete mapping action should stay deterministic when row is missing');
   assert.strictEqual(deletedAgain.deleted, false, 'delete mapping action should report already-absent rows');
 }
@@ -473,191 +517,108 @@ async function testAction1OrganizationDiscoveryFailsSafely() {
   }
 }
 
-async function testHaloClientDiscoveryIsReadOnlyAndSanitized() {
-  let fetchCalls = [];
-  await withMockedFetch(async (url, options = {}) => {
-    fetchCalls.push({ url: String(url), options });
-    if (String(url).endsWith('/token')) {
-      return jsonResponse(200, { access_token: 'halo-token', token_type: 'TokenTypeX' });
-    }
-    const parsed = new URL(String(url));
-    if (parsed.pathname.endsWith('/api/Client')) {
-      return jsonResponse(200, {
-        page_no: Number(parsed.searchParams.get('page_no')),
-        page_size: Number(parsed.searchParams.get('page_size')),
-        record_count: 1,
-        clients: [{ id: '17', name: 'Acme Ltd' }]
-      });
-    }
-    throw new Error(`Unexpected URL ${url}`);
-  }, async () => {
-    const actions = await loadFreshActionsModule();
-    const logger = createLoggerContext();
-    const result = await actions['discover-ticketing-mapping-options']({
-      settings: createSettingsContext({
-        TicketingClientSecret: 'stored-secret-value'
-      }),
-      logger: logger.logger
-    }, {
-      settings: {
-        TicketingResourceServer: 'https://halo.example.com',
-        TicketingAuthorisationServer: 'https://halo.example.com/auth',
-        TicketingClientId: 'client-id-123',
-        _secretModes: {
-          TicketingClientSecret: 'stored'
-        }
-      }
-    });
-
-    assert.strictEqual(result.ok, true, 'Halo client discovery should succeed');
-    assert.deepStrictEqual(result.haloClients[0], { id: '17', name: 'Acme Ltd' }, 'Halo client discovery should normalize client rows');
-    const tokenCall = fetchCalls.find((call) => call.url.endsWith('/token'));
-    assert(tokenCall, 'Halo client discovery should request a Halo token');
-    assert(String(tokenCall.options?.body || '').includes('grant_type=client_credentials'), 'Halo token request should keep the client credentials grant');
-    assert(String(tokenCall.options?.body || '').includes('scope=all'), 'Halo token request should match standalone scope=all behavior');
-    const clientCall = fetchCalls.find((call) => new URL(call.url).pathname.endsWith('/api/Client'));
-    assert(clientCall, 'Halo client discovery should call the standalone /Client endpoint');
-    assert.strictEqual(clientCall.url.includes('?$top=200'), false, 'Halo client discovery should not append the Marketplace-only $top query');
-    const clientUrl = new URL(clientCall.url);
-    assert.strictEqual(clientUrl.searchParams.get('pageinate'), 'true', 'Halo client discovery should explicitly enable Halo pagination');
-    assert.strictEqual(clientUrl.searchParams.get('page_no'), '1', 'Halo client discovery should start on page 1');
-    assert.strictEqual(clientUrl.searchParams.get('page_size'), '50', 'Halo client discovery should use the bounded page size');
-    assert.strictEqual(clientCall.options?.headers?.authorization, 'TokenTypeX halo-token', 'Halo client discovery should preserve the token type from the Halo token response');
-    assert.strictEqual(clientCall.options?.headers?.accept, 'application/json', 'Halo client discovery should request JSON responses');
-    assert(!fetchCalls.some((call) => call.url.includes('/Tickets')), 'Halo client discovery must not call Halo ticket write endpoints');
-    assert.strictEqual(logger.warnings.length, 0, 'successful Halo client discovery should not log warnings');
-  });
-
-  await withMockedFetch(async (url) => {
-    if (String(url).endsWith('/token')) {
-      return jsonResponse(200, { access_token: 'halo-token', token_type: 'Bearer' });
-    }
-    const parsed = new URL(String(url));
-    if (parsed.pathname.endsWith('/api/Client')) {
-      return jsonResponse(200, {
-        page_no: Number(parsed.searchParams.get('page_no')),
-        page_size: Number(parsed.searchParams.get('page_size')),
-        record_count: 1,
-        clients: [{ id: '18', name: 'Beta Ltd' }]
-      });
-    }
-    throw new Error(`Unexpected URL ${url}`);
-  }, async () => {
-    const actions = await loadFreshActionsModule();
-    const result = await actions['discover-ticketing-mapping-options']({
+async function testProductionDestinationDiscoveryIsUnavailableBeforeTransport() {
+  let fetchCalls = 0;
+  await withMockedFetch(async () => { fetchCalls += 1; throw new Error('Production mapping discovery must not contact Halo.'); }, async () => {
+    const actions = await loadProductionActionsModule();
+    let dbCalls = 0;
+    const context = {
+      db: new Proxy({}, { get() { return async () => { dbCalls += 1; throw new Error('Unavailable provider must stop before persistence.'); }; } }),
       settings: createSettingsContext()
-    }, {
-      settings: {
-        TicketingResourceServer: 'https://halo.example.com/api',
-        TicketingAuthorisationServer: 'https://halo.example.com/auth',
-        TicketingClientId: 'client-id-123',
-        TicketingClientSecret: 'stored-secret-value'
-      }
-    });
-
-    assert.strictEqual(result.ok, true, 'Halo client discovery should still succeed when the resource server already includes /api');
-  });
-
-  await withMockedFetch(async (url) => {
-    if (String(url).endsWith('/token')) {
-      return jsonResponse(200, { access_token: 'halo-token', token_type: 'Bearer' });
+    };
+    const result = await actions['discover-ticketing-mapping-options'](context, { providerId: PRODUCTION_PROVIDER_ID });
+    assert.strictEqual(result.ok, false, 'the production provider remains unavailable');
+    assert.deepStrictEqual(result.destinationOptions, [], 'unavailable destination discovery returns no options');
+    assert.match(result.message, /not available/i);
+    assert.strictEqual(fetchCalls, 0, 'unavailable provider fails before any destination transport');
+    for (const actionId of [
+      'list-ticketing-org-destination-mappings',
+      'save-ticketing-org-destination-mapping',
+      'delete-ticketing-org-destination-mapping'
+    ]) {
+      const response = await actions[actionId](context, { providerId: PRODUCTION_PROVIDER_ID, payload: { id: 1 } });
+      assert.strictEqual(response.ok, false, `${actionId} rejects unavailable providers`);
     }
-    if (new URL(String(url)).pathname.endsWith('/api/Client')) {
-      return {
-        ...jsonResponse(403, {
-          error: 'forbidden',
-          message: 'bearer halo-token client_secret stored-secret-value',
-          detail: 'X'.repeat(1200)
-        }, { 'content-type': 'application/json; charset=utf-8' }),
-        ok: false
-      };
-    }
-    return jsonResponse(200, {});
-  }, async () => {
-    const actions = await loadFreshActionsModule();
-    const logger = createLoggerContext();
-    const result = await actions['discover-ticketing-mapping-options']({
-      settings: createSettingsContext(),
-      logger: logger.logger
-    }, {
-      settings: {
-        TicketingResourceServer: 'https://halo.example.com',
-        TicketingAuthorisationServer: 'https://halo.example.com/auth',
-        TicketingClientId: 'client-id-123',
-        TicketingClientSecret: 'stored-secret-value'
-      }
-    });
-
-    assert.strictEqual(result.ok, false, 'failed Halo client discovery should fail safely');
-    assert.strictEqual(result.message, 'Failed: Action1 Ticketing client discovery failed. Check Action1 Ticketing client-read access and retry.', 'failed Halo client discovery should return a short UI message');
-      assert(result.diagnostics.operation === 'halo_client_discovery', 'failed Halo client discovery should include discovery diagnostics');
-    assert.strictEqual(result.diagnostics.actionId, 'discover-ticketing-mapping-options', 'failed Halo client discovery should include the action id');
-    assert(result.diagnostics.tokenAcquired === true, 'failed Halo client discovery should report token acquisition success');
-    assert(result.diagnostics.request.path === '/Client', 'failed Halo client discovery should include the /Client path');
-    assert.strictEqual(result.diagnostics.request.query, 'pageinate=true&page_no=1&page_size=50', 'failed Halo client discovery should report the actual paginated /Client query');
-    assert.strictEqual(result.diagnostics.request.method, 'GET', 'failed Halo client discovery should include the request method');
-    assert.strictEqual(result.diagnostics.resolvedResourceServer, 'https://halo.example.com/api', 'failed Halo client discovery should include the resolved Halo resource server');
-    assert(result.diagnostics.response.status === 403, 'failed Halo client discovery should report the HTTP status');
-    assert.strictEqual(result.diagnostics.response.contentType, 'application/json; charset=utf-8', 'failed Halo client discovery should report the response content type');
-    assert.strictEqual(result.diagnostics.response.errorCode, 'forbidden', 'failed Halo client discovery should report the safe Halo error code');
-    assert(result.diagnostics.response.errorMessage.includes('bearer [redacted]'), 'failed Halo client discovery should report the sanitized Halo error message');
-    assert(result.diagnostics.response.bodyExcerpt.includes('bearer [redacted]'), 'failed Halo client discovery should include a sanitized response body excerpt');
-    assert.strictEqual(result.diagnostics.response.bodyExcerpt.length <= 1000, true, 'failed Halo client discovery should truncate the response body excerpt');
-    assert(result.diagnostics.timestamp, 'failed Halo client discovery should include a timestamp');
-    assert(!result.message.includes('halo-token'), 'failed Halo client discovery should not leak tokens');
-    assert(!result.message.includes('stored-secret-value'), 'failed Halo client discovery should not leak secrets');
-    assert(diagnosticText().includes('Action1 Ticketing mapping discovery diagnostic'), 'failed Halo client discovery should log a searchable diagnostic message');
-    assert(diagnosticText().includes('"operation":"halo_client_discovery"'), 'failed Halo client discovery should log sanitized discovery diagnostics');
-    assert(diagnosticText().includes('"path":"/Client"'), 'failed Halo client discovery should log the /Client path');
-    assert(!diagnosticText().includes('halo-token'), 'failed Halo client discovery logs should not leak tokens');
-    assert(!diagnosticText().includes('stored-secret-value'), 'failed Halo client discovery logs should not leak secrets');
-    assert(!JSON.stringify(result.diagnostics).includes('Authorization'), 'failed Halo client discovery diagnostics should not include Authorization headers');
+    assert.strictEqual(dbCalls, 0, 'unavailable mapping actions stop before persistence');
   });
 }
 
-async function testHaloClientDiscoveryActionReturnsFullMultiPageCatalog() {
-  await withMockedFetch(async (url) => {
-    if (String(url).endsWith('/token')) {
-      return jsonResponse(200, { access_token: 'halo-token', token_type: 'Bearer' });
-    }
-
-    const parsed = new URL(String(url));
-    if (parsed.pathname.endsWith('/api/Client')) {
-      const pageNo = Number(parsed.searchParams.get('page_no'));
-      const pageSize = Number(parsed.searchParams.get('page_size'));
-      const total = 120;
-      const start = (pageNo - 1) * pageSize + 1;
-      const end = Math.min(total, start + pageSize - 1);
-      return jsonResponse(200, {
-        page_no: pageNo,
-        page_size: pageSize,
-        record_count: total,
-        clients: Array.from({ length: Math.max(0, end - start + 1) }, (_, index) => ({
-          id: String(start + index),
-          name: `Client ${start + index}`
-        }))
-      });
-    }
-
-    throw new Error(`Unexpected URL ${url}`);
-  }, async () => {
-    const actions = await loadFreshActionsModule();
-    const result = await actions['discover-ticketing-mapping-options']({
-      settings: createSettingsContext()
-    }, {
+async function testLegacyHaloActionPayloadCannotSelectDestinationTransport() {
+  let fetchCalls = 0;
+  await withMockedFetch(async () => { fetchCalls += 1; throw new Error('No Halo call is permitted.'); }, async () => {
+    const actions = await loadProductionActionsModule();
+    const result = await actions['discover-ticketing-mapping-options']({ settings: createSettingsContext() }, {
+      providerId: PRODUCTION_PROVIDER_ID,
       settings: {
         TicketingResourceServer: 'https://halo.example.com',
         TicketingAuthorisationServer: 'https://halo.example.com/auth',
-        TicketingClientId: 'client-id-123',
-        TicketingClientSecret: 'stored-secret-value'
+        TicketingClientId: 'synthetic-client',
+        TicketingClientSecret: 'synthetic-secret'
       }
     });
-
-    assert.strictEqual(result.ok, true, 'Halo client discovery action should succeed');
-    assert.strictEqual(result.haloClients.length, 120, 'Halo client discovery action should return the full multi-page catalog');
-    assert.deepStrictEqual(result.haloClients[0], { id: '1', name: 'Client 1' });
-    assert.deepStrictEqual(result.haloClients[119], { id: '120', name: 'Client 120' });
+    assert.strictEqual(result.ok, false, 'Halo-shaped settings cannot make the unavailable provider usable');
+    assert.strictEqual(fetchCalls, 0, 'legacy Halo settings do not reach destination transport');
   });
+}
+async function testProviderScopedMappingActionsUseReadOnlyAdapterDiscovery() {
+  const { context, tables } = createInMemoryTicketingDb();
+  const calls = [];
+  const operations = [];
+  const registry = Object.fromEntries(['provider-a', 'provider-b'].map((providerId) => [providerId, {
+    providerId,
+    label: providerId,
+    contractMajor: 1,
+    adapter: syntheticAdapter((args) => {
+      calls.push({ providerId, args });
+      return { options: [{ id: 'dest-shared', label: `${providerId} Destination` }] };
+    }, (operation) => operations.push(operation))
+  }]));
+  const definitions = Object.fromEntries(Object.keys(registry).map((providerId) => [providerId, {
+    providerId, label: providerId, available: true, fields: [], accountSelectors: []
+  }]));
+  const handlers = createMappingActionHandlers({ registry, definitions, dispatcher: createProviderDispatcher(registry) });
+
+  const savedA = await handlers.saveHaloOrgClientMapping(context, {
+    providerId: 'provider-a',
+    payload: { providerId: 'provider-b', action1OrgId: 'org-shared', action1OrgName: 'Shared', destinationId: 'dest-shared', destinationName: 'A Destination' }
+  });
+  const savedB = await handlers.saveHaloOrgClientMapping(context, {
+    providerId: 'provider-b',
+    payload: { providerId: 'provider-a', action1OrgId: 'org-shared', action1OrgName: 'Shared', destinationId: 'dest-shared', destinationName: 'B Destination' }
+  });
+  assert.strictEqual(savedA.ok, true, JSON.stringify(savedA));
+  assert.strictEqual(savedB.ok, true);
+  assert.strictEqual(savedA.mapping.providerId, 'provider-a', 'row payload cannot change the server-selected owner');
+  assert.strictEqual(savedB.mapping.providerId, 'provider-b');
+  assert.notStrictEqual(savedA.mapping.id, savedB.mapping.id);
+  const listA = await handlers.listHaloOrgClientMappings(context, { providerId: 'provider-a' });
+  const listB = await handlers.listHaloOrgClientMappings(context, { providerId: 'provider-b' });
+  assert.deepStrictEqual(listA.mappings.map((row) => row.destinationName), ['A Destination']);
+  assert.deepStrictEqual(listB.mappings.map((row) => row.destinationName), ['B Destination']);
+  const crossProviderUpdate = await handlers.saveHaloOrgClientMapping(context, {
+    providerId: 'provider-a',
+    payload: { id: savedB.mapping.id, action1OrgId: 'org-shared', action1OrgName: 'Tampered', destinationId: 'dest-shared', destinationName: 'Tampered' }
+  });
+  assert.strictEqual(crossProviderUpdate.ok, false, 'provider A cannot update a provider B mapping ID');
+  const crossProviderDelete = await handlers.deleteHaloOrgClientMapping(context, { providerId: 'provider-a', payload: { id: savedB.mapping.id } });
+  assert.strictEqual(crossProviderDelete.deleted, false, 'provider A cannot delete a provider B mapping ID');
+  assert.strictEqual((await handlers.listHaloOrgClientMappings(context, { providerId: 'provider-b' })).mappings[0].destinationName, 'B Destination');
+
+  const discoveryA = await handlers.discoverHaloMappingOptions(context, { providerId: 'provider-a' });
+  const discoveryB = await handlers.discoverHaloMappingOptions(context, { providerId: 'provider-b' });
+  assert.deepStrictEqual(discoveryA.destinationOptions, [{ id: 'dest-shared', name: 'provider-a Destination' }]);
+  assert.deepStrictEqual(discoveryB.destinationOptions, [{ id: 'dest-shared', name: 'provider-b Destination' }]);
+  assert.deepStrictEqual(calls.map((call) => call.providerId), ['provider-a', 'provider-b']);
+  assert(calls.every((call) => call.args.input.kind === 'mapping-destinations'));
+  assert(calls.every((call) => Object.keys(call.args).sort().join(',') === 'connection,input,logger,transport'), 'adapter receives only the contract input boundary');
+  assert.deepStrictEqual(operations, ['discover', 'discover'], 'Mapping invokes discovery only and never ticket operations');
+  assert.strictEqual(Object.keys(tables.get('action1_ticketing_org_client_mappings')).length, 2);
+
+  const productionActions = await loadProductionActionsModule();
+  const unavailable = await productionActions['discover-ticketing-mapping-options'](context, { providerId: PRODUCTION_PROVIDER_ID });
+  assert.strictEqual(unavailable.ok, false, 'production ConnectWise remains unavailable');
+  assert.strictEqual(unavailable.destinationOptions.length, 0);
+  assert(!JSON.stringify(unavailable).includes('Halo'));
 }
 
 async function run() {
@@ -668,8 +629,9 @@ async function run() {
   await testDeleteBehavesDeterministically();
   await testAction1OrganizationDiscoveryUsesMarketplaceCredentials();
   await testAction1OrganizationDiscoveryFailsSafely();
-  await testHaloClientDiscoveryIsReadOnlyAndSanitized();
-  await testHaloClientDiscoveryActionReturnsFullMultiPageCatalog();
+  await testProductionDestinationDiscoveryIsUnavailableBeforeTransport();
+  await testLegacyHaloActionPayloadCannotSelectDestinationTransport();
+  await testProviderScopedMappingActionsUseReadOnlyAdapterDiscovery();
 }
 
 run().catch((error) => {

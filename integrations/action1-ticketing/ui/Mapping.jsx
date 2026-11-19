@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { UI_PROVIDER_REGISTRY, isUiProviderAvailable, resolveUiProvider } from './providerRegistry.js';
+import { buildMappingSavePlan, buildPersistRows, executeMappingSavePlan, isCurrentMappingRequest, mappingOptionsForRow, normalizeMappingRows } from './mappingState.mjs';
 
 const ACTIONS = {
   list: 'list-ticketing-org-destination-mappings',
@@ -12,8 +14,8 @@ const EMPTY_ROW = {
   id: null,
   action1OrgId: '',
   action1OrgName: '',
-  haloClientId: '',
-  haloClientName: ''
+  destinationId: '',
+  destinationName: ''
 };
 
 const styles = {
@@ -162,139 +164,6 @@ const styles = {
   }
 };
 
-function normalizeOptions(rows) {
-  return (Array.isArray(rows) ? rows : [])
-    .map((row) => {
-      const id = String(row?.id || '').trim();
-      const name = String(row?.name || '').trim();
-
-      if (!id || !name) {
-        return null;
-      }
-
-      return {
-        value: id,
-        label: name,
-        name
-      };
-    })
-    .filter(Boolean);
-}
-
-function ensureSelectedOption(options, value, name) {
-  const selectedValue = String(value || '').trim();
-  const selectedName = String(name || '').trim();
-
-  if (!selectedValue || !selectedName) {
-    return options;
-  }
-
-  if (options.some((row) => row.value === selectedValue)) {
-    return options;
-  }
-
-  return [
-    ...options,
-    {
-      value: selectedValue,
-      label: selectedName,
-      name: selectedName
-    }
-  ];
-}
-
-function rowsEquivalent(left, right) {
-  return (
-    String(left?.action1OrgId || '') === String(right?.action1OrgId || '') &&
-    String(left?.action1OrgName || '') === String(right?.action1OrgName || '') &&
-    String(left?.haloClientId || '') === String(right?.haloClientId || '') &&
-    String(left?.haloClientName || '') === String(right?.haloClientName || '')
-  );
-}
-
-function normalizeMappingRows(rows) {
-  return (Array.isArray(rows) ? rows : []).map((row) => ({
-    id: row?.id ?? null,
-    action1OrgId: String(row?.action1OrgId || ''),
-    action1OrgName: String(row?.action1OrgName || ''),
-    haloClientId: String(row?.haloClientId || ''),
-    haloClientName: String(row?.haloClientName || '')
-  }));
-}
-
-function mappingOptionsForRow(allOptions, rows, rowIndex, valueKey, nameKey) {
-  const normalized = normalizeOptions(allOptions);
-  const selectedInOtherRows = new Set(
-    rows
-      .filter((_, idx) => idx !== rowIndex)
-      .map((row) => String(row?.[valueKey] || '').trim())
-      .filter(Boolean)
-  );
-  const currentRow = rows[rowIndex] || EMPTY_ROW;
-  const currentValue = String(currentRow?.[valueKey] || '').trim();
-
-  const allowed = normalized.filter((option) => {
-    if (option.value === currentValue) {
-      return true;
-    }
-
-    return !selectedInOtherRows.has(option.value);
-  });
-
-  return ensureSelectedOption(allowed, currentRow?.[valueKey], currentRow?.[nameKey]);
-}
-
-function buildPersistRows(rows, action1Organizations, haloClients) {
-  const errors = [];
-  const persistRows = [];
-  const orgsById = new Map(normalizeOptions(action1Organizations).map((row) => [row.value, row.name]));
-  const clientsById = new Map(normalizeOptions(haloClients).map((row) => [row.value, row.name]));
-  const seenAction1 = new Set();
-  const seenClients = new Set();
-
-  for (const row of rows) {
-    const action1OrgId = String(row?.action1OrgId || '').trim();
-    const haloClientId = String(row?.haloClientId || '').trim();
-    const action1OrgName = String(orgsById.get(action1OrgId) || row?.action1OrgName || '').trim();
-    const haloClientName = String(clientsById.get(haloClientId) || row?.haloClientName || '').trim();
-
-    if (!action1OrgId && !haloClientId) {
-      continue;
-    }
-
-    if (!action1OrgId || !haloClientId) {
-      errors.push('Select both an Action1 organization and a Action1 Ticketing client, or remove the incomplete row.');
-      continue;
-    }
-
-    if (seenAction1.has(action1OrgId)) {
-      errors.push('Each Action1 organization can only be mapped once. Remove duplicate mappings before saving.');
-    } else {
-      seenAction1.add(action1OrgId);
-    }
-
-    if (seenClients.has(haloClientId)) {
-      errors.push('Each Action1 Ticketing client can only be mapped once. Remove duplicate mappings before saving.');
-    } else {
-      seenClients.add(haloClientId);
-    }
-
-    persistRows.push({
-      id: row?.id ?? null,
-      action1OrgId,
-      action1OrgName,
-      haloClientId,
-      haloClientName,
-      enabled: true
-    });
-  }
-
-  return {
-    errors: Array.from(new Set(errors)),
-    persistRows
-  };
-}
-
 function DiagnosticDetails({ diagnostics }) {
   if (!diagnostics) {
     return null;
@@ -312,7 +181,10 @@ function Mapping({ integration }) {
   const [savedMappings, setSavedMappings] = useState([]);
   const [draftRows, setDraftRows] = useState([]);
   const [action1Organizations, setAction1Organizations] = useState([]);
-  const [haloClients, setHaloClients] = useState([]);
+  const [destinationOptions, setDestinationOptions] = useState([]);
+  const [activeProviderId, setActiveProviderId] = useState('connectwise-psa');
+  const [viewedProviderId, setViewedProviderId] = useState('connectwise-psa');
+  const [settings, setSettings] = useState({});
   const [loading, setLoading] = useState(true);
   const [discovering, setDiscovering] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -320,9 +192,21 @@ function Mapping({ integration }) {
   const [saveMessage, setSaveMessage] = useState('');
   const [saveError, setSaveError] = useState('');
   const [action1Error, setAction1Error] = useState('');
-  const [haloError, setHaloError] = useState('');
+  const [destinationError, setDestinationError] = useState('');
   const [action1Diagnostics, setAction1Diagnostics] = useState(null);
-  const [haloDiagnostics, setHaloDiagnostics] = useState(null);
+  const [destinationDiagnostics, setDestinationDiagnostics] = useState(null);
+  const requestGeneration = useRef(0);
+  const viewedProviderRef = useRef(viewedProviderId);
+  const savedMappingsRef = useRef(savedMappings);
+  const draftRowsRef = useRef(draftRows);
+  viewedProviderRef.current = viewedProviderId;
+  savedMappingsRef.current = savedMappings;
+  draftRowsRef.current = draftRows;
+
+  const provider = resolveUiProvider(viewedProviderId);
+  const providerAvailable = isUiProviderAvailable(provider);
+  const mappingReady = providerAvailable && typeof provider?.DestinationMappingFields === 'function';
+  const providers = Object.values(UI_PROVIDER_REGISTRY);
 
   const syncMappings = (nextMappings) => {
     const normalized = normalizeMappingRows(nextMappings);
@@ -330,128 +214,139 @@ function Mapping({ integration }) {
     setDraftRows(normalized);
   };
 
-  const invokeAction = async (actionId, body = {}) => {
+  const invokeAction = async (actionId, providerId, body = {}) => {
+    const payload = providerId ? { ...body, providerId } : body;
     const response = await fetch(`/api/integrations/${integration}/actions/${actionId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+      body: JSON.stringify(payload)
     });
     const data = await response.json().catch(() => ({}));
-
     if (!response.ok || data?.ok === false) {
-      throw new Error(data?.message || `Unable to run ${actionId}.`);
+      const error = new Error(data?.message || `Unable to run ${actionId}.`);
+      error.diagnostics = data?.diagnostics || null;
+      throw error;
     }
-
     return data;
   };
 
-  const loadMappings = async () => {
-    const data = await invokeAction(ACTIONS.list, {});
-    syncMappings(data?.mappings);
+  const requestIsCurrent = (providerId, generation) =>
+    isCurrentMappingRequest({ providerId, generation }, { providerId: viewedProviderRef.current, generation: requestGeneration.current });
+
+  const loadMappings = async (providerId, generation) => {
+    if (!isUiProviderAvailable(resolveUiProvider(providerId))) {
+      if (requestIsCurrent(providerId, generation)) {
+        setSavedMappings([]);
+        setDraftRows([]);
+        setPageError(`${resolveUiProvider(providerId)?.label || 'This ticketing system'} is not available in this version. Configure an available provider in Settings.`);
+      }
+      return;
+    }
+    try {
+      const data = await invokeAction(ACTIONS.list, providerId);
+      if (requestIsCurrent(providerId, generation)) {
+        setPageError('');
+        syncMappings(data?.mappings);
+      }
+    } catch (error) {
+      if (requestIsCurrent(providerId, generation)) setPageError(error?.message || 'Unable to load mapping screen.');
+    }
   };
 
-  const loadAction1Organizations = async () => {
+  const loadAction1Organizations = async (providerId, generation) => {
     setAction1Error('');
     setAction1Diagnostics(null);
-
     try {
-      const response = await fetch(`/api/integrations/${integration}/actions/${ACTIONS.discoverAction1}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
-      });
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok || data?.ok === false) {
-        setAction1Organizations([]);
-        setAction1Diagnostics(data?.diagnostics || null);
-        setAction1Error(data?.message || 'Unable to load Action1 organization options.');
-        return;
-      }
-
+      const data = await invokeAction(ACTIONS.discoverAction1, null);
+      if (!requestIsCurrent(providerId, generation)) return;
       setAction1Organizations(Array.isArray(data?.action1Organizations) ? data.action1Organizations : []);
-      setAction1Diagnostics(null);
-    } catch (nextError) {
-      setAction1Organizations([]);
-      setAction1Error(nextError?.message || 'Unable to load Action1 organization options.');
+    } catch (error) {
+      if (!requestIsCurrent(providerId, generation)) return;
+      setAction1Diagnostics(error?.diagnostics || null);
+      setAction1Error(error?.message || 'Unable to load Action1 organization options.');
     }
   };
 
-  const loadHaloClients = async () => {
-    setHaloError('');
-    setHaloDiagnostics(null);
-
-    try {
-      const response = await fetch(`/api/integrations/${integration}/actions/${ACTIONS.discover}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings: {} })
-      });
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok || data?.ok === false) {
-        setHaloClients([]);
-        setHaloDiagnostics(data?.diagnostics || null);
-        setHaloError(data?.message || 'Unable to load Action1 Ticketing client options.');
-        return;
+  const loadDestinationOptions = async (providerId, generation) => {
+    setDestinationError('');
+    setDestinationDiagnostics(null);
+    const selected = resolveUiProvider(providerId);
+    if (!isUiProviderAvailable(selected)) {
+      if (requestIsCurrent(providerId, generation)) {
+        setDestinationOptions([]);
+        setDestinationError(`${selected?.label || 'This ticketing system'} is unavailable. Configure an implemented provider in Settings.`);
       }
-
-      setHaloClients(Array.isArray(data?.haloClients) ? data.haloClients : []);
-      setHaloDiagnostics(null);
-    } catch (nextError) {
-      setHaloClients([]);
-      setHaloError(nextError?.message || 'Unable to load Action1 Ticketing client options.');
+      return;
+    }
+    try {
+      const data = await invokeAction(ACTIONS.discover, providerId);
+      if (!requestIsCurrent(providerId, generation)) return;
+      setDestinationOptions(Array.isArray(data?.destinationOptions) ? data.destinationOptions : []);
+    } catch (error) {
+      if (!requestIsCurrent(providerId, generation)) return;
+      setDestinationDiagnostics(error?.diagnostics || null);
+      setDestinationError(error?.message || 'Unable to load destination options.');
     }
   };
 
-  const refreshDiscovery = async () => {
+  const refreshDiscovery = async (providerId = viewedProviderRef.current, generation = null) => {
+    const currentGeneration = generation ?? ++requestGeneration.current;
+    if (!requestIsCurrent(providerId, currentGeneration)) return;
     setDiscovering(true);
-    await Promise.allSettled([loadAction1Organizations(), loadHaloClients()]);
-    setDiscovering(false);
+    await Promise.allSettled([
+      loadAction1Organizations(providerId, currentGeneration),
+      loadDestinationOptions(providerId, currentGeneration)
+    ]);
+    if (requestIsCurrent(providerId, currentGeneration)) setDiscovering(false);
+  };
+
+  const loadProviderView = async (providerId) => {
+    const generation = ++requestGeneration.current;
+    viewedProviderRef.current = providerId;
+    setViewedProviderId(providerId);
+    setLoading(true);
+    setPageError('');
+    setSaveMessage('');
+    setSaveError('');
+    await Promise.all([
+      loadMappings(providerId, generation),
+      refreshDiscovery(providerId, generation)
+    ]);
+    if (requestIsCurrent(providerId, generation)) setLoading(false);
   };
 
   useEffect(() => {
     let cancelled = false;
-
-    const load = async () => {
+    const initialize = async () => {
       setLoading(true);
-      setPageError('');
-
       try {
-        await loadMappings();
-      } catch (nextError) {
+        const response = await fetch('/api/settings');
+        const data = await response.json().catch(() => ({}));
+        if (cancelled) return;
+        const nextSettings = data.settings || {};
+        const active = String(nextSettings.TicketingActiveProvider || 'connectwise-psa');
+        setSettings(nextSettings);
+        setActiveProviderId(active);
+        await loadProviderView(active);
+      } catch (error) {
         if (!cancelled) {
-          setPageError(nextError?.message || 'Unable to load mapping screen.');
-        }
-      } finally {
-        await refreshDiscovery();
-        if (!cancelled) {
-          setLoading(false);
+          const providerId = 'connectwise-psa';
+          setPageError(error?.message || 'Unable to load active ticketing system settings.');
+          await loadProviderView(providerId);
         }
       }
     };
-
-    load();
-
+    initialize();
     return () => {
       cancelled = true;
+      requestGeneration.current += 1;
     };
   }, [integration]);
 
   const updateRow = (rowIndex, valueKey, nameKey, nextValue, nextName) => {
-    setDraftRows((current) =>
-      current.map((row, idx) => {
-        if (idx !== rowIndex) {
-          return row;
-        }
-
-        return {
-          ...row,
-          [valueKey]: nextValue,
-          [nameKey]: nextName
-        };
-      })
-    );
+    setDraftRows((current) => current.map((row, index) => index === rowIndex
+      ? { ...row, [valueKey]: nextValue, [nameKey]: nextName }
+      : row));
     setSaveMessage('');
     setSaveError('');
   };
@@ -463,77 +358,92 @@ function Mapping({ integration }) {
   };
 
   const removeDraftRow = (rowIndex) => {
-    setDraftRows((current) => current.filter((_, idx) => idx !== rowIndex));
+    setDraftRows((current) => current.filter((_, index) => index !== rowIndex));
     setSaveMessage('');
     setSaveError('');
   };
 
+  const changeViewedProvider = (nextProviderId) => {
+    if (nextProviderId === viewedProviderRef.current || !isUiProviderAvailable(resolveUiProvider(nextProviderId))) return;
+    const currentPlan = buildMappingSavePlan(savedMappingsRef.current, draftRowsRef.current);
+    if ((currentPlan.deletes.length || currentPlan.saves.length) && !window.confirm('Discard unsaved mapping changes?')) return;
+    void loadProviderView(nextProviderId);
+  };
+
   const saveMappings = async () => {
+    if (!providerAvailable) return;
     setSaving(true);
     setSaveMessage('');
     setSaveError('');
-
     try {
-      const { errors, persistRows } = buildPersistRows(draftRows, action1Organizations, haloClients);
-
-      if (errors.length > 0) {
-        throw new Error(errors.join(' '));
-      }
-
-      const unchangedIds = new Set(
-        persistRows
-          .filter((row) => row.id !== null)
-          .filter((row) => savedMappings.some((savedRow) => savedRow.id === row.id && rowsEquivalent(savedRow, row)))
-          .map((row) => row.id)
-      );
-
-      const rowsToDelete = savedMappings.filter((row) => !unchangedIds.has(row.id));
-      for (const row of rowsToDelete) {
-        await invokeAction(ACTIONS.remove, { payload: { id: row.id } });
-      }
-
-      const rowsToCreate = persistRows.filter((row) => !(row.id !== null && unchangedIds.has(row.id)));
-      for (const row of rowsToCreate) {
-        await invokeAction(ACTIONS.save, {
-          payload: {
-            action1OrgId: row.action1OrgId,
-            action1OrgName: row.action1OrgName,
-            haloClientId: row.haloClientId,
-            haloClientName: row.haloClientName,
-            enabled: true
-          }
-        });
-      }
-
-      await loadMappings();
+      const { errors, persistRows } = buildPersistRows(draftRows, action1Organizations, destinationOptions);
+      if (errors.length) throw new Error(errors.join(' '));
+      const plan = buildMappingSavePlan(savedMappings, persistRows);
+      await executeMappingSavePlan(plan, {
+        delete: (id) => invokeAction(ACTIONS.remove, viewedProviderId, { payload: { id } }),
+        save: (row) => invokeAction(ACTIONS.save, viewedProviderId, { payload: {
+          ...(row.id !== null ? { id: row.id } : {}),
+          action1OrgId: row.action1OrgId,
+          action1OrgName: row.action1OrgName,
+          destinationId: row.destinationId,
+          destinationName: row.destinationName,
+          enabled: true
+        } })
+      });
+      const data = await invokeAction(ACTIONS.list, viewedProviderId);
+      syncMappings(data?.mappings);
       setSaveMessage('Mappings saved.');
-    } catch (nextError) {
-      setSaveError(nextError?.message || 'Unable to save mappings.');
+    } catch (error) {
+      setSaveError(error?.message || 'Unable to save mappings.');
     } finally {
       setSaving(false);
     }
   };
 
   if (loading) {
-    return <div style={{ padding: '2rem' }}>Loading client mapping...</div>;
+    return <div style={{ padding: '2rem' }}>Loading mapping...</div>;
   }
+
+  const viewedProviderSettings = Object.fromEntries(
+    (provider?.settingKeys || []).map((key) => [key, settings[key] ?? ''])
+  );
+  const DestinationFields = provider?.DestinationMappingFields;
 
   return (
     <div style={styles.page}>
       <div style={styles.header}>
-        <h1 className="page-title" style={styles.title}>Client Mapping</h1>
-        <p style={styles.description}>Map Action1 organizations to Action1 Ticketing clients so tickets are created under the correct customer account.</p>
+        <h1 className="page-title" style={styles.title}>Mapping</h1>
+        <p style={styles.description}>
+          Map Action1 organizations to the selected ticketing system so qualifying tickets use the correct destination organization.
+        </p>
+        <label style={{ display: 'grid', gap: '0.35rem', maxWidth: 440 }}>
+          <span>Ticketing System</span>
+          <select
+            value={viewedProviderId}
+            onChange={(event) => changeViewedProvider(event.target.value)}
+            disabled={saving || !providers.some(isUiProviderAvailable)}
+          >
+            {providers.map((item) => (
+              <option key={item.providerId} value={item.providerId} disabled={!isUiProviderAvailable(item)}>
+                {item.label}{isUiProviderAvailable(item) ? '' : ' — unavailable in this version'}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p style={styles.description}>
+          Active ticketing system: {resolveUiProvider(activeProviderId)?.label || activeProviderId}
+          {activeProviderId === viewedProviderId ? ' (viewing active provider)' : ' (viewing inactive provider)'}
+        </p>
       </div>
 
       <div className="glass-panel" style={styles.panel}>
         <div style={styles.headingRow}>
           <div style={styles.buttonRow}>
-            <button className="btn-secondary" type="button" onClick={refreshDiscovery} disabled={discovering}>
+            <button className="btn-secondary" type="button" onClick={() => refreshDiscovery()} disabled={discovering}>
               {discovering ? 'Refreshing Discovery...' : 'Refresh Discovery'}
             </button>
           </div>
         </div>
-
         <div style={styles.statsRow}>
           <div style={styles.statCard}>
             <p style={styles.statLabel}>Saved Mappings</p>
@@ -544,8 +454,8 @@ function Mapping({ integration }) {
             <p style={styles.statValue}>{action1Organizations.length}</p>
           </div>
           <div style={styles.statCard}>
-            <p style={styles.statLabel}>Action1 Ticketing Clients</p>
-            <p style={styles.statValue}>{haloClients.length}</p>
+            <p style={styles.statLabel}>{provider?.label || 'Destination'} Options</p>
+            <p style={styles.statValue}>{destinationOptions.length}</p>
           </div>
         </div>
       </div>
@@ -561,123 +471,123 @@ function Mapping({ integration }) {
           {action1Diagnostics ? <DiagnosticDetails diagnostics={action1Diagnostics} /> : null}
         </div>
       )}
-      {haloError && (
+      {destinationError && (
         <div style={{ ...styles.statusMessage, background: '#FFFBEB', border: '1px solid #FDE68A', color: '#92400E' }}>
-          {haloError}
-          {haloDiagnostics ? <DiagnosticDetails diagnostics={haloDiagnostics} /> : null}
+          {destinationError}
+          {destinationDiagnostics ? <DiagnosticDetails diagnostics={destinationDiagnostics} /> : null}
         </div>
       )}
 
       <div className="glass-panel" style={styles.panel}>
         <div style={styles.headingRow}>
           <div>
-            <h4 style={styles.cardTitle}>Organization Mapping</h4>
-            <p style={styles.description}>
-              Choose the Action1 Ticketing client for each Action1 organization.
-            </p>
+            <h2 style={styles.cardTitle}>Organization Mapping</h2>
+            <p style={styles.description}>Choose a destination organization for each Action1 organization.</p>
           </div>
         </div>
-
         <div style={{ ...styles.section, overflowX: 'auto' }}>
           <table style={styles.table}>
             <thead>
               <tr>
                 <th style={styles.tableHead}>Action1 Organization</th>
-                <th style={styles.tableHead}>Action1 Ticketing Client</th>
+                <th style={styles.tableHead}>{provider?.label || 'Destination'} Organization</th>
                 <th style={styles.tableHead}>Action</th>
               </tr>
             </thead>
             <tbody>
               {draftRows.length === 0 ? (
-                <tr>
-                  <td style={styles.tableCell} colSpan={3}>No mappings added yet.</td>
-                </tr>
-              ) : (
-                draftRows.map((row, rowIndex) => {
-                  const action1Options = mappingOptionsForRow(
-                    action1Organizations,
-                    draftRows,
-                    rowIndex,
-                    'action1OrgId',
-                    'action1OrgName'
-                  );
-                  const clientOptions = mappingOptionsForRow(
-                    haloClients,
-                    draftRows,
-                    rowIndex,
-                    'haloClientId',
-                    'haloClientName'
-                  );
+                <tr><td style={styles.tableCell} colSpan={3}>No mappings added yet.</td></tr>
+              ) : draftRows.map((row, rowIndex) => {
+                const sourceOptions = mappingOptionsForRow(
+                  action1Organizations,
+                  draftRows,
+                  rowIndex,
+                  'action1OrgId',
+                  'action1OrgName'
+                );
+                const destinationRowOptions = mappingOptionsForRow(
+                  destinationOptions,
+                  draftRows,
+                  rowIndex,
+                  'destinationId',
+                  'destinationName'
+                );
+                const destinationFieldOptions = destinationRowOptions.map((option) => ({
+                  id: option.value,
+                  name: option.name,
+                  label: option.label
+                }));
 
-                  return (
-                    <tr key={row.id ?? `draft-${rowIndex}`}>
-                      <td style={styles.tableCell}>
-                        <select
-                          id={`map-org-${rowIndex}`}
-                          aria-label={`Action1 Organization row ${rowIndex + 1}`}
-                          data-map-org={rowIndex}
-                          value={row.action1OrgId}
-                          onChange={(event) => {
-                            const nextId = event.target.value;
-                            const selected = action1Options.find((option) => option.value === nextId);
-                            updateRow(rowIndex, 'action1OrgId', 'action1OrgName', nextId, selected?.name || '');
-                          }}
-                          style={styles.input}
-                          disabled={action1Options.length === 0 || Boolean(action1Error)}
-                        >
-                          <option value="">-- Select --</option>
-                          {action1Options.map((option) => (
-                            <option key={option.value} value={option.value}>{option.label}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td style={styles.tableCell}>
-                        <select
-                          id={`map-client-${rowIndex}`}
-                          aria-label={`Action1 Ticketing Client row ${rowIndex + 1}`}
-                          data-map-client={rowIndex}
-                          value={row.haloClientId}
-                          onChange={(event) => {
-                            const nextId = event.target.value;
-                            const selected = clientOptions.find((option) => option.value === nextId);
-                            updateRow(rowIndex, 'haloClientId', 'haloClientName', nextId, selected?.name || '');
-                          }}
-                          style={styles.input}
-                          disabled={clientOptions.length === 0 || Boolean(haloError)}
-                        >
-                          <option value="">-- Select --</option>
-                          {clientOptions.map((option) => (
-                            <option key={option.value} value={option.value}>{option.label}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td style={styles.actionCell}>
-                        <button
-                          className="btn-secondary"
-                          type="button"
-                          data-map-remove={rowIndex}
-                          onClick={() => removeDraftRow(rowIndex)}
-                        >
-                          Remove
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
+                return (
+                  <tr key={row.id ?? `draft-${rowIndex}`}>
+                    <td style={styles.tableCell}>
+                      <select
+                        id={`map-org-${rowIndex}`}
+                        aria-label={`Action1 Organization row ${rowIndex + 1}`}
+                        data-map-org={rowIndex}
+                        value={row.action1OrgId}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          const selected = sourceOptions.find((option) => option.value === value);
+                          updateRow(rowIndex, 'action1OrgId', 'action1OrgName', value, selected?.name || '');
+                        }}
+                        style={styles.input}
+                        disabled={sourceOptions.length === 0 || Boolean(action1Error)}
+                      >
+                        <option value="">-- Select --</option>
+                        {sourceOptions.map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td style={styles.tableCell}>
+                      {DestinationFields ? (
+                        <DestinationFields
+                          providerId={viewedProviderId}
+                          providerLabel={provider?.label}
+                          settings={viewedProviderSettings}
+                          row={row}
+                          rowIndex={rowIndex}
+                          options={destinationFieldOptions}
+                          loading={discovering}
+                          error={destinationError}
+                          disabled={saving || Boolean(destinationError)}
+                          onChange={(id, name) => updateRow(rowIndex, 'destinationId', 'destinationName', id, name)}
+                          onRefresh={() => refreshDiscovery()}
+                        />
+                      ) : (
+                        <span>
+                          {providerAvailable
+                            ? 'Destination mapping is unavailable for this provider.'
+                            : 'Destination selection is unavailable until this ticketing system is implemented.'}
+                        </span>
+                      )}
+                    </td>
+                    <td style={styles.actionCell}>
+                      <button
+                        className="btn-secondary"
+                        type="button"
+                        data-map-remove={rowIndex}
+                        onClick={() => removeDraftRow(rowIndex)}
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
-
         <div style={styles.tableButtonRow}>
-          <button className="btn-secondary" type="button" onClick={addMappingRow}>
+          <button className="btn-secondary" type="button" onClick={addMappingRow} disabled={!mappingReady}>
             Add Mapping Row
           </button>
           <button
             className="btn-primary"
             type="button"
             onClick={saveMappings}
-            disabled={saving || Boolean(action1Error) || Boolean(haloError)}
+            disabled={!mappingReady || saving || Boolean(action1Error) || Boolean(destinationError)}
           >
             {saving ? 'Saving...' : 'Save Mappings'}
           </button>
@@ -698,5 +608,4 @@ function Mapping({ integration }) {
     </div>
   );
 }
-
 export default Mapping;
