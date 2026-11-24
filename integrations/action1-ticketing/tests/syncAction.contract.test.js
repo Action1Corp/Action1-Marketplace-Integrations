@@ -1715,10 +1715,10 @@ async function runProductionUnavailableProviderFailsNonEmptyRunTest() {
   const fetchCalls = [];
   await withMockedFetch(async (url) => { fetchCalls.push(String(url)); throw new Error('unexpected request'); }, async () => {
     const result = await runTicketingSyncImplementation(context, { run: { async appendLog() {}, async setAssetsProcessed() {} } });
-    assert.strictEqual(result.ok, false, 'non-empty sync fails when the active production provider is unavailable');
-    assert.match(result.message, /not available/i);
+    assert.strictEqual(result.ok, false, 'non-empty sync fails safely while ConnectWise ticket operations are unimplemented');
+    assert.match(result.message, /Complete ticketing configuration fields/);
     assert.strictEqual(credentialReads, 0, 'unavailable provider fails before Action1 credential resolution');
-    assert.strictEqual(mappingReads, 0, 'unavailable provider fails before loading any mapping rows');
+    assert.strictEqual(mappingReads, 1, 'preflight may read existing mappings but does not modify them');
     assert.deepStrictEqual(fetchCalls, [], 'unavailable provider fails before collection or destination transport');
     assert.deepStrictEqual(context.state.endpoint, [], 'preflight failure does not change endpoint correlations');
     assert.deepStrictEqual(context.state.grouped, [], 'preflight failure does not change grouped correlations');

@@ -250,5 +250,35 @@
     "type": "text",
     "defaultValue": "connectwise-psa",
     "visible": false
+  },
+  {
+    "key": "TicketingProvider_connectwise_psa_ApiRegion",
+    "label": "ConnectWise API Region",
+    "type": "text",
+    "visible": false
+  },
+  {
+    "key": "TicketingProvider_connectwise_psa_CustomServer",
+    "label": "ConnectWise Custom Server",
+    "type": "text",
+    "visible": false
+  },
+  {
+    "key": "TicketingProvider_connectwise_psa_CompanyId",
+    "label": "ConnectWise PSA Company ID",
+    "type": "text",
+    "visible": false
+  },
+  {
+    "key": "TicketingProvider_connectwise_psa_PublicApiKey",
+    "label": "ConnectWise Public API Key",
+    "type": "text",
+    "visible": false
+  },
+  {
+    "key": "TicketingProvider_connectwise_psa_PrivateApiKey",
+    "label": "ConnectWise Private API Key",
+    "type": "secret",
+    "visible": false
   }
 ]

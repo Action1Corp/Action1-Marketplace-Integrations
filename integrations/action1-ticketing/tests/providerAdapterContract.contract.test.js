@@ -50,16 +50,16 @@ async function run() {
   assert(!JSON.stringify(safe).includes('synthetic-secret'));
 
   const production = resolveProvider(INITIAL_PROVIDER_ID);
-  assert.strictEqual(production.ok, false, 'the initial provider remains unavailable until a real adapter is approved and implemented');
+  assert.strictEqual(production.ok, true, 'ConnectWise is the first available provider');
   assert.deepStrictEqual(Object.keys(PROVIDER_REGISTRY), [INITIAL_PROVIDER_ID], 'the production registry contains only its static provider key');
-  assert.strictEqual(PROVIDER_REGISTRY[INITIAL_PROVIDER_ID].adapter, null, 'the production registry has no fake or Halo adapter');
+  assert.strictEqual(typeof PROVIDER_REGISTRY[INITIAL_PROVIDER_ID].adapter.validateConfiguration, 'function');
   let calls = 0;
   let productionTransportCalls = 0;
   const productionDispatcher = createProviderDispatcher();
-  await assert.rejects(() => productionDispatcher.invoke({ providerId: INITIAL_PROVIDER_ID, operation: 'createTicket', input: {}, transport: { async request() { productionTransportCalls += 1; } } }), (error) => error.code === 'provider_unavailable');
+  await assert.rejects(() => productionDispatcher.invoke({ providerId: INITIAL_PROVIDER_ID, operation: 'createTicket', input: {}, transport: { async request() { productionTransportCalls += 1; } } }), (error) => error.code === 'CONNECTWISE_OPERATION_NOT_IMPLEMENTED');
   await assert.rejects(() => productionDispatcher.invoke({ providerId: 'provider-a', operation: 'createTicket', input: {} }), (error) => error.code === 'provider_unavailable');
   assert.strictEqual(calls, 0);
-  assert.strictEqual(productionTransportCalls, 0, 'unavailable production resolution stops before transport');
+  assert.strictEqual(productionTransportCalls, 0, 'unimplemented production ticket writes stop before transport');
 
   const injected = createProviderDispatcher({
     'provider-a': {

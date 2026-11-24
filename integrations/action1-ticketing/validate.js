@@ -26,7 +26,9 @@ async function validate(context, request = {}, dependencies = {}) {
     const configuration = await dispatcher.invoke({
       providerId,
       operation: 'validateConfiguration',
-      input: { settings: effective, mode: 'test-connection' }
+      input: { settings: effective, mode: 'test-connection' },
+      transport: context?.http,
+      logger: context?.logger
     });
     if (!configuration.ok) {
       return { ok: false, message: 'Check the required ticketing connection settings.', errors: configuration.errors };
@@ -34,7 +36,9 @@ async function validate(context, request = {}, dependencies = {}) {
     const result = await dispatcher.invoke({
       providerId,
       operation: 'testConnection',
-      input: { settings: effective }
+      input: { settings: effective },
+      transport: context?.http,
+      logger: context?.logger
     });
     return { ok: result.ok, message: result.message || (result.ok ? 'Connection test succeeded.' : 'Connection test failed.') };
   } catch (error) {

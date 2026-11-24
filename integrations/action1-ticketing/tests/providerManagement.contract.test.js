@@ -39,7 +39,7 @@ async function run() {
     ] },
     beta: { label: 'Beta', available: true, accountSelectors: [], fields: [{ key: 'Tenant', required: true }] }
   };
-  assert.strictEqual(PROVIDER_REGISTRY['connectwise-psa'].adapter, null, 'production ConnectWise descriptor remains unavailable');
+  assert.strictEqual(typeof PROVIDER_REGISTRY['connectwise-psa'].adapter.validateConfiguration, 'function', 'production ConnectWise descriptor is registered');
   assert(!Object.prototype.hasOwnProperty.call(PROVIDER_REGISTRY, 'alpha'), 'synthetic providers are not registered in production');
   const registry = Object.fromEntries(Object.entries(definitions).map(([providerId, definition]) => [providerId, {
     providerId, label: definition.label, contractMajor: PROVIDER_ADAPTER_CONTRACT_MAJOR, adapter: makeAdapter()
@@ -107,13 +107,13 @@ async function run() {
   assert(!JSON.stringify(saved).includes('new-secret'));
 
   const unavailable = await validate(contextA, { providerId: 'connectwise-psa', settings: {} });
-  assert.strictEqual(unavailable.ok, false);
+  assert.strictEqual(unavailable.ok, false, 'missing provider settings fail local validation safely');
   const unavailableContext = context({ TicketingActiveProvider: 'alpha' });
   const defaultUnavailableActivation = await activateProvider(unavailableContext, { providerId: 'connectwise-psa', expectedCurrentProvider: 'alpha' });
-  assert.strictEqual(defaultUnavailableActivation.ok, false);
+  assert.strictEqual(defaultUnavailableActivation.ok, false, 'activation requires saved connection settings and a successful test');
   const productionActivation = await actions['activate-provider'](unavailableContext, { providerId: 'connectwise-psa', expectedCurrentProvider: 'alpha' });
   assert.strictEqual(productionActivation.ok, false);
-  assert.deepStrictEqual(unavailableContext.writes, [], 'exported production action cannot activate an unavailable provider');
+  assert.deepStrictEqual(unavailableContext.writes, [], 'exported production action does not activate an unconfigured provider');
   const productionSaveContext = context({});
   const commonSave = await actions['save-provider-settings'](productionSaveContext, {
     providerId: 'connectwise-psa', settings: { TicketingOfflineEnabled: 'false' }

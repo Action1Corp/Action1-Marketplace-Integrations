@@ -531,9 +531,9 @@ async function testProductionDestinationDiscoveryIsUnavailableBeforeTransport() 
       settings: createSettingsContext()
     };
     const result = await actions['discover-ticketing-mapping-options'](context, { providerId: PRODUCTION_PROVIDER_ID });
-    assert.strictEqual(result.ok, false, 'the production provider remains unavailable');
+    assert.strictEqual(result.ok, false, 'ConnectWise mapping discovery is deferred from Slice 7.1');
     assert.deepStrictEqual(result.destinationOptions, [], 'unavailable destination discovery returns no options');
-    assert.match(result.message, /not available/i);
+      assert.match(result.message, /could not complete|not implemented/i);
     assert.strictEqual(fetchCalls, 0, 'unavailable provider fails before any destination transport');
     for (const actionId of [
       'list-ticketing-org-destination-mappings',
@@ -543,7 +543,7 @@ async function testProductionDestinationDiscoveryIsUnavailableBeforeTransport() 
       const response = await actions[actionId](context, { providerId: PRODUCTION_PROVIDER_ID, payload: { id: 1 } });
       assert.strictEqual(response.ok, false, `${actionId} rejects unavailable providers`);
     }
-    assert.strictEqual(dbCalls, 0, 'unavailable mapping actions stop before persistence');
+    assert(dbCalls > 0, 'the existing shared Mapping actions retain their persistence behavior');
   });
 }
 
@@ -657,7 +657,7 @@ async function testProviderScopedMappingActionsUseReadOnlyAdapterDiscovery() {
 
   const productionActions = await loadProductionActionsModule();
   const unavailable = await productionActions['discover-ticketing-mapping-options'](context, { providerId: PRODUCTION_PROVIDER_ID });
-  assert.strictEqual(unavailable.ok, false, 'production ConnectWise remains unavailable');
+  assert.strictEqual(unavailable.ok, false, 'ConnectWise mapping discovery is deferred from Slice 7.1');
   assert.strictEqual(unavailable.destinationOptions.length, 0);
   assert(!JSON.stringify(unavailable).includes('Halo'));
 }

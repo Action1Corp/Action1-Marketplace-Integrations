@@ -266,7 +266,8 @@ async function runLoadRuntimeConfigTest() {
   });
 
   assert.strictEqual(calls[0].method, 'all', 'loadRuntimeConfig should read Marketplace settings before building runtime config');
-  assert.strictEqual(calls[1].method, 'db.all', 'loadRuntimeConfig should load DB-backed org/client mappings');
+  assert.strictEqual(calls[1].method, 'all', 'loadRuntimeConfig should load the active provider settings');
+  assert.strictEqual(calls[2].method, 'db.all', 'loadRuntimeConfig should load DB-backed org/client mappings');
   assert.strictEqual(runtimeConfig.operationalSafeguards.maxOpenTicketsPerOrganization, 15);
   assert.strictEqual(runtimeConfig.providerId, 'connectwise-psa', 'run-local provider defaults to the configured initial provider');
   assert.strictEqual(runtimeConfig.connections.halo.resourceServer, '', 'legacy Halo connection values are not loaded from common settings');

@@ -235,15 +235,15 @@ async function runMalformedReadPreservesTrackingTest() {
 }
 
 async function runProductionRegistryHasNoFakeLifecycleAccessTest() {
-  assert.strictEqual(PROVIDER_REGISTRY['connectwise-psa'].adapter, null, 'production ConnectWise remains unavailable');
+  assert.strictEqual(typeof PROVIDER_REGISTRY['connectwise-psa'].adapter.createTicket, 'function', 'production ConnectWise has its contract placeholder');
   assert.strictEqual(Object.values(PROVIDER_REGISTRY).some((entry) => /fake|test/i.test(entry.providerId)), false, 'test adapters are not registered in production');
   const fixture = createInMemoryTicketingDb();
   const dispatcher = createProviderDispatcher();
   await assert.rejects(
     () => dispatcher.invoke({ providerId: 'connectwise-psa', operation: 'createTicket', input: { preparedTicket: {} } }),
-    /not available/i
+    (error) => error.code === 'CONNECTWISE_OPERATION_NOT_IMPLEMENTED'
   );
-  assert.strictEqual(fixture.context.db.calls.length, 0, 'unavailable production provider fails before tracking persistence');
+  assert.strictEqual(fixture.context.db.calls.length, 0, 'unimplemented production provider operation fails before tracking persistence');
 }
 
 async function runProviderIsolationTest() {

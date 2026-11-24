@@ -34,15 +34,12 @@ async function run() {
   assert.strictEqual(calls[1].input.settings.TicketingProvider_alpha_ClientSecret, 'stored-secret');
   assert.strictEqual(writes.length, 0, 'Test Connection is read-only');
 
-  let fetchCalls = 0;
-  const oldFetch = global.fetch;
-  global.fetch = async () => { fetchCalls += 1; throw new Error('production unavailable provider must not make requests'); };
-  try {
-    const unavailable = await actions['validate-configuration'](context, { providerId: 'connectwise-psa', settings: {} });
-    assert.strictEqual(unavailable.ok, false);
-    assert(unavailable.message.includes('not available'));
-    assert.strictEqual(fetchCalls, 0);
-  } finally { global.fetch = oldFetch; }
+  let httpCalls = 0;
+  const productionContext = { ...context, http: async () => { httpCalls += 1; throw new Error('incomplete settings must fail before transport'); } };
+  const incomplete = await actions['validate-configuration'](productionContext, { providerId: 'connectwise-psa', settings: {} });
+  assert.strictEqual(incomplete.ok, false);
+  assert(incomplete.message.includes('required'));
+  assert.strictEqual(httpCalls, 0, 'incomplete connection settings fail before read-only probes');
 }
 
 run().catch((error) => { console.error(error); process.exit(1); });

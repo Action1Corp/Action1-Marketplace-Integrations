@@ -2,9 +2,9 @@
 
 ## Availability
 
-This package provides the shared Action1 signal, ticket-content, lifecycle, provider-management, Mapping, Sync, Scheduler, and History foundations. It does not currently include an available production ticketing provider. The Settings page identifies ConnectWise PSA as unavailable in this version; no provider connection or ticket-delivery configuration is supported yet. Do not use this package for production ticket delivery or enable its schedule expecting tickets to be delivered.
+This package provides the shared Action1 signal, ticket-content, lifecycle, provider-management, Mapping, Sync, Scheduler, and History foundations. ConnectWise PSA is registered as the first provider. This release supports saving its connection settings, testing the connection, and activating the provider after a successful read-only connection test. Ticket routing and ticket delivery operations are not implemented yet; do not enable a schedule expecting destination tickets to be delivered.
 
-When every signal type is disabled, synchronization completes successfully as a zero-work run without reading Action1 data or contacting a ticketing provider. When any signal is enabled, synchronization stops safely because the active provider is unavailable. It does not fall back to Halo. Real ConnectWise API support and ticket delivery are deferred to a separately approved provider release.
+When every signal type is disabled, synchronization completes successfully as a zero-work run without reading Action1 data or contacting a ticketing provider. When any signal is enabled before ticket delivery is implemented, synchronization stops safely during configuration preflight. It does not fall back to Halo. No ticket create, read, update, discovery, or lifecycle operations are available in this release.
 
 The Action1 Signal Engine preserves donor collection, normalization, qualification, grouping, identity, defaults, and paging behavior. The Ticket Content Engine preserves donor titles, facts, ordering, caps, truncation, and regional Action1 links, with Action1 Ticketing branding. Package tests use synthetic providers and controlled in-memory transports; these providers are test fixtures only and are not available in production.
 

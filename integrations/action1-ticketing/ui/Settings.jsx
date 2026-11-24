@@ -338,7 +338,15 @@ function Settings({ integration }) {
   const selectableProviders = listSelectableProviders();
   const supportsValidation = Boolean(isUiProviderAvailable(viewedProvider) && meta?.operations?.validate);
   const viewedProviderSettingKeys = viewedProvider?.settingKeys || (viewedProvider?.fields || []).map((field) => field.settingKey || `TicketingProvider_${viewedProvider.providerId.replace(/-/g, '_')}_${field.key}`);
-  const isConnectionConfigured = Boolean(isUiProviderAvailable(viewedProvider) && viewedProviderSettingKeys.length && viewedProviderSettingKeys.every((key) => String(settings[key] || '').trim() || storedSecrets[key]));
+  const customServerKey = 'TicketingProvider_connectwise_psa_CustomServer';
+  const requiredConnectionKeys = viewedProviderSettingKeys.filter((key) => key !== customServerKey);
+  const isCustomServerMissing = viewedProviderId === 'connectwise-psa'
+    && String(settings.TicketingProvider_connectwise_psa_ApiRegion || '') === 'CUSTOM'
+    && !String(settings[customServerKey] || '').trim()
+    && !storedSecrets[customServerKey];
+  const isConnectionConfigured = Boolean(isUiProviderAvailable(viewedProvider) && requiredConnectionKeys.length
+    && requiredConnectionKeys.every((key) => String(settings[key] || '').trim() || storedSecrets[key])
+    && !isCustomServerMissing);
   const hasUnsavedEdits = hasUnsavedProviderSettings(settings, savedSettingsSnapshot);
   const requestGeneration = useRef(0);
   const settingsRef = useRef(settings);
@@ -1192,6 +1200,7 @@ function Settings({ integration }) {
         </div>
         {Object.entries(grouped).map(([groupName, fields]) => {
           if (groupName === 'Ticket Routing') {
+            if (!viewedProvider?.RoutingFields) return null;
             const fieldsByKey = new Map(fields.map((setting) => [setting.key, setting]));
             const lifecycleSetting = grouped.Lifecycle?.find((setting) => setting.key === 'TicketingExistingOpenTicketBehavior') || null;
             const closedStatusesField = fieldsByKey.get('TicketingClosedStatusIds') || null;
@@ -1264,6 +1273,7 @@ function Settings({ integration }) {
           }
 
           if (groupName === 'Action1 Ticketing Configuration') {
+            if (viewedProvider?.ConnectionFields) return null;
             const connectionFields = fields.filter((setting) => CONNECTION_SETTING_KEYS.includes(setting.key));
 
             return (

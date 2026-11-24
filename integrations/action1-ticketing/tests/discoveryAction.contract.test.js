@@ -15,7 +15,7 @@ async function run() {
     });
     assert.strictEqual(result.ok, false);
     assert.strictEqual(result.teams.length, 0);
-    assert(result.message.includes('not available'));
+    assert(result.message.includes('not implemented') || result.message.includes('could not complete'));
     assert.strictEqual(calls, 0, 'unavailable provider discovery must fail before transport');
   } finally { global.fetch = oldFetch; }
 }

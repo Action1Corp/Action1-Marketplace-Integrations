@@ -1,4 +1,5 @@
 export const INITIAL_PROVIDER_ID = 'connectwise-psa';
+import ConnectWiseConnectionFields from './providers/ConnectWiseConnectionFields.jsx';
 
 /**
  * Provider DestinationMappingFields receive the current bounded page as `options` and the
@@ -9,20 +10,28 @@ export const INITIAL_PROVIDER_ID = 'connectwise-psa';
  * `destinationLoading`, and `error` describe the current provider/query result state.
  */
 
-const UNAVAILABLE_CONNECTWISE = Object.freeze({
+const CONNECTWISE_SETTING_KEYS = Object.freeze([
+  'TicketingProvider_connectwise_psa_ApiRegion',
+  'TicketingProvider_connectwise_psa_CustomServer',
+  'TicketingProvider_connectwise_psa_CompanyId',
+  'TicketingProvider_connectwise_psa_PublicApiKey',
+  'TicketingProvider_connectwise_psa_PrivateApiKey'
+]);
+
+const CONNECTWISE = Object.freeze({
   providerId: INITIAL_PROVIDER_ID,
   label: 'ConnectWise PSA',
   contractMajor: 1,
-  available: false,
+  available: true,
   configured: false,
-  ConnectionFields: null,
+  ConnectionFields: ConnectWiseConnectionFields,
   RoutingFields: null,
   DestinationMappingFields: null,
-  settingKeys: Object.freeze([])
+  settingKeys: CONNECTWISE_SETTING_KEYS
 });
 
 export const UI_PROVIDER_REGISTRY = Object.freeze({
-  [INITIAL_PROVIDER_ID]: UNAVAILABLE_CONNECTWISE
+  [INITIAL_PROVIDER_ID]: CONNECTWISE
 });
 
 export function listSelectableProviders(registry = UI_PROVIDER_REGISTRY) {

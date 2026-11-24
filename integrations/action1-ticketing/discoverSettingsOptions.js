@@ -10,6 +10,13 @@ const {
 async function discover(context, request = {}) {
   const { INITIAL_PROVIDER_ID, resolveProvider } = require('./providerRegistry');
   const providerId = String(request.providerId || INITIAL_PROVIDER_ID).trim();
+  if (providerId === INITIAL_PROVIDER_ID) {
+    return {
+      ok: false,
+      message: 'ConnectWise settings discovery is not implemented in this release.',
+      teams: [], ticketTypes: [], statuses: [], categories: [], ticketTypeDetail: null
+    };
+  }
   const provider = resolveProvider(providerId);
   if (!provider.ok) {
     return { ok: false, message: provider.error.message, teams: [], ticketTypes: [], statuses: [], categories: [], ticketTypeDetail: null };

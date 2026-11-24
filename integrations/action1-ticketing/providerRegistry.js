@@ -10,15 +10,14 @@ const {
 } = require('./providerAdapterContract');
 
 const INITIAL_PROVIDER_ID = 'connectwise-psa';
+const { createConnectWiseAdapter } = require('./providers/connectwisePsaAdapter');
 
-// ConnectWise remains unavailable until its provider Blueprint and implementation are approved.
-// No fake or Halo adapter is present in this production registry.
 const PROVIDER_REGISTRY = Object.freeze({
   [INITIAL_PROVIDER_ID]: Object.freeze({
     providerId: INITIAL_PROVIDER_ID,
     label: 'ConnectWise PSA',
     contractMajor: PROVIDER_ADAPTER_CONTRACT_MAJOR,
-    adapter: null
+    adapter: createConnectWiseAdapter()
   })
 });
 

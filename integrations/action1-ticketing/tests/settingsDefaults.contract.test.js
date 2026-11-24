@@ -279,7 +279,7 @@ function runExplicitEmptyMultiSelectValuesRemainEmptyTest() {
 }
 
 function runSecretPlaceholderPreservationTest() {
-  assert(!settingsSchema.some((field) => field.type === 'secret'), 'common schema has no provider secret; provider secret masking is covered by provider management behavior tests');
+  assert(settingsSchema.some((field) => field.key === 'TicketingProvider_connectwise_psa_PrivateApiKey' && field.type === 'secret' && field.visible === false), 'the provider secret is declared for Marketplace secret handling but rendered by ConnectionFields');
 }
 
 function run() {

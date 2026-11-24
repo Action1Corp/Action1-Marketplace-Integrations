@@ -1,5 +1,6 @@
 const schema = require('./ui/settingsSchema.json');
 const { INITIAL_PROVIDER_ID } = require('./providerRegistry');
+const { validateConnectWiseConnection } = require('./providers/connectwiseApi');
 
 const ACTIVE_PROVIDER_KEY = 'TicketingActiveProvider';
 const SECRET_MASK = '***';
@@ -10,14 +11,24 @@ const LEGACY_DESTINATION_KEYS = new Set([
 ]);
 
 const COMMON_SETTING_KEYS = Object.freeze(schema.map((field) => field.key)
-  .filter((key) => key !== ACTIVE_PROVIDER_KEY && !LEGACY_DESTINATION_KEYS.has(key)));
+  .filter((key) => key !== ACTIVE_PROVIDER_KEY && !LEGACY_DESTINATION_KEYS.has(key) && !key.startsWith('TicketingProvider_')));
+const CONNECTWISE_FIELDS = Object.freeze([
+  { key: 'ApiRegion', label: 'API Region / Server', type: 'select', required: true, options: [
+    { value: 'NA', label: 'North America' }, { value: 'EU', label: 'Europe' }, { value: 'AU', label: 'Australia' }, { value: 'CUSTOM', label: 'Custom Server' }
+  ] },
+  { key: 'CustomServer', label: 'Custom Server URL', type: 'url', required: false },
+  { key: 'CompanyId', label: 'PSA Company ID', type: 'text', required: true },
+  { key: 'PublicApiKey', label: 'Public API Key', type: 'text', required: true },
+  { key: 'PrivateApiKey', label: 'Private API Key', type: 'secret', required: true }
+]);
 const PROVIDER_UI_DEFINITIONS = Object.freeze({
   [INITIAL_PROVIDER_ID]: Object.freeze({
     providerId: INITIAL_PROVIDER_ID,
     label: 'ConnectWise PSA',
-    available: false,
-    fields: Object.freeze([]),
-    accountSelectors: Object.freeze([])
+    available: true,
+    fields: CONNECTWISE_FIELDS,
+    accountSelectors: Object.freeze([]),
+    requiresSuccessfulTestConnectionBeforeActivation: true
   })
 });
 
@@ -124,9 +135,17 @@ async function saveProviderSettings(context, request = {}, options = {}) {
   const fieldsByKey = new Map(definition.fields.map((field) => [buildProviderSettingKey(providerId, field.key), field]));
   const providerKeys = Array.from(fieldsByKey.keys());
   const oldProviderSettings = await readSettings(context, providerKeys);
-  for (const [key, field] of fieldsByKey) {
+  const hasProviderSubmission = Object.keys(providerValues).length > 0;
+  if (hasProviderSubmission) for (const [key, field] of fieldsByKey) {
     const effective = Object.prototype.hasOwnProperty.call(providerValues, key) ? providerValues[key] : oldProviderSettings[key];
     if (field.required && !String(effective ?? '').trim()) return { ok: false, message: 'A required ticketing connection setting is missing.' };
+  }
+  if (providerId === INITIAL_PROVIDER_ID && hasProviderSubmission) {
+    const effectiveValues = Object.fromEntries(Array.from(fieldsByKey.keys(), (key) => [
+      key.slice(key.lastIndexOf('_') + 1), Object.prototype.hasOwnProperty.call(providerValues, key) ? providerValues[key] : oldProviderSettings[key]
+    ]));
+    const connectionValidation = validateConnectWiseConnection(effectiveValues);
+    if (!connectionValidation.ok) return { ok: false, message: connectionValidation.errors.some((error) => error.field === 'CustomServer') ? connectionValidation.errors.find((error) => error.field === 'CustomServer').message : 'A required ticketing connection setting is missing.' };
   }
   const selectorKeys = definition.accountSelectors.map((field) => buildProviderSettingKey(providerId, field));
   const hasExplicitSelector = selectorKeys.some((key) => Object.prototype.hasOwnProperty.call(providerValues, key));

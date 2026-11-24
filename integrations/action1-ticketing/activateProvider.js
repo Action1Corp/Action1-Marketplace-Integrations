@@ -20,18 +20,33 @@ async function activateProvider(context, request = {}, dependencies = {}) {
     return failure('The requested ticketing system is not available in this version.');
   }
   const keys = definitions[target].fields.map((field) => `TicketingProvider_${target.replace(/-/g, '_')}_${field.key}`);
+  let saved;
   let validation;
   try {
-    const saved = await readSettings(context, keys);
+    saved = await readSettings(context, keys);
     validation = await dispatcher.invoke({
       providerId: target,
       operation: 'validateConfiguration',
-      input: { settings: saved, mode: 'activation' }
+      input: { settings: saved, mode: 'activation' },
+      transport: context?.http,
+      logger: context?.logger
     });
   } catch {
     return failure('Unable to validate the saved connection settings. Refresh settings and try again.');
   }
   if (!validation.ok) return failure('Complete the required connection settings before making this ticketing system active.');
+  if (definitions[target]?.requiresSuccessfulTestConnectionBeforeActivation) {
+    let connectionTest;
+    try {
+      connectionTest = await dispatcher.invoke({
+        providerId: target, operation: 'testConnection', input: { settings: saved },
+        transport: context?.http, logger: context?.logger
+      });
+    } catch {
+      return failure('ConnectWise connection test failed. Verify the saved connection settings before activating this provider.');
+    }
+    if (!connectionTest.ok) return failure(connectionTest.message || 'ConnectWise connection test failed. Verify the saved connection settings before activating this provider.');
+  }
   try {
     await settings.set(ACTIVE_PROVIDER_KEY, target);
   } catch {
