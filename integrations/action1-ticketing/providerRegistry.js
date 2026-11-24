@@ -5,6 +5,7 @@ const {
   assertProviderId,
   normalizeProviderError,
   validateProviderAdapter,
+  validateMappingDiscoveryInput,
   validateProviderOperationResult
 } = require('./providerAdapterContract');
 
@@ -56,14 +57,16 @@ function createProviderDispatcher(registry = PROVIDER_REGISTRY) {
         throw new ProviderContractError('provider_input_invalid', 'The ticketing system request contains unsupported fields.');
       }
       const operationInput = {
-        input: request.input,
+        input: operation === 'discover' && request.input?.kind === 'mapping-destinations'
+          ? validateMappingDiscoveryInput(request.input)
+          : request.input,
         connection: request.connection,
         transport: request.transport,
         logger: request.logger
       };
       try {
         const result = await resolved.descriptor.adapter[operation](operationInput);
-        return validateProviderOperationResult(operation, result);
+        return validateProviderOperationResult(operation, result, operationInput.input);
       } catch (error) {
         if (error instanceof ProviderContractError) throw error;
         throw createSafeError(normalizeProviderError(error, operation));

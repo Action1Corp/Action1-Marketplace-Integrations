@@ -187,7 +187,10 @@ function History({ integration }) {
               <tbody>
                 {recentRuns.map((row) => (
                   <tr key={row.id ?? `${row.started}-${row.result}`}>
-                    <td style={styles.tableCell}>{row.started}</td>
+                    <td style={styles.tableCell}>
+                      <div>{row.started}</div>
+                      <div style={styles.cardMeta}>{row.providerLabel}</div>
+                    </td>
                     <td style={styles.tableCell}>
                       <span style={{ ...styles.resultText, ...resultTone(row.result) }}>{row.result}</span>
                     </td>

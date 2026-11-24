@@ -1,18 +1,24 @@
 # Action1 Ticketing Connector
 
-## Foundation status
+## Availability
 
-Slice 1 establishes the donor-derived Action1 Signal and Ticket Content foundations. It does not include a supported ticketing provider. Do not install or use this package for production ticket delivery. The runtime blocks Halo ticket creation, update, and status mutation, and the copied manual utility blocks client creation and cleanup even when the donor confirmation flags are supplied.
+This package provides the shared Action1 signal, ticket-content, lifecycle, provider-management, Mapping, Sync, Scheduler, and History foundations. It does not currently include an available production ticketing provider. The Settings page identifies ConnectWise PSA as unavailable in this version; no provider connection or ticket-delivery configuration is supported yet. Do not use this package for production ticket delivery or enable its schedule expecting tickets to be delivered.
 
-The Action1 Signal Engine preserves donor collection, normalization, qualification, grouping, identity, defaults, and paging behavior. The Ticket Content Engine preserves donor titles, facts, ordering, caps, truncation, and regional Action1 links, with Action1 Ticketing branding. Focused package tests use synthetic credentials and controlled in-memory transports.
+When every signal type is disabled, synchronization completes successfully as a zero-work run without reading Action1 data or contacting a ticketing provider. When any signal is enabled, synchronization stops safely because the active provider is unavailable. It does not fall back to Halo. Real ConnectWise API support and ticket delivery are deferred to a separately approved provider release.
 
-This package retains donor UI, read-only discovery, migration shape, and documentation as implementation inputs. Those retained surfaces do not make Halo a supported provider. Provider-specific configuration and delivery are deferred to later approved slices.
+The Action1 Signal Engine preserves donor collection, normalization, qualification, grouping, identity, defaults, and paging behavior. The Ticket Content Engine preserves donor titles, facts, ordering, caps, truncation, and regional Action1 links, with Action1 Ticketing branding. Package tests use synthetic providers and controlled in-memory transports; these providers are test fixtures only and are not available in production.
+
+The package retains read-only Halo donor utilities and reference materials for provenance and regression context. They do not make Halo a supported provider, and destination ticket writes remain denied.
+
+## Sync and History
+
+Manual and scheduled runs use the same Marketplace tracked Sync action. A run captures the active provider and its configuration at start. The Sync page shows the active provider separately from the provider recorded for the last completed run. History remains read-only, shows recent tracked runs and their recorded provider, and labels older runs without attribution as “Provider not recorded.” Marketplace owns run history and failure notifications. Installed Marketplace schedule and runtime behavior must be verified for the deployed package before relying on them.
 
 ## Credentials and safety
 
 Action1 credentials remain Marketplace-owned and are resolved with `context.action1.getCredentials()`. The package does not declare Action1 credentials in its settings schema. No real vendor credentials are included in the package.
 
-The Halo destination client denies every non-read method before resolving a connection or requesting a token. The manual utility's `create` and non-dry-run `cleanup` commands fail closed before reading credentials, touching files, constructing a client, or making requests. `plan`, `verify`, and cleanup preview are read-only donor utilities.
+The Halo destination client denies every non-read method before resolving a connection or requesting a token. The manual utility's `create` and non-dry-run `cleanup` commands fail closed before reading credentials, touching files, constructing a client, or making requests. `plan`, `verify`, and cleanup preview are read-only donor utilities. Never share secrets in logs, History, screenshots, or support tickets.
 
 ## Donor reference
 

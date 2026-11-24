@@ -15,6 +15,9 @@ const MAX_REFERENCE_URL_LENGTH = 2048;
 const MAX_REFERENCE_METADATA_BYTES = 4096;
 const MAX_REFERENCE_METADATA_DEPTH = 4;
 const MAX_REFERENCE_METADATA_KEYS = 32;
+const MAX_DISCOVERY_QUERY_LENGTH = 200;
+const MAX_DISCOVERY_PAGE_SIZE = 500;
+const MAX_DISCOVERY_TOKEN_LENGTH = 1024;
 const SENSITIVE_METADATA_KEY = /(?:secret|token|password|authorization|credential|header|raw.?payload|request.?body|response.?body)/i;
 
 class ProviderContractError extends Error {
@@ -144,7 +147,34 @@ function normalizeProviderError(error, operation) {
   };
 }
 
-function validateProviderOperationResult(operation, result) {
+function normalizeDiscoveryQuery(value) {
+  if (value === undefined || value === null) return '';
+  if (typeof value !== 'string') throw new ProviderContractError('provider_input_invalid', 'The discovery search is invalid.');
+  const query = value.trim().replace(/\s+/g, ' ');
+  if (query.length > MAX_DISCOVERY_QUERY_LENGTH) throw new ProviderContractError('provider_input_invalid', 'The discovery search is too long.');
+  return query;
+}
+
+function validateMappingDiscoveryInput(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input) || input.kind !== 'mapping-destinations') {
+    throw new ProviderContractError('provider_input_invalid', 'The destination discovery request is invalid.');
+  }
+  const query = normalizeDiscoveryQuery(input.query);
+  const pageSize = input.pageSize === undefined ? 50 : input.pageSize;
+  if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > MAX_DISCOVERY_PAGE_SIZE) {
+    throw new ProviderContractError('provider_input_invalid', 'The destination discovery page size is invalid.');
+  }
+  const continuationToken = input.continuationToken ?? null;
+  if (continuationToken !== null && (typeof continuationToken !== 'string' || continuationToken.length > MAX_DISCOVERY_TOKEN_LENGTH || !continuationToken.trim() || /[\u0000-\u001f\u007f]/.test(continuationToken))) {
+    throw new ProviderContractError('provider_input_invalid', 'The destination discovery continuation token is invalid.');
+  }
+  if (input.settings !== undefined && (!input.settings || typeof input.settings !== 'object' || Array.isArray(input.settings))) {
+    throw new ProviderContractError('provider_input_invalid', 'The destination discovery settings are invalid.');
+  }
+  return { ...input, kind: 'mapping-destinations', query, pageSize, continuationToken };
+}
+
+function validateProviderOperationResult(operation, result, input = {}) {
   if (!PROVIDER_ADAPTER_OPERATIONS.includes(operation) || !result || typeof result !== 'object' || Array.isArray(result)) {
     throw new ProviderContractError('invalid_provider_result', 'The ticketing system returned an invalid response.', { operation });
   }
@@ -177,14 +207,29 @@ function validateProviderOperationResult(operation, result) {
   }
   if (operation === 'discover') {
     if (result.options.length > 500) throw new ProviderContractError('invalid_provider_result', 'The ticketing system returned too many discovery options.', { operation });
-    return {
-      options: result.options.map((option) => {
+    const seenOptionIds = new Set();
+    const options = result.options.map((option) => {
         if (!option || typeof option.id !== 'string' || !option.id.trim() || option.id.length > MAX_REFERENCE_ID_LENGTH || typeof option.label !== 'string' || !option.label.trim() || option.label.length > MAX_REFERENCE_DISPLAY_ID_LENGTH) {
           throw new ProviderContractError('invalid_provider_result', 'The ticketing system returned invalid discovery options.', { operation });
         }
-        return { id: option.id.trim(), label: option.label.trim(), ...(option.metadata === undefined ? {} : { metadata: normalizeMetadata(option.metadata) }) };
-      })
-    };
+        const id = option.id.trim();
+        if (/[\u0000-\u001f\u007f]/.test(id) || seenOptionIds.has(id)) throw new ProviderContractError('invalid_provider_result', 'The ticketing system returned invalid or duplicate discovery option identifiers.', { operation });
+        seenOptionIds.add(id);
+        return { id, label: option.label.trim(), ...(option.metadata === undefined ? {} : { metadata: normalizeMetadata(option.metadata) }) };
+    });
+    if (input?.kind !== 'mapping-destinations') return { options };
+    const metadataKeys = ['hasMore', 'nextPageToken', 'complete', 'searchSupported', 'paginationSupported'];
+    if (metadataKeys.every((key) => result[key] === undefined)) {
+      return { options, hasMore: false, nextPageToken: null, complete: false, searchSupported: false, paginationSupported: false };
+    }
+    const token = result.nextPageToken;
+    if (typeof result.hasMore !== 'boolean' || typeof result.complete !== 'boolean' || typeof result.searchSupported !== 'boolean' || typeof result.paginationSupported !== 'boolean' || !Object.prototype.hasOwnProperty.call(result, 'nextPageToken') ||
+        (token !== null && token !== undefined && (typeof token !== 'string' || !token.trim() || token.length > MAX_DISCOVERY_TOKEN_LENGTH || /[\u0000-\u001f\u007f]/.test(token))) ||
+        result.hasMore !== Boolean(token) || (result.complete && result.hasMore) || (result.hasMore && !result.paginationSupported) ||
+        (input.continuationToken && token === input.continuationToken)) {
+      throw new ProviderContractError('invalid_provider_result', 'The ticketing system returned invalid discovery page metadata.', { operation });
+    }
+    return { options, hasMore: result.hasMore, nextPageToken: token || null, complete: result.complete, searchSupported: result.searchSupported, paginationSupported: result.paginationSupported };
   }
   if (operation === 'testConnection' && typeof result.ok !== 'boolean') {
     throw new ProviderContractError('invalid_provider_result', 'The ticketing system returned an invalid connection result.', { operation });
@@ -227,10 +272,15 @@ function safeProviderLabel(value) {
 module.exports = {
   PROVIDER_ADAPTER_CONTRACT_MAJOR,
   PROVIDER_ADAPTER_OPERATIONS,
+  MAX_DISCOVERY_PAGE_SIZE,
+  MAX_DISCOVERY_QUERY_LENGTH,
+  MAX_DISCOVERY_TOKEN_LENGTH,
   ProviderContractError,
   assertProviderId,
   normalizeExternalTicketReference,
   normalizeProviderError,
   validateProviderAdapter,
+  normalizeDiscoveryQuery,
+  validateMappingDiscoveryInput,
   validateProviderOperationResult
 };

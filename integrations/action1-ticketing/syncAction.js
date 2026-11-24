@@ -1,10 +1,10 @@
-const { loadRuntimeConfig } = require('./runtimeConfig');
+const { loadRuntimeConfig, loadRuntimeSnapshot, loadProviderRuntimeConfig } = require('./runtimeConfig');
 const { createAction1Client } = require('./action1Api');
 const { createDbCorrelationStore } = require('./correlationStore');
 const { createDbSignalWatermarkStore } = require('./signalWatermarkStore');
 const { runStage4CandidatePipeline } = require('./stage4CandidatePipeline');
 const { createLifecycleRunService } = require('./lifecycleRunService');
-const { createProviderDispatcher, resolveProvider } = require('./providerRegistry');
+const { createProviderDispatcher, resolveProvider, PROVIDER_REGISTRY } = require('./providerRegistry');
 const { createMarketplaceRunLogger, LOG_EVENT_TYPES, LOG_LEVELS } = require('./runtimeLogging');
 
 async function runTicketingSync(context, request = {}, dependencies = {}) {
@@ -16,28 +16,21 @@ async function runTicketingSync(context, request = {}, dependencies = {}) {
     integrationId: 'action1-ticketing'
   });
 
-  await runLogger.emit({
-    runId: 'halo-sync',
-    level: LOG_LEVELS.INFO,
-    eventType: LOG_EVENT_TYPES.RUN_START,
-    message: 'Starting Action1 Ticketing sync.',
-    context: {
-      trigger: String(request?.trigger || 'manual')
-    }
-  });
-
   try {
     await runLogger.info('Loading Action1 Ticketing runtime configuration.');
-    const runtimeConfigLoader = dependencies.runtimeConfigLoader || loadRuntimeConfig;
-    const runtimeConfig = await runtimeConfigLoader(context);
-    if (!dependencies.providerDispatcher) {
-      const activeProvider = resolveProvider(runtimeConfig.providerId);
-      if (!activeProvider.ok) {
-        await runLogger.warn(activeProvider.error.message);
-        await run?.setAssetsProcessed?.(0);
-        return { ok: false, message: activeProvider.error.message, summary: emptySummary(), assetsProcessed: 0 };
-      }
-    }
+    const runtimeConfigLoader = dependencies.runtimeConfigLoader;
+    let runtimeConfig = runtimeConfigLoader
+      ? await runtimeConfigLoader(context)
+      : await loadRuntimeSnapshot(context);
+    const provider = getRecordedProvider(runtimeConfig.providerId, dependencies.providerRegistry || PROVIDER_REGISTRY);
+    const trigger = normalizeTrigger(request?.trigger);
+    await runLogger.emit({
+      runId: 'action1-ticketing-sync',
+      level: LOG_LEVELS.INFO,
+      eventType: LOG_EVENT_TYPES.RUN_START,
+      message: 'Starting Action1 Ticketing sync.',
+      context: { trigger, providerId: provider.providerId, providerLabel: provider.providerLabel }
+    });
     const executionPlan = buildSignalExecutionPlan(runtimeConfig);
     runLogger.configure({
       diagnosticLoggingEnabled: runtimeConfig.operationalSafeguards?.enableDebugLogging
@@ -52,14 +45,15 @@ async function runTicketingSync(context, request = {}, dependencies = {}) {
     if (executionPlan.enabledSignals.length === 0) {
       const summary = emptySummary();
       const details = buildRunDetails(summary, {
-        notes: ['No enabled signals are configured. Nothing to process.']
+        notes: ['No enabled signals are configured. Nothing to process.'],
+        provider
       });
       const durationMs = Date.now() - runStartedAt;
 
       await runLogger.info('Action1 Ticketing sync completed as a no-op because no signals are enabled.');
       await run?.setAssetsProcessed?.(0);
       await runLogger.emit({
-        runId: 'halo-sync',
+        runId: 'action1-ticketing-sync',
         level: LOG_LEVELS.INFO,
         eventType: LOG_EVENT_TYPES.RUN_END,
         message: 'Action1 Ticketing sync completed as a no-op because no signals are enabled.',
@@ -78,6 +72,8 @@ async function runTicketingSync(context, request = {}, dependencies = {}) {
         ok: true,
         message: 'Action1 Ticketing sync completed: no signals are enabled.',
         details,
+        providerId: provider.providerId,
+        providerLabel: provider.providerLabel,
         summary,
         assetsProcessed: 0,
         collection: {
@@ -87,35 +83,76 @@ async function runTicketingSync(context, request = {}, dependencies = {}) {
       };
     }
 
+    if (!dependencies.providerDispatcher) {
+      const activeProvider = resolveProvider(runtimeConfig.providerId);
+      if (!activeProvider.ok) {
+        await runLogger.warn(activeProvider.error.message);
+        await run?.setAssetsProcessed?.(0);
+        return createPreflightFailure(activeProvider.error.message, provider);
+      }
+    }
+
+    if (!runtimeConfigLoader && !runtimeConfig.providerRuntimeLoaded) {
+      runtimeConfig = await loadProviderRuntimeConfig(context, runtimeConfig);
+    }
+
+    const providerDispatcher = dependencies.providerDispatcher || createProviderDispatcher();
+
     if (requiredErrors.length > 0) {
       await runLogger.warn(`Sync stopped: ${requiredErrors.join('; ')}`, {
         validationErrors: requiredErrors
       });
       await run?.setAssetsProcessed?.(0);
-      return {
-        ok: false,
-        message: `Action1 Ticketing sync is not ready: ${requiredErrors.join('; ')}`,
-        summary: emptySummary(),
-        assetsProcessed: 0
-      };
+      return createPreflightFailure(`Action1 Ticketing sync is not ready: ${requiredErrors.join('; ')}`, provider);
     }
 
     if (!Array.isArray(runtimeConfig.orgClientMappings) || runtimeConfig.orgClientMappings.length === 0) {
       await runLogger.warn('Sync stopped: no Action1 organization to Action1 Ticketing client mappings are configured.');
       await run?.setAssetsProcessed?.(0);
-      return {
-        ok: false,
-        message: 'Action1 Ticketing sync requires at least one enabled Action1 organization mapping.',
-        summary: emptySummary(),
-        assetsProcessed: 0
-      };
+      return createPreflightFailure('Action1 Ticketing sync requires at least one enabled Action1 organization mapping.', provider);
+    }
+
+    let providerValidation;
+    try {
+      providerValidation = await providerDispatcher.invoke({
+        providerId: runtimeConfig.providerId,
+        operation: 'validateConfiguration',
+        input: {
+          mode: 'full-provider',
+          mappings: runtimeConfig.orgClientMappings.map((row) => ({
+            mappingId: row.mappingId,
+            action1OrgId: row.action1OrgId,
+            action1OrgName: row.action1OrgName,
+            destinationId: row.destinationId,
+            destinationName: row.destinationName
+          }))
+        },
+        connection: runtimeConfig.providerSettings,
+        logger: runLogger
+      });
+    } catch (error) {
+      const message = error?.code === 'provider_unavailable' || error?.code === 'provider_incompatible'
+        ? 'The active ticketing system is not available in this version.'
+        : 'The active ticketing system configuration could not be validated.';
+      await runLogger.warn(message);
+      await run?.setAssetsProcessed?.(0);
+      return createPreflightFailure(message, provider);
+    }
+    if (!providerValidation?.ok) {
+      const fields = Array.isArray(providerValidation?.errors) ? providerValidation.errors.map((item) => item.field).filter((field) => /^[a-zA-Z0-9_.-]{1,100}$/.test(String(field || ''))) : [];
+      const message = fields.length
+        ? `Complete ticketing configuration fields: ${Array.from(new Set(fields)).slice(0, 8).join(', ')}.`
+        : 'Complete the active ticketing system configuration in Settings.';
+      await runLogger.warn(message);
+      await run?.setAssetsProcessed?.(0);
+      return createPreflightFailure(message, provider);
     }
 
     await runLogger.debug('Marketplace mappings loaded.', {
       mappingRows: runtimeConfig.orgClientMappings.map((row) => ({
         mappingId: row.mappingId,
         action1OrgId: row.action1OrgId,
-        haloClientId: row.haloClientId
+        destinationId: row.destinationId
       }))
     });
     const action1Credentials = await logCredentialAvailability(context, runLogger);
@@ -124,8 +161,6 @@ async function runTicketingSync(context, request = {}, dependencies = {}) {
     const correlationStore = createDbCorrelationStore(context, runtimeConfig.providerId);
     const watermarkStore = createDbSignalWatermarkStore(context, runtimeConfig.providerId);
     const action1Client = createAction1Client({ runLogger });
-    const providerDispatcher = dependencies.providerDispatcher || createProviderDispatcher();
-
     await runLogger.info('Starting Action1 collection.', {
       organizations: runtimeConfig.orgClientMappings.length
     });
@@ -168,6 +203,7 @@ async function runTicketingSync(context, request = {}, dependencies = {}) {
     const lifecycleService = createLifecycleRunService({
       providerDispatcher,
       providerId: runtimeConfig.providerId,
+      connection: runtimeConfig.providerSettings,
       correlationStore,
       runLogger
     });
@@ -195,12 +231,12 @@ async function runTicketingSync(context, request = {}, dependencies = {}) {
       collectionFailures: collection.failures
     });
     const assetsProcessed = Number(pipeline.summary?.endpointsSeen || 0);
-    const details = buildRunDetails(summary);
+    const details = buildRunDetails(summary, { provider });
     const durationMs = Date.now() - runStartedAt;
 
     await run?.setAssetsProcessed?.(assetsProcessed);
     await runLogger.emit({
-      runId: 'halo-sync',
+      runId: 'action1-ticketing-sync',
       level: summary.failed > 0 ? LOG_LEVELS.WARN : LOG_LEVELS.INFO,
       eventType: LOG_EVENT_TYPES.RUN_END,
       message: summary.failed > 0 ? 'Action1 Ticketing sync completed with failures.' : 'Action1 Ticketing sync completed.',
@@ -219,6 +255,8 @@ async function runTicketingSync(context, request = {}, dependencies = {}) {
       ok: summary.failed === 0,
       message: summary.failed === 0 ? 'Action1 Ticketing sync completed.' : 'Action1 Ticketing sync completed with failures.',
       details,
+      providerId: provider.providerId,
+      providerLabel: provider.providerLabel,
       summary,
       assetsProcessed,
       collection: {
@@ -236,6 +274,34 @@ async function runTicketingSync(context, request = {}, dependencies = {}) {
     });
     throw error;
   }
+}
+
+function getRecordedProvider(providerId, registry) {
+  const id = typeof providerId === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(providerId) ? providerId : '';
+  const descriptor = id && registry && Object.prototype.hasOwnProperty.call(registry, id) ? registry[id] : null;
+  const label = typeof descriptor?.label === 'string' && descriptor.label.trim() && descriptor.label.length <= 80
+    ? descriptor.label.trim()
+    : '';
+  return { providerId: id, providerLabel: label };
+}
+
+function normalizeTrigger(trigger) {
+  return ['manual', 'scheduled'].includes(String(trigger || '').trim().toLowerCase())
+    ? String(trigger).trim().toLowerCase()
+    : 'manual';
+}
+
+function createPreflightFailure(message, provider) {
+  const summary = emptySummary();
+  return {
+    ok: false,
+    message,
+    details: buildRunDetails(summary, { notes: [message], provider }),
+    providerId: provider.providerId,
+    providerLabel: provider.providerLabel,
+    summary,
+    assetsProcessed: 0
+  };
 }
 
 async function collectMarketplaceDatasets(input) {
@@ -453,15 +519,21 @@ function emptySummary() {
 
 function buildRunDetails(summary, options = {}) {
   const notes = Array.isArray(options.notes) ? options.notes.map((row) => String(row || '').trim()).filter(Boolean) : [];
+  const provider = options.provider || {};
+  const attribution = [
+    provider.providerId ? `providerId: ${provider.providerId}` : '',
+    provider.providerLabel ? `providerLabel: ${provider.providerLabel}` : ''
+  ].filter(Boolean);
   return [
+    ...attribution,
     ...notes,
-    'HALO_PSA_SYNC_SUMMARY_BEGIN',
+    'ACTION1_TICKETING_SYNC_SUMMARY_BEGIN',
     `candidatesSeen: ${Number(summary?.candidatesSeen || 0)}`,
     `created: ${Number(summary?.created || 0)}`,
     `updated: ${Number(summary?.updated || 0)}`,
     `skipped: ${Number(summary?.skipped || 0)}`,
     `failed: ${Number(summary?.failed || 0)}`,
-    'HALO_PSA_SYNC_SUMMARY_END'
+    'ACTION1_TICKETING_SYNC_SUMMARY_END'
   ].join('\n');
 }
 

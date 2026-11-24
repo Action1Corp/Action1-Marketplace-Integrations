@@ -61,6 +61,26 @@
       "history": false
     },
     {
+      "id": "preview-ticketing-mapping-auto-match",
+      "kind": "action",
+      "label": "Preview Mapping Auto Match",
+      "buttonLabel": "Auto Match",
+      "runningLabel": "Analyzing...",
+      "description": "Builds a read-only exact-name preview of unmapped Action1 organizations and active-provider customers.",
+      "placement": "mapping",
+      "history": false
+    },
+    {
+      "id": "apply-ticketing-mapping-auto-match",
+      "kind": "action",
+      "label": "Apply Confirmed Mapping Matches",
+      "buttonLabel": "Apply Matches",
+      "runningLabel": "Applying...",
+      "description": "Revalidates and creates only explicitly confirmed exact-name mappings through existing mapping storage.",
+      "placement": "mapping",
+      "history": false
+    },
+    {
       "id": "discover-ticketing-settings-options",
       "kind": "action",
       "label": "Discover Destination Routing Options",

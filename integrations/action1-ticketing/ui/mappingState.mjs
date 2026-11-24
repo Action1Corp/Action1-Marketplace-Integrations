@@ -37,6 +37,99 @@ export function mappingOptionsForRow(allOptions, rows, rowIndex, valueKey, nameK
   return ensureSelectedOption(available, current[valueKey], current[nameKey]);
 }
 
+function normalizeSearchText(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+export function buildOrganizationMappingRows(action1Organizations, draftRows, options = {}) {
+  const filter = ['All', 'Mapped', 'Unmapped'].includes(options.filter) ? options.filter : 'All';
+  const query = normalizeSearchText(options.search);
+  const hasSearch = Boolean(query);
+  const drafts = Array.isArray(draftRows) ? draftRows : [];
+  const organizations = normalizeOptions(action1Organizations);
+  const knownOrganizationIds = new Set(organizations.map((row) => row.value));
+  for (const draft of drafts) {
+    const id = String(draft?.action1OrgId || '').trim();
+    const name = String(draft?.action1OrgName || '').trim();
+    if (id && name && !knownOrganizationIds.has(id)) {
+      organizations.push({ value: id, name, label: name });
+      knownOrganizationIds.add(id);
+    }
+  }
+  const draftsByOrganization = new Map();
+  const blankDrafts = [];
+
+  drafts.forEach((row, draftIndex) => {
+    const organizationId = String(row?.action1OrgId || '').trim();
+    if (!organizationId) {
+      blankDrafts.push({ kind: 'blank-draft', draftIndex, row });
+      return;
+    }
+    const rows = draftsByOrganization.get(organizationId) || [];
+    rows.push({ kind: 'organization', draftIndex, row });
+    draftsByOrganization.set(organizationId, rows);
+  });
+
+  const projected = [];
+  for (const organization of organizations) {
+    const organizationDrafts = draftsByOrganization.get(organization.value) || [];
+    const completeDrafts = organizationDrafts.filter(({ row }) =>
+      String(row?.action1OrgId || '').trim() && String(row?.destinationId ?? row?.haloClientId ?? '').trim());
+    const mapped = completeDrafts.length > 0;
+    if (filter === 'Mapped' && !mapped) continue;
+    if (filter === 'Unmapped' && mapped) continue;
+
+    const rows = organizationDrafts.length
+      ? organizationDrafts
+      : [{ kind: 'organization', draftIndex: null, row: {
+        id: null,
+        action1OrgId: organization.value,
+        action1OrgName: organization.name,
+        destinationId: '',
+        destinationName: ''
+      } }];
+    const organizationMatches = !query || normalizeSearchText(organization.name).includes(query);
+    for (const draft of rows) {
+      const destinationMatches = hasSearch && normalizeSearchText(draft.row?.destinationName ?? draft.row?.haloClientName).includes(query);
+      if (hasSearch && !organizationMatches && !destinationMatches) continue;
+      projected.push({
+        ...draft,
+        key: draft.draftIndex === null ? `organization-${organization.value}` : `draft-${draft.draftIndex}`,
+        action1OrgId: organization.value,
+        action1OrgName: organization.name,
+        mapped: String(draft.row?.destinationId ?? draft.row?.haloClientId ?? '').trim().length > 0
+      });
+    }
+  }
+
+  if (filter === 'All') {
+    for (const draft of blankDrafts) {
+      // Blank Add Mapping rows remain available in All regardless of the organization search.
+      projected.push({ ...draft, key: `blank-draft-${draft.draftIndex}`, action1OrgId: '', action1OrgName: '', mapped: false });
+    }
+  }
+  return projected;
+}
+
+export function paginateMappingRows(rows, requestedPage = 0, pageSize = 25) {
+  const allRows = Array.isArray(rows) ? rows : [];
+  const safePageSize = Number.isInteger(pageSize) && pageSize > 0 ? pageSize : 25;
+  const pageCount = Math.ceil(allRows.length / safePageSize);
+  const lastPage = Math.max(0, pageCount - 1);
+  const numericPage = Number.isFinite(Number(requestedPage)) ? Math.floor(Number(requestedPage)) : 0;
+  const page = Math.max(0, Math.min(numericPage, lastPage));
+  const startIndex = page * safePageSize;
+  const visibleRows = allRows.slice(startIndex, startIndex + safePageSize);
+  return {
+    rows: visibleRows,
+    page,
+    pageCount,
+    total: allRows.length,
+    start: visibleRows.length ? startIndex + 1 : 0,
+    end: visibleRows.length ? startIndex + visibleRows.length : 0
+  };
+}
+
 export function buildPersistRows(rows, action1Organizations, destinationOptions) {
   const errors = [];
   const persistRows = [];

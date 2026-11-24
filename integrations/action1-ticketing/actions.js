@@ -4,6 +4,8 @@ const {
   deleteHaloOrgClientMapping,
   discoverAction1MappingOptions,
   discoverHaloMappingOptions,
+  previewAutoMatch,
+  applyAutoMatch,
   listHaloOrgClientMappings,
   saveHaloOrgClientMapping
 } = require('./mappingActions');
@@ -28,6 +30,8 @@ module.exports = {
     'delete-ticketing-org-destination-mapping': deleteHaloOrgClientMapping,
     'discover-action1-mapping-options': discoverAction1MappingOptions,
     'discover-ticketing-mapping-options': discoverHaloMappingOptions,
+    'preview-ticketing-mapping-auto-match': previewAutoMatch,
+    'apply-ticketing-mapping-auto-match': applyAutoMatch,
     'discover-ticketing-settings-options': discover,
     'list-ticketing-org-destination-mappings': listHaloOrgClientMappings,
     'save-ticketing-org-destination-mapping': saveHaloOrgClientMapping,

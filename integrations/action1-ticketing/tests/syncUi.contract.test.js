@@ -51,7 +51,9 @@ function run() {
   assert(syncSource.includes('Run synchronization, review the latest sync outcome, and manage the Marketplace schedule for this integration.'), 'Sync.jsx should render the updated customer-facing Sync description');
   assert(!syncSource.includes('host scheduler shell'), 'Sync.jsx should not use implementation-oriented host scheduler shell wording');
   assert(syncSource.includes('Run now starts or continues the single active job.'), 'Sync.jsx should render the standalone-style Sync Status copy');
-  assert(syncSource.includes('Scheduled sync uses the Marketplace schedule configured below.'), 'Sync.jsx should render the neutral Marketplace scheduler copy');
+  assert(syncSource.includes('Scheduled runs use the ticketing system active when the run starts.'), 'Sync.jsx should explain provider capture when the scheduled run starts');
+  assert(syncSource.includes('Active ticketing system:'), 'Sync.jsx should display the current active provider separately');
+  assert(syncSource.includes('<span style={styles.keyLabel}>Provider:</span>'), 'Sync.jsx should display the recorded latest-run provider separately from the active provider');
   assert(!syncSource.includes('Scheduled sync is enabled every 24 hours.'), 'Sync.jsx should not keep the misleading static every-24-hours scheduler copy');
   assert(syncSource.includes('Run now'), 'Sync.jsx should render the Run now action');
   assert(syncSource.includes('Refresh status'), 'Sync.jsx should render the Refresh status action');

@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { buildHistoryRows } from '../historyViewModel.mjs';
+import { INITIAL_PROVIDER_ID, resolveUiProvider } from './providerRegistry.js';
 
 const SYNC_ACTION_ID = 'sync';
 const DEFAULT_INTERVAL_HOURS = '24';
@@ -412,6 +414,10 @@ function extractTotals(details) {
   };
 }
 
+function providerLabel(providerId) {
+  return resolveUiProvider(providerId)?.label || 'Unavailable ticketing system';
+}
+
 function SchedulerStatus({ statusText }) {
   return (
     <div style={styles.statusText}>
@@ -423,6 +429,7 @@ function SchedulerStatus({ statusText }) {
 function Sync({ integration }) {
   const [meta, setMeta] = useState(null);
   const [historyRows, setHistoryRows] = useState([]);
+  const [activeProviderId, setActiveProviderId] = useState(INITIAL_PROVIDER_ID);
   const [savedSchedule, setSavedSchedule] = useState(parseSchedule(''));
   const [schedulerDraft, setSchedulerDraft] = useState({
     enabled: false,
@@ -449,6 +456,9 @@ function Sync({ integration }) {
   const lastFinishedRun = syncRows.find((row) => normalizeRunStatus(row?.status) !== 'Running') || null;
   const currentStatus = normalizeRunStatus(latestRun?.status);
   const runTotals = extractTotals(lastFinishedRun?.details);
+  const latestRunProvider = lastFinishedRun
+    ? buildHistoryRows([lastFinishedRun])[0]?.providerLabel || 'Provider not recorded'
+    : 'Provider not recorded';
   const scheduleStatusText = savedSchedule.label;
   const supportsSync = meta?.operations?.sync !== false;
 
@@ -496,6 +506,8 @@ function Sync({ integration }) {
 
       setMeta(metaJson);
       setHistoryRows(nextRows);
+      const activeProvider = String(settings.TicketingActiveProvider || INITIAL_PROVIDER_ID);
+      setActiveProviderId(activeProvider);
       setSavedSchedule(parsedSchedule);
       setSchedulerDraft({
         enabled: parsedSchedule.enabled,
@@ -620,7 +632,7 @@ function Sync({ integration }) {
             <div style={{ ...styles.sectionSubtitle, marginTop: '0.7rem' }}>
               <div style={styles.statusCopy}>
                 <div>Run now starts or continues the single active job.</div>
-                <div>Scheduled sync uses the Marketplace schedule configured below.</div>
+                <div>Scheduled runs use the ticketing system active when the run starts.</div>
               </div>
             </div>
           </div>
@@ -629,6 +641,10 @@ function Sync({ integration }) {
             <div style={styles.statusRow}>
               <span style={styles.statusLabel}>Current status:</span>
               <span style={{ ...styles.pill, ...currentStatusTone }}>{currentStatus}</span>
+            </div>
+            <div style={styles.statusRow}>
+              <span style={styles.statusLabel}>Active ticketing system:</span>
+              <span>{providerLabel(activeProviderId)}</span>
             </div>
             <div style={styles.statusRow}>
               <span style={styles.statusLabel}>Scheduled sync:</span>
@@ -650,6 +666,10 @@ function Sync({ integration }) {
               <div style={styles.keyValueRow}>
                 <span style={styles.keyLabel}>Result:</span>
                 <span style={{ ...styles.pill, ...resultTone }}>{resultStatus}</span>
+              </div>
+              <div style={styles.keyValueRow}>
+                <span style={styles.keyLabel}>Provider:</span>
+                <span>{latestRunProvider}</span>
               </div>
             </div>
             <div style={styles.buttonRow}>

@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { PROVIDER_ADAPTER_OPERATIONS, PROVIDER_ADAPTER_CONTRACT_MAJOR, validateProviderAdapter, normalizeExternalTicketReference, normalizeProviderError } = require('../providerAdapterContract');
+const { PROVIDER_ADAPTER_OPERATIONS, PROVIDER_ADAPTER_CONTRACT_MAJOR, validateProviderAdapter, validateProviderOperationResult, normalizeExternalTicketReference, normalizeProviderError } = require('../providerAdapterContract');
 const { createProviderDispatcher, resolveProvider, INITIAL_PROVIDER_ID, PROVIDER_REGISTRY } = require('../providerRegistry');
 
 function fakeAdapter(onCall = () => {}, results = {}) {
@@ -9,6 +9,25 @@ function fakeAdapter(onCall = () => {}, results = {}) {
 async function run() {
   assert.strictEqual(PROVIDER_ADAPTER_CONTRACT_MAJOR, 1);
   assert.deepStrictEqual(PROVIDER_ADAPTER_OPERATIONS, ['validateConfiguration', 'testConnection', 'discover', 'prepareTicket', 'getTicket', 'createTicket', 'updateTicket']);
+
+  const discoveryPage = validateProviderOperationResult('discover', {
+    options: [{ id: 'customer-1', label: 'Acme' }], hasMore: true, nextPageToken: 'cursor-2',
+    complete: false, searchSupported: true, paginationSupported: true
+  }, { kind: 'mapping-destinations', continuationToken: null });
+  assert.deepStrictEqual(discoveryPage, {
+    options: [{ id: 'customer-1', label: 'Acme' }], hasMore: true, nextPageToken: 'cursor-2',
+    complete: false, searchSupported: true, paginationSupported: true
+  }, 'mapping discovery pages expose explicit continuation and capability semantics');
+  assert.throws(() => validateProviderOperationResult('discover', { options: [], hasMore: false, nextPageToken: 'cursor', complete: true, searchSupported: true, paginationSupported: true }, { kind: 'mapping-destinations' }), /page|continuation|discovery/i);
+  assert.throws(() => validateProviderOperationResult('discover', { options: [], hasMore: true, nextPageToken: null, complete: false, searchSupported: true, paginationSupported: true }, { kind: 'mapping-destinations' }), /page|continuation|discovery/i);
+  assert.throws(() => validateProviderOperationResult('discover', { options: [], hasMore: false, complete: true, searchSupported: true, paginationSupported: true }, { kind: 'mapping-destinations' }), /page|continuation|discovery/i);
+  assert.strictEqual(validateProviderOperationResult('discover', { options: [{ id: 'x', label: 'X' }], hasMore: false, nextPageToken: null, complete: false, searchSupported: true, paginationSupported: true }, { kind: 'mapping-destinations' }).complete, false, 'providers can report that they cannot prove directory completeness');
+  assert.throws(() => validateProviderOperationResult('discover', { options: [], hasMore: true, nextPageToken: 'cursor', complete: false, searchSupported: true, paginationSupported: true }, { kind: 'mapping-destinations', continuationToken: 'cursor' }), /repeat|continuation|discovery/i);
+  assert.deepStrictEqual(validateProviderOperationResult('discover', { options: [{ id: 'one-page', label: 'One Page' }] }, { kind: 'mapping-destinations' }), {
+    options: [{ id: 'one-page', label: 'One Page' }], hasMore: false, nextPageToken: null, complete: false, searchSupported: false, paginationSupported: false
+  }, 'legacy single-page providers stay usable without pretending the whole directory was found');
+  assert.throws(() => validateProviderOperationResult('discover', { options: [{ id: 'same', label: 'A' }, { id: 'same', label: 'B' }], hasMore: false, nextPageToken: null, complete: true, searchSupported: true, paginationSupported: true }, { kind: 'mapping-destinations' }), /duplicate|identifier/i);
+  assert.throws(() => validateProviderOperationResult('discover', { options: Array.from({ length: 501 }, (_, index) => ({ id: `dest-${index}`, label: `Destination ${index}` })), hasMore: false, nextPageToken: null, complete: true, searchSupported: true, paginationSupported: true }, { kind: 'mapping-destinations' }), /too many/i);
 
   const missing = fakeAdapter();
   delete missing.updateTicket;
@@ -48,7 +67,7 @@ async function run() {
       adapter: fakeAdapter((operation, args) => { calls += 1; assert.deepStrictEqual(Object.keys(args).sort(), ['connection', 'input', 'logger', 'transport']); }, {
         validateConfiguration: { ok: true, errors: [] },
         testConnection: { ok: true, message: 'Connected to synthetic provider.' },
-        discover: { options: [{ id: 'queue-1', label: 'Support' }] },
+        discover: { options: [{ id: 'queue-1', label: 'Support' }], hasMore: false, nextPageToken: null, complete: true, searchSupported: true, paginationSupported: true },
         prepareTicket: { payload: { title: 'Synthetic' }, comparisonValue: 'comparison-1', comparisonVersion: '1' },
         getTicket: { state: 'missing', confirmed: true },
         createTicket: { externalTicketRef: { id: '00007', displayId: 'SYN-7' } },
@@ -56,6 +75,19 @@ async function run() {
       })
     }
   });
+  let normalizedDiscoveryInput;
+  const inputValidator = createProviderDispatcher({
+    'provider-a': { providerId: 'provider-a', label: 'Synthetic A', contractMajor: 1, adapter: fakeAdapter((operation, args) => { if (operation === 'discover') normalizedDiscoveryInput = args.input; }, {
+      discover: { options: [], hasMore: false, nextPageToken: null, complete: true, searchSupported: true, paginationSupported: true }
+    }) }
+  });
+  await inputValidator.invoke({ providerId: 'provider-a', operation: 'discover', input: { kind: 'mapping-destinations', query: '  Acme   CO ', pageSize: 50, continuationToken: null, settings: {} } });
+  assert.deepStrictEqual(normalizedDiscoveryInput, { kind: 'mapping-destinations', query: 'Acme CO', pageSize: 50, continuationToken: null, settings: {} });
+  for (const input of [
+    { kind: 'mapping-destinations', query: 'x'.repeat(201), pageSize: 50, settings: {} },
+    { kind: 'mapping-destinations', query: '', pageSize: 501, settings: {} },
+    { kind: 'mapping-destinations', query: '', pageSize: 50, continuationToken: 'x'.repeat(1025), settings: {} }
+  ]) await assert.rejects(() => inputValidator.invoke({ providerId: 'provider-a', operation: 'discover', input }), (error) => error.code === 'provider_input_invalid');
   for (const operation of PROVIDER_ADAPTER_OPERATIONS) {
     await injected.invoke({ providerId: 'provider-a', operation, input: { challenge: 'safe' }, connection: { host: 'fixture' }, transport: {}, logger: {} });
   }

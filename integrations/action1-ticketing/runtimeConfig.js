@@ -85,6 +85,8 @@ function normalizeMappingRows(rows) {
       mappingId: trimValue(String(row.id ?? '')),
       action1OrgId: trimValue(String(row.action1OrgId || '')),
       action1OrgName: trimValue(String(row.action1OrgName || '')),
+      destinationId: trimValue(String(row.destinationId || row.haloClientId || '')),
+      destinationName: trimValue(String(row.destinationName || row.haloClientName || '')),
       haloClientId: trimValue(String(row.haloClientId || '')),
       haloClientName: trimValue(String(row.haloClientName || '')),
       allowHaloClientToCreateAction1Org: false
@@ -205,18 +207,37 @@ async function readRuntimeSettings(context, keys = RUNTIME_SETTING_KEYS) {
 }
 
 async function loadRuntimeConfig(context) {
+  const snapshot = await loadRuntimeSnapshot(context);
+  return loadProviderRuntimeConfig(context, snapshot);
+}
+
+async function loadRuntimeSnapshot(context) {
   const settings = await readRuntimeSettings(context);
   const providerId = String(settings[ACTIVE_PROVIDER_KEY] || INITIAL_PROVIDER_ID).trim();
+  return {
+    ...buildRuntimeConfig({ settings, providerId, mappings: [], providerSettings: {} }),
+    runtimeSettings: { ...settings },
+    providerRuntimeLoaded: false
+  };
+}
+
+async function loadProviderRuntimeConfig(context, snapshot) {
+  const settings = snapshot?.runtimeSettings && typeof snapshot.runtimeSettings === 'object' ? snapshot.runtimeSettings : {};
+  const providerId = String(snapshot?.providerId || INITIAL_PROVIDER_ID).trim();
   const providerKeys = getOwnedSettingKeys(providerId);
   const providerSettings = providerKeys.length ? await readRuntimeSettings(context, providerKeys) : {};
   const mappings = await listMappings(context, providerId);
 
-  return buildRuntimeConfig({
+  return {
+    ...buildRuntimeConfig({
     settings,
     mappings,
     providerId,
     providerSettings
-  });
+    }),
+    runtimeSettings: { ...settings },
+    providerRuntimeLoaded: true
+  };
 }
 
 module.exports = {
@@ -225,6 +246,8 @@ module.exports = {
   RUNTIME_SETTING_KEYS,
   buildRuntimeConfig,
   loadRuntimeConfig,
+  loadRuntimeSnapshot,
+  loadProviderRuntimeConfig,
   normalizeExistingOpenTicketBehavior,
   normalizeMappingRows,
   normalizeTicketModel,

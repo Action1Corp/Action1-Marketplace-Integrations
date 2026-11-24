@@ -15,11 +15,12 @@ const {
 } = require('../haloApi');
 const { __private: action1CollectionPrivate } = require('../action1Api');
 const { runTicketingSync: runTicketingSyncImplementation } = require('../syncAction');
+const { actions: exportedActions } = require('../actions');
 const { createProviderDispatcher } = require('../providerRegistry');
 const { loadRuntimeConfig } = require('../runtimeConfig');
 
 const syncTicketState = new Map();
-const syncProviderCalls = { get: [], prepare: [], create: [], update: [] };
+const syncProviderCalls = { get: [], prepare: [], create: [], update: [], connections: [], validations: [] };
 let syncTicketSequence = 0;
 
 function createInMemorySyncDependencies() {
@@ -30,23 +31,30 @@ function createInMemorySyncDependencies() {
         label: 'Isolated sync fixture',
         contractMajor: 1,
         adapter: {
-          async validateConfiguration() { return { ok: true, errors: [] }; },
+          async validateConfiguration({ input, connection }) {
+            syncProviderCalls.validations.push({ input, connection });
+            const failure = syncTicketState.get('provider-config-error');
+            return failure ? { ok: false, errors: [{ field: 'routing.destination', message: failure }] } : { ok: true, errors: [] };
+          },
           async testConnection() { return { ok: true, message: 'Connected.' }; },
           async discover() { return { options: [] }; },
-          async prepareTicket({ input }) {
+          async prepareTicket({ input, connection }) {
             syncProviderCalls.prepare.push(input);
+            syncProviderCalls.connections.push(connection);
             return { payload: { summary: input.content.summary, details: input.content.details, detailsHtml: input.content.detailsHtml || '' }, comparisonValue: JSON.stringify(input.comparisonInput), comparisonVersion: 'sync-fixture-v1' };
           },
-          async getTicket({ input }) {
+          async getTicket({ input, connection }) {
             const ref = input.externalTicketRef;
             syncProviderCalls.get.push(ref.id);
+            syncProviderCalls.connections.push(connection);
             const ticket = syncTicketState.get(`connectwise-psa:${ref.id}`);
             return ticket
               ? { state: 'found', openState: ticket.openState, externalTicketRef: ticket.externalTicketRef, comparisonValue: ticket.comparisonValue, comparisonVersion: ticket.comparisonVersion }
               : { state: 'missing', confirmed: true };
           },
-          async createTicket({ input }) {
+          async createTicket({ input, connection }) {
             syncProviderCalls.create.push(input);
+            syncProviderCalls.connections.push(connection);
             const failure = syncTicketState.get('connectwise-psa:create-error');
             if (failure) throw failure;
             syncTicketSequence += 1;
@@ -54,8 +62,9 @@ function createInMemorySyncDependencies() {
             syncTicketState.set(`connectwise-psa:${ref.id}`, { openState: 'open', externalTicketRef: ref, comparisonValue: input.comparisonValue, comparisonVersion: input.comparisonVersion });
             return { externalTicketRef: ref };
           },
-          async updateTicket({ input }) {
+          async updateTicket({ input, connection }) {
             syncProviderCalls.update.push(input);
+            syncProviderCalls.connections.push(connection);
             const ticket = syncTicketState.get(`connectwise-psa:${input.externalTicketRef.id}`);
             if (!ticket) return { ok: false };
             ticket.comparisonValue = JSON.stringify(input.preparedTicket);
@@ -76,6 +85,7 @@ async function runTicketingSync(context, request) {
       const config = await loadRuntimeConfig(runtimeContext);
       config.ticketDestination.ticketTypeId = 'synthetic-ticket-type';
       config.ticketDestination.closedStatusIds = ['synthetic-closed-status'];
+      config.providerSettings = { providerFixtureCredential: 'synthetic-run-secret' };
       return config;
     }
   });
@@ -834,8 +844,8 @@ async function runTrackedSyncHappyPathTest() {
 
     assert.strictEqual(result.summary.created >= 1, true, 'in-memory destination fixtures preserve donor lifecycle characterization');
     assert.strictEqual(result.assetsProcessed, processed, 'sync should return assetsProcessed so the Marketplace host preserves the final count');
-    assert(result.details.includes('HALO_PSA_SYNC_SUMMARY_BEGIN'), 'sync should return a delimited Action1 Ticketing summary block start marker');
-    assert(result.details.includes('HALO_PSA_SYNC_SUMMARY_END'), 'sync should return a delimited Action1 Ticketing summary block end marker');
+    assert(result.details.includes('ACTION1_TICKETING_SYNC_SUMMARY_BEGIN'), 'sync should return a delimited Action1 Ticketing summary block start marker');
+    assert(result.details.includes('ACTION1_TICKETING_SYNC_SUMMARY_END'), 'sync should return a delimited Action1 Ticketing summary block end marker');
     assert(/(?:^|\n)created:\s*\d+/i.test(result.details), 'sync should return host-compatible details text with created counts');
     assert(/(?:^|\n)updated:\s*\d+/i.test(result.details), 'sync should return host-compatible details text with updated counts');
     assert(/(?:^|\n)skipped:\s*\d+/i.test(result.details), 'sync should return host-compatible details text with skipped counts');
@@ -848,6 +858,11 @@ async function runTrackedSyncHappyPathTest() {
     assert(runLogs.some((entry) => entry.includes('Lifecycle execution completed')), 'sync should log lifecycle completion');
     assert(fetchCalls.some((call) => call.url.endsWith('/oauth2/token')), 'sync should read Action1 credentials through Marketplace-owned Action1 auth');
     assert.strictEqual(syncProviderCalls.create.length > priorCreates, true, 'the isolated provider fixture should receive lifecycle CREATE operations');
+    assert(syncProviderCalls.connections.some((connection) => connection?.providerFixtureCredential === 'synthetic-run-secret'), 'provider operations should receive only the captured provider connection');
+    assert.strictEqual(result.providerId, 'connectwise-psa', 'run result should include the captured active provider ID');
+    assert.strictEqual(result.providerLabel, 'ConnectWise PSA', 'run result should include the static provider label');
+    assert(result.details.includes('providerId: connectwise-psa'), 'run details should persist provider attribution for History');
+    assert.strictEqual(result.details.includes('synthetic-run-secret'), false, 'run details must not expose provider credentials');
     assert.strictEqual(fetchCalls.some((call) => /halo|\/api\/Tickets|\/api\/Category/i.test(call.url)), false, 'lifecycle flow performs no Halo destination requests');
     assert.strictEqual(context.state.endpoint.length + context.state.grouped.length >= 1, true, 'fixture should preserve correlation lifecycle characterization');
     assert.strictEqual(context.state.watermarks.length >= 1, true, 'fixture should preserve automation watermark characterization');
@@ -1623,11 +1638,121 @@ async function runAllSignalsDisabledNoOpTest() {
     assert.strictEqual(processed, 0, 'all signals disabled should publish zero processed assets');
     assert(result.message.includes('no signals are enabled'), 'all signals disabled should return a clear no-op message');
     assert(result.details.includes('No enabled signals are configured. Nothing to process.'), 'all signals disabled details should explain the no-op');
-    assert(result.details.includes('HALO_PSA_SYNC_SUMMARY_BEGIN'), 'all signals disabled should still include the summary block');
+    assert(result.details.includes('ACTION1_TICKETING_SYNC_SUMMARY_BEGIN'), 'all signals disabled should still include the summary block');
     assert.strictEqual(fetchCalls.length, 0, 'all signals disabled should not call Action1 or Halo APIs');
     assert(logs.some((entry) => entry.includes('enabledSignals":[]')), 'basic logs should include the empty enabled signal summary');
     assert(logs.some((entry) => entry.includes('no signals are enabled')), 'basic logs should include the no-op decision');
   });
+}
+
+async function runProductionUnavailableProviderStillAllowsZeroWorkTest() {
+  const context = createSyncContext({
+    mappings: [],
+    settings: {
+      TicketingOfflineEnabled: 'false',
+      TicketingRebootRequiredEnabled: 'false',
+      TicketingAutomationFailedEnabled: 'false',
+      TicketingVulnerabilityEnabled: 'false',
+      TicketingVulnerabilitySeverities: '',
+      TicketingUpdateEnabled: 'false',
+      TicketingUpdateSeverities: ''
+    }
+  });
+  let credentialReads = 0;
+  let mappingReads = 0;
+  context.action1.getCredentials = async () => { credentialReads += 1; return {}; };
+  const originalDbAll = context.db.all;
+  context.db.all = async (...args) => { if (String(args[0]).includes('action1_ticketing_org_client_mappings')) mappingReads += 1; return originalDbAll(...args); };
+  const fetchCalls = [];
+  await withMockedFetch(async (url) => { fetchCalls.push(String(url)); throw new Error('unexpected request'); }, async () => {
+    const result = await runTicketingSyncImplementation(context, { providerId: 'provider-spoof', run: { async appendLog() {}, async setAssetsProcessed() {} } });
+    assert.strictEqual(result.ok, true, 'zero-work sync succeeds even when the selected production provider has no available adapter');
+    assert.strictEqual(result.summary.failed, 0);
+    assert.strictEqual(result.assetsProcessed, 0);
+    assert.strictEqual(credentialReads, 0, 'zero-work path must not resolve Action1 credentials');
+    assert.strictEqual(mappingReads, 0, 'zero-work path does not need provider mappings or a provider database read');
+    assert.deepStrictEqual(fetchCalls, [], 'zero-work path makes no Action1 or destination transport calls');
+    assert.deepStrictEqual(context.state.endpoint, [], 'zero-work path does not mutate endpoint correlations');
+    assert.deepStrictEqual(context.state.grouped, [], 'zero-work path does not mutate grouped correlations');
+    assert.deepStrictEqual(context.state.watermarks, [], 'zero-work path does not advance checkpoints');
+    assert.strictEqual(result.providerId, 'connectwise-psa', 'untrusted action payload cannot change the captured active provider');
+  });
+}
+
+async function runManualAndScheduledExportUseSameTrackedHandlerTest() {
+  const context = createSyncContext({
+    mappings: [],
+    settings: {
+      TicketingOfflineEnabled: 'false',
+      TicketingRebootRequiredEnabled: 'false',
+      TicketingAutomationFailedEnabled: 'false',
+      TicketingVulnerabilityEnabled: 'false',
+      TicketingVulnerabilitySeverities: '',
+      TicketingUpdateEnabled: 'false',
+      TicketingUpdateSeverities: ''
+    }
+  });
+  const triggerEvents = [];
+  const run = { async appendLog(message) { for (const match of String(message).matchAll(/"trigger":"(manual|scheduled)"/g)) triggerEvents.push(match[1]); }, async setAssetsProcessed() {} };
+  const manual = await exportedActions.sync(context, { trigger: 'manual', run });
+  const scheduled = await exportedActions.sync(context, { trigger: 'scheduled', run });
+  assert.equal(manual.ok, true);
+  assert.equal(scheduled.ok, true);
+  assert.deepEqual(triggerEvents.sort(), ['manual', 'scheduled'], 'manual and scheduled package invocations enter the same manifest-exported sync handler');
+  assert.equal(manual.details.includes('ACTION1_TICKETING_SYNC_SUMMARY_BEGIN'), true);
+  assert.equal(scheduled.details.includes('ACTION1_TICKETING_SYNC_SUMMARY_BEGIN'), true);
+}
+
+async function runProductionUnavailableProviderFailsNonEmptyRunTest() {
+  const context = createSyncContext({
+    mappings: [{ id: 1, action1OrgId: 'org-1', action1OrgName: 'Org One', haloClientId: 'client-1', haloClientName: 'Client One' }]
+  });
+  let credentialReads = 0;
+  let mappingReads = 0;
+  context.action1.getCredentials = async () => { credentialReads += 1; return {}; };
+  const originalDbAll = context.db.all;
+  context.db.all = async (...args) => { if (String(args[0]).includes('action1_ticketing_org_client_mappings')) mappingReads += 1; return originalDbAll(...args); };
+  const fetchCalls = [];
+  await withMockedFetch(async (url) => { fetchCalls.push(String(url)); throw new Error('unexpected request'); }, async () => {
+    const result = await runTicketingSyncImplementation(context, { run: { async appendLog() {}, async setAssetsProcessed() {} } });
+    assert.strictEqual(result.ok, false, 'non-empty sync fails when the active production provider is unavailable');
+    assert.match(result.message, /not available/i);
+    assert.strictEqual(credentialReads, 0, 'unavailable provider fails before Action1 credential resolution');
+    assert.strictEqual(mappingReads, 0, 'unavailable provider fails before loading any mapping rows');
+    assert.deepStrictEqual(fetchCalls, [], 'unavailable provider fails before collection or destination transport');
+    assert.deepStrictEqual(context.state.endpoint, [], 'preflight failure does not change endpoint correlations');
+    assert.deepStrictEqual(context.state.grouped, [], 'preflight failure does not change grouped correlations');
+    assert.deepStrictEqual(context.state.watermarks, [], 'preflight failure does not advance checkpoints');
+  });
+}
+
+async function runProviderConfigurationPreflightStopsBeforeCollectionTest() {
+  const context = createSyncContext({
+    mappings: [{ id: 1, action1OrgId: 'org-1', action1OrgName: 'Org One', haloClientId: 'client-1', haloClientName: 'Client One' }]
+  });
+  let credentialReads = 0;
+  context.action1.getCredentials = async () => { credentialReads += 1; return {}; };
+  const beforeValidations = syncProviderCalls.validations.length;
+  syncTicketState.set('provider-config-error', 'synthetic invalid route');
+  const fetchCalls = [];
+  try {
+    await withMockedFetch(async (url) => { fetchCalls.push(String(url)); throw new Error('unexpected request'); }, async () => {
+      const result = await runTicketingSync(context, { providerId: 'untrusted-provider', run: { async appendLog() {}, async setAssetsProcessed() {} } });
+      assert.strictEqual(result.ok, false, 'provider configuration validation failure must fail a non-empty sync');
+      assert.match(result.message, /routing\.destination/);
+      assert.strictEqual(syncProviderCalls.validations.length, beforeValidations + 1, 'the captured provider receives one full configuration validation');
+      assert.strictEqual(syncProviderCalls.validations.at(-1).input.mode, 'full-provider');
+      assert.strictEqual(syncProviderCalls.validations.at(-1).input.mappings[0].destinationId, 'client-1');
+      assert.strictEqual(credentialReads, 0, 'provider configuration and mapping preflight completes before Action1 credential reads');
+      assert.deepStrictEqual(fetchCalls, [], 'provider preflight failure stops before Action1 collection');
+      assert.deepStrictEqual(context.state.endpoint, [], 'provider preflight failure does not mutate endpoint correlations');
+      assert.deepStrictEqual(context.state.grouped, [], 'provider preflight failure does not mutate grouped correlations');
+      assert.deepStrictEqual(context.state.watermarks, [], 'provider preflight failure does not advance checkpoints');
+      assert.strictEqual(result.providerId, 'connectwise-psa', 'request-supplied provider cannot override server-selected provider');
+    });
+  } finally {
+    syncTicketState.delete('provider-config-error');
+  }
 }
 
 async function runOfflineOnlyCollectionGatingTest() {
@@ -2055,6 +2180,10 @@ async function run() {
   await runFilteredUpdateRequestFailureDoesNotBroadFallbackTest();
   await runFilteredVulnerabilityRequestFailureDoesNotBroadFallbackTest();
   await runAllSignalsDisabledNoOpTest();
+  await runProductionUnavailableProviderStillAllowsZeroWorkTest();
+  await runManualAndScheduledExportUseSameTrackedHandlerTest();
+  await runProductionUnavailableProviderFailsNonEmptyRunTest();
+  await runProviderConfigurationPreflightStopsBeforeCollectionTest();
   await runOfflineOnlyCollectionGatingTest();
   await runPreCandidateSignalNotQualifiedDoesNotInflateFinalSkippedTest();
   await runDeletedLinkedTicketIsRecreatedAndNotRecheckedTest();

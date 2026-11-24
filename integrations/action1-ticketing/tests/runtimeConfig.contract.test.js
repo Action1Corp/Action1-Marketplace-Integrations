@@ -5,6 +5,8 @@ const {
   RUNTIME_SETTING_KEYS,
   buildRuntimeConfig,
   loadRuntimeConfig,
+  loadRuntimeSnapshot,
+  loadProviderRuntimeConfig,
   readRuntimeSettings
 } = require('../runtimeConfig');
 
@@ -129,6 +131,8 @@ async function runBuildRuntimeConfigTest() {
       mappingId: '101',
       action1OrgId: 'org-1',
       action1OrgName: 'Alpha',
+      destinationId: 'client-1',
+      destinationName: 'Contoso',
       haloClientId: 'client-1',
       haloClientName: 'Contoso',
       allowHaloClientToCreateAction1Org: false
@@ -272,6 +276,8 @@ async function runLoadRuntimeConfigTest() {
       mappingId: '301',
       action1OrgId: 'org-db-1',
       action1OrgName: 'Database Org',
+      destinationId: 'client-db-1',
+      destinationName: 'Database Client',
       haloClientId: 'client-db-1',
       haloClientName: 'Database Client',
       allowHaloClientToCreateAction1Org: false
@@ -296,7 +302,37 @@ async function runActiveProviderCapturedWithCommonRulesTest() {
   assert.deepStrictEqual(reads[1], ['provider-alpha'], 'mapping reads are scoped to the captured provider');
 }
 
-runActiveProviderCapturedWithCommonRulesTest().then(() => run()).catch((error) => {
+async function runRuntimeSnapshotDefersProviderReadsAndMappingsTest() {
+  const requested = [];
+  const runtimeContext = {
+    settings: {
+      async all(keys) {
+        requested.push([...keys]);
+        return { TicketingActiveProvider: 'provider-alpha', TicketingOfflineEnabled: 'false' };
+      }
+    },
+    db: {
+      async all(sql, params) {
+        requested.push({ sql, params });
+        return [{ id: 8, action1_org_id: 'org-a', action1_org_name: 'A', destination_id: 'dest-a', destination_name: 'A destination', enabled: 1 }];
+      }
+    }
+  };
+  const snapshot = await loadRuntimeSnapshot(runtimeContext);
+  assert.equal(snapshot.providerId, 'provider-alpha');
+  assert.equal(snapshot.providerRuntimeLoaded, false);
+  assert.equal(snapshot.orgClientMappings.length, 0);
+  assert.equal(requested.some((entry) => !Array.isArray(entry)), false, 'common capture must not query provider mappings before zero-work planning');
+  assert.equal(requested.length, 1, 'run-start capture reads common and active settings once');
+
+  const hydrated = await loadProviderRuntimeConfig(runtimeContext, snapshot);
+  assert.equal(hydrated.providerId, 'provider-alpha', 'provider hydration must retain the captured provider');
+  assert.equal(hydrated.providerRuntimeLoaded, true);
+  assert.equal(hydrated.orgClientMappings[0].destinationId, 'dest-a');
+  assert.deepEqual(requested[1].params, ['provider-alpha'], 'provider mappings are fetched only after planning and scoped by the captured provider');
+}
+
+runActiveProviderCapturedWithCommonRulesTest().then(runRuntimeSnapshotDefersProviderReadsAndMappingsTest).then(() => run()).catch((error) => {
   console.error(error);
   process.exit(1);
 });

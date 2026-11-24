@@ -1,5 +1,7 @@
-const SUMMARY_BLOCK_BEGIN = 'HALO_PSA_SYNC_SUMMARY_BEGIN';
-const SUMMARY_BLOCK_END = 'HALO_PSA_SYNC_SUMMARY_END';
+const SUMMARY_BLOCK_BEGIN = 'ACTION1_TICKETING_SYNC_SUMMARY_BEGIN';
+const SUMMARY_BLOCK_END = 'ACTION1_TICKETING_SYNC_SUMMARY_END';
+const LEGACY_SUMMARY_BLOCK_BEGIN = 'HALO_PSA_SYNC_SUMMARY_BEGIN';
+const LEGACY_SUMMARY_BLOCK_END = 'HALO_PSA_SYNC_SUMMARY_END';
 
 export function normalizeRunStatus(rawStatus) {
   const value = String(rawStatus || '').trim().toLowerCase();
@@ -77,6 +79,7 @@ export function buildHistoryRows(rows) {
   return (Array.isArray(rows) ? rows : []).map((row) => {
     const totals = extractTotals(row?.details);
     const normalizedDetails = normalizeDetailsPayload(row?.details);
+    const provider = extractProviderAttribution(row?.details, normalizedDetails.text);
 
     return {
       id: row?.id ?? null,
@@ -88,10 +91,54 @@ export function buildHistoryRows(rows) {
       failed: totals.failed,
       actionId: String(row?.action_id || '').trim(),
       actionLabel: String(row?.action_label || '').trim(),
+      providerId: provider.providerId,
+      providerLabel: provider.providerLabel,
       details: normalizedDetails.text,
       assetsProcessed: Number(row?.assets_processed || 0)
     };
   });
+}
+
+function extractProviderAttribution(details, detailsText) {
+  let parsed = details;
+  if (typeof details === 'string') {
+    try { parsed = JSON.parse(details); } catch { parsed = null; }
+  }
+  const candidates = [
+    parsed,
+    parsed?.result,
+    parsed?.details,
+    parsed?.provider,
+    parsed?.details?.provider
+  ].filter((value) => value && typeof value === 'object');
+  let providerId = '';
+  let providerLabel = '';
+  for (const value of candidates) {
+    providerId ||= normalizeProviderId(value.providerId || value.provider?.id || value.id);
+    providerLabel ||= normalizeProviderLabel(value.providerLabel || value.provider?.label || value.label);
+  }
+  const text = String(detailsText || '');
+  if (!providerId) providerId = normalizeProviderId(readLineValue(text, 'providerId'));
+  if (!providerLabel) providerLabel = normalizeProviderLabel(readLineValue(text, 'providerLabel'));
+  if (!providerLabel && providerId === 'connectwise-psa') providerLabel = 'ConnectWise PSA';
+  return { providerId, providerLabel: providerLabel || 'Provider not recorded' };
+}
+
+function readLineValue(text, key) {
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = String(text || '').match(new RegExp(`(?:^|\\r?\\n)${escaped}\\s*:\\s*([^\\r\\n]{1,160})`, 'i'));
+  return match?.[1]?.trim() || '';
+}
+
+function normalizeProviderId(value) {
+  const id = typeof value === 'string' ? value.trim() : '';
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id) ? id : '';
+}
+
+function normalizeProviderLabel(value) {
+  const label = typeof value === 'string' ? value.trim() : '';
+  if (!label || label.length > 80 || /[\r\n]|(?:secret|token|password|authorization|bearer)/i.test(label)) return '';
+  return label;
 }
 
 function normalizeDetailsPayload(details) {
@@ -143,13 +190,15 @@ function extractDelimitedSummaryBlock(detailsText) {
     return '';
   }
 
-  const startIndex = text.indexOf(SUMMARY_BLOCK_BEGIN);
+  const begin = text.includes(SUMMARY_BLOCK_BEGIN) ? SUMMARY_BLOCK_BEGIN : LEGACY_SUMMARY_BLOCK_BEGIN;
+  const end = begin === SUMMARY_BLOCK_BEGIN ? SUMMARY_BLOCK_END : LEGACY_SUMMARY_BLOCK_END;
+  const startIndex = text.indexOf(begin);
   if (startIndex < 0) {
     return '';
   }
 
-  const afterBegin = startIndex + SUMMARY_BLOCK_BEGIN.length;
-  const endIndex = text.indexOf(SUMMARY_BLOCK_END, afterBegin);
+  const afterBegin = startIndex + begin.length;
+  const endIndex = text.indexOf(end, afterBegin);
   if (endIndex < 0) {
     return '';
   }

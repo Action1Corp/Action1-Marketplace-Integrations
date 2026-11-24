@@ -2,9 +2,11 @@ import assert from 'node:assert/strict';
 import {
   buildMappingSavePlan,
   buildPersistRows,
+  buildOrganizationMappingRows,
   executeMappingSavePlan,
   isCurrentMappingRequest,
-  mappingOptionsForRow
+  mappingOptionsForRow,
+  paginateMappingRows
 } from '../ui/mappingState.mjs';
 
 const saved = Array.from({ length: 5 }, (_, index) => ({
@@ -65,5 +67,30 @@ await assert.rejects(() => executeMappingSavePlan({ deletes: [{ id: 1 }], saves:
   async save(row) { partial.push(['save', row.id]); throw new Error('controlled save failure'); }
 }), /controlled save failure/);
 assert.deepEqual(partial, [['delete', 1], ['save', null]], 'save sequence remains sequential and partial failures are not hidden');
+
+const organizations = Array.from({ length: 501 }, (_, index) => ({ id: `org-${index + 1}`, name: ` Organization   ${index + 1} ` }));
+const draftRows = [
+  { id: 4, action1OrgId: 'org-4', action1OrgName: 'Organization 4', destinationId: 'dest-4', destinationName: 'Northwind Destination' },
+  { id: 9, action1OrgId: 'org-9', action1OrgName: 'Organization 9', destinationId: '', destinationName: '' },
+  { id: null, action1OrgId: '', action1OrgName: '', destinationId: '', destinationName: '' }
+];
+const allRows = buildOrganizationMappingRows(organizations, draftRows, { filter: 'All', search: '' });
+assert.equal(allRows.length, 502, 'All includes every organization and a separate blank draft row');
+assert.equal(allRows[2].kind, 'organization', 'organizations remain the primary table projection');
+assert.equal(allRows.find((row) => row.action1OrgId === 'org-501').kind, 'organization', 'unmapped organizations have a projected row without a saved mapping');
+assert.equal(allRows.at(-1).kind, 'blank-draft', 'blank Add Mapping rows remain available after organization rows');
+assert.equal(buildOrganizationMappingRows(organizations, draftRows, { filter: 'Mapped', search: '' }).map((row) => row.action1OrgId).join(','), 'org-4', 'Mapped uses complete effective draft relationships');
+assert(buildOrganizationMappingRows(organizations, draftRows, { filter: 'Unmapped', search: '' }).some((row) => row.action1OrgId === 'org-9'), 'incomplete draft remains visible as unmapped');
+const destinationSearch = buildOrganizationMappingRows(organizations, draftRows, { filter: 'All', search: '  northwind   DESTINATION ' });
+assert.equal(destinationSearch.length, 2, 'search matches normalized destination labels and keeps blank rows available in All');
+assert.equal(destinationSearch[0].action1OrgId, 'org-4');
+assert.equal(destinationSearch[1].kind, 'blank-draft');
+assert.equal(buildOrganizationMappingRows(organizations, draftRows.slice(0, 1), { filter: 'Unmapped', search: '' }).length, 500, 'a complete draft mapping is excluded from Unmapped');
+
+const firstPage = paginateMappingRows(allRows, 0, 25);
+assert.equal(firstPage.rows.length, 25, 'pagination returns no more than 25 table rows');
+assert.deepEqual([firstPage.start, firstPage.end, firstPage.total], [1, 25, 502], 'first range reflects the projected rows and total');
+const lastPage = paginateMappingRows(allRows, 99, 25);
+assert.deepEqual([lastPage.page, lastPage.start, lastPage.end], [20, 501, 502], 'pagination clamps out-of-range pages and reports the last visible range');
 
 console.log('Action1 Ticketing Mapping state behavior tests passed.');

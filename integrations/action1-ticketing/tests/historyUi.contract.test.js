@@ -56,6 +56,8 @@ async function run() {
       action_id: 'sync',
       action_label: 'Sync',
       details: JSON.stringify({
+        providerId: 'provider-alpha',
+        providerLabel: 'Provider Alpha',
         summary: {
           created: 4,
           updated: 3,
@@ -110,6 +112,8 @@ async function run() {
   assert.strictEqual(mockedRows[0].updated, 3, 'history view model should parse updated count from structured summary details');
   assert.strictEqual(mockedRows[0].skipped, 2, 'history view model should parse skipped count from structured summary details');
   assert.strictEqual(mockedRows[0].failed, 1, 'history view model should parse failed count from structured summary details');
+  assert.strictEqual(mockedRows[0].providerId, 'provider-alpha', 'history view model should retain provider ID from recorded run details');
+  assert.strictEqual(mockedRows[0].providerLabel, 'Provider Alpha', 'history view model should show the recorded provider label');
   assert.strictEqual(mockedRows[1].result, 'Failed', 'history view model should normalize failed run status');
   assert.strictEqual(mockedRows[1].created, 1, 'history view model should parse created count from safe text details when JSON is unavailable');
   assert.strictEqual(mockedRows[1].failed, 2, 'history view model should parse failed count from safe text details when JSON is unavailable');
@@ -120,6 +124,7 @@ async function run() {
   assert.strictEqual(mockedRows[3].updated, 5, 'history view model should parse updated count from the explicit Action1 Ticketing summary block');
   assert.strictEqual(mockedRows[3].skipped, 8, 'history view model should ignore earlier skipped-looking log text when a summary block is present');
   assert.strictEqual(mockedRows[3].failed, 1, 'history view model should ignore earlier failed-looking log text when a summary block is present');
+  assert.strictEqual(mockedRows[1].providerLabel, 'Provider not recorded', 'legacy rows without provider attribution must not infer it from current settings');
   assert.strictEqual(historyViewModel.buildHistoryRows([]).length, 0, 'history view model should keep the empty state representable');
 }
 

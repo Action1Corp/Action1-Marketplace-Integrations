@@ -148,6 +148,10 @@ function createSettingsContext(stored = {}) {
   };
 }
 
+function createMappingActionContext(db, activeProviderId = DEFAULT_PROVIDER_ID) {
+  return { db, settings: createSettingsContext({ TicketingActiveProvider: activeProviderId }) };
+}
+
 function createLoggerContext() {
   const warnings = [];
   return {
@@ -248,7 +252,7 @@ async function testListReturnsRowsSafely() {
     }
   ]);
   const actions = await loadFreshActionsModule();
-  const result = await actions['list-ticketing-org-destination-mappings']({ db }, { providerId: DEFAULT_PROVIDER_ID });
+  const result = await actions['list-ticketing-org-destination-mappings'](createMappingActionContext(db), { providerId: DEFAULT_PROVIDER_ID });
 
   assert.strictEqual(result.ok, true, 'list mapping action should succeed');
   assert.strictEqual(result.mappings.length, 3, 'list mapping action should return rows');
@@ -272,7 +276,7 @@ async function testSavePersistsRowsThroughContextDbWithoutExternalCalls() {
     throw new Error('mapping save should not call fetch');
   }, async () => {
     const actions = await loadFreshActionsModule();
-    const result = await actions['save-ticketing-org-destination-mapping']({ db }, {
+    const result = await actions['save-ticketing-org-destination-mapping'](createMappingActionContext(db), {
       providerId: DEFAULT_PROVIDER_ID,
       payload: {
         action1OrgId: 'org-10',
@@ -303,7 +307,7 @@ async function testDuplicateCollisionFailsSafely() {
   ]);
   const actions = await loadFreshActionsModule();
 
-  const duplicateOrg = await actions['save-ticketing-org-destination-mapping']({ db }, {
+  const duplicateOrg = await actions['save-ticketing-org-destination-mapping'](createMappingActionContext(db), {
     providerId: DEFAULT_PROVIDER_ID,
     payload: {
       action1OrgId: 'org-1',
@@ -316,7 +320,7 @@ async function testDuplicateCollisionFailsSafely() {
   assert.strictEqual(duplicateOrg.ok, false, 'duplicate Action1 org should fail safely');
   assert(duplicateOrg.message.includes('already mapped'), 'duplicate Action1 org should return actionable error');
 
-  const duplicateClient = await actions['save-ticketing-org-destination-mapping']({ db }, {
+  const duplicateClient = await actions['save-ticketing-org-destination-mapping'](createMappingActionContext(db), {
     providerId: DEFAULT_PROVIDER_ID,
     payload: {
       action1OrgId: 'org-2',
@@ -343,12 +347,12 @@ async function testDeleteBehavesDeterministically() {
   ]);
   const actions = await loadFreshActionsModule();
 
-  const deleted = await actions['delete-ticketing-org-destination-mapping']({ db }, { providerId: DEFAULT_PROVIDER_ID, payload: { id: 5 } });
+  const deleted = await actions['delete-ticketing-org-destination-mapping'](createMappingActionContext(db), { providerId: DEFAULT_PROVIDER_ID, payload: { id: 5 } });
   assert.strictEqual(deleted.ok, true, 'delete mapping action should succeed when row exists');
   assert.strictEqual(deleted.deleted, true, 'delete mapping action should report deleted rows');
   assert.strictEqual(state.rows.length, 0, 'delete mapping action should remove the row');
 
-  const deletedAgain = await actions['delete-ticketing-org-destination-mapping']({ db }, { providerId: DEFAULT_PROVIDER_ID, payload: { id: 5 } });
+  const deletedAgain = await actions['delete-ticketing-org-destination-mapping'](createMappingActionContext(db), { providerId: DEFAULT_PROVIDER_ID, payload: { id: 5 } });
   assert.strictEqual(deletedAgain.ok, true, 'delete mapping action should stay deterministic when row is missing');
   assert.strictEqual(deletedAgain.deleted, false, 'delete mapping action should report already-absent rows');
 }
@@ -562,6 +566,7 @@ async function testLegacyHaloActionPayloadCannotSelectDestinationTransport() {
 }
 async function testProviderScopedMappingActionsUseReadOnlyAdapterDiscovery() {
   const { context, tables } = createInMemoryTicketingDb();
+  context.settings = createSettingsContext({ TicketingActiveProvider: 'provider-a' });
   const calls = [];
   const operations = [];
   const registry = Object.fromEntries(['provider-a', 'provider-b'].map((providerId) => [providerId, {
@@ -570,7 +575,7 @@ async function testProviderScopedMappingActionsUseReadOnlyAdapterDiscovery() {
     contractMajor: 1,
     adapter: syntheticAdapter((args) => {
       calls.push({ providerId, args });
-      return { options: [{ id: 'dest-shared', label: `${providerId} Destination` }] };
+      return { options: [{ id: 'dest-shared', label: `${providerId} Destination` }], hasMore: false, nextPageToken: null, complete: true, searchSupported: true, paginationSupported: true };
     }, (operation) => operations.push(operation))
   }]));
   const definitions = Object.fromEntries(Object.keys(registry).map((providerId) => [providerId, {
@@ -579,21 +584,29 @@ async function testProviderScopedMappingActionsUseReadOnlyAdapterDiscovery() {
   const handlers = createMappingActionHandlers({ registry, definitions, dispatcher: createProviderDispatcher(registry) });
 
   const savedA = await handlers.saveHaloOrgClientMapping(context, {
-    providerId: 'provider-a',
     payload: { providerId: 'provider-b', action1OrgId: 'org-shared', action1OrgName: 'Shared', destinationId: 'dest-shared', destinationName: 'A Destination' }
   });
+  assert.strictEqual(savedA.ok, true, JSON.stringify(savedA));
+  assert.strictEqual(savedA.mapping.providerId, 'provider-a', 'the active provider setting owns Mapping writes despite a forged row provider ID');
+  const forgedList = await handlers.listHaloOrgClientMappings(context, { providerId: 'provider-b' });
+  assert.strictEqual(forgedList.ok, false, 'a request cannot select an inactive provider');
+  assert.match(forgedList.message, /active ticketing system changed/i);
+  const forgedDiscovery = await handlers.discoverHaloMappingOptions(context, { providerId: 'provider-b' });
+  assert.strictEqual(forgedDiscovery.ok, false, 'destination discovery rejects an inactive provider hint');
+  assert.strictEqual(calls.length, 0, 'forged provider selection is rejected before adapter transport');
+
+  context.settings.values.TicketingActiveProvider = 'provider-b';
   const savedB = await handlers.saveHaloOrgClientMapping(context, {
     providerId: 'provider-b',
     payload: { providerId: 'provider-a', action1OrgId: 'org-shared', action1OrgName: 'Shared', destinationId: 'dest-shared', destinationName: 'B Destination' }
   });
-  assert.strictEqual(savedA.ok, true, JSON.stringify(savedA));
   assert.strictEqual(savedB.ok, true);
-  assert.strictEqual(savedA.mapping.providerId, 'provider-a', 'row payload cannot change the server-selected owner');
-  assert.strictEqual(savedB.mapping.providerId, 'provider-b');
+  assert.strictEqual(savedB.ok, true);
+  assert.strictEqual(savedB.mapping.providerId, 'provider-b', 'the active provider setting owns Mapping writes despite a forged row provider ID');
   assert.notStrictEqual(savedA.mapping.id, savedB.mapping.id);
-  const listA = await handlers.listHaloOrgClientMappings(context, { providerId: 'provider-a' });
-  const listB = await handlers.listHaloOrgClientMappings(context, { providerId: 'provider-b' });
-  assert.deepStrictEqual(listA.mappings.map((row) => row.destinationName), ['A Destination']);
+  const staleList = await handlers.listHaloOrgClientMappings(context, { providerId: 'provider-a' });
+  assert.strictEqual(staleList.ok, false, 'the previously active provider cannot be selected by a stale page');
+  const listB = await handlers.listHaloOrgClientMappings(context, {});
   assert.deepStrictEqual(listB.mappings.map((row) => row.destinationName), ['B Destination']);
   const crossProviderUpdate = await handlers.saveHaloOrgClientMapping(context, {
     providerId: 'provider-a',
@@ -602,17 +615,45 @@ async function testProviderScopedMappingActionsUseReadOnlyAdapterDiscovery() {
   assert.strictEqual(crossProviderUpdate.ok, false, 'provider A cannot update a provider B mapping ID');
   const crossProviderDelete = await handlers.deleteHaloOrgClientMapping(context, { providerId: 'provider-a', payload: { id: savedB.mapping.id } });
   assert.strictEqual(crossProviderDelete.deleted, false, 'provider A cannot delete a provider B mapping ID');
-  assert.strictEqual((await handlers.listHaloOrgClientMappings(context, { providerId: 'provider-b' })).mappings[0].destinationName, 'B Destination');
+  assert.strictEqual((await handlers.listHaloOrgClientMappings(context, {})).mappings[0].destinationName, 'B Destination');
 
-  const discoveryA = await handlers.discoverHaloMappingOptions(context, { providerId: 'provider-a' });
+  const staleDiscovery = await handlers.discoverHaloMappingOptions(context, { providerId: 'provider-a' });
+  assert.strictEqual(staleDiscovery.ok, false, 'stale provider discovery cannot access the inactive provider');
   const discoveryB = await handlers.discoverHaloMappingOptions(context, { providerId: 'provider-b' });
-  assert.deepStrictEqual(discoveryA.destinationOptions, [{ id: 'dest-shared', name: 'provider-a Destination' }]);
   assert.deepStrictEqual(discoveryB.destinationOptions, [{ id: 'dest-shared', name: 'provider-b Destination' }]);
-  assert.deepStrictEqual(calls.map((call) => call.providerId), ['provider-a', 'provider-b']);
+  assert.strictEqual(discoveryB.complete, true);
+  assert.strictEqual(discoveryB.hasMore, false);
+  assert.deepStrictEqual(calls.at(-1).args.input, { kind: 'mapping-destinations', settings: {}, query: '', pageSize: 50, continuationToken: null });
+  assert.deepStrictEqual(calls.map((call) => call.providerId), ['provider-b']);
   assert(calls.every((call) => call.args.input.kind === 'mapping-destinations'));
   assert(calls.every((call) => Object.keys(call.args).sort().join(',') === 'connection,input,logger,transport'), 'adapter receives only the contract input boundary');
-  assert.deepStrictEqual(operations, ['discover', 'discover'], 'Mapping invokes discovery only and never ticket operations');
+  assert.deepStrictEqual(operations, ['discover'], 'Mapping invokes discovery only and never ticket operations');
   assert.strictEqual(Object.keys(tables.get('action1_ticketing_org_client_mappings')).length, 2);
+
+  const cursorRegistry = {
+    'provider-a': { providerId: 'provider-a', label: 'A', contractMajor: 1, adapter: syntheticAdapter(({ input }) => ({ options: [{ id: `result-${input.query || 'all'}-${input.continuationToken || 'first'}`, label: 'Customer' }], hasMore: true, nextPageToken: input.continuationToken ? 'cursor-2' : 'cursor-1', complete: false, searchSupported: true, paginationSupported: true })) },
+    'provider-b': { providerId: 'provider-b', label: 'B', contractMajor: 1, adapter: syntheticAdapter(({ input }) => ({ options: [], hasMore: false, nextPageToken: null, complete: true, searchSupported: true, paginationSupported: true })) }
+  };
+  context.settings.values.TicketingActiveProvider = 'provider-a';
+  const cursorHandlers = createMappingActionHandlers({ registry: cursorRegistry, definitions, dispatcher: createProviderDispatcher(cursorRegistry) });
+  const firstPage = await cursorHandlers.discoverHaloMappingOptions(context, { query: '  ACME   Corp ', pageSize: 50 });
+  assert.strictEqual(firstPage.ok, true, JSON.stringify(firstPage));
+  assert.strictEqual(firstPage.hasMore, true);
+  assert(firstPage.nextPageToken.startsWith('md1.'));
+  const secondPage = await cursorHandlers.discoverHaloMappingOptions(context, { query: 'ACME Corp', pageSize: 50, continuationToken: firstPage.nextPageToken });
+  assert.strictEqual(secondPage.ok, true, JSON.stringify(secondPage));
+  assert.notStrictEqual(firstPage.destinationOptions[0].id, secondPage.destinationOptions[0].id);
+  const repeatedCursorPage = await cursorHandlers.discoverHaloMappingOptions(context, { query: 'ACME Corp', pageSize: 50, continuationToken: secondPage.nextPageToken });
+  assert.strictEqual(repeatedCursorPage.ok, false, 'an adapter cannot repeat the active cursor forever');
+  const queryMismatch = await cursorHandlers.discoverHaloMappingOptions(context, { query: 'other', pageSize: 50, continuationToken: firstPage.nextPageToken });
+  assert.strictEqual(queryMismatch.ok, false, 'continuation tokens cannot cross searches');
+  context.settings.values.TicketingActiveProvider = 'provider-b';
+  const providerMismatch = await cursorHandlers.discoverHaloMappingOptions(context, { providerId: 'provider-b', query: 'ACME Corp', pageSize: 50, continuationToken: firstPage.nextPageToken });
+  assert.strictEqual(providerMismatch.ok, false, 'continuation tokens cannot cross providers');
+  const invalidPageSize = await cursorHandlers.discoverHaloMappingOptions(context, { pageSize: 501 });
+  assert.strictEqual(invalidPageSize.ok, false);
+  const invalidQuery = await cursorHandlers.discoverHaloMappingOptions(context, { query: 'x'.repeat(201) });
+  assert.strictEqual(invalidQuery.ok, false);
 
   const productionActions = await loadProductionActionsModule();
   const unavailable = await productionActions['discover-ticketing-mapping-options'](context, { providerId: PRODUCTION_PROVIDER_ID });
