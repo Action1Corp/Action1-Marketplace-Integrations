@@ -280,5 +280,53 @@
     "label": "ConnectWise Private API Key",
     "type": "secret",
     "visible": false
+  },
+  {
+    "key": "TicketingProvider_connectwise_psa_ServiceBoardId",
+    "label": "ConnectWise Service Board",
+    "type": "text",
+    "visible": false
+  },
+  {
+    "key": "TicketingProvider_connectwise_psa_InitialStatusId",
+    "label": "ConnectWise Initial Status",
+    "type": "text",
+    "visible": false
+  },
+  {
+    "key": "TicketingProvider_connectwise_psa_TicketTypeId",
+    "label": "ConnectWise Ticket Type",
+    "type": "text",
+    "visible": false
+  },
+  {
+    "key": "TicketingProvider_connectwise_psa_TicketSubtypeId",
+    "label": "ConnectWise Ticket Subtype",
+    "type": "text",
+    "visible": false
+  },
+  {
+    "key": "TicketingProvider_connectwise_psa_TicketItemId",
+    "label": "ConnectWise Ticket Item",
+    "type": "text",
+    "visible": false
+  },
+  {
+    "key": "TicketingProvider_connectwise_psa_PriorityId",
+    "label": "ConnectWise Priority",
+    "type": "text",
+    "visible": false
+  },
+  {
+    "key": "TicketingProvider_connectwise_psa_SourceId",
+    "label": "ConnectWise Source",
+    "type": "text",
+    "visible": false
+  },
+  {
+    "key": "TicketingProvider_connectwise_psa_AdditionalClosedStatusIds",
+    "label": "ConnectWise Additional Closed Statuses",
+    "type": "text",
+    "visible": false
   }
 ]

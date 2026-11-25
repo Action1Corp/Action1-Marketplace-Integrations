@@ -337,9 +337,9 @@ function Settings({ integration }) {
   const activeProvider = UI_PROVIDER_REGISTRY[activeProviderId];
   const selectableProviders = listSelectableProviders();
   const supportsValidation = Boolean(isUiProviderAvailable(viewedProvider) && meta?.operations?.validate);
-  const viewedProviderSettingKeys = viewedProvider?.settingKeys || (viewedProvider?.fields || []).map((field) => field.settingKey || `TicketingProvider_${viewedProvider.providerId.replace(/-/g, '_')}_${field.key}`);
+  const viewedProviderSettingKeys = viewedProvider?.settingsKeys || viewedProvider?.settingKeys || (viewedProvider?.fields || []).map((field) => field.settingKey || `TicketingProvider_${viewedProvider.providerId.replace(/-/g, '_')}_${field.key}`);
   const customServerKey = 'TicketingProvider_connectwise_psa_CustomServer';
-  const requiredConnectionKeys = viewedProviderSettingKeys.filter((key) => key !== customServerKey);
+  const requiredConnectionKeys = (viewedProvider?.connectionSettingKeys || viewedProviderSettingKeys).filter((key) => key !== customServerKey);
   const isCustomServerMissing = viewedProviderId === 'connectwise-psa'
     && String(settings.TicketingProvider_connectwise_psa_ApiRegion || '') === 'CUSTOM'
     && !String(settings[customServerKey] || '').trim()
@@ -403,7 +403,8 @@ function Settings({ integration }) {
           ticketTypes: Array.isArray(data?.ticketTypes) ? data.ticketTypes : [],
           statuses: Array.isArray(data?.statuses) ? data.statuses : [],
           categories: Array.isArray(data?.categories) ? data.categories : [],
-          ticketTypeDetail: data?.ticketTypeDetail || null
+          ticketTypeDetail: data?.ticketTypeDetail || null,
+          optionsByKind: data?.optionsByKind && typeof data.optionsByKind === 'object' ? data.optionsByKind : {}
         }
       });
     } catch (error) {
@@ -532,7 +533,7 @@ function Settings({ integration }) {
     if (nextProviderId === viewedProviderId) return;
     if (hasUnsavedEdits && !window.confirm('Discard unsaved settings for this ticketing system?')) return;
     requestGeneration.current += 1;
-    const providerKeys = UI_PROVIDER_REGISTRY[nextProviderId]?.settingKeys || [];
+    const providerKeys = UI_PROVIDER_REGISTRY[nextProviderId]?.settingsKeys || UI_PROVIDER_REGISTRY[nextProviderId]?.settingKeys || [];
     const restored = restoreViewedProviderSettings(savedSettingsSnapshot, nextProviderId, providerKeys);
     setSettings(restored);
     setViewedProviderId(nextProviderId);
@@ -1200,7 +1201,8 @@ function Settings({ integration }) {
         </div>
         {Object.entries(grouped).map(([groupName, fields]) => {
           if (groupName === 'Ticket Routing') {
-            if (!viewedProvider?.RoutingFields) return null;
+            if (viewedProvider?.RoutingFields) return null;
+            if (!viewedProvider) return null;
             const fieldsByKey = new Map(fields.map((setting) => [setting.key, setting]));
             const lifecycleSetting = grouped.Lifecycle?.find((setting) => setting.key === 'TicketingExistingOpenTicketBehavior') || null;
             const closedStatusesField = fieldsByKey.get('TicketingClosedStatusIds') || null;
@@ -1255,9 +1257,9 @@ function Settings({ integration }) {
           if (groupName === 'Lifecycle') {
             const lifecycleSetting = fields.find((setting) => setting.key === 'TicketingExistingOpenTicketBehavior');
             return <div key={groupName} className="glass-panel">
-              <h3 style={pageStyles.cardTitle}>Ticket Routing &amp; Lifecycle</h3>
-              <p style={{ color: '#526173' }}>Routing fields are supplied by the selected ticketing system. Shared lifecycle behavior applies to the active system.</p>
-              {viewedProvider?.RoutingFields ? <viewedProvider.RoutingFields settings={settings} setSettings={setSettings} /> : null}
+              {!viewedProvider?.RoutingFields && <h3 style={pageStyles.cardTitle}>Ticket Routing &amp; Lifecycle</h3>}
+              {!viewedProvider?.RoutingFields && <p style={{ color: '#526173' }}>Routing fields are supplied by the selected ticketing system. Shared lifecycle behavior applies to the active system.</p>}
+              {viewedProvider?.RoutingFields ? <viewedProvider.RoutingFields settings={settings} setSettings={setSettings} discoveryState={discoveryState} onRefresh={loadDiscovery} /> : null}
               {lifecycleSetting && renderField(lifecycleSetting)}
               {discoveryState.error && <p role="status">{discoveryState.error}</p>}
             </div>;

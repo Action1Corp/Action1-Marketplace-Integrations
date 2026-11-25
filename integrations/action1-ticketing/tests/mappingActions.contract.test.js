@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { createMappingActionHandlers } = require('../mappingActions');
 const { createProviderDispatcher } = require('../providerRegistry');
+const { createDbMappingStore } = require('../mappingStore');
 const { createInMemoryTicketingDb } = require('./fixtures/inMemoryTicketingDb');
 
 const originalFetch = global.fetch;
@@ -521,7 +522,7 @@ async function testAction1OrganizationDiscoveryFailsSafely() {
   }
 }
 
-async function testProductionDestinationDiscoveryIsUnavailableBeforeTransport() {
+async function testProductionDestinationDiscoveryFailsSafelyWithoutConnection() {
   let fetchCalls = 0;
   await withMockedFetch(async () => { fetchCalls += 1; throw new Error('Production mapping discovery must not contact Halo.'); }, async () => {
     const actions = await loadProductionActionsModule();
@@ -531,9 +532,9 @@ async function testProductionDestinationDiscoveryIsUnavailableBeforeTransport() 
       settings: createSettingsContext()
     };
     const result = await actions['discover-ticketing-mapping-options'](context, { providerId: PRODUCTION_PROVIDER_ID });
-    assert.strictEqual(result.ok, false, 'ConnectWise mapping discovery is deferred from Slice 7.1');
+    assert.strictEqual(result.ok, false, 'ConnectWise discovery requires valid saved connection settings');
     assert.deepStrictEqual(result.destinationOptions, [], 'unavailable destination discovery returns no options');
-      assert.match(result.message, /could not complete|not implemented/i);
+    assert.match(result.message, /could not complete|failed|connection/i);
     assert.strictEqual(fetchCalls, 0, 'unavailable provider fails before any destination transport');
     for (const actionId of [
       'list-ticketing-org-destination-mappings',
@@ -545,6 +546,79 @@ async function testProductionDestinationDiscoveryIsUnavailableBeforeTransport() 
     }
     assert(dbCalls > 0, 'the existing shared Mapping actions retain their persistence behavior');
   });
+}
+
+async function testConnectWiseManualSaveRevalidatesCompanyEligibility() {
+  const { context, tables } = createInMemoryTicketingDb();
+  const values = {
+    TicketingActiveProvider: PRODUCTION_PROVIDER_ID,
+    TicketingProvider_connectwise_psa_ApiRegion: 'NA',
+    TicketingProvider_connectwise_psa_CompanyId: 'tenant',
+    TicketingProvider_connectwise_psa_PublicApiKey: 'public',
+    TicketingProvider_connectwise_psa_PrivateApiKey: 'private'
+  };
+  context.settings = { async get(key) { return values[key] || ''; }, async all(keys) { return Object.fromEntries(keys.map((key) => [key, values[key] || ''])); } };
+  context.http = async (options) => {
+    if (options.url.includes('/company/companies/statuses')) return { status: 200, data: [{ id: 4, name: 'Inactive', disallowSavingFlag: false }] };
+    if (options.url.endsWith('/company/companies/123')) return { status: 200, data: { id: 123, name: 'Allowed Co', status: { id: 4 }, deletedFlag: false } };
+    if (options.url.endsWith('/company/companies/456')) return { status: 200, data: { id: 456, name: 'Blocked Co', status: { id: 5 }, deletedFlag: false } };
+    if (options.url.endsWith('/company/companies/789')) return { status: 200, data: { id: 789, name: 'Deleted Co', status: { id: 4 }, deletedFlag: true } };
+    return { status: 200, data: [] };
+  };
+  const handlers = createMappingActionHandlers();
+  const payload = (destinationId, destinationName) => ({ action1OrgId: `org-${destinationId}`, action1OrgName: 'Mapped Org', destinationId, destinationName });
+  const allowed = await handlers.saveHaloOrgClientMapping(context, { providerId: PRODUCTION_PROVIDER_ID, payload: payload('123', 'Allowed Co') });
+  assert.strictEqual(allowed.ok, true, 'eligible companies can be assigned');
+  const denied = await handlers.saveHaloOrgClientMapping(context, { providerId: PRODUCTION_PROVIDER_ID, payload: payload('456', 'Blocked Co') });
+  assert.strictEqual(denied.ok, false, 'disallowSavingFlag prevents manual assignment');
+  const deleted = await handlers.saveHaloOrgClientMapping(context, { providerId: PRODUCTION_PROVIDER_ID, payload: payload('789', 'Deleted Co') });
+  assert.strictEqual(deleted.ok, false, 'deleted companies cannot be assigned');
+  const storedRows = tables.get('action1_ticketing_org_client_mappings') || [];
+  assert.strictEqual(storedRows.length, 1, 'blocked assignment leaves Mapping persistence unchanged');
+  assert.deepStrictEqual(Object.keys(storedRows[0]).sort(), ['action1_org_id','action1_org_name','destination_id','destination_name','enabled','id','provider_id'].sort(), 'eligibility metadata is not persisted');
+  await createDbMappingStore(context, PRODUCTION_PROVIDER_ID).save({ action1OrgId: 'legacy-org', action1OrgName: 'Legacy Org', destinationId: '456', destinationName: 'Blocked Co', enabled: true });
+  const existing = await handlers.listHaloOrgClientMappings(context, { providerId: PRODUCTION_PROVIDER_ID });
+  assert.strictEqual(existing.mappings.length, 2, 'existing ineligible mappings remain stored and visible');
+  assert.strictEqual(existing.mappings.find((row) => row.destinationId === '456').destinationEligibility.eligible, false);
+}
+
+async function testConnectWiseAutoMatchFiltersEligibilityAndRevalidatesApply() {
+  const { context } = createInMemoryTicketingDb();
+  context.settings = createSettingsContext({ TicketingActiveProvider: PRODUCTION_PROVIDER_ID });
+  const discoveryCalls = [];
+  const adapter = syntheticAdapter(async ({ input }) => {
+    discoveryCalls.push(input.kind);
+    if (input.kind === 'mapping-destinations') return {
+      options: [
+        { id: '101', label: 'Allowed Company', metadata: { eligible: true, eligibilityKnown: true, eligibilityReason: '' } },
+        { id: '202', label: 'Blocked Company', metadata: { eligible: false, eligibilityKnown: true, eligibilityReason: 'Status does not allow tickets.' } }
+      ], hasMore: false, nextPageToken: null, complete: true, searchSupported: true, paginationSupported: true
+    };
+    if (input.kind === 'company-eligibility') return { options: input.companyIds.map((id) => ({ id, label: id, metadata: { eligible: id === '101', eligibilityKnown: true, eligibilityReason: id === '101' ? '' : 'Status does not allow tickets.' } })) };
+    return { options: [] };
+  });
+  const registry = { [PRODUCTION_PROVIDER_ID]: { providerId: PRODUCTION_PROVIDER_ID, label: 'ConnectWise PSA', contractMajor: 1, adapter } };
+  const definitions = { [PRODUCTION_PROVIDER_ID]: { providerId: PRODUCTION_PROVIDER_ID, label: 'ConnectWise PSA', available: true, fields: [], accountSelectors: [] } };
+  const handlers = createMappingActionHandlers({ registry, definitions, dispatcher: createProviderDispatcher(registry), loadAction1Organizations: async () => [
+    { id: 'org-allowed', name: 'Allowed Company' }, { id: 'org-blocked', name: 'Blocked Company' }
+  ] });
+  const preview = await handlers.previewAutoMatch(context, { providerId: PRODUCTION_PROVIDER_ID, draftRows: [] });
+  assert.strictEqual(preview.complete, true);
+  assert.deepStrictEqual(preview.exactMatches.map((row) => row.destinationId), ['101'], 'ineligible company is excluded from exact match candidates');
+  assert.deepStrictEqual(preview.unmatched.map((row) => row.action1OrgId), ['org-blocked']);
+  const applied = await handlers.applyAutoMatch(context, { providerId: PRODUCTION_PROVIDER_ID, matches: preview.exactMatches, draftRows: [] });
+  assert.strictEqual(applied.applied, 1);
+  assert.strictEqual(applied.mappings[0].destinationId, '101');
+  assert(discoveryCalls.filter((kind) => kind === 'mapping-destinations').length >= 2, 'Apply obtains fresh destination discovery before saving');
+
+  const unknownAdapter = syntheticAdapter(async ({ input }) => input.kind === 'mapping-destinations' ? {
+    options: [{ id: '303', label: 'Unknown Company', metadata: { eligible: false, eligibilityKnown: false, eligibilityReason: 'Company eligibility could not be verified.' } }],
+    hasMore: false, nextPageToken: null, complete: false, searchSupported: true, paginationSupported: true
+  } : { options: [] });
+  const unknownRegistry = { [PRODUCTION_PROVIDER_ID]: { ...registry[PRODUCTION_PROVIDER_ID], adapter: unknownAdapter } };
+  const unknownHandlers = createMappingActionHandlers({ registry: unknownRegistry, definitions, dispatcher: createProviderDispatcher(unknownRegistry), loadAction1Organizations: async () => [{ id: 'org-unknown', name: 'Unknown Company' }] });
+  const unknownPreview = await unknownHandlers.previewAutoMatch(context, { providerId: PRODUCTION_PROVIDER_ID, draftRows: [] });
+  assert.strictEqual(unknownPreview.complete, false, 'unknown eligibility keeps Auto Match incomplete and not applicable');
 }
 
 async function testLegacyHaloActionPayloadCannotSelectDestinationTransport() {
@@ -560,7 +634,7 @@ async function testLegacyHaloActionPayloadCannotSelectDestinationTransport() {
         TicketingClientSecret: 'synthetic-secret'
       }
     });
-    assert.strictEqual(result.ok, false, 'Halo-shaped settings cannot make the unavailable provider usable');
+    assert.strictEqual(result.ok, false, 'Halo-shaped settings cannot make ConnectWise discovery usable');
     assert.strictEqual(fetchCalls, 0, 'legacy Halo settings do not reach destination transport');
   });
 }
@@ -657,7 +731,7 @@ async function testProviderScopedMappingActionsUseReadOnlyAdapterDiscovery() {
 
   const productionActions = await loadProductionActionsModule();
   const unavailable = await productionActions['discover-ticketing-mapping-options'](context, { providerId: PRODUCTION_PROVIDER_ID });
-  assert.strictEqual(unavailable.ok, false, 'ConnectWise mapping discovery is deferred from Slice 7.1');
+  assert.strictEqual(unavailable.ok, false, 'ConnectWise mapping discovery safely rejects missing connection settings');
   assert.strictEqual(unavailable.destinationOptions.length, 0);
   assert(!JSON.stringify(unavailable).includes('Halo'));
 }
@@ -670,7 +744,9 @@ async function run() {
   await testDeleteBehavesDeterministically();
   await testAction1OrganizationDiscoveryUsesMarketplaceCredentials();
   await testAction1OrganizationDiscoveryFailsSafely();
-  await testProductionDestinationDiscoveryIsUnavailableBeforeTransport();
+  await testProductionDestinationDiscoveryFailsSafelyWithoutConnection();
+  await testConnectWiseManualSaveRevalidatesCompanyEligibility();
+  await testConnectWiseAutoMatchFiltersEligibilityAndRevalidatesApply();
   await testLegacyHaloActionPayloadCannotSelectDestinationTransport();
   await testProviderScopedMappingActionsUseReadOnlyAdapterDiscovery();
 }

@@ -6,6 +6,8 @@ import {
   executeMappingSavePlan,
   isCurrentMappingRequest,
   mappingOptionsForRow,
+  normalizeOptions,
+  normalizeMappingRows,
   paginateMappingRows
 } from '../ui/mappingState.mjs';
 
@@ -50,6 +52,13 @@ const retainedOptionRows = [{ id: 4, action1OrgId: 'org-4', action1OrgName: 'Old
 assert.deepEqual(mappingOptionsForRow([], retainedOptionRows, 0, 'destinationId', 'destinationName'), [
   { value: 'dest-4', label: 'Old Destination Label', name: 'Old Destination Label' }
 ], 'failed discovery retains the saved destination selection');
+const eligibility = { eligible: false, eligibilityKnown: true, eligibilityReason: 'This company status does not allow tickets.' };
+const enrichedOptions = normalizeOptions([{ id: '456', name: 'Blocked Co', metadata: eligibility }]);
+assert.deepEqual(enrichedOptions[0].metadata, eligibility, 'safe provider metadata is retained in transient selector state');
+const enrichedMapping = normalizeMappingRows([{ ...retainedOptionRows[0], destinationEligibility: eligibility }]);
+assert.deepEqual(enrichedMapping[0].destinationEligibility, eligibility, 'saved rows retain ephemeral eligibility for display');
+const persistedEnriched = buildPersistRows([{ ...retainedOptionRows[0], destinationEligibility: eligibility }], [{ id: 'org-4', name: 'Old Org Label' }], [{ id: 'dest-4', name: 'Old Destination Label', metadata: eligibility }]);
+assert.equal(Object.prototype.hasOwnProperty.call(persistedEnriched.persistRows[0], 'destinationEligibility'), false, 'eligibility metadata is not written into Mapping persistence');
 
 const validation = buildPersistRows([
   { action1OrgId: '', destinationId: '' },

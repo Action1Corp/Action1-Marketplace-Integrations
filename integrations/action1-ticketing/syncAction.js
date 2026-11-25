@@ -128,6 +128,7 @@ async function runTicketingSync(context, request = {}, dependencies = {}) {
           }))
         },
         connection: runtimeConfig.providerSettings,
+        transport: context?.http,
         logger: runLogger
       });
     } catch (error) {
@@ -196,6 +197,43 @@ async function runTicketingSync(context, request = {}, dependencies = {}) {
       skippedByReason: pipeline.summary?.skippedByReason || {}
     });
 
+    const eligibilityFailures = [];
+    let lifecycleCandidates = pipeline.candidates;
+    let pendingWatermarks = collection.pendingWatermarks;
+    if (runtimeConfig.providerId === 'connectwise-psa') {
+      const ineligibleOrgIds = new Set();
+      for (const mapping of runtimeConfig.orgClientMappings) {
+        let validation;
+        try {
+          validation = await providerDispatcher.invoke({
+            providerId: runtimeConfig.providerId,
+            operation: 'validateConfiguration',
+            input: { mode: 'organization-eligibility', mapping: {
+              mappingId: mapping.mappingId,
+              action1OrgId: mapping.action1OrgId,
+              destinationId: mapping.destinationId
+            } },
+            connection: runtimeConfig.providerSettings,
+            transport: context?.http,
+            logger: runLogger.child({ action1OrgId: mapping.action1OrgId })
+          });
+        } catch {
+          validation = { ok: false };
+        }
+        if (!validation?.ok) {
+          const action1OrgId = String(mapping.action1OrgId || '').trim();
+          ineligibleOrgIds.add(action1OrgId);
+          const action1OrgName = String(mapping.action1OrgName || action1OrgId).slice(0, 120);
+          const failure = { orgLinkId: mapping.mappingId, action1OrgId, reason: 'connectwise_company_ineligible_or_unknown' };
+          eligibilityFailures.push(failure);
+          await runLogger.child({ action1OrgId }).warn(`Skipping ticket processing for ${action1OrgName}: the mapped ConnectWise company is ineligible or its eligibility could not be verified.`, { reason: failure.reason });
+        }
+      }
+      if (ineligibleOrgIds.size) {
+        ({ candidates: lifecycleCandidates, pendingWatermarks } = filterIneligibleOrganizations(pipeline.candidates, collection.pendingWatermarks, ineligibleOrgIds));
+      }
+    }
+
     await runLogger.info('Starting lifecycle execution.', {
       candidatesSeen: Array.isArray(pipeline.candidates) ? pipeline.candidates.length : 0
     });
@@ -204,11 +242,12 @@ async function runTicketingSync(context, request = {}, dependencies = {}) {
       providerDispatcher,
       providerId: runtimeConfig.providerId,
       connection: runtimeConfig.providerSettings,
+      transport: context?.http,
       correlationStore,
       runLogger
     });
     const lifecycleResult = await lifecycleService.runOnce({
-      candidates: pipeline.candidates,
+      candidates: lifecycleCandidates,
       config: runtimeConfig,
       runLogger
     });
@@ -223,15 +262,18 @@ async function runTicketingSync(context, request = {}, dependencies = {}) {
     await runLogger.debug('Persisting automation-failed watermarks.', {
       pendingWatermarks: collection.pendingWatermarks.length
     });
-    await persistPendingWatermarks(watermarkStore, collection.pendingWatermarks, lifecycleResult);
+    await persistPendingWatermarks(watermarkStore, pendingWatermarks, lifecycleResult, lifecycleCandidates);
 
     const summary = mergeSummaries({
       pipeline,
       lifecycleResult,
-      collectionFailures: collection.failures
+      collectionFailures: [...collection.failures, ...eligibilityFailures]
     });
     const assetsProcessed = Number(pipeline.summary?.endpointsSeen || 0);
-    const details = buildRunDetails(summary, { provider });
+    const details = buildRunDetails(summary, {
+      provider,
+      notes: buildOrganizationFailureNotes([...collection.failures, ...eligibilityFailures], runtimeConfig.orgClientMappings)
+    });
     const durationMs = Date.now() - runStartedAt;
 
     await run?.setAssetsProcessed?.(assetsProcessed);
@@ -261,7 +303,7 @@ async function runTicketingSync(context, request = {}, dependencies = {}) {
       assetsProcessed,
       collection: {
         organizationsSeen: collection.action1Organizations.length,
-        orgFailures: collection.failures.length
+        orgFailures: collection.failures.length + eligibilityFailures.length
       }
     };
   } catch (error) {
@@ -436,9 +478,10 @@ async function collectMarketplaceDatasets(input) {
   };
 }
 
-async function persistPendingWatermarks(watermarkStore, pendingWatermarks, lifecycleResult) {
+async function persistPendingWatermarks(watermarkStore, pendingWatermarks, lifecycleResult, candidates = []) {
   if (!lifecycleResult || !Array.isArray(pendingWatermarks) || pendingWatermarks.length === 0) return;
-  for (const pending of pendingWatermarks) {
+  const safePending = filterPendingWatermarksByLifecycleOutcome(pendingWatermarks, candidates, lifecycleResult);
+  for (const pending of safePending) {
     await watermarkStore.upsertAutomationFailedWatermark(pending.orgLinkId, {
       action1OrgId: pending.action1OrgId,
       lastSeenAt: pending.lastSeenAt,
@@ -446,6 +489,47 @@ async function persistPendingWatermarks(watermarkStore, pendingWatermarks, lifec
       orgLinkId: pending.orgLinkId
     });
   }
+}
+
+function filterPendingWatermarksByLifecycleOutcome(pendingWatermarks, candidates, lifecycleResult) {
+  if (!Array.isArray(pendingWatermarks) || !pendingWatermarks.length) return [];
+  const automationCandidates = (Array.isArray(candidates) ? candidates : []).filter((candidate) => candidateSignal(candidate) === 'AUTOMATION_FAILED');
+  const results = Array.isArray(lifecycleResult?.results) ? lifecycleResult.results : [];
+  const candidatesByOrg = new Map();
+  for (const candidate of automationCandidates) {
+    const orgLinkId = candidateOrgLinkId(candidate);
+    if (!orgLinkId) continue;
+    if (!candidatesByOrg.has(orgLinkId)) candidatesByOrg.set(orgLinkId, []);
+    candidatesByOrg.get(orgLinkId).push(candidateIdentityKey(candidate));
+  }
+  const resultsByKey = new Map();
+  for (const result of results) {
+    if (String(result?.signalType || '').toUpperCase() !== 'AUTOMATION_FAILED') continue;
+    const key = String(result?.identityKey || '').trim();
+    if (!key) return [];
+    if (!resultsByKey.has(key)) resultsByKey.set(key, []);
+    resultsByKey.get(key).push(result);
+  }
+  return pendingWatermarks.filter((pending) => {
+    const keys = candidatesByOrg.get(String(pending?.orgLinkId || '').trim());
+    if (!keys?.length) return true;
+    return keys.every((key) => {
+      const matched = resultsByKey.get(key);
+      if (!key || !matched || matched.length !== 1) return false;
+      const action = String(matched[0]?.action || '').toUpperCase();
+      const status = String(matched[0]?.status || '').toLowerCase();
+      return (status === 'success' && ['CREATE', 'UPDATE'].includes(action)) || (status === 'skipped' && action === 'SKIP');
+    });
+  });
+}
+
+function candidateSignal(candidate) { return String(candidate?.identity?.signalType || candidate?.signal?.type || '').toUpperCase(); }
+function candidateOrgLinkId(candidate) { return String(candidate?.identity?.orgLinkId || '').trim(); }
+function candidateIdentityKey(candidate) {
+  const identity = candidate?.identity || {};
+  return String(identity.key || identity.identityKey || (candidate?.ticketModel === 'grouped' && identity.orgLinkId && (candidate?.issueKey || candidate?.grouped?.issueKey)
+    ? `${identity.orgLinkId}|${identity.signalType}|${candidate.issueKey || candidate.grouped.issueKey}`
+    : identity.orgLinkId && identity.endpointId && identity.signalType ? `${identity.orgLinkId}|${identity.endpointId}|${identity.signalType}` : '')).trim();
 }
 
 function mergeSummaries(input) {
@@ -537,6 +621,24 @@ function buildRunDetails(summary, options = {}) {
   ].join('\n');
 }
 
+function filterIneligibleOrganizations(candidates, pendingWatermarks, ineligibleOrgIds) {
+  const excluded = ineligibleOrgIds instanceof Set ? ineligibleOrgIds : new Set();
+  return {
+    candidates: (Array.isArray(candidates) ? candidates : []).filter((candidate) => !excluded.has(String(candidate?.routing?.action1OrgId || '').trim())),
+    pendingWatermarks: (Array.isArray(pendingWatermarks) ? pendingWatermarks : []).filter((pending) => !excluded.has(String(pending?.action1OrgId || '').trim()))
+  };
+}
+
+function buildOrganizationFailureNotes(failures, mappings) {
+  const names = new Map((Array.isArray(mappings) ? mappings : []).map((row) => [String(row.action1OrgId || ''), String(row.action1OrgName || row.action1OrgId || 'Organization').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 120)]));
+  return (Array.isArray(failures) ? failures : []).slice(0, 25).map((failure) => {
+    const name = names.get(String(failure.action1OrgId || '')) || 'An Action1 organization';
+    return failure.reason === 'connectwise_company_ineligible_or_unknown'
+      ? `${name}: ConnectWise company eligibility could not be confirmed or does not allow tickets; ticket processing was skipped. Review the Company mapping and status.`
+      : `${name}: organization data collection failed (${String(failure.reason || 'collection_failed').slice(0, 80)}).`;
+  });
+}
+
 async function logCredentialAvailability(context, runLogger) {
   const credentials = await context?.action1?.getCredentials?.();
   const apiKeyPresent = Boolean(String(credentials?.apiKey || '').trim());
@@ -583,5 +685,6 @@ function sanitizeSyncError(error) {
 }
 
 module.exports = {
-  runTicketingSync
+  runTicketingSync,
+  __private: { filterIneligibleOrganizations, filterPendingWatermarksByLifecycleOutcome }
 };

@@ -44,7 +44,7 @@ function validateConnectWiseConnection(connection = {}) {
 
 function createConnectWiseApi({ clientId }) {
   return Object.freeze({
-    async request({ transport, connection, method = 'GET', path, query, body, signal } = {}) {
+    async request({ transport, connection, method = 'GET', path, query, headers: requestHeaders = {}, body, signal } = {}) {
       if (!transport || (typeof transport !== 'function' && typeof transport.request !== 'function')) throw safeError('CONNECTWISE_TRANSPORT_UNAVAILABLE', 'The ConnectWise service could not be reached.');
       const baseUrl = resolveConnectWiseBaseUrl(connection);
       const companyId = String(read(connection, 'CompanyId')).trim();
@@ -57,7 +57,8 @@ function createConnectWiseApi({ clientId }) {
         headers: {
           Authorization: `Basic ${Buffer.from(`${companyId}+${publicKey}:${privateKey}`, 'utf8').toString('base64')}`,
           clientId: String(clientId || ''),
-          Accept: `application/vnd.connectwise.com+json; version=${API_VERSION}`
+          Accept: `application/vnd.connectwise.com+json; version=${API_VERSION}`,
+          ...(String(requestHeaders['pagination-type'] || '').toLowerCase() === 'forward-only' ? { 'pagination-type': 'forward-only' } : {})
         },
         timeoutMs: 15000,
         maxAttempts: String(method).toUpperCase() === 'GET' ? 3 : 1,

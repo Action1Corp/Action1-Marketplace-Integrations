@@ -1,5 +1,7 @@
 export const INITIAL_PROVIDER_ID = 'connectwise-psa';
 import ConnectWiseConnectionFields from './providers/ConnectWiseConnectionFields.jsx';
+import ConnectWiseRoutingFields from './providers/ConnectWiseRoutingFields.jsx';
+import ConnectWiseDestinationMappingFields from './providers/ConnectWiseDestinationMappingFields.jsx';
 
 /**
  * Provider DestinationMappingFields receive the current bounded page as `options` and the
@@ -10,12 +12,18 @@ import ConnectWiseConnectionFields from './providers/ConnectWiseConnectionFields
  * `destinationLoading`, and `error` describe the current provider/query result state.
  */
 
-const CONNECTWISE_SETTING_KEYS = Object.freeze([
+const CONNECTWISE_CONNECTION_SETTING_KEYS = Object.freeze([
   'TicketingProvider_connectwise_psa_ApiRegion',
   'TicketingProvider_connectwise_psa_CustomServer',
   'TicketingProvider_connectwise_psa_CompanyId',
   'TicketingProvider_connectwise_psa_PublicApiKey',
   'TicketingProvider_connectwise_psa_PrivateApiKey'
+]);
+const CONNECTWISE_ROUTING_SETTING_KEYS = Object.freeze([
+  'TicketingProvider_connectwise_psa_ServiceBoardId', 'TicketingProvider_connectwise_psa_InitialStatusId',
+  'TicketingProvider_connectwise_psa_TicketTypeId', 'TicketingProvider_connectwise_psa_TicketSubtypeId',
+  'TicketingProvider_connectwise_psa_TicketItemId', 'TicketingProvider_connectwise_psa_PriorityId',
+  'TicketingProvider_connectwise_psa_SourceId', 'TicketingProvider_connectwise_psa_AdditionalClosedStatusIds'
 ]);
 
 const CONNECTWISE = Object.freeze({
@@ -25,9 +33,12 @@ const CONNECTWISE = Object.freeze({
   available: true,
   configured: false,
   ConnectionFields: ConnectWiseConnectionFields,
-  RoutingFields: null,
-  DestinationMappingFields: null,
-  settingKeys: CONNECTWISE_SETTING_KEYS
+  RoutingFields: ConnectWiseRoutingFields,
+  DestinationMappingFields: ConnectWiseDestinationMappingFields,
+  connectionSettingKeys: CONNECTWISE_CONNECTION_SETTING_KEYS,
+  settingKeys: CONNECTWISE_CONNECTION_SETTING_KEYS,
+  settingsKeys: Object.freeze([...CONNECTWISE_CONNECTION_SETTING_KEYS, ...CONNECTWISE_ROUTING_SETTING_KEYS]),
+  mappingSettingKeys: Object.freeze([])
 });
 
 export const UI_PROVIDER_REGISTRY = Object.freeze({

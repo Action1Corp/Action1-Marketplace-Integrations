@@ -56,7 +56,9 @@ async function run() {
   const definition = PROVIDER_UI_DEFINITIONS[providerId];
   assert.strictEqual(definition.available, true);
   assert.deepStrictEqual(getOwnedSettingKeys(providerId).sort(), [
-    key('ApiRegion'), key('CustomServer'), key('CompanyId'), key('PublicApiKey'), key('PrivateApiKey')
+    key('ApiRegion'), key('CustomServer'), key('CompanyId'), key('PublicApiKey'), key('PrivateApiKey'),
+    key('ServiceBoardId'), key('InitialStatusId'), key('TicketTypeId'), key('TicketSubtypeId'), key('TicketItemId'),
+    key('PriorityId'), key('SourceId'), key('AdditionalClosedStatusIds')
   ].sort());
   assert.strictEqual(definition.fields.find((field) => field.key === 'PrivateApiKey').type, 'secret');
   assert(!definition.fields.some((field) => /client.?id/i.test(field.key)));

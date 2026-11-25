@@ -19,7 +19,15 @@ const CONNECTWISE_FIELDS = Object.freeze([
   { key: 'CustomServer', label: 'Custom Server URL', type: 'url', required: false },
   { key: 'CompanyId', label: 'PSA Company ID', type: 'text', required: true },
   { key: 'PublicApiKey', label: 'Public API Key', type: 'text', required: true },
-  { key: 'PrivateApiKey', label: 'Private API Key', type: 'secret', required: true }
+  { key: 'PrivateApiKey', label: 'Private API Key', type: 'secret', required: true },
+  { key: 'ServiceBoardId', label: 'Service Board', type: 'text', required: false },
+  { key: 'InitialStatusId', label: 'Initial Ticket Status', type: 'text', required: false },
+  { key: 'TicketTypeId', label: 'Ticket Type', type: 'text', required: false },
+  { key: 'TicketSubtypeId', label: 'Ticket Subtype', type: 'text', required: false },
+  { key: 'TicketItemId', label: 'Ticket Item', type: 'text', required: false },
+  { key: 'PriorityId', label: 'Priority', type: 'text', required: false },
+  { key: 'SourceId', label: 'Source', type: 'text', required: false },
+  { key: 'AdditionalClosedStatusIds', label: 'Additional Closed/Resolved Statuses', type: 'text', required: false }
 ]);
 const PROVIDER_UI_DEFINITIONS = Object.freeze({
   [INITIAL_PROVIDER_ID]: Object.freeze({

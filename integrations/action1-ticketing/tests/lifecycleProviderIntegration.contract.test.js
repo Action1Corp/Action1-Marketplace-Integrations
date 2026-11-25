@@ -5,6 +5,8 @@ const { createLifecycleRunService } = require('../lifecycleRunService');
 const { createProviderDispatcher, PROVIDER_REGISTRY } = require('../providerRegistry');
 const { createDbMappingStore } = require('../mappingStore');
 const { createDbCorrelationStore } = require('../correlationStore');
+const { createConnectWiseAdapter } = require('../providers/connectwisePsaAdapter');
+const { buildTicketContentFromCandidate } = require('../lifecycle/ticketContentBuilder');
 const { createInMemoryTicketingDb } = require('./fixtures/inMemoryTicketingDb');
 
 const CONTRACT_MAJOR = 1;
@@ -235,15 +237,77 @@ async function runMalformedReadPreservesTrackingTest() {
 }
 
 async function runProductionRegistryHasNoFakeLifecycleAccessTest() {
-  assert.strictEqual(typeof PROVIDER_REGISTRY['connectwise-psa'].adapter.createTicket, 'function', 'production ConnectWise has its contract placeholder');
+  assert.strictEqual(typeof PROVIDER_REGISTRY['connectwise-psa'].adapter.createTicket, 'function', 'production ConnectWise implements the create operation');
   assert.strictEqual(Object.values(PROVIDER_REGISTRY).some((entry) => /fake|test/i.test(entry.providerId)), false, 'test adapters are not registered in production');
   const fixture = createInMemoryTicketingDb();
   const dispatcher = createProviderDispatcher();
   await assert.rejects(
     () => dispatcher.invoke({ providerId: 'connectwise-psa', operation: 'createTicket', input: { preparedTicket: {} } }),
-    (error) => error.code === 'CONNECTWISE_OPERATION_NOT_IMPLEMENTED'
+    (error) => error.code === 'CONNECTWISE_TICKET_PAYLOAD_INVALID'
   );
-  assert.strictEqual(fixture.context.db.calls.length, 0, 'unimplemented production provider operation fails before tracking persistence');
+  assert.strictEqual(fixture.context.db.calls.length, 0, 'invalid production provider operation fails before tracking persistence');
+}
+
+async function runConnectWiseLifecycleCreateSkipAndUnavailableUpdateTest() {
+  const fixture = await createOwnedStores('connectwise-psa');
+  const adapter = createConnectWiseAdapter({ clientId: 'synthetic-client-id' });
+  const dispatcher = createProviderDispatcher({ 'connectwise-psa': { providerId: 'connectwise-psa', label: 'ConnectWise PSA', contractMajor: CONTRACT_MAJOR, adapter } });
+  const connection = {
+    TicketingProvider_connectwise_psa_ApiRegion: 'NA',
+    TicketingProvider_connectwise_psa_CompanyId: 'tenant',
+    TicketingProvider_connectwise_psa_PublicApiKey: 'public',
+    TicketingProvider_connectwise_psa_PrivateApiKey: 'private',
+    TicketingProvider_connectwise_psa_ServiceBoardId: '1',
+    TicketingProvider_connectwise_psa_InitialStatusId: '2',
+    TicketingProvider_connectwise_psa_TicketTypeId: '3'
+  };
+  const requests = [];
+  let nextTicketId = 540;
+  const transport = async (request) => {
+    requests.push(request);
+    const path = new URL(request.url).pathname;
+    if (path.endsWith('/company/companies/statuses')) return { status: 200, data: [{ id: 5, disallowSavingFlag: false }] };
+    if (path.endsWith('/company/companies/42')) return { status: 200, data: { id: 42, name: 'Synthetic Company', status: { id: 5 } } };
+    if (path.endsWith('/service/tickets') && request.method === 'POST') return { status: 201, data: { id: ++nextTicketId } };
+    if (/\/service\/tickets\/\d+$/.test(path)) return { status: 200, data: { id: Number(path.split('/').pop()), recordType: 'ServiceTicket', company: { id: 42 }, status: { id: 2 }, closedFlag: false } };
+    throw new Error(`Unexpected synthetic ConnectWise request ${request.method} ${path}`);
+  };
+  const service = createLifecycleRunService({ providerDispatcher: dispatcher, providerId: 'connectwise-psa', connection, transport, correlationStore: fixture.correlations });
+  const work = candidate({ identity: { orgLinkId: String(fixture.mapping.id), signalType: 'AUTOMATION_FAILED', key: `${fixture.mapping.id}|ep-1|AUTOMATION_FAILED` }, routing: { action1OrgId: 'org-connectwise-psa', destinationId: '42' }, signal: { type: 'AUTOMATION_FAILED', reason: 'failed run' } });
+  const created = await service.runOnce({ candidates: [work] });
+  assert.strictEqual(created.summary.created, 1, 'shared lifecycle creates through the production ConnectWise adapter');
+  assert.strictEqual(requests.filter((request) => request.method === 'POST').length, 1, 'lifecycle create uses a single destination POST');
+  const stored = await fixture.correlations.getEndpointCorrelation(String(fixture.mapping.id), 'ep-1', 'AUTOMATION_FAILED');
+  assert.strictEqual(stored.externalTicketRef.id, '541', 'shared correlation store owns the created ticket identity');
+  const samePrepared = await adapter.prepareTicket({ input: { candidate: work, content: buildTicketContentFromCandidate({ candidate: work }), effectiveRoute: work.routing }, connection });
+  assert.strictEqual(stored.comparisonValue, samePrepared.comparisonValue, 'same Action1-managed content has a stable provider comparison');
+  assert.strictEqual(stored.comparisonVersion, samePrepared.comparisonVersion, 'same Action1-managed content retains the comparison version');
+  const groupedWork = {
+    ticketModel: 'grouped',
+    identity: { orgLinkId: String(fixture.mapping.id), signalType: 'AUTOMATION_FAILED', identityKey: `${fixture.mapping.id}|AUTOMATION_FAILED|inst-grouped` },
+    issueKey: 'inst-grouped',
+    routing: work.routing,
+    signal: { type: 'AUTOMATION_FAILED', reason: 'grouped failure' },
+    grouped: {
+      issueKey: 'inst-grouped',
+      issueMetadata: { automationInstanceId: 'inst-grouped', automationName: 'Deployment' },
+      impactedEndpointCount: 2,
+      impactedEndpoints: [{ endpointId: 'ep-1', endpointName: 'Host One' }, { endpointId: 'ep-2', endpointName: 'Host Two' }]
+    }
+  };
+  const groupedCreate = await service.runOnce({ candidates: [groupedWork] });
+  assert.strictEqual(groupedCreate.summary.created, 1, 'grouped automation signal creates through the same shared lifecycle');
+  const groupedStored = await fixture.correlations.getGroupedCorrelation(String(fixture.mapping.id), 'AUTOMATION_FAILED', 'inst-grouped');
+  assert.strictEqual(groupedStored.externalTicketRef.id, '542', 'grouped automation uses its existing automation-instance correlation identity');
+  assert.strictEqual(groupedCreate.results[0].identityKey, `${fixture.mapping.id}|AUTOMATION_FAILED|inst-grouped`);
+  const postCountBeforeUpdate = requests.filter((request) => request.method === 'POST').length;
+  const changed = { ...work, signal: { ...work.signal, reason: 'changed failure detail' } };
+  const update = await service.runOnce({ candidates: [changed] });
+  assert.strictEqual(update.summary.failed, 1, 'changed open ticket fails safely while ConnectWise update remains unavailable');
+  assert.strictEqual(requests.filter((request) => request.method === 'POST').length, postCountBeforeUpdate, 'unimplemented update never falls back to a create');
+  const retained = await fixture.correlations.getEndpointCorrelation(String(fixture.mapping.id), 'ep-1', 'AUTOMATION_FAILED');
+  assert.strictEqual(retained.externalTicketRef.id, '541');
+  assert.strictEqual(retained.comparisonValue, stored.comparisonValue, 'failed update does not advance shared comparison state');
 }
 
 async function runProviderIsolationTest() {
@@ -345,6 +409,7 @@ async function run() {
   await runUnknownReadPreservesTrackingTest();
   await runMalformedReadPreservesTrackingTest();
   await runProductionRegistryHasNoFakeLifecycleAccessTest();
+  await runConnectWiseLifecycleCreateSkipAndUnavailableUpdateTest();
   await runProviderIsolationTest();
   await runGroupedFamilyAndCapIsolationTest();
   await runBestEffortCapReadFailureCharacterizationTest();

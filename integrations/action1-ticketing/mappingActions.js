@@ -156,11 +156,42 @@ function createMappingActionHandlers(dependencies = {}) {
     return resolveMappingProvider(context, request, registry, definitions, dependencies.initialProviderId);
   }
 
+  async function getCompanyEligibility(context, selected, destinationId) {
+    const id = String(destinationId || '').trim();
+    if (!/^\d{1,20}$/.test(id)) return { eligible: false, eligibilityKnown: false, eligibilityReason: 'Company eligibility could not be verified.' };
+    try {
+      const { connection, settings } = await loadProviderDiscoveryValues(context, selected.providerId, selected.definition);
+      const result = await dispatcher.invoke({
+        providerId: selected.providerId,
+        operation: 'discover',
+        input: { kind: 'company-eligibility', companyIds: [id], settings },
+        connection,
+        transport: context?.http,
+        logger: context?.logger
+      });
+      const metadata = result.options?.[0]?.metadata;
+      return metadata && typeof metadata.eligible === 'boolean' && typeof metadata.eligibilityKnown === 'boolean'
+        ? metadata
+        : { eligible: false, eligibilityKnown: false, eligibilityReason: 'Company eligibility could not be verified.' };
+    } catch {
+      return { eligible: false, eligibilityKnown: false, eligibilityReason: 'Company eligibility could not be verified.' };
+    }
+  }
+
   async function listMappings(context, request = {}) {
     const selected = await withProvider(context, request);
     if (!selected.ok) return { ok: false, message: selected.message, mappings: [] };
     try {
-      return { ok: true, mappings: await createDbMappingStore(context, selected.providerId).list() };
+      const mappings = await createDbMappingStore(context, selected.providerId).list();
+      if (selected.providerId === INITIAL_PROVIDER_ID && mappings.length) {
+        const enriched = [];
+        for (const row of mappings) {
+          const eligibility = await getCompanyEligibility(context, selected, row.destinationId);
+          enriched.push({ ...row, destinationEligibility: eligibility });
+        }
+        return { ok: true, mappings: enriched };
+      }
+      return { ok: true, mappings };
     } catch {
       return { ok: false, message: 'Unable to load mappings for this ticketing system.', mappings: [] };
     }
@@ -170,6 +201,11 @@ function createMappingActionHandlers(dependencies = {}) {
     const selected = await withProvider(context, request);
     if (!selected.ok) return { ok: false, message: selected.message };
     try {
+      if (selected.providerId === INITIAL_PROVIDER_ID) {
+        const destinationId = String(request.payload?.destinationId || request.payload?.haloClientId || '').trim();
+        const eligibility = await getCompanyEligibility(context, selected, destinationId);
+        if (eligibility.eligible !== true || eligibility.eligibilityKnown !== true) return { ok: false, message: eligibility.eligibilityReason || 'Company eligibility could not be verified. The mapping was not saved.' };
+      }
       const store = createDbMappingStore(context, selected.providerId);
       const saved = await store.save(request.payload || {});
       return { ok: true, message: 'Mapping saved.', mapping: saved, mappings: await store.list() };
@@ -236,7 +272,7 @@ function createMappingActionHandlers(dependencies = {}) {
       return {
         ok: true,
         message: result.searchSupported || !query ? 'Loaded destination options.' : 'This provider does not support searching its full customer directory.',
-        destinationOptions: result.options.map((option) => ({ id: option.id, name: option.label })),
+        destinationOptions: result.options.map((option) => ({ id: option.id, name: option.label, ...(option.metadata ? { metadata: option.metadata } : {}) })),
         hasMore: result.hasMore,
         nextPageToken: result.nextPageToken ? encodeMappingDiscoveryToken(selected.providerId, query, result.nextPageToken) : null,
         complete: result.complete,
@@ -302,6 +338,11 @@ function createMappingActionHandlers(dependencies = {}) {
       for (const option of page.options) {
         const previous = destinationsById.get(option.id);
         if (previous && previous.name !== option.label) changedDestinationIds.add(option.id);
+        const metadata = option.metadata || {};
+        if (providerId === INITIAL_PROVIDER_ID && (metadata.eligible !== true || metadata.eligibilityKnown !== true)) {
+          if (metadata.eligibilityKnown !== true) return { complete: false, reason: 'company_eligibility_unknown', pageCount: pages };
+          continue;
+        }
         destinationsById.set(option.id, { id: option.id, name: option.label });
       }
       if (destinationsById.size > matchLimits.maxDestinations) return { complete: false, reason: 'record_limit', pageCount: pages };

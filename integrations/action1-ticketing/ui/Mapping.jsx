@@ -604,7 +604,7 @@ function Mapping({ integration }) {
   }
 
   const activeProviderSettings = Object.fromEntries(
-    (provider?.settingKeys || []).map((key) => [key, settings[key] ?? ''])
+    (provider?.mappingSettingKeys || provider?.settingKeys || []).map((key) => [key, settings[key] ?? ''])
   );
   const DestinationFields = provider?.DestinationMappingFields;
   const projectedRows = buildOrganizationMappingRows(action1Organizations, draftRows, { filter: mappingFilter, search: organizationSearch });
@@ -733,11 +733,14 @@ function Mapping({ integration }) {
                 );
                 const destinationFieldOptions = destinationRowOptions.map((option) => ({
                   id: option.value,
+                  value: option.value,
                   name: option.name,
-                  label: option.label
+                  label: option.label,
+                  ...(option.metadata ? { metadata: option.metadata } : {}),
+                  ...(option.destinationEligibility ? { destinationEligibility: option.destinationEligibility } : {})
                 }));
-                const selectedDestinationOption = destinationFieldOptions.find((option) => option.id === row.destinationId) || null;
-                const destinationResultOptions = destinationFieldOptions.filter((option) => destinationOptions.some((current) => String(current.id) === option.id));
+                const selectedDestinationOption = destinationFieldOptions.find((option) => String(option.id) === String(row.destinationId)) || null;
+                const destinationResultOptions = destinationFieldOptions.filter((option) => destinationOptions.some((current) => String(current.id) === String(option.id)));
 
                 return (
                   <tr key={projectedRow.key} data-mapping-row={projectedRow.kind}>

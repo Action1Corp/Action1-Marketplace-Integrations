@@ -104,6 +104,17 @@ function runGroupedIdentitySemanticsTest() {
   assert(result.candidates.some((row) => row.ticketModel === 'grouped' && row.identity.key === 'map-1|VULNERABILITY|CVE-1'), 'grouped vulnerability identity should use cveId');
   assert(result.candidates.some((row) => row.ticketModel === 'grouped' && row.identity.key === 'map-1|UPDATE|pkg-1:ver-1'), 'grouped update identity should use packageId and versionId');
   assert(result.candidates.some((row) => row.ticketModel === 'grouped' && row.identity.key === 'map-1|AUTOMATION_FAILED|inst-1'), 'grouped automation identity should use automation instance id');
+  const repeatedGrouped = runStage4CandidatePipeline({
+    enableGroupedAggregation: true,
+    config: baseConfig({ automationFailed: { ticketModel: 'grouped' }, signalFilters: { automationFailed: { enabled: true } }, orgClientMappings: [mappingRow('map-1', 'org-1', 'client-1')] }),
+    action1EndpointsByOrg: { 'org-1': [{ id: 'ep-1' }, { id: 'ep-2' }] },
+    signalDatasets: { automationFailedByEndpoint: { 'org-1': {
+      'ep-1': [{ status: 'Error', instanceId: 'inst-1', description: 'Repeat one' }],
+      'ep-2': [{ status: 'Error', instanceId: 'inst-1', description: 'Repeat two' }]
+    } } }
+  });
+  assert.strictEqual(repeatedGrouped.candidates.length, 1, 'a repeated automation instance remains one grouped candidate');
+  assert.strictEqual(repeatedGrouped.candidates[0].identity.key, 'map-1|AUTOMATION_FAILED|inst-1', 'repeated grouped failure preserves automation-instance correlation identity');
 }
 
 function runEndpointOnlySignalsStayEndpointModeTest() {
@@ -132,6 +143,35 @@ function runEndpointOnlySignalsStayEndpointModeTest() {
   const reboot = result.candidates.find((row) => row.signal.type === 'REBOOT_REQUIRED');
   assert.strictEqual(offline.ticketModel, 'endpoint', 'OFFLINE should remain endpoint-only');
   assert.strictEqual(reboot.ticketModel, 'endpoint', 'REBOOT_REQUIRED should remain endpoint-only');
+}
+
+function runAutomationFailureIndividualModeIdentityTest() {
+  const result = runStage4CandidatePipeline({
+    enableGroupedAggregation: true,
+    config: baseConfig({
+      automationFailed: { ticketModel: 'endpoint' },
+      signalFilters: { automationFailed: { enabled: true } },
+      orgClientMappings: [mappingRow('map-1', 'org-1', 'client-1')]
+    }),
+    action1EndpointsByOrg: { 'org-1': [{ id: 'ep-1' }, { id: 'ep-2' }] },
+    signalDatasets: { automationFailedByEndpoint: { 'org-1': {
+      'ep-1': [{ status: 'Error', instanceId: 'inst-1' }],
+      'ep-2': [{ status: 'Error', instanceId: 'inst-1' }]
+    } } }
+  });
+  const candidates = result.candidates.filter((row) => row.signal.type === 'AUTOMATION_FAILED');
+  assert.strictEqual(candidates.length, 2, 'individual automation mode creates one candidate for each affected endpoint');
+  assert(candidates.every((row) => row.ticketModel === 'endpoint'));
+  assert.deepStrictEqual(candidates.map((row) => row.identity.key).sort(), [
+    'map-1|ep-1|AUTOMATION_FAILED', 'map-1|ep-2|AUTOMATION_FAILED'
+  ]);
+  const repeated = runStage4CandidatePipeline({
+    enableGroupedAggregation: true,
+    config: baseConfig({ automationFailed: { ticketModel: 'endpoint' }, signalFilters: { automationFailed: { enabled: true } }, orgClientMappings: [mappingRow('map-1', 'org-1', 'client-1')] }),
+    action1EndpointsByOrg: { 'org-1': [{ id: 'ep-1' }] },
+    signalDatasets: { automationFailedByEndpoint: { 'org-1': { 'ep-1': [{ status: 'Error', instanceId: 'inst-1', description: 'Repeated failure observation' }] } } }
+  });
+  assert.strictEqual(repeated.candidates.find((row) => row.signal.type === 'AUTOMATION_FAILED').identity.key, candidates[0].identity.key, 'a repeated failure for the same endpoint preserves the existing endpoint correlation identity');
 }
 
 function runUnmappedOrgSkippedTest() {
@@ -204,6 +244,7 @@ function run() {
   runMappedOfflineIdentityTest();
   runGroupedIdentitySemanticsTest();
   runEndpointOnlySignalsStayEndpointModeTest();
+  runAutomationFailureIndividualModeIdentityTest();
   runUnmappedOrgSkippedTest();
   runDisabledSignalsDoNotIncrementSkippedTest();
 }

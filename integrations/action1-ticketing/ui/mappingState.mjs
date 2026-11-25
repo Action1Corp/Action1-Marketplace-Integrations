@@ -2,7 +2,7 @@ export function normalizeOptions(rows) {
   return (Array.isArray(rows) ? rows : []).map((row) => {
     const id = String(row?.id ?? row?.value ?? '').trim();
     const name = String(row?.name ?? row?.label ?? '').trim();
-    return id && name ? { value: id, label: name, name } : null;
+    return id && name ? { value: id, label: name, name, ...(row?.metadata && typeof row.metadata === 'object' ? { metadata: row.metadata } : {}), ...(row?.destinationEligibility && typeof row.destinationEligibility === 'object' ? { destinationEligibility: row.destinationEligibility } : {}) } : null;
   }).filter(Boolean);
 }
 
@@ -16,15 +16,16 @@ export function normalizeMappingRows(rows) {
     action1OrgId: String(row?.action1OrgId || ''),
     action1OrgName: String(row?.action1OrgName || ''),
     destinationId: String(row?.destinationId ?? row?.haloClientId ?? ''),
-    destinationName: String(row?.destinationName ?? row?.haloClientName ?? '')
+    destinationName: String(row?.destinationName ?? row?.haloClientName ?? ''),
+    ...(row?.destinationEligibility && typeof row.destinationEligibility === 'object' ? { destinationEligibility: row.destinationEligibility } : {})
   }));
 }
 
-export function ensureSelectedOption(options, value, name) {
+export function ensureSelectedOption(options, value, name, destinationEligibility) {
   const selectedValue = String(value || '').trim();
   const selectedName = String(name || '').trim();
   if (!selectedValue || !selectedName || options.some((row) => row.value === selectedValue)) return options;
-  return [...options, { value: selectedValue, label: selectedName, name: selectedName }];
+  return [...options, { value: selectedValue, label: selectedName, name: selectedName, ...(destinationEligibility ? { metadata: destinationEligibility, destinationEligibility } : {}) }];
 }
 
 export function mappingOptionsForRow(allOptions, rows, rowIndex, valueKey, nameKey) {
@@ -34,7 +35,7 @@ export function mappingOptionsForRow(allOptions, rows, rowIndex, valueKey, nameK
   const current = rows[rowIndex] || {};
   const currentValue = String(current[valueKey] || '').trim();
   const available = normalized.filter((option) => option.value === currentValue || !selectedElsewhere.has(option.value));
-  return ensureSelectedOption(available, current[valueKey], current[nameKey]);
+  return ensureSelectedOption(available, current[valueKey], current[nameKey], current.destinationEligibility);
 }
 
 function normalizeSearchText(value) {

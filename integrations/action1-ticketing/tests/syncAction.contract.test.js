@@ -15,12 +15,13 @@ const {
 } = require('../haloApi');
 const { __private: action1CollectionPrivate } = require('../action1Api');
 const { runTicketingSync: runTicketingSyncImplementation } = require('../syncAction');
+const { __private: syncPrivate } = require('../syncAction');
 const { actions: exportedActions } = require('../actions');
 const { createProviderDispatcher } = require('../providerRegistry');
 const { loadRuntimeConfig } = require('../runtimeConfig');
 
 const syncTicketState = new Map();
-const syncProviderCalls = { get: [], prepare: [], create: [], update: [], connections: [], validations: [] };
+const syncProviderCalls = { get: [], prepare: [], create: [], update: [], connections: [], validations: [], transports: [] };
 let syncTicketSequence = 0;
 
 function createInMemorySyncDependencies() {
@@ -33,28 +34,36 @@ function createInMemorySyncDependencies() {
         adapter: {
           async validateConfiguration({ input, connection }) {
             syncProviderCalls.validations.push({ input, connection });
+            if (input.mode === 'organization-eligibility') {
+              const destinationId = String(input.mapping?.destinationId || '');
+              const failure = syncTicketState.get(`company-ineligible:${destinationId}`);
+              return failure ? { ok: false, errors: [{ field: 'CompanyEligibility', message: 'safe fixture failure' }] } : { ok: true, errors: [] };
+            }
             const failure = syncTicketState.get('provider-config-error');
             return failure ? { ok: false, errors: [{ field: 'routing.destination', message: failure }] } : { ok: true, errors: [] };
           },
           async testConnection() { return { ok: true, message: 'Connected.' }; },
           async discover() { return { options: [] }; },
-          async prepareTicket({ input, connection }) {
+          async prepareTicket({ input, connection, transport }) {
             syncProviderCalls.prepare.push(input);
             syncProviderCalls.connections.push(connection);
+            syncProviderCalls.transports.push(transport);
             return { payload: { summary: input.content.summary, details: input.content.details, detailsHtml: input.content.detailsHtml || '' }, comparisonValue: JSON.stringify(input.comparisonInput), comparisonVersion: 'sync-fixture-v1' };
           },
-          async getTicket({ input, connection }) {
+          async getTicket({ input, connection, transport }) {
             const ref = input.externalTicketRef;
             syncProviderCalls.get.push(ref.id);
             syncProviderCalls.connections.push(connection);
+            syncProviderCalls.transports.push(transport);
             const ticket = syncTicketState.get(`connectwise-psa:${ref.id}`);
             return ticket
               ? { state: 'found', openState: ticket.openState, externalTicketRef: ticket.externalTicketRef, comparisonValue: ticket.comparisonValue, comparisonVersion: ticket.comparisonVersion }
               : { state: 'missing', confirmed: true };
           },
-          async createTicket({ input, connection }) {
+          async createTicket({ input, connection, transport }) {
             syncProviderCalls.create.push(input);
             syncProviderCalls.connections.push(connection);
+            syncProviderCalls.transports.push(transport);
             const failure = syncTicketState.get('connectwise-psa:create-error');
             if (failure) throw failure;
             syncTicketSequence += 1;
@@ -62,9 +71,12 @@ function createInMemorySyncDependencies() {
             syncTicketState.set(`connectwise-psa:${ref.id}`, { openState: 'open', externalTicketRef: ref, comparisonValue: input.comparisonValue, comparisonVersion: input.comparisonVersion });
             return { externalTicketRef: ref };
           },
-          async updateTicket({ input, connection }) {
+          async updateTicket({ input, connection, transport }) {
             syncProviderCalls.update.push(input);
             syncProviderCalls.connections.push(connection);
+            syncProviderCalls.transports.push(transport);
+            const failure = syncTicketState.get('connectwise-psa:update-error');
+            if (failure) throw failure;
             const ticket = syncTicketState.get(`connectwise-psa:${input.externalTicketRef.id}`);
             if (!ticket) return { ok: false };
             ticket.comparisonValue = JSON.stringify(input.preparedTicket);
@@ -790,6 +802,8 @@ async function runTrackedSyncHappyPathTest() {
       }
     ]
   });
+  const marketplaceHttp = async () => { throw new Error('test fixture does not perform vendor HTTP'); };
+  context.http = marketplaceHttp;
   const runLogs = [];
   let processed = null;
 
@@ -858,6 +872,7 @@ async function runTrackedSyncHappyPathTest() {
     assert(runLogs.some((entry) => entry.includes('Lifecycle execution completed')), 'sync should log lifecycle completion');
     assert(fetchCalls.some((call) => call.url.endsWith('/oauth2/token')), 'sync should read Action1 credentials through Marketplace-owned Action1 auth');
     assert.strictEqual(syncProviderCalls.create.length > priorCreates, true, 'the isolated provider fixture should receive lifecycle CREATE operations');
+    assert(syncProviderCalls.transports.includes(marketplaceHttp), 'Sync forwards context.http through the lifecycle service to provider operations');
     assert(syncProviderCalls.connections.some((connection) => connection?.providerFixtureCredential === 'synthetic-run-secret'), 'provider operations should receive only the captured provider connection');
     assert.strictEqual(result.providerId, 'connectwise-psa', 'run result should include the captured active provider ID');
     assert.strictEqual(result.providerLabel, 'ConnectWise PSA', 'run result should include the static provider label');
@@ -1837,6 +1852,64 @@ async function runOfflineOnlyCollectionGatingTest() {
   });
 }
 
+async function runCompanyEligibilityIsolatedPerOrganizationTest() {
+  const context = createSyncContext({
+    mappings: [
+      { id: 11, action1OrgId: 'org-denied', action1OrgName: 'Denied Org', haloClientId: 'client-denied', haloClientName: 'Denied Co' },
+      { id: 12, action1OrgId: 'org-allowed', action1OrgName: 'Allowed Org', haloClientId: 'client-allowed', haloClientName: 'Allowed Co' }
+    ],
+    settings: {
+      TicketingOfflineEnabled: 'true', TicketingOfflineThresholdDays: '7', TicketingRebootRequiredEnabled: 'false',
+      TicketingAutomationFailedEnabled: 'false', TicketingVulnerabilityEnabled: 'false', TicketingVulnerabilitySeverities: '',
+      TicketingUpdateEnabled: 'false', TicketingUpdateSeverities: ''
+    }
+  });
+  syncTicketState.set('company-ineligible:client-denied', true);
+  const transportCalls = [];
+  try {
+    await withMockedFetch(async (url, options = {}) => {
+      const urlText = String(url);
+      transportCalls.push({ url: urlText, options });
+      const response = (payload) => ({ ok: true, status: 200, headers: { forEach(callback) { callback('application/json', 'content-type'); } }, text: async () => JSON.stringify(payload) });
+      if (urlText.endsWith('/oauth2/token')) return response({ access_token: 'action1-token', expires_in: 3600 });
+      if (urlText.includes('/endpoints/managed/org-denied')) return response({ items: [{ id: 'ep-denied', name: 'Denied Endpoint', last_seen: '2026-06-01_00-00-00' }], from: 0, total_items: 1 });
+      if (urlText.includes('/endpoints/managed/org-allowed')) return response({ items: [{ id: 'ep-allowed', name: 'Allowed Endpoint', last_seen: '2026-06-01_00-00-00' }], from: 0, total_items: 1 });
+      if (urlText.endsWith('/auth/token')) return response({ access_token: 'halo-token', token_type: 'Bearer' });
+      if (urlText.endsWith('/api/Tickets') && String(options.method || '').toUpperCase() === 'POST') return response([{ id: `ticket-${Math.random()}`, status_id: '3', status: 'Open', is_closed: false }]);
+      if (urlText.includes('/api/Tickets/')) return response({ id: 'ticket-existing', status_id: '3', status: 'Open', is_closed: false });
+      throw new Error(`Unexpected fetch ${urlText}`);
+    }, async () => {
+      const result = await runTicketingSync(context, { run: { async appendLog() {}, async setAssetsProcessed() {} } });
+      assert.strictEqual(result.summary.failed, 1, 'the ineligible organization is surfaced as one failure');
+      assert.strictEqual(result.summary.created, 1, 'the eligible organization continues and creates its ticket');
+      assert.strictEqual(result.collection.orgFailures, 1);
+      assert.match(result.details, /Denied Org: ConnectWise company eligibility could not be confirmed/);
+      assert.strictEqual(syncProviderCalls.prepare.at(-1).candidate.routing.action1OrgId, 'org-allowed', 'no destination create is attempted for the ineligible organization');
+      assert.strictEqual(context.state.endpoint.some((row) => String(row.org_link_id) === '11'), false, 'the skipped organization receives no correlation');
+      assert.strictEqual(context.state.endpoint.some((row) => String(row.org_link_id) === '12'), true, 'the eligible organization correlation is persisted');
+      assert.strictEqual(context.state.watermarks.some((row) => String(row.org_link_id) === '11'), false, 'the skipped organization watermark does not advance');
+    });
+  } finally {
+    syncTicketState.delete('company-ineligible:client-denied');
+  }
+}
+
+function runIneligibleOrganizationCheckpointFilterTest() {
+  const isolated = syncPrivate.filterIneligibleOrganizations(
+    [
+      { routing: { action1OrgId: 'org-denied' }, identity: { orgLinkId: 'link-denied' } },
+      { routing: { action1OrgId: 'org-allowed' }, identity: { orgLinkId: 'link-allowed' } }
+    ],
+    [
+      { action1OrgId: 'org-denied', orgLinkId: 'link-denied' },
+      { action1OrgId: 'org-allowed', orgLinkId: 'link-allowed' }
+    ],
+    new Set(['org-denied'])
+  );
+  assert.deepStrictEqual(isolated.candidates.map((row) => row.routing.action1OrgId), ['org-allowed']);
+  assert.deepStrictEqual(isolated.pendingWatermarks.map((row) => row.action1OrgId), ['org-allowed'], 'checkpoint persistence excludes only the skipped organization');
+}
+
 async function runPreCandidateSignalNotQualifiedDoesNotInflateFinalSkippedTest() {
   const fetchCalls = [];
   const runLogs = [];
@@ -2112,7 +2185,7 @@ async function runClosedLinkedTicketCreatesReplacementAndLaterRunsUseItTest() {
   });
 }
 
-async function runLifecycleFailurePreservesExistingCheckpointAdvancementTest() {
+async function runLifecycleFailureHoldsAutomationCheckpointTest() {
   const checkpointTime = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const context = createSyncContext({
     mappings: [{ id: 1, action1OrgId: 'org-1', action1OrgName: 'Org One', haloClientId: 'client-1', haloClientName: 'Client One' }],
@@ -2142,13 +2215,90 @@ async function runLifecycleFailurePreservesExistingCheckpointAdvancementTest() {
     }, async () => {
       const result = await runTicketingSync(context, { run: { async appendLog() {}, async setAssetsProcessed() {} } });
       assert.strictEqual(result.summary.failed, 1, 'a failed lifecycle create is reported');
-      assert.strictEqual(context.state.watermarks.length, 1, 'current sync behavior advances the staged automation checkpoint after lifecycle failure');
-      assert.strictEqual(context.state.watermarks[0].watermark_value, checkpointTime);
+      assert.strictEqual(context.state.watermarks.length, 0, 'failed automation ticket creation holds the staged organization checkpoint');
       assert.deepStrictEqual(destinationRequests, [], 'provider operations stay behind the injected in-memory dispatcher, without external destination requests');
     });
   } finally {
     syncTicketState.delete('connectwise-psa:create-error');
   }
+}
+
+async function runFailedAutomationUpdateHoldsCheckpointTest() {
+  const checkpointTime = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const context = createSyncContext({
+    mappings: [{ id: 1, action1OrgId: 'org-1', action1OrgName: 'Org One', haloClientId: 'client-1', haloClientName: 'Client One' }],
+    settings: {
+      TicketingOfflineEnabled: 'false', TicketingRebootRequiredEnabled: 'false',
+      TicketingAutomationFailedEnabled: 'true', TicketingAutomationFailedLookbackHours: '24',
+      TicketingAutomationFailedTicketModel: 'endpoint', TicketingVulnerabilityEnabled: 'false',
+      TicketingVulnerabilitySeverities: '', TicketingUpdateEnabled: 'false', TicketingUpdateSeverities: ''
+    }
+  });
+  primeSyncTicket('existing-automation-ticket', 'open');
+  context.state.endpoint.push({
+    provider_id: 'connectwise-psa', org_link_id: '1', endpoint_id: 'ep-1', signal_type: 'AUTOMATION_FAILED',
+    external_ticket_id: 'existing-automation-ticket', comparison_value: 'previous', comparison_version: 'sync-fixture-v1'
+  });
+  syncTicketState.set('connectwise-psa:update-error', Object.assign(new Error('synthetic provider update failure'), { code: 'SYNTHETIC_UPDATE_FAILURE' }));
+  try {
+    await withMockedFetch(async (url) => {
+      const urlText = String(url);
+      const response = (payload) => ({ ok: true, status: 200, headers: { forEach(callback) { callback('application/json', 'content-type'); } }, text: async () => JSON.stringify(payload) });
+      if (urlText.endsWith('/oauth2/token')) return response({ access_token: 'action1-token', expires_in: 3600 });
+      if (urlText.includes('/endpoints/managed/org-1')) return response({ items: [{ id: 'ep-1', name: 'Endpoint One' }], from: 0, total_items: 1 });
+      if (urlText.includes('/automations/instances/org-1?')) return response({ items: [{ id: 'inst-update', end_time: checkpointTime, name: 'Automation One' }], from: 0, total_items: 1 });
+      if (urlText.includes('/automations/instances/org-1/inst-update/endpoint-results')) return response({ items: [{ id: 'ep-1', status: 'Error', description: 'Updated failure detail' }], from: 0, total_items: 1 });
+      throw new Error(`Unexpected external request ${urlText}`);
+    }, async () => {
+      const result = await runTicketingSync(context, { run: { async appendLog() {}, async setAssetsProcessed() {} } });
+      assert.strictEqual(result.summary.failed, 1, 'failed existing-ticket update is reported');
+      assert.strictEqual(syncProviderCalls.update.length > 0, true, 'fixture exercised the existing-ticket UPDATE path');
+      assert.strictEqual(context.state.watermarks.length, 0, 'failed automation UPDATE does not advance its organization checkpoint');
+      assert.strictEqual(context.state.endpoint[0].comparison_value, 'previous', 'failed update leaves stored comparison state unchanged');
+    });
+  } finally {
+    syncTicketState.delete('connectwise-psa:update-error');
+    syncTicketState.delete('connectwise-psa:existing-automation-ticket');
+  }
+}
+
+function runAutomationCheckpointOutcomeIsolationTest() {
+  const pending = [
+    { orgLinkId: '1', action1OrgId: 'org-1', lastSeenAt: 't1' },
+    { orgLinkId: '2', action1OrgId: 'org-2', lastSeenAt: 't2' }
+  ];
+  const endpointCandidate = { identity: { orgLinkId: '1', endpointId: 'ep-1', signalType: 'AUTOMATION_FAILED', key: '1|ep-1|AUTOMATION_FAILED' }, signal: { type: 'AUTOMATION_FAILED' } };
+  const groupedCandidate = { ticketModel: 'grouped', identity: { orgLinkId: '2', signalType: 'AUTOMATION_FAILED', identityKey: '2|AUTOMATION_FAILED|inst-2' }, issueKey: 'inst-2', signal: { type: 'AUTOMATION_FAILED' } };
+  const candidateRows = [endpointCandidate, groupedCandidate];
+  const failedEndpoint = { results: [
+    { identityKey: '1|ep-1|AUTOMATION_FAILED', signalType: 'AUTOMATION_FAILED', action: 'ERROR', status: 'failed' },
+    { identityKey: '2|AUTOMATION_FAILED|inst-2', signalType: 'AUTOMATION_FAILED', action: 'CREATE', status: 'success' }
+  ] };
+  assert.deepStrictEqual(syncPrivate.filterPendingWatermarksByLifecycleOutcome(pending, candidateRows, failedEndpoint).map((row) => row.orgLinkId), ['2'], "failed individual automation item withholds only its organization's checkpoint");
+  const failedGrouped = { results: [
+    { identityKey: '1|ep-1|AUTOMATION_FAILED', signalType: 'AUTOMATION_FAILED', action: 'CREATE', status: 'success' },
+    { identityKey: '2|AUTOMATION_FAILED|inst-2', signalType: 'AUTOMATION_FAILED', action: 'ERROR', status: 'failed' }
+  ] };
+  assert.deepStrictEqual(syncPrivate.filterPendingWatermarksByLifecycleOutcome(pending, candidateRows, failedGrouped).map((row) => row.orgLinkId), ['1'], "failed grouped automation item withholds only its organization's checkpoint");
+  const successful = { results: [
+    { identityKey: '1|ep-1|AUTOMATION_FAILED', signalType: 'AUTOMATION_FAILED', action: 'CREATE', status: 'success' },
+    { identityKey: '2|AUTOMATION_FAILED|inst-2', signalType: 'AUTOMATION_FAILED', action: 'SKIP', status: 'skipped' }
+  ] };
+  assert.strictEqual(syncPrivate.filterPendingWatermarksByLifecycleOutcome(pending, candidateRows, successful).length, 2, 'successful grouped create and SKIP retain checkpoint advancement');
+  const failedUpdate = { results: [
+    { identityKey: '1|ep-1|AUTOMATION_FAILED', signalType: 'AUTOMATION_FAILED', action: 'ERROR', status: 'failed' },
+    { identityKey: '2|AUTOMATION_FAILED|inst-2', signalType: 'AUTOMATION_FAILED', action: 'UPDATE', status: 'success' }
+  ] };
+  assert.deepStrictEqual(syncPrivate.filterPendingWatermarksByLifecycleOutcome(pending, candidateRows, failedUpdate).map((row) => row.orgLinkId), ['2'], "failed automation UPDATE withholds only its organization's checkpoint");
+  assert.strictEqual(syncPrivate.filterPendingWatermarksByLifecycleOutcome(pending, candidateRows, { results: [] }).length, 0, 'missing lifecycle outcomes are treated as ambiguous and hold affected checkpoints');
+  assert.strictEqual(syncPrivate.filterPendingWatermarksByLifecycleOutcome(pending, candidateRows, { results: [{ signalType: 'AUTOMATION_FAILED', action: 'ERROR', status: 'failed' }] }).length, 0, 'unassociated failed automation result conservatively holds checkpoints');
+  const mixedSignals = { results: [
+    { identityKey: '1|ep-1|VULNERABILITY', signalType: 'VULNERABILITY', action: 'ERROR', status: 'failed' },
+    { identityKey: '2|AUTOMATION_FAILED|inst-2', signalType: 'AUTOMATION_FAILED', action: 'SKIP', status: 'skipped' }
+  ] };
+  assert.deepStrictEqual(syncPrivate.filterPendingWatermarksByLifecycleOutcome(pending, [
+    { identity: { orgLinkId: '1', endpointId: 'ep-1', signalType: 'VULNERABILITY', key: '1|ep-1|VULNERABILITY' } }, groupedCandidate
+  ], mixedSignals).map((row) => row.orgLinkId), ['1', '2'], 'non-automation ticket failures retain existing checkpoint behavior');
 }
 
 async function run() {
@@ -2185,10 +2335,14 @@ async function run() {
   await runProductionUnavailableProviderFailsNonEmptyRunTest();
   await runProviderConfigurationPreflightStopsBeforeCollectionTest();
   await runOfflineOnlyCollectionGatingTest();
+  await runCompanyEligibilityIsolatedPerOrganizationTest();
+  runIneligibleOrganizationCheckpointFilterTest();
   await runPreCandidateSignalNotQualifiedDoesNotInflateFinalSkippedTest();
   await runDeletedLinkedTicketIsRecreatedAndNotRecheckedTest();
   await runClosedLinkedTicketCreatesReplacementAndLaterRunsUseItTest();
-  await runLifecycleFailurePreservesExistingCheckpointAdvancementTest();
+  await runLifecycleFailureHoldsAutomationCheckpointTest();
+  await runFailedAutomationUpdateHoldsCheckpointTest();
+  runAutomationCheckpointOutcomeIsolationTest();
 }
 
 run().catch((error) => {
