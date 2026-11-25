@@ -248,7 +248,7 @@ async function runProductionRegistryHasNoFakeLifecycleAccessTest() {
   assert.strictEqual(fixture.context.db.calls.length, 0, 'invalid production provider operation fails before tracking persistence');
 }
 
-async function runConnectWiseLifecycleCreateSkipAndUnavailableUpdateTest() {
+async function runConnectWiseLifecycleCreateAndAppendUpdateTest() {
   const fixture = await createOwnedStores('connectwise-psa');
   const adapter = createConnectWiseAdapter({ clientId: 'synthetic-client-id' });
   const dispatcher = createProviderDispatcher({ 'connectwise-psa': { providerId: 'connectwise-psa', label: 'ConnectWise PSA', contractMajor: CONTRACT_MAJOR, adapter } });
@@ -259,21 +259,36 @@ async function runConnectWiseLifecycleCreateSkipAndUnavailableUpdateTest() {
     TicketingProvider_connectwise_psa_PrivateApiKey: 'private',
     TicketingProvider_connectwise_psa_ServiceBoardId: '1',
     TicketingProvider_connectwise_psa_InitialStatusId: '2',
-    TicketingProvider_connectwise_psa_TicketTypeId: '3'
+    TicketingProvider_connectwise_psa_TicketTypeId: '3',
+    TicketingProvider_connectwise_psa_TicketContentUpdateMode: 'append-new-note'
   };
   const requests = [];
+  const ticketSummaries = new Map();
+  const appendedNotes = [];
   let nextTicketId = 540;
   const transport = async (request) => {
     requests.push(request);
     const path = new URL(request.url).pathname;
     if (path.endsWith('/company/companies/statuses')) return { status: 200, data: [{ id: 5, disallowSavingFlag: false }] };
     if (path.endsWith('/company/companies/42')) return { status: 200, data: { id: 42, name: 'Synthetic Company', status: { id: 5 } } };
-    if (path.endsWith('/service/tickets') && request.method === 'POST') return { status: 201, data: { id: ++nextTicketId } };
-    if (/\/service\/tickets\/\d+$/.test(path)) return { status: 200, data: { id: Number(path.split('/').pop()), recordType: 'ServiceTicket', company: { id: 42 }, status: { id: 2 }, closedFlag: false } };
+    if (/\/service\/tickets\/\d+\/notes$/.test(path) && request.method === 'POST') {
+      appendedNotes.push(request.data);
+      return { status: 201, data: { id: 900 + appendedNotes.length, text: request.data.text, internalAnalysisFlag: true } };
+    }
+    if (path.endsWith('/service/tickets') && request.method === 'POST') {
+      const id = ++nextTicketId;
+      ticketSummaries.set(String(id), request.data.summary);
+      return { status: 201, data: { id } };
+    }
+    if (/\/service\/tickets\/\d+$/.test(path)) {
+      const id = path.split('/').pop();
+      if (request.method === 'PATCH') { ticketSummaries.set(id, request.data[0].value); return { status: 200, data: { id: Number(id), summary: ticketSummaries.get(id) } }; }
+      return { status: 200, data: { id: Number(id), recordType: 'ServiceTicket', summary: ticketSummaries.get(id), company: { id: 42 }, status: { id: 2 }, closedFlag: false } };
+    }
     throw new Error(`Unexpected synthetic ConnectWise request ${request.method} ${path}`);
   };
   const service = createLifecycleRunService({ providerDispatcher: dispatcher, providerId: 'connectwise-psa', connection, transport, correlationStore: fixture.correlations });
-  const work = candidate({ identity: { orgLinkId: String(fixture.mapping.id), signalType: 'AUTOMATION_FAILED', key: `${fixture.mapping.id}|ep-1|AUTOMATION_FAILED` }, routing: { action1OrgId: 'org-connectwise-psa', destinationId: '42' }, signal: { type: 'AUTOMATION_FAILED', reason: 'failed run' } });
+  const work = candidate({ identity: { orgLinkId: String(fixture.mapping.id), signalType: 'AUTOMATION_FAILED', key: `${fixture.mapping.id}|ep-1|AUTOMATION_FAILED` }, routing: { action1OrgId: 'org-connectwise-psa', destinationId: '42' }, signal: { type: 'AUTOMATION_FAILED', reason: 'failed run', matchedCount: 1, matchedItemsPreview: [{ instanceName: 'Deployment', failureTime: '2026-11-25T10:00:00Z', status: 'Failed', description: 'Initial failure' }] } });
   const created = await service.runOnce({ candidates: [work] });
   assert.strictEqual(created.summary.created, 1, 'shared lifecycle creates through the production ConnectWise adapter');
   assert.strictEqual(requests.filter((request) => request.method === 'POST').length, 1, 'lifecycle create uses a single destination POST');
@@ -292,7 +307,7 @@ async function runConnectWiseLifecycleCreateSkipAndUnavailableUpdateTest() {
       issueKey: 'inst-grouped',
       issueMetadata: { automationInstanceId: 'inst-grouped', automationName: 'Deployment' },
       impactedEndpointCount: 2,
-      impactedEndpoints: [{ endpointId: 'ep-1', endpointName: 'Host One' }, { endpointId: 'ep-2', endpointName: 'Host Two' }]
+      impactedEndpoints: [{ endpointId: 'ep-1', endpointName: 'Host One', description: 'Initial grouped failure' }, { endpointId: 'ep-2', endpointName: 'Host Two', description: 'Initial grouped failure' }]
     }
   };
   const groupedCreate = await service.runOnce({ candidates: [groupedWork] });
@@ -301,13 +316,20 @@ async function runConnectWiseLifecycleCreateSkipAndUnavailableUpdateTest() {
   assert.strictEqual(groupedStored.externalTicketRef.id, '542', 'grouped automation uses its existing automation-instance correlation identity');
   assert.strictEqual(groupedCreate.results[0].identityKey, `${fixture.mapping.id}|AUTOMATION_FAILED|inst-grouped`);
   const postCountBeforeUpdate = requests.filter((request) => request.method === 'POST').length;
-  const changed = { ...work, signal: { ...work.signal, reason: 'changed failure detail' } };
+  const changed = { ...work, endpoint: { ...work.endpoint, name: 'Host 1 Updated' } };
   const update = await service.runOnce({ candidates: [changed] });
-  assert.strictEqual(update.summary.failed, 1, 'changed open ticket fails safely while ConnectWise update remains unavailable');
-  assert.strictEqual(requests.filter((request) => request.method === 'POST').length, postCountBeforeUpdate, 'unimplemented update never falls back to a create');
-  const retained = await fixture.correlations.getEndpointCorrelation(String(fixture.mapping.id), 'ep-1', 'AUTOMATION_FAILED');
-  assert.strictEqual(retained.externalTicketRef.id, '541');
-  assert.strictEqual(retained.comparisonValue, stored.comparisonValue, 'failed update does not advance shared comparison state');
+  assert.strictEqual(update.summary.updated, 1, `individual AUTOMATION_FAILED updates append through the shared lifecycle: ${JSON.stringify(update.results)}`);
+  assert.strictEqual(requests.filter((request) => request.method === 'POST' && /\/service\/tickets$/.test(new URL(request.url).pathname)).length, postCountBeforeUpdate, 'Append updates do not create replacement tickets');
+  assert.strictEqual(appendedNotes.length, 1);
+  assert.deepStrictEqual(Object.keys(appendedNotes[0]).sort(), ['internalAnalysisFlag', 'text']);
+  assert.strictEqual(appendedNotes[0].internalAnalysisFlag, true);
+  const updatedStored = await fixture.correlations.getEndpointCorrelation(String(fixture.mapping.id), 'ep-1', 'AUTOMATION_FAILED');
+  assert.notStrictEqual(updatedStored.comparisonValue, stored.comparisonValue, 'comparison advances after successful Summary/Note writes');
+  const changedGrouped = { ...groupedWork, grouped: { ...groupedWork.grouped, issueMetadata: { ...groupedWork.grouped.issueMetadata, automationName: 'Deployment Updated' } } };
+  const groupedUpdate = await service.runOnce({ candidates: [changedGrouped] });
+  assert.strictEqual(groupedUpdate.summary.updated, 1, 'grouped AUTOMATION_FAILED updates append through the same adapter operation');
+  assert.strictEqual(appendedNotes.length, 2);
+  assert.strictEqual(requests.some((request) => request.method === 'GET' && /\/service\/tickets\/\d+\/notes$/.test(new URL(request.url).pathname)), false, 'Append does not read existing notes');
 }
 
 async function runProviderIsolationTest() {
@@ -409,7 +431,7 @@ async function run() {
   await runUnknownReadPreservesTrackingTest();
   await runMalformedReadPreservesTrackingTest();
   await runProductionRegistryHasNoFakeLifecycleAccessTest();
-  await runConnectWiseLifecycleCreateSkipAndUnavailableUpdateTest();
+  await runConnectWiseLifecycleCreateAndAppendUpdateTest();
   await runProviderIsolationTest();
   await runGroupedFamilyAndCapIsolationTest();
   await runBestEffortCapReadFailureCharacterizationTest();

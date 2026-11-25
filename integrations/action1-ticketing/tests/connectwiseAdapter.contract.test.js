@@ -46,13 +46,8 @@ async function run() {
 
   const incomplete = await adapter.validateConfiguration({ input: { mode: 'full-provider', settings: createConnection() } });
   assert.strictEqual(incomplete.ok, false, 'routing is not implemented in Slice 7.1');
-  const neverCalled = async () => { throw new Error('must not issue destination requests'); };
   const discovered = await adapter.discover({ input: { kind: 'service-boards' }, connection: createConnection(), transport: probeTransport });
   assert(Array.isArray(discovered.options));
-  for (const operation of ['updateTicket']) {
-    await assert.rejects(() => adapter[operation]({ input: {}, transport: neverCalled }), (error) => error.code === 'CONNECTWISE_OPERATION_NOT_IMPLEMENTED');
-    await assert.rejects(() => productionDispatcher.invoke({ providerId: 'connectwise-psa', operation, input: {}, transport: neverCalled }), (error) => error.code === 'CONNECTWISE_OPERATION_NOT_IMPLEMENTED');
-  }
 
   const cwConnection = {
     ...createConnection(),

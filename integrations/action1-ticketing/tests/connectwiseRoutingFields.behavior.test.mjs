@@ -17,6 +17,12 @@ try {
   assert.match(html, /Ticket Type \*/);
   assert.match(html, /multiple/);
   assert.match(html, /disabled/);
+  assert.match(html, /Ticket Content Update Mode/);
+  assert.match(html, /Replace Original Description/);
+  assert.match(html, /Append New Note/);
+  assert.match(html, /Internal Note/);
+  assert.match(html, /ConnectWise technicians/);
+  assert.match(html, /Customer Portal visibility is not verified/);
   const configured = renderToStaticMarkup(createElement(RoutingFields, {
     settings: {
       TicketingProvider_connectwise_psa_ServiceBoardId: '10',
@@ -34,6 +40,12 @@ try {
   assert.match(configured, /Stale Initial/);
   assert.match(configured, /Stale Resolved/);
   assert.doesNotMatch(configured, /Native Closed/);
+  const appendSelected = renderToStaticMarkup(createElement(RoutingFields, {
+    settings: { TicketingProvider_connectwise_psa_TicketContentUpdateMode: 'append-new-note' },
+    setSettings() {}, discoveryState: { loading: false, loaded: false, data: { optionsByKind: {} } }
+  }));
+  assert.match(appendSelected, /Append New Note/);
+  assert.match(appendSelected, /checked/);
   const routing = {
     TicketingProvider_connectwise_psa_ServiceBoardId: '10', TicketingProvider_connectwise_psa_InitialStatusId: '20',
     TicketingProvider_connectwise_psa_TicketTypeId: '30', TicketingProvider_connectwise_psa_TicketSubtypeId: '31',

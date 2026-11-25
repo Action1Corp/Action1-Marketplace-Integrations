@@ -215,8 +215,128 @@ function createConnectWiseAdapter({ clientId = CONNECTWISE_CLIENT_ID, api = crea
     }
   };
 
+  const updateTicket = async ({ input = {}, connection = {}, transport } = {}) => {
+    const mode = setting(connection, 'TicketContentUpdateMode') || 'replace-original-description';
+    if (!['replace-original-description', 'append-new-note'].includes(mode)) throw safeError('CONNECTWISE_CONTENT_MODE_INVALID', 'The saved ConnectWise ticket content update mode is invalid. Review Settings before updating tickets.');
+
+    const ticketId = String(input.externalTicketRef?.id || '').trim();
+    const expectedCompany = String(input.expectedRoute?.destinationId || input.expectedRoute?.haloClientId || input.expectedRoute?.companyId || '').trim();
+    const prepared = input.preparedTicket;
+    if (!/^[1-9]\d{0,15}$/.test(ticketId) || !Number.isSafeInteger(Number(ticketId)) || !/^[1-9]\d{0,15}$/.test(expectedCompany) || !Number.isSafeInteger(Number(expectedCompany))
+      || !prepared || typeof prepared !== 'object'
+      || typeof prepared.summary !== 'string' || !prepared.summary.trim() || [...prepared.summary].length > 100
+      || typeof prepared.initialDescription !== 'string'
+      || !Number.isSafeInteger(Number(prepared.company?.id)) || Number(prepared.company.id) <= 0
+      || String(prepared.company.id) !== expectedCompany) {
+      throw safeError('CONNECTWISE_UPDATE_INPUT_INVALID', 'The ConnectWise ticket update request is incomplete or does not match the mapped company.');
+    }
+
+    const ticketResponse = await api.request({ transport, connection, path: `/service/tickets/${encodeURIComponent(ticketId)}`, query: { fields: 'id,recordType,summary,company/id,status/id,closedFlag' } });
+    const ticket = ticketResponse.data;
+    if (!ticket || Array.isArray(ticket) || String(ticket.id) !== ticketId || ticket.recordType !== 'ServiceTicket'
+      || typeof ticket.summary !== 'string' || [...ticket.summary].length > 100
+      || !ticket.company || !ticket.status || typeof ticket.closedFlag !== 'boolean' || !String(ticket.status.id ?? '').trim()) {
+      throw safeError('CONNECTWISE_TICKET_STATE_UNKNOWN', 'ConnectWise returned an incomplete or unsupported ticket record.');
+    }
+    if (String(ticket.company.id) !== expectedCompany) throw safeError('CONNECTWISE_TICKET_OWNERSHIP_MISMATCH', 'The linked ticket does not belong to the currently mapped company.');
+    const statusId = String(ticket.status.id);
+    const closedStatusIds = String(setting(connection, 'AdditionalClosedStatusIds') || '').split(',').map((id) => id.trim()).filter(Boolean);
+    if (ticket.closedFlag === true || closedStatusIds.includes(statusId)) throw safeError('CONNECTWISE_TICKET_CLOSED', 'The linked ConnectWise ticket is now closed or resolved and was not updated.');
+
+    const eligibility = await companyEligibility(api, transport, connection, expectedCompany);
+    if (!eligibility.eligible) throw safeError('CONNECTWISE_COMPANY_INELIGIBLE', eligibility.reason || 'The mapped company cannot receive tickets.');
+
+    if (mode === 'replace-original-description') {
+      const notes = await readAllTicketNotes(api, transport, connection, ticketId);
+      const descriptionNotes = notes.filter((item) => item?.detailDescriptionFlag === true);
+      if (descriptionNotes.length !== 1 || !Number.isSafeInteger(Number(descriptionNotes[0]?.id)) || Number(descriptionNotes[0].id) <= 0 || typeof descriptionNotes[0].text !== 'string') {
+        throw safeError('CONNECTWISE_DESCRIPTION_NOTE_AMBIGUOUS', 'The original ConnectWise description could not be identified uniquely. No ticket content was changed.');
+      }
+
+      if (ticket.summary !== prepared.summary) {
+        await writeConnectWisePatch(api, transport, connection, `/service/tickets/${encodeURIComponent(ticketId)}`, [{ op: 'replace', path: 'summary', value: prepared.summary }], (data) => data && !Array.isArray(data) && String(data.id) === ticketId && data.summary === prepared.summary);
+      }
+      if (descriptionNotes[0].text !== prepared.initialDescription) {
+        const noteId = String(descriptionNotes[0].id);
+        await writeConnectWisePatch(api, transport, connection, `/service/tickets/${encodeURIComponent(ticketId)}/notes/${encodeURIComponent(noteId)}`, [{ op: 'replace', path: 'text', value: prepared.initialDescription }], (data) => data && !Array.isArray(data) && String(data.id) === noteId && data.text === prepared.initialDescription);
+      }
+      return { ok: true };
+    }
+
+    if (ticket.summary !== prepared.summary) {
+      await writeConnectWisePatch(api, transport, connection, `/service/tickets/${encodeURIComponent(ticketId)}`, [{ op: 'replace', path: 'summary', value: prepared.summary }], (data) => data && !Array.isArray(data) && String(data.id) === ticketId && data.summary === prepared.summary);
+    }
+    await writeConnectWiseNotePost(api, transport, connection, `/service/tickets/${encodeURIComponent(ticketId)}/notes`, {
+      text: prepared.initialDescription,
+      internalAnalysisFlag: true
+    }, (data) => data && !Array.isArray(data) && Number.isSafeInteger(Number(data.id)) && Number(data.id) > 0
+      && data.text === prepared.initialDescription && data.internalAnalysisFlag === true);
+    return { ok: true };
+  };
+
   const notImplemented = async () => { throw safeError('CONNECTWISE_OPERATION_NOT_IMPLEMENTED', 'This ConnectWise operation is not implemented in this release.'); };
-  return Object.freeze({ validateConfiguration, testConnection, discover, prepareTicket, getTicket, createTicket, updateTicket: notImplemented });
+  return Object.freeze({ validateConfiguration, testConnection, discover, prepareTicket, getTicket, createTicket, updateTicket });
+}
+
+async function readAllTicketNotes(api, transport, connection, ticketId) {
+  const notes = [];
+  const seen = new Set();
+  let query = { pageSize: 1000 };
+  let forwardOnly = false;
+  for (let page = 0; page < 20; page += 1) {
+    const response = await api.request({
+      transport, connection, path: `/service/tickets/${encodeURIComponent(ticketId)}/notes`,
+      query, ...(forwardOnly ? { headers: { 'pagination-type': 'forward-only' } } : {})
+    });
+    if (!Array.isArray(response.data)) throw safeError('CONNECTWISE_NOTES_RESPONSE_INVALID', 'ConnectWise returned an incomplete ticket notes response.');
+    notes.push(...response.data);
+    const next = parseNotesNextPage(response.headers);
+    if (!next.hasNext) return notes;
+    if (!next.cursor || seen.has(next.cursor)) throw safeError('CONNECTWISE_NOTES_PAGINATION_INVALID', 'ConnectWise ticket notes could not be read completely. No ticket content was changed.');
+    seen.add(next.cursor);
+    forwardOnly = next.kind === 'pageId';
+    query = { pageSize: 1000, [next.kind]: next.cursor };
+  }
+  throw safeError('CONNECTWISE_NOTES_PAGINATION_LIMIT', 'ConnectWise returned too many ticket note pages to verify safely. No ticket content was changed.');
+}
+
+function parseNotesNextPage(headers = {}) {
+  const link = headers?.get?.('link') || headers?.link || headers?.Link || '';
+  const text = Array.isArray(link) ? link.join(',') : String(link);
+  const next = text.split(/,(?=\s*<)/).find((part) => /rel\s*=\s*["']?next/i.test(part));
+  if (!next) return { hasNext: false, kind: null, cursor: null };
+  const target = next.match(/<([^>]+)>/)?.[1];
+  if (!target) return { hasNext: true, kind: null, cursor: null };
+  try {
+    const url = new URL(target, 'https://connectwise.invalid');
+    const pageId = url.searchParams.get('pageId');
+    const page = url.searchParams.get('page');
+    const cursor = pageId || page;
+    if (!cursor || cursor.length > 1024 || /[\u0000-\u001f\u007f]/.test(cursor) || (page && (!/^\d+$/.test(page) || Number(page) < 1))) return { hasNext: true, kind: null, cursor: null };
+    return { hasNext: true, kind: pageId ? 'pageId' : 'page', cursor };
+  } catch { return { hasNext: true, kind: null, cursor: null }; }
+}
+
+async function writeConnectWisePatch(api, transport, connection, path, body, isConfirmed) {
+  try {
+    const response = await api.request({ transport, connection, method: 'PATCH', path, body });
+    if (!isConfirmed(response.data)) throw safeError('CONNECTWISE_UPDATE_RESULT_AMBIGUOUS', 'ConnectWise did not confirm the ticket content update.', response.statusCode, true);
+  } catch (error) {
+    if (error.ambiguous) throw error;
+    if (!error.statusCode || error.statusCode >= 500) throw safeError(error.code || 'CONNECTWISE_UPDATE_OUTCOME_AMBIGUOUS', 'ConnectWise could not confirm the ticket content update. The next Sync will re-read the ticket before retrying.', error.statusCode, true);
+    throw error;
+  }
+}
+
+async function writeConnectWiseNotePost(api, transport, connection, path, body, isConfirmed) {
+  try {
+    const response = await api.request({ transport, connection, method: 'POST', path, body });
+    if (!isConfirmed(response.data)) throw safeError('CONNECTWISE_NOTE_POST_RESULT_UNCONFIRMED', 'ConnectWise did not confirm the Internal Note update.', response.statusCode, true);
+  } catch (error) {
+    if (error.ambiguous) throw error;
+    if (!error.statusCode || error.statusCode >= 500) throw safeError(error.code || 'CONNECTWISE_NOTE_POST_OUTCOME_AMBIGUOUS', 'ConnectWise could not confirm the Internal Note update. A later Sync may create the note.', error.statusCode, true);
+    throw error;
+  }
 }
 
 function truncateCodePoints(value, max) { return [...value].slice(0, max).join(''); }

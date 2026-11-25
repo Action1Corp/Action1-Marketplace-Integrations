@@ -58,8 +58,12 @@ async function run() {
   assert.deepStrictEqual(getOwnedSettingKeys(providerId).sort(), [
     key('ApiRegion'), key('CustomServer'), key('CompanyId'), key('PublicApiKey'), key('PrivateApiKey'),
     key('ServiceBoardId'), key('InitialStatusId'), key('TicketTypeId'), key('TicketSubtypeId'), key('TicketItemId'),
-    key('PriorityId'), key('SourceId'), key('AdditionalClosedStatusIds')
+    key('PriorityId'), key('SourceId'), key('AdditionalClosedStatusIds'), key('TicketContentUpdateMode')
   ].sort());
+  const contentMode = definition.fields.find((field) => field.key === 'TicketContentUpdateMode');
+  assert.strictEqual(contentMode.defaultValue, 'replace-original-description');
+  assert.deepStrictEqual(contentMode.options.map((option) => option.value), ['replace-original-description', 'append-new-note']);
+  assert.strictEqual(settingsSchema.find((field) => field.key === key('TicketContentUpdateMode'))?.visible, false);
   assert.strictEqual(definition.fields.find((field) => field.key === 'PrivateApiKey').type, 'secret');
   assert(!definition.fields.some((field) => /client.?id/i.test(field.key)));
   assert(!definition.accountSelectors.includes('ApiRegion'));
@@ -79,6 +83,13 @@ async function run() {
   assert.strictEqual(save.ok, true);
   assert(!retained.writes.some(([name]) => name === key('PrivateApiKey')));
   assert(!JSON.stringify(save).includes('saved-private-key'));
+
+  const modeContext = makeContext();
+  const savedAppend = await saveProviderSettings(modeContext, { providerId, settings: { ...valid, [key('TicketContentUpdateMode')]: 'append-new-note' } });
+  assert.strictEqual(savedAppend.ok, true, 'Append mode can be saved before its write behavior is available');
+  assert.strictEqual(modeContext.values[key('TicketContentUpdateMode')], 'append-new-note');
+  const invalidMode = await saveProviderSettings(makeContext(), { providerId, settings: { ...valid, [key('TicketContentUpdateMode')]: 'silent-fallback' } });
+  assert.strictEqual(invalidMode.ok, false, 'unsupported update modes are rejected');
 
   const rejected = makeContext();
   const invalidSave = await saveProviderSettings(rejected, { providerId, settings: {

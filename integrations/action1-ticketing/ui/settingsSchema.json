@@ -328,5 +328,16 @@
     "label": "ConnectWise Additional Closed Statuses",
     "type": "text",
     "visible": false
+  },
+  {
+    "key": "TicketingProvider_connectwise_psa_TicketContentUpdateMode",
+    "label": "ConnectWise Ticket Content Update Mode",
+    "type": "select",
+    "defaultValue": "replace-original-description",
+    "visible": false,
+    "options": [
+      { "value": "replace-original-description", "label": "Replace Original Description" },
+      { "value": "append-new-note", "label": "Append New Note" }
+    ]
   }
 ]

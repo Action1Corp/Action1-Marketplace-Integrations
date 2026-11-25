@@ -27,7 +27,11 @@ const CONNECTWISE_FIELDS = Object.freeze([
   { key: 'TicketItemId', label: 'Ticket Item', type: 'text', required: false },
   { key: 'PriorityId', label: 'Priority', type: 'text', required: false },
   { key: 'SourceId', label: 'Source', type: 'text', required: false },
-  { key: 'AdditionalClosedStatusIds', label: 'Additional Closed/Resolved Statuses', type: 'text', required: false }
+  { key: 'AdditionalClosedStatusIds', label: 'Additional Closed/Resolved Statuses', type: 'text', required: false },
+  { key: 'TicketContentUpdateMode', label: 'Ticket Content Update Mode', type: 'select', required: false, defaultValue: 'replace-original-description', options: [
+    { value: 'replace-original-description', label: 'Replace Original Description' },
+    { value: 'append-new-note', label: 'Append New Note' }
+  ] }
 ]);
 const PROVIDER_UI_DEFINITIONS = Object.freeze({
   [INITIAL_PROVIDER_ID]: Object.freeze({

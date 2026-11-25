@@ -23,7 +23,8 @@ const CONNECTWISE_ROUTING_SETTING_KEYS = Object.freeze([
   'TicketingProvider_connectwise_psa_ServiceBoardId', 'TicketingProvider_connectwise_psa_InitialStatusId',
   'TicketingProvider_connectwise_psa_TicketTypeId', 'TicketingProvider_connectwise_psa_TicketSubtypeId',
   'TicketingProvider_connectwise_psa_TicketItemId', 'TicketingProvider_connectwise_psa_PriorityId',
-  'TicketingProvider_connectwise_psa_SourceId', 'TicketingProvider_connectwise_psa_AdditionalClosedStatusIds'
+  'TicketingProvider_connectwise_psa_SourceId', 'TicketingProvider_connectwise_psa_AdditionalClosedStatusIds',
+  'TicketingProvider_connectwise_psa_TicketContentUpdateMode'
 ]);
 
 const CONNECTWISE = Object.freeze({

@@ -10,7 +10,7 @@ const fields = [
   ['PriorityId', 'Priority', 'priorities', false],
   ['SourceId', 'Source', 'sources', false]
 ];
-const valueOf = (settings, field) => String(settings?.[`${PREFIX}${field}`] || '');
+const valueOf = (settings, field) => String(settings?.[`${PREFIX}${field}`] || (field === 'TicketContentUpdateMode' ? 'replace-original-description' : ''));
 
 export function compatibleOptions(associations, typeId, subtypeId, kind) {
   const rows = (Array.isArray(associations) ? associations : []).map((option) => option.metadata || {});
@@ -126,6 +126,23 @@ export default function ConnectWiseRoutingFields({ settings = {}, setSettings, d
         {optionsFor(null, 'board-statuses').map((option) => <option key={option.id} value={option.id} disabled={option.metadata?.inactive === true && !valueOf(settings, 'AdditionalClosedStatusIds').split(',').includes(String(option.id))}>{option.label}</option>)}
       </select>
     </label>
+    <fieldset style={{ border: 0, padding: 0, margin: '0.75rem 0' }}>
+      <legend>Ticket Content Update Mode</legend>
+      {[
+        ['replace-original-description', 'Replace Original Description'],
+        ['append-new-note', 'Append New Note']
+      ].map(([value, label]) => <label key={value} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', margin: '0.5rem 0' }}>
+        <input
+          type="radio"
+          name="connectwise-ticket-content-update-mode"
+          value={value}
+          checked={valueOf(settings, 'TicketContentUpdateMode') === value}
+          onChange={() => setSettings({ ...settings, [`${PREFIX}TicketContentUpdateMode`]: value })}
+        />
+        {label}
+      </label>)}
+      <small>Append New Note adds an Internal Note visible to ConnectWise technicians. Customer Portal visibility is not verified.</small>
+    </fieldset>
     {discoveryState.error ? <p role="alert">{discoveryState.error}</p> : null}
     {discoveryState.loading ? <p role="status">Loading ConnectWise options…</p> : null}
     <button className="btn-secondary" type="button" onClick={() => onRefresh?.(settings)} disabled={discoveryState.loading}>Refresh Ticket Configuration</button>

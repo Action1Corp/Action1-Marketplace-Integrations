@@ -43,6 +43,9 @@ function createLifecycleWriteOrchestrator(deps = {}) {
       providerId,
       externalTicketRef,
       expectedRoute: candidate.routing || {},
+      connection: deps.connection,
+      transport: deps.transport,
+      logger: deps.logger,
       readStats: input.readStats
     });
 
@@ -186,7 +189,10 @@ async function resolveLinkedTicket(input) {
   const ticket = await input.providerDispatcher.invoke({
     providerId: input.providerId,
     operation: 'getTicket',
-    input: { externalTicketRef: input.externalTicketRef, expectedRoute: input.expectedRoute }
+    input: { externalTicketRef: input.externalTicketRef, expectedRoute: input.expectedRoute },
+    ...(input.connection === undefined ? {} : { connection: input.connection }),
+    ...(input.transport === undefined ? {} : { transport: input.transport }),
+    ...(input.logger === undefined ? {} : { logger: input.logger })
   });
   if (ticket.state === 'missing' && ticket.confirmed === true) return { state: LINKED_TICKET_STATES.MISSING, externalTicketRef: input.externalTicketRef };
   if (ticket.state === 'found' && ['open', 'closed'].includes(ticket.openState)) {
