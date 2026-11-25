@@ -45,6 +45,7 @@ function run() {
   assert(source.includes("setSavedSettingsSnapshot(settings);"), 'Settings.jsx should preserve a saved settings snapshot for cancel/revert behavior');
   assert(source.includes("setSettings(savedSettingsSnapshot);"), 'Settings.jsx should restore the saved connection values when canceling edits');
   assert(source.includes("validating ? 'Testing connection...' : 'Test Connection'"), 'Settings.jsx should expose standalone-style connection re-validation controls');
+  assert(source.includes('body: JSON.stringify({ settings: buildActionPayload(settings), payload: { providerId: viewedProviderId } })'), 'Test Connection must forward providerId in the Marketplace handler payload envelope');
   assert(source.includes('Ticket Routing &amp; Lifecycle'), 'Settings.jsx should render the combined Ticket Routing & Lifecycle section title');
   assert(source.includes('Signal Filters'), 'Settings.jsx should render one visible Signal Filters section');
   assert(source.includes("if (groupName === 'Lifecycle') {\n            const lifecycleSetting"), 'Settings.jsx should keep lifecycle policy in the shared Ticket Routing & Lifecycle section');

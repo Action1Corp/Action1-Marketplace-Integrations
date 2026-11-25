@@ -512,7 +512,7 @@ function Settings({ integration }) {
       const response = await fetch(`/api/integrations/${integration}/actions/validate-configuration`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ providerId: viewedProviderId, settings: buildActionPayload(settings) })
+        body: JSON.stringify({ settings: buildActionPayload(settings), payload: { providerId: viewedProviderId } })
       });
       const data = await response.json();
       if (isCurrentProviderRequest(requestIdentity, { providerId: viewedProviderRef.current, generation: requestGeneration.current, settingsFingerprint: JSON.stringify(settingsRef.current) })) setValidationResult(data);

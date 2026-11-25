@@ -40,6 +40,34 @@ async function run() {
   assert.strictEqual(incomplete.ok, false);
   assert(incomplete.message.includes('required'));
   assert.strictEqual(httpCalls, 0, 'incomplete connection settings fail before read-only probes');
+
+  const connectWiseHttpCalls = [];
+  const connectWiseContext = {
+    settings: { async get() { return ''; }, async set() { throw new Error('Test Connection must not save settings'); } },
+    http: async (request) => {
+      connectWiseHttpCalls.push(request);
+      const path = new URL(request.url).pathname;
+      if (path.endsWith('/system/info')) return { status: 200, data: { version: 'synthetic' } };
+      if (path.endsWith('/service/boards') || path.endsWith('/company/companies')) return { status: 200, data: [] };
+      throw new Error(`Unexpected synthetic request ${request.method} ${path}`);
+    }
+  };
+  const uiActionBody = {
+    settings: {
+      TicketingProvider_connectwise_psa_ApiRegion: 'NA',
+      TicketingProvider_connectwise_psa_CompanyId: 'synthetic-company',
+      TicketingProvider_connectwise_psa_PublicApiKey: 'synthetic-public-key',
+      TicketingProvider_connectwise_psa_PrivateApiKey: 'synthetic-private-key'
+    },
+    payload: { providerId: 'connectwise-psa' }
+  };
+  // Mirrors backend/server.js: the host forwards only body.settings and body.payload.
+  const connectWiseResult = await actions['validate-configuration'](connectWiseContext, {
+    settings: uiActionBody.settings,
+    payload: uiActionBody.payload || {}
+  });
+  assert.strictEqual(connectWiseResult.ok, true, 'Marketplace handler request reaches ConnectWise Test Connection using its actual settings/payload envelope');
+  assert.deepStrictEqual(connectWiseHttpCalls.map((request) => new URL(request.url).pathname.slice(new URL(request.url).pathname.indexOf('/apis/3.0') + 9)), ['/system/info', '/service/boards', '/company/companies']);
 }
 
 run().catch((error) => { console.error(error); process.exit(1); });

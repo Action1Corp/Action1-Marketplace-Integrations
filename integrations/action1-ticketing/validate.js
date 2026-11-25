@@ -4,13 +4,18 @@ const { PROVIDER_UI_DEFINITIONS, buildProviderSettingKey, readSettings } = requi
 async function validate(context, request = {}, dependencies = {}) {
   const dispatcher = dependencies.dispatcher || createProviderDispatcher(dependencies.registry);
   const definitions = dependencies.definitions || PROVIDER_UI_DEFINITIONS;
-  const providerId = String(request.providerId || '').trim();
+  const payload = request.payload && typeof request.payload === 'object' && !Array.isArray(request.payload) ? request.payload : {};
+  const providerId = String(request.providerId || payload.providerId || '').trim();
   const definition = definitions[providerId];
   if (!definition || definition.available !== true) {
     return { ok: false, message: 'The requested ticketing system is not available in this version.' };
   }
 
-  const draft = request.settings && typeof request.settings === 'object' ? request.settings : {};
+  const draft = request.settings && typeof request.settings === 'object'
+    ? request.settings
+    : payload.settings && typeof payload.settings === 'object'
+      ? payload.settings
+      : {};
   const keys = definition.fields.map((field) => buildProviderSettingKey(providerId, field.key));
   const saved = await readSettings(context, keys);
   const effective = {};
